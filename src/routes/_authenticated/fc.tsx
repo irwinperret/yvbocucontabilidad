@@ -34,13 +34,30 @@ function FCPage() {
   });
 
   const { data: rows } = useQuery({
-    queryKey: ["fc-rows", anio, centro, incluirOff],
+    queryKey: ["fc-rows", anio, centro, incluirOff, cuentaBancariaId],
     queryFn: async () => {
+      if (cuentaBancariaId !== "todas") {
+        // Query transacciones directly when filtering by bank account
+        let q = supabase.from("transacciones").select("fecha, cuenta_codigo, centro_costo, modo, monto_usd")
+          .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`)
+          .eq("cuenta_bancaria_id" as any, cuentaBancariaId);
+        if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
+        if (!incluirOff) q = q.eq("modo", "on_balance");
+        const { data } = await q;
+        const map = new Map<string, Row>();
+        for (const t of (data ?? []) as any[]) {
+          const d = new Date(t.fecha);
+          const k = `${d.getFullYear()}-${d.getMonth()+1}-${t.cuenta_codigo}-${t.centro_costo}-${t.modo}`;
+          const existing = map.get(k);
+          if (existing) existing.total_usd += Number(t.monto_usd || 0);
+          else map.set(k, { anio: d.getFullYear(), mes: d.getMonth()+1, cuenta_codigo: t.cuenta_codigo, centro_costo: t.centro_costo, modo: t.modo, total_usd: Number(t.monto_usd || 0) });
+        }
+        return Array.from(map.values());
+      }
       let q = supabase.from("v_transacciones_mensual").select("*").eq("anio", anio);
       if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
       if (!incluirOff) q = q.eq("modo", "on_balance");
       const { data } = await q;
-      // Excluir pendientes: si metodo_pago = pendiente — esa info no está en la vista. Aproximación: ya excluimos por afecta_fc en cuentas.
       return (data ?? []) as Row[];
     },
   });
@@ -57,6 +74,17 @@ function FCPage() {
           <div><Label className="text-xs">Año</Label><Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}><SelectTrigger className="w-24"><SelectValue /></SelectTrigger><SelectContent>{[2024,2025,2026,2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></div>
           <div><Label className="text-xs">Centro de costo</Label><Select value={centro} onValueChange={setCentro}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Consolidado">Consolidado</SelectItem>{CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
           <div className="flex items-center gap-2"><Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="off" /><Label htmlFor="off" className="text-xs">Incluir off-balance</Label></div>
+          <div><Label className="text-xs">Cuenta bancaria</Label>
+            <Select value={cuentaBancariaId} onValueChange={setCuentaBancariaId}>
+              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas las cuentas</SelectItem>
+                {(bancos ?? []).map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.nombre} — {b.banco} ({b.moneda})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
