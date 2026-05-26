@@ -331,13 +331,7 @@ function GastosForm() {
             </Select>
           </div>
           <div className="md:col-span-2">
-            <Label>Proveedor</Label>
-            <Select value={terceroId} onValueChange={setTerceroId}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                {terceros?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.tipo_rif}-{t.rif} · {t.razon_social}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <TerceroSelect value={terceroId} onChange={setTerceroId} terceros={(terceros ?? []) as any} />
           </div>
           <div className="md:col-span-2">
             <Label>Cuenta contable</Label>
