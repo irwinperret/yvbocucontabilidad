@@ -435,6 +435,7 @@ function NominaForm() {
   const [empleados, setEmpleados] = useState("");
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
@@ -457,6 +458,7 @@ function NominaForm() {
       metodo_pago: esProvision ? "pendiente" : (metodo as any),
       notas: notas || (empleados ? `Empleados: ${empleados}` : null),
       modo: offBalance ? "off_balance" : "on_balance",
+      cuenta_bancaria_id: !esProvision && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
@@ -506,13 +508,18 @@ function NominaForm() {
             <span className="text-lg font-bold mono">{fmtUsd(usd)}</span>
           </div>
           {!esProvision && (
-            <div>
-              <Label>Método de pago</Label>
-              <Select value={metodo} onValueChange={setMetodo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+            <>
+              <div>
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+              </div>
+            </>
           )}
           <div><Label>N° empleados</Label><Input type="number" value={empleados} onChange={(e) => setEmpleados(e.target.value)} /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
