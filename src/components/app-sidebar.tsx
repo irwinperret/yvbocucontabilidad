@@ -83,12 +83,15 @@ export function AppSidebar() {
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => setGestionOpen((v) => !v)} className="flex items-center gap-2">
+                    <SidebarMenuButton
+                      onClick={() => setGestionOpen((v) => !v)}
+                      className="flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary/20 font-semibold ring-1 ring-primary/30"
+                    >
                       <Settings className="h-4 w-4" />
                       {!collapsed && (
                         <>
                           <span className="flex-1 text-left">Gestión</span>
-                          {gestionOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          {gestionOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5 animate-pulse" />}
                         </>
                       )}
                     </SidebarMenuButton>
