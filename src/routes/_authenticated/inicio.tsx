@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { AlertTriangle } from "lucide-react";
+import logoYV from "@/assets/logo-yv.webp";
+import logoBocu from "@/assets/logo-bocu.png";
 
 export const Route = createFileRoute("/_authenticated/inicio")({ component: InicioPage });
 
