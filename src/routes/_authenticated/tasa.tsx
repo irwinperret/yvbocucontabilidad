@@ -51,15 +51,37 @@ function TasaPage() {
     }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const r = await sync();
+      if (r.status === "insertada") toast.success(`Tasa ${r.tasa} Bs/USD insertada (${r.fecha}) · ${r.fuente}`);
+      else toast.info(`Ya existía tasa para ${r.fecha}: ${r.anterior} Bs/USD`);
+      qc.invalidateQueries({ queryKey: ["tasas-list"] });
+      qc.invalidateQueries({ queryKey: ["tasa"] });
+    } catch (e: any) {
+      toast.error(`No se pudo sincronizar: ${e?.message ?? "error"}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Tasa BCV</h1>
-        <p className="text-sm text-muted-foreground">Registra la tasa diaria para conversión Bs → USD</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Tasa BCV</h1>
+          <p className="text-sm text-muted-foreground">Registra la tasa diaria para conversión Bs → USD. Sync automático cada día y manual con el botón.</p>
+        </div>
+        <Button variant="outline" onClick={handleSync} disabled={syncing}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Sincronizando..." : "Sincronizar ahora"}
+        </Button>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Nueva tasa</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Nueva tasa (manual)</CardTitle></CardHeader>
+
         <CardContent>
           <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
