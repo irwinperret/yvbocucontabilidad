@@ -6,6 +6,7 @@ import { fmtBs, fmtUsd, fmtDate, todayISO, currentPeriod } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { DashboardCharts } from "@/components/dashboard-charts";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -87,6 +88,8 @@ function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <DashboardCharts />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Últimos movimientos</CardTitle></CardHeader>
