@@ -25,24 +25,55 @@ function CxCPage() {
 
   const cobrar = async (c: any) => {
     if (!user) return;
-    // Crear transacción 1.5 (cobro de crédito anterior)
+    // Crear transacción 1.5 (cobro de crédito anterior) a la tasa BCV de hoy
     const { data: tasa } = await supabase.from("tasas_bcv").select("*").lte("fecha", todayISO()).order("fecha", { ascending: false }).limit(1).maybeSingle();
     if (!tasa) return toast.error("Registra la tasa BCV de hoy primero");
-    const tasaN = Number(tasa.tasa);
+    const tasaHoy = Number(tasa.tasa);
+    const montoBs = Number(c.monto_bs);
+    const cobroUsd = montoBs / tasaHoy;
+    const originalUsd = Number(c.monto_usd);
+    const fxDeltaUsd = cobroUsd - originalUsd; // >0 ganancia, <0 pérdida
+
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha: todayISO(),
       cuenta_codigo: "1.5",
       centro_costo: c.centro_costo,
-      monto_bs: c.monto_bs, monto_base_bs: c.monto_bs, iva_bs: 0,
-      tasa_bcv: tasaN, monto_usd: Number(c.monto_bs) / tasaN,
+      monto_bs: montoBs, monto_base_bs: montoBs, iva_bs: 0,
+      tasa_bcv: tasaHoy, monto_usd: cobroUsd,
       metodo_pago: "transferencia",
       notas: `Cobro CxC — ${c.cliente}`,
       modo: "on_balance", created_by: user.id,
     } as any).select().single();
     if (error) return toast.error(error.message);
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+
+    // Diferencia cambiaria: solo si hay delta material (≥ 0.01 USD)
+    if (Math.abs(fxDeltaUsd) >= 0.01) {
+      const esGanancia = fxDeltaUsd > 0;
+      const cuentaFx = esGanancia ? "11.1" : "11.2";
+      const absUsd = Math.abs(fxDeltaUsd);
+      const absBs = absUsd * tasaHoy;
+      const tasaOrig = originalUsd > 0 ? montoBs / originalUsd : tasaHoy;
+      const { data: txFx, error: errFx } = await supabase.from("transacciones").insert({
+        fecha: todayISO(),
+        cuenta_codigo: cuentaFx,
+        centro_costo: c.centro_costo,
+        monto_bs: absBs, monto_base_bs: absBs, iva_bs: 0,
+        tasa_bcv: tasaHoy, monto_usd: absUsd,
+        metodo_pago: "transferencia",
+        notas: `Dif. cambiaria CxC ${c.cliente} — tasa original ${tasaOrig.toFixed(4)} → hoy ${tasaHoy.toFixed(4)}`,
+        modo: "on_balance", created_by: user.id,
+      } as any).select().single();
+      if (errFx) toast.error("Cobro OK, pero falló el ajuste cambiario: " + errFx.message);
+      else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
+    }
+
     await supabase.from("cuentas_por_cobrar").update({ estado: "cobrada", cobrada_at: new Date().toISOString(), transaccion_cobro_id: tx!.id }).eq("id", c.id);
-    toast.success("Cobro registrado");
+    toast.success(
+      Math.abs(fxDeltaUsd) >= 0.01
+        ? `Cobro registrado · ${fxDeltaUsd > 0 ? "ganancia" : "pérdida"} cambiaria ${fmtUsd(Math.abs(fxDeltaUsd))}`
+        : "Cobro registrado"
+    );
     qc.invalidateQueries();
   };
 
