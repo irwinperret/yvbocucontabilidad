@@ -3,10 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fmtUsd, fmtDate, todayISO } from "@/lib/format";
-import { ArrowRight, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/inicio")({ component: InicioPage });
 
@@ -116,21 +115,7 @@ function InicioPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Accesos rápidos</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <Button asChild className="w-full justify-between" variant="default">
-              <Link to="/registrar" search={{ tab: "ventas" } as any}>Registrar venta <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-            <Button asChild className="w-full justify-between" variant="secondary">
-              <Link to="/registrar" search={{ tab: "gastos" } as any}>Registrar gasto / factura <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-            <Button asChild className="w-full justify-between" variant="outline">
-              <Link to="/gyp">Ver G&P del mes <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4">
         <Card>
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-orange-500" />Alertas</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
