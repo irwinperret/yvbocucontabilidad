@@ -15,6 +15,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTercerosRouteImport } from './routes/_authenticated/terceros'
 import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/tasa'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
+import { Route as AuthenticatedProveedoresRouteImport } from './routes/_authenticated/proveedores'
+import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenticated/plan-cuentas'
+import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticated/pagar-cxp'
+import { Route as AuthenticatedOffBalanceRouteImport } from './routes/_authenticated/off-balance'
+import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
 import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -48,6 +53,33 @@ const AuthenticatedTasaRoute = AuthenticatedTasaRouteImport.update({
 const AuthenticatedRegistrarRoute = AuthenticatedRegistrarRouteImport.update({
   id: '/registrar',
   path: '/registrar',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedProveedoresRoute =
+  AuthenticatedProveedoresRouteImport.update({
+    id: '/proveedores',
+    path: '/proveedores',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPlanCuentasRoute =
+  AuthenticatedPlanCuentasRouteImport.update({
+    id: '/plan-cuentas',
+    path: '/plan-cuentas',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPagarCxpRoute = AuthenticatedPagarCxpRouteImport.update({
+  id: '/pagar-cxp',
+  path: '/pagar-cxp',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedOffBalanceRoute = AuthenticatedOffBalanceRouteImport.update({
+  id: '/off-balance',
+  path: '/off-balance',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedInicioRoute = AuthenticatedInicioRouteImport.update({
+  id: '/inicio',
+  path: '/inicio',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedGypRoute = AuthenticatedGypRouteImport.update({
@@ -84,6 +116,11 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
+  '/inicio': typeof AuthenticatedInicioRoute
+  '/off-balance': typeof AuthenticatedOffBalanceRoute
+  '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
+  '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
+  '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
@@ -96,6 +133,11 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
+  '/inicio': typeof AuthenticatedInicioRoute
+  '/off-balance': typeof AuthenticatedOffBalanceRoute
+  '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
+  '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
+  '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
@@ -110,6 +152,11 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/fc': typeof AuthenticatedFcRoute
   '/_authenticated/gyp': typeof AuthenticatedGypRoute
+  '/_authenticated/inicio': typeof AuthenticatedInicioRoute
+  '/_authenticated/off-balance': typeof AuthenticatedOffBalanceRoute
+  '/_authenticated/pagar-cxp': typeof AuthenticatedPagarCxpRoute
+  '/_authenticated/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
+  '/_authenticated/proveedores': typeof AuthenticatedProveedoresRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/tasa': typeof AuthenticatedTasaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
@@ -124,6 +171,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/fc'
     | '/gyp'
+    | '/inicio'
+    | '/off-balance'
+    | '/pagar-cxp'
+    | '/plan-cuentas'
+    | '/proveedores'
     | '/registrar'
     | '/tasa'
     | '/terceros'
@@ -136,6 +188,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/fc'
     | '/gyp'
+    | '/inicio'
+    | '/off-balance'
+    | '/pagar-cxp'
+    | '/plan-cuentas'
+    | '/proveedores'
     | '/registrar'
     | '/tasa'
     | '/terceros'
@@ -149,6 +206,11 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/fc'
     | '/_authenticated/gyp'
+    | '/_authenticated/inicio'
+    | '/_authenticated/off-balance'
+    | '/_authenticated/pagar-cxp'
+    | '/_authenticated/plan-cuentas'
+    | '/_authenticated/proveedores'
     | '/_authenticated/registrar'
     | '/_authenticated/tasa'
     | '/_authenticated/terceros'
@@ -204,6 +266,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRegistrarRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/proveedores': {
+      id: '/_authenticated/proveedores'
+      path: '/proveedores'
+      fullPath: '/proveedores'
+      preLoaderRoute: typeof AuthenticatedProveedoresRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/plan-cuentas': {
+      id: '/_authenticated/plan-cuentas'
+      path: '/plan-cuentas'
+      fullPath: '/plan-cuentas'
+      preLoaderRoute: typeof AuthenticatedPlanCuentasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/pagar-cxp': {
+      id: '/_authenticated/pagar-cxp'
+      path: '/pagar-cxp'
+      fullPath: '/pagar-cxp'
+      preLoaderRoute: typeof AuthenticatedPagarCxpRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/off-balance': {
+      id: '/_authenticated/off-balance'
+      path: '/off-balance'
+      fullPath: '/off-balance'
+      preLoaderRoute: typeof AuthenticatedOffBalanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/inicio': {
+      id: '/_authenticated/inicio'
+      path: '/inicio'
+      fullPath: '/inicio'
+      preLoaderRoute: typeof AuthenticatedInicioRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/gyp': {
       id: '/_authenticated/gyp'
       path: '/gyp'
@@ -248,6 +345,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFcRoute: typeof AuthenticatedFcRoute
   AuthenticatedGypRoute: typeof AuthenticatedGypRoute
+  AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
+  AuthenticatedOffBalanceRoute: typeof AuthenticatedOffBalanceRoute
+  AuthenticatedPagarCxpRoute: typeof AuthenticatedPagarCxpRoute
+  AuthenticatedPlanCuentasRoute: typeof AuthenticatedPlanCuentasRoute
+  AuthenticatedProveedoresRoute: typeof AuthenticatedProveedoresRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
   AuthenticatedTasaRoute: typeof AuthenticatedTasaRoute
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
@@ -259,6 +361,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFcRoute: AuthenticatedFcRoute,
   AuthenticatedGypRoute: AuthenticatedGypRoute,
+  AuthenticatedInicioRoute: AuthenticatedInicioRoute,
+  AuthenticatedOffBalanceRoute: AuthenticatedOffBalanceRoute,
+  AuthenticatedPagarCxpRoute: AuthenticatedPagarCxpRoute,
+  AuthenticatedPlanCuentasRoute: AuthenticatedPlanCuentasRoute,
+  AuthenticatedProveedoresRoute: AuthenticatedProveedoresRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
   AuthenticatedTasaRoute: AuthenticatedTasaRoute,
   AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,
@@ -276,3 +383,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
