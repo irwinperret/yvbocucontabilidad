@@ -98,6 +98,7 @@ function VentasForm() {
   const [ref, setRef] = useState("");
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
@@ -124,6 +125,7 @@ function VentasForm() {
       tasa_bcv: tasaN, monto_usd: baseUsd,
       metodo_pago: metodo as any, referencia: ref || null, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
+      cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
@@ -205,6 +207,11 @@ function VentasForm() {
             </Select>
           </div>
           <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+          {tipo !== "credito" && (
+            <div className="md:col-span-2">
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+            </div>
+          )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>
