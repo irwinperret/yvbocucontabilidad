@@ -19,6 +19,8 @@ export type Database = {
           accion: string
           created_at: string
           datos: Json | null
+          datos_antes: Json | null
+          datos_despues: Json | null
           id: string
           registro_id: string | null
           tabla: string
@@ -28,6 +30,8 @@ export type Database = {
           accion: string
           created_at?: string
           datos?: Json | null
+          datos_antes?: Json | null
+          datos_despues?: Json | null
           id?: string
           registro_id?: string | null
           tabla: string
@@ -37,6 +41,8 @@ export type Database = {
           accion?: string
           created_at?: string
           datos?: Json | null
+          datos_antes?: Json | null
+          datos_despues?: Json | null
           id?: string
           registro_id?: string | null
           tabla?: string
@@ -51,6 +57,7 @@ export type Database = {
           compras_mes_bs: number
           created_at: string
           depreciacion_bs: number
+          estado: string
           id: string
           inventario_final_bs: number
           inventario_inicial_bs: number
@@ -66,6 +73,7 @@ export type Database = {
           compras_mes_bs: number
           created_at?: string
           depreciacion_bs?: number
+          estado?: string
           id?: string
           inventario_final_bs: number
           inventario_inicial_bs: number
@@ -81,6 +89,7 @@ export type Database = {
           compras_mes_bs?: number
           created_at?: string
           depreciacion_bs?: number
+          estado?: string
           id?: string
           inventario_final_bs?: number
           inventario_inicial_bs?: number
@@ -165,35 +174,47 @@ export type Database = {
       }
       cuentas_por_pagar: {
         Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
           created_at: string
           estado: string
           fecha_vencimiento: string | null
           id: string
           monto_bs: number
+          monto_pendiente_bs: number | null
           monto_usd: number
+          numero_factura: string | null
           pagada_at: string | null
+          proveedor: string | null
           tercero_id: string | null
           transaccion_id: string | null
         }
         Insert: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
           created_at?: string
           estado?: string
           fecha_vencimiento?: string | null
           id?: string
           monto_bs: number
+          monto_pendiente_bs?: number | null
           monto_usd: number
+          numero_factura?: string | null
           pagada_at?: string | null
+          proveedor?: string | null
           tercero_id?: string | null
           transaccion_id?: string | null
         }
         Update: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
           created_at?: string
           estado?: string
           fecha_vencimiento?: string | null
           id?: string
           monto_bs?: number
+          monto_pendiente_bs?: number | null
           monto_usd?: number
+          numero_factura?: string | null
           pagada_at?: string | null
+          proveedor?: string | null
           tercero_id?: string | null
           transaccion_id?: string | null
         }
@@ -427,15 +448,20 @@ export type Database = {
           cuenta_codigo: string
           fecha: string
           id: string
+          iva_aplica: boolean
+          iva_bs: number
           marcada_error: boolean
           metodo_pago: Database["public"]["Enums"]["metodo_pago"] | null
           modo: Database["public"]["Enums"]["modo_transaccion"]
+          monto_base_bs: number
           monto_bs: number
           monto_usd: number
           notas: string | null
+          numero_factura: string | null
           referencia: string | null
           tasa_bcv: number
           tercero_id: string | null
+          tipo_iva: string | null
         }
         Insert: {
           centro_costo: Database["public"]["Enums"]["centro_costo"]
@@ -444,15 +470,20 @@ export type Database = {
           cuenta_codigo: string
           fecha?: string
           id?: string
+          iva_aplica?: boolean
+          iva_bs?: number
           marcada_error?: boolean
           metodo_pago?: Database["public"]["Enums"]["metodo_pago"] | null
           modo?: Database["public"]["Enums"]["modo_transaccion"]
+          monto_base_bs?: number
           monto_bs: number
           monto_usd: number
           notas?: string | null
+          numero_factura?: string | null
           referencia?: string | null
           tasa_bcv: number
           tercero_id?: string | null
+          tipo_iva?: string | null
         }
         Update: {
           centro_costo?: Database["public"]["Enums"]["centro_costo"]
@@ -461,15 +492,20 @@ export type Database = {
           cuenta_codigo?: string
           fecha?: string
           id?: string
+          iva_aplica?: boolean
+          iva_bs?: number
           marcada_error?: boolean
           metodo_pago?: Database["public"]["Enums"]["metodo_pago"] | null
           modo?: Database["public"]["Enums"]["modo_transaccion"]
+          monto_base_bs?: number
           monto_bs?: number
           monto_usd?: number
           notas?: string | null
+          numero_factura?: string | null
           referencia?: string | null
           tasa_bcv?: number
           tercero_id?: string | null
+          tipo_iva?: string | null
         }
         Relationships: [
           {
@@ -584,6 +620,16 @@ export type Database = {
         }
         Relationships: []
       }
+      v_iva_mensual: {
+        Row: {
+          iva_bs: number | null
+          iva_usd: number | null
+          movimientos: number | null
+          periodo: string | null
+          tipo_iva: string | null
+        }
+        Relationships: []
+      }
       v_off_balance_pendientes: {
         Row: {
           centro_costo: Database["public"]["Enums"]["centro_costo"] | null
@@ -620,6 +666,45 @@ export type Database = {
           },
         ]
       }
+      v_transacciones_mensual: {
+        Row: {
+          anio: number | null
+          base_bs: number | null
+          base_usd: number | null
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          cuenta_codigo: string | null
+          iva_bs: number | null
+          mes: number | null
+          modo: Database["public"]["Enums"]["modo_transaccion"] | null
+          movimientos: number | null
+          periodo: string | null
+          total_bs: number | null
+          total_usd: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "plan_de_cuentas"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "v_fc_mes_actual"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "v_gyp_mes_actual"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
@@ -628,6 +713,17 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      periodo_cerrado: { Args: { _fecha: string }; Returns: boolean }
+      registrar_auditoria: {
+        Args: {
+          _accion: string
+          _antes: Json
+          _despues: Json
+          _registro_id: string
+          _tabla: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
