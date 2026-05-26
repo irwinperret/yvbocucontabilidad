@@ -22,7 +22,7 @@ const registroGestion = [
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
   { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
   { title: "Proveedores", url: "/proveedores", icon: Users },
-  { title: "Off balance", url: "/off-balance", icon: AlertTriangle },
+  
 ];
 
 const analisisItems = [
