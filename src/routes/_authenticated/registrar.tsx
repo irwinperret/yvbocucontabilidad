@@ -402,7 +402,7 @@ function NominaForm() {
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [tipo, setTipo] = useState("regular");
-  const [centro, setCentro] = useState<Centro>("Administracion");
+  const [centro, setCentro] = useState<Centro>("Compartido");
   const [montoBs, setMontoBs] = useState("");
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
