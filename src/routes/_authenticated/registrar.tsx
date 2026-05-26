@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { CENTROS, METODOS, cuentaVenta, cuentaNomina, FINANCIAMIENTO, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
+import { TerceroSelect } from "@/components/tercero-select";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
@@ -331,13 +332,7 @@ function GastosForm() {
             </Select>
           </div>
           <div className="md:col-span-2">
-            <Label>Proveedor</Label>
-            <Select value={terceroId} onValueChange={setTerceroId}>
-              <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                {terceros?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.tipo_rif}-{t.rif} · {t.razon_social}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <TerceroSelect value={terceroId} onChange={setTerceroId} terceros={(terceros ?? []) as any} />
           </div>
           <div className="md:col-span-2">
             <Label>Cuenta contable</Label>
