@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { AlertTriangle } from "lucide-react";
+import logoYV from "@/assets/logo-yv.webp";
+import logoBocu from "@/assets/logo-bocu.png";
 
 export const Route = createFileRoute("/_authenticated/inicio")({ component: InicioPage });
 
@@ -78,6 +80,34 @@ function InicioPage() {
 
   return (
     <div className="space-y-6">
+      {/* Hero · marcas */}
+      <div className="relative overflow-hidden rounded-lg border bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-950">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />
+        <div className="flex items-center justify-center gap-8 sm:gap-16 px-6 py-6">
+          <img
+            src={logoYV}
+            alt="Yanqui Victor"
+            className="h-16 sm:h-20 w-auto object-contain opacity-90 dark:invert"
+          />
+          <div className="flex flex-col items-center gap-1">
+            <div className="h-12 w-px bg-foreground/30" />
+            <span className="text-[9px] tracking-[0.3em] text-muted-foreground uppercase">&amp;</span>
+            <div className="h-12 w-px bg-foreground/30" />
+          </div>
+          <img
+            src={logoBocu}
+            alt="Bocú"
+            className="h-16 sm:h-20 w-auto object-contain opacity-90 dark:invert"
+          />
+        </div>
+        <div className="text-center pb-4 -mt-1">
+          <p className="text-[10px] tracking-[0.4em] text-muted-foreground uppercase">
+            Yanqui Victor · Bocú · YV Market
+          </p>
+        </div>
+      </div>
+
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{saludo}, {user?.email?.split("@")[0]}</h1>
         <p className="text-sm text-muted-foreground capitalize">{fechaTexto}</p>
