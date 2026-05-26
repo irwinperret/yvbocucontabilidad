@@ -550,18 +550,22 @@ function FinanciamientoForm() {
   const [plazo, setPlazo] = useState("");
   const [vidaUtil, setVidaUtil] = useState("");
   const [notas, setNotas] = useState("");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
+  const muestraBanco = tipo !== "depreciacion";
   const baseInsert = (cuenta: string, bs: number) => ({
     fecha, cuenta_codigo: cuenta, centro_costo: "Compartido" as any,
     monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
     tasa_bcv: tasaN, monto_usd: tasaN ? bs / tasaN : 0,
     metodo_pago: "transferencia" as any, notas: notas || detalle || null,
-    modo: "on_balance" as any, created_by: user!.id,
+    modo: "on_balance" as any,
+    cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
+    created_by: user!.id,
   });
 
   const submit = async (e: React.FormEvent) => {
