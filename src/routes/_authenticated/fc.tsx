@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { fmtUsd } from "@/lib/format";
 import { CENTROS, MESES } from "@/lib/account-helpers";
+import { useCuentasBancarias } from "@/components/bank-account-select";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
 
@@ -18,8 +19,11 @@ function FCPage() {
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(false);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("todas");
   const [mesSel, setMesSel] = useState(new Date().getMonth() + 1);
   const [hastaMes, setHastaMes] = useState(new Date().getMonth() + 1);
+
+  const { data: bancos } = useCuentasBancarias();
 
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-fc"],
