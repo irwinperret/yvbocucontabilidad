@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -10,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { fmtDate, todayISO } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { syncTasaBcv } from "@/lib/bcv-sync.functions";
+import { RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tasa")({ component: TasaPage });
 
@@ -19,6 +22,9 @@ function TasaPage() {
   const [fecha, setFecha] = useState(todayISO());
   const [tasa, setTasa] = useState("");
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const sync = useServerFn(syncTasaBcv);
+
 
   const { data: tasas } = useQuery({
     queryKey: ["tasas-list"],
