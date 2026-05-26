@@ -245,6 +245,7 @@ function GastosForm() {
   const [numFactura, setNumFactura] = useState("");
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
@@ -289,6 +290,7 @@ function GastosForm() {
       metodo_pago: pendiente ? "pendiente" : (metodo as any),
       tercero_id: terceroId || null, numero_factura: numFactura, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
+      cuenta_bancaria_id: !pendiente && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
@@ -393,13 +395,18 @@ function GastosForm() {
           {pendiente ? (
             <div className="md:col-span-2"><Label>Fecha vencimiento (opcional)</Label><Input type="date" value={fechaVenc} onChange={(e) => setFechaVenc(e.target.value)} /></div>
           ) : (
-            <div className="md:col-span-2">
-              <Label>Método de pago</Label>
-              <Select value={metodo} onValueChange={setMetodo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="md:col-span-2">
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+              </div>
+            </>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
