@@ -1,16 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
+import { DeleteButton } from "@/components/delete-button";
+import { logAudit } from "@/lib/audit";
 
 export const Route = createFileRoute("/_authenticated/cxc")({ component: CxCPage });
 
 function CxCPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["cxc"],
     queryFn: async () => {
@@ -19,10 +23,35 @@ function CxCPage() {
     },
   });
 
-  const marcarCobrada = async (id: string) => {
-    const { error } = await supabase.from("cuentas_por_cobrar").update({ estado: "cobrada", cobrada_at: new Date().toISOString() }).eq("id", id);
-    if (error) toast.error(error.message);
-    else { toast.success("Marcada como cobrada"); qc.invalidateQueries({ queryKey: ["cxc"] }); }
+  const cobrar = async (c: any) => {
+    if (!user) return;
+    // Crear transacción 1.5 (cobro de crédito anterior)
+    const { data: tasa } = await supabase.from("tasas_bcv").select("*").lte("fecha", todayISO()).order("fecha", { ascending: false }).limit(1).maybeSingle();
+    if (!tasa) return toast.error("Registra la tasa BCV de hoy primero");
+    const tasaN = Number(tasa.tasa);
+    const { data: tx, error } = await supabase.from("transacciones").insert({
+      fecha: todayISO(),
+      cuenta_codigo: "1.5",
+      centro_costo: c.centro_costo,
+      monto_bs: c.monto_bs, monto_base_bs: c.monto_bs, iva_bs: 0,
+      tasa_bcv: tasaN, monto_usd: Number(c.monto_bs) / tasaN,
+      metodo_pago: "transferencia",
+      notas: `Cobro CxC — ${c.cliente}`,
+      modo: "on_balance", created_by: user.id,
+    } as any).select().single();
+    if (error) return toast.error(error.message);
+    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    await supabase.from("cuentas_por_cobrar").update({ estado: "cobrada", cobrada_at: new Date().toISOString(), transaccion_cobro_id: tx!.id }).eq("id", c.id);
+    toast.success("Cobro registrado");
+    qc.invalidateQueries();
+  };
+
+  const eliminar = async (c: any) => {
+    const { error } = await supabase.from("cuentas_por_cobrar").delete().eq("id", c.id);
+    if (error) throw error;
+    await logAudit("cuentas_por_cobrar", "DELETE", c.id, c, null);
+    toast.success("CxC eliminada");
+    qc.invalidateQueries({ queryKey: ["cxc"] });
   };
 
   const estadoBadge = (cxc: any) => {
@@ -33,11 +62,25 @@ function CxCPage() {
     return <Badge className="bg-green-600">vigente</Badge>;
   };
 
+  const vigentes = (data ?? []).filter((c: any) => c.estado === "vigente");
+  const vencidas = vigentes.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento < todayISO());
+  const porVencer = vigentes.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento >= todayISO() && (new Date(c.fecha_vencimiento).getTime() - Date.now()) / 86400000 <= 7);
+  const totalVencidas = vencidas.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
+  const totalPorVencer = porVencer.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
+  const totalVigentes = vigentes.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Cuentas por cobrar</h1>
         <p className="text-sm text-muted-foreground">Ventas a crédito pendientes</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Kpi label="Vencidas" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
+        <Kpi label="Por vencer 7d" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
+        <Kpi label="Vigentes" value={fmtUsd(totalVigentes - totalVencidas - totalPorVencer)} count={vigentes.length - vencidas.length - porVencer.length} color="positive" />
+        <Kpi label="Total" value={fmtUsd(totalVigentes)} count={vigentes.length} color="" />
       </div>
 
       <Card>
@@ -52,7 +95,7 @@ function CxCPage() {
                   <tr>
                     <th className="text-left py-2 px-2">Cliente</th>
                     <th className="text-left py-2 px-2">Centro</th>
-                    <th className="text-right py-2 px-2">Monto Bs</th>
+                    <th className="text-right py-2 px-2">Bs</th>
                     <th className="text-right py-2 px-2">USD</th>
                     <th className="text-left py-2 px-2">Vence</th>
                     <th className="text-left py-2 px-2">Estado</th>
@@ -68,10 +111,12 @@ function CxCPage() {
                       <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
                       <td className="py-2 px-2 mono">{c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</td>
                       <td className="py-2 px-2">{estadoBadge(c)}</td>
-                      <td className="py-2 px-2">
-                        {c.estado !== "cobrada" && (
-                          <Button size="sm" variant="outline" onClick={() => marcarCobrada(c.id)}>Cobrar</Button>
-                        )}
+                      <td className="py-2 px-2 flex justify-end gap-1">
+                        {c.estado !== "cobrada" && <Button size="sm" variant="outline" onClick={() => cobrar(c)}>Cobrar</Button>}
+                        <DeleteButton
+                          detail={`${c.cliente} · ${fmtBs(c.monto_bs)} · ${fmtUsd(c.monto_usd)}`}
+                          onConfirm={() => eliminar(c)}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -82,5 +127,17 @@ function CxCPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function Kpi({ label, value, count, color }: { label: string; value: string; count: number; color: string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</CardTitle></CardHeader>
+      <CardContent>
+        <div className={`text-2xl font-bold mono ${color === "negative" ? "negative" : color === "warning" ? "text-orange-600" : color === "positive" ? "positive" : ""}`}>{value}</div>
+        <div className="text-xs text-muted-foreground">{count} registros</div>
+      </CardContent>
+    </Card>
   );
 }

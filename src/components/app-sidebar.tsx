@@ -1,7 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useState } from "react";
 import {
-  LayoutDashboard, PlusCircle, DollarSign, FileText, TrendingUp,
-  Users, FileInput, FileOutput, LogOut,
+  Home, PlusCircle, DollarSign, FileText, TrendingUp, Users, FileInput, FileOutput,
+  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -11,19 +12,27 @@ import { useMode } from "@/lib/mode-context";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 
-const registroItems = [
-  { title: "Inicio", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
-  { title: "Registrar mov.", url: "/registrar", icon: PlusCircle },
-  { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
-  { title: "Cuentas por pagar", url: "/cxp", icon: FileOutput },
-  { title: "Terceros", url: "/terceros", icon: Users },
+const registroDirectos = [
+  { title: "Inicio", url: "/inicio", icon: Home },
+  { title: "Registrar movimiento", url: "/registrar", icon: PlusCircle },
 ];
-const analisisItems = [
-  { title: "G&P (Ganancias)", url: "/gyp", icon: TrendingUp },
-  { title: "Flujo de caja", url: "/fc", icon: FileText },
+
+const registroGestion = [
+  { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
+  { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
   { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
-  { title: "Cuentas por pagar", url: "/cxp", icon: FileOutput },
+  { title: "Proveedores", url: "/proveedores", icon: Users },
+  { title: "Off balance", url: "/off-balance", icon: AlertTriangle },
+];
+
+const analisisItems = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "G&P", url: "/gyp", icon: TrendingUp },
+  { title: "Flujo de caja", url: "/fc", icon: FileText },
+  { title: "CxC pendientes", url: "/cxc", icon: FileInput },
+  { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
+  { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
+  { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
 ];
 
 export function AppSidebar() {
@@ -32,7 +41,9 @@ export function AppSidebar() {
   const { mode } = useMode();
   const { signOut, user } = useAuth();
   const path = useRouterState({ select: (r) => r.location.pathname });
-  const items = mode === "registro" ? registroItems : analisisItems;
+  const [gestionOpen, setGestionOpen] = useState(true);
+
+  const isActive = (url: string) => path === url;
 
   return (
     <Sidebar collapsible="icon">
@@ -40,32 +51,81 @@ export function AppSidebar() {
         <div className="px-2 py-3">
           {!collapsed && (
             <>
-              <div className="text-sm font-bold tracking-tight">YV / Bocú / Market</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Sistema financiero</div>
+              <div className="text-sm font-bold tracking-tight">YV · Bocú · Market</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                {mode === "registro" ? "Modo registro" : "Modo análisis"}
+              </div>
             </>
           )}
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>
-            {mode === "registro" ? "Registro" : "Análisis"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={path === item.url}>
-                    <Link to={item.url} className="flex items-center gap-2">
-                      <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {mode === "registro" ? (
+          <>
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {registroDirectos.map((item) => (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                        <Link to={item.url} className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          {!collapsed && <span>{item.title}</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton onClick={() => setGestionOpen((v) => !v)} className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1 text-left">Gestión</span>
+                          {gestionOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        </>
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {gestionOpen && registroGestion.map((item) => (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
+                        <Link to={item.url} className="flex items-center gap-2">
+                          <item.icon className="h-3.5 w-3.5" />
+                          {!collapsed && <span className="text-sm">{item.title}</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : (
+          <SidebarGroup>
+            <SidebarGroupLabel>Análisis</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {analisisItems.map((item) => (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                      <Link to={item.url} className="flex items-center gap-2">
+                        <item.icon className="h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="border-t">
         {!collapsed && (
