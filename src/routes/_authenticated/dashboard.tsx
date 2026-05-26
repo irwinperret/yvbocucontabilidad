@@ -84,7 +84,7 @@ function Dashboard() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Acciones</CardTitle></CardHeader>
           <CardContent>
-            <Button asChild size="sm" className="w-full"><Link to="/registrar">Registrar movimiento <ArrowRight className="ml-1 h-3 w-3" /></Link></Button>
+            <Button asChild size="sm" className="w-full h-auto py-2 whitespace-normal text-center leading-tight"><Link to="/registrar">Registrar movimiento <ArrowRight className="ml-1 h-3 w-3 inline" /></Link></Button>
           </CardContent>
         </Card>
       </div>
