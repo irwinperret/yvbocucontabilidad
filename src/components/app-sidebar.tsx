@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Home, PlusCircle, DollarSign, FileText, TrendingUp, Users, FileInput, FileOutput,
-  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard,
+  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -22,7 +22,7 @@ const registroGestion = [
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
   { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
   { title: "Proveedores", url: "/proveedores", icon: Users },
-  
+  { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
 ];
 
 const analisisItems = [

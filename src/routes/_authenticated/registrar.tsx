@@ -15,6 +15,7 @@ import { fmtBs, fmtUsd, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { CENTROS, METODOS, cuentaVenta, cuentaNomina, FINANCIAMIENTO, type Centro } from "@/lib/account-helpers";
+import { BankAccountSelect } from "@/components/bank-account-select";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
@@ -97,6 +98,7 @@ function VentasForm() {
   const [ref, setRef] = useState("");
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
@@ -123,6 +125,7 @@ function VentasForm() {
       tasa_bcv: tasaN, monto_usd: baseUsd,
       metodo_pago: metodo as any, referencia: ref || null, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
+      cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
@@ -204,6 +207,11 @@ function VentasForm() {
             </Select>
           </div>
           <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+          {tipo !== "credito" && (
+            <div className="md:col-span-2">
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+            </div>
+          )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>
@@ -237,6 +245,7 @@ function GastosForm() {
   const [numFactura, setNumFactura] = useState("");
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
@@ -281,6 +290,7 @@ function GastosForm() {
       metodo_pago: pendiente ? "pendiente" : (metodo as any),
       tercero_id: terceroId || null, numero_factura: numFactura, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
+      cuenta_bancaria_id: !pendiente && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
@@ -385,13 +395,18 @@ function GastosForm() {
           {pendiente ? (
             <div className="md:col-span-2"><Label>Fecha vencimiento (opcional)</Label><Input type="date" value={fechaVenc} onChange={(e) => setFechaVenc(e.target.value)} /></div>
           ) : (
-            <div className="md:col-span-2">
-              <Label>Método de pago</Label>
-              <Select value={metodo} onValueChange={setMetodo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="md:col-span-2">
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+              </div>
+            </>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
@@ -420,6 +435,7 @@ function NominaForm() {
   const [empleados, setEmpleados] = useState("");
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
@@ -442,6 +458,7 @@ function NominaForm() {
       metodo_pago: esProvision ? "pendiente" : (metodo as any),
       notas: notas || (empleados ? `Empleados: ${empleados}` : null),
       modo: offBalance ? "off_balance" : "on_balance",
+      cuenta_bancaria_id: !esProvision && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
@@ -491,13 +508,18 @@ function NominaForm() {
             <span className="text-lg font-bold mono">{fmtUsd(usd)}</span>
           </div>
           {!esProvision && (
-            <div>
-              <Label>Método de pago</Label>
-              <Select value={metodo} onValueChange={setMetodo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+            <>
+              <div>
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+              </div>
+            </>
           )}
           <div><Label>N° empleados</Label><Input type="number" value={empleados} onChange={(e) => setEmpleados(e.target.value)} /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
@@ -528,18 +550,22 @@ function FinanciamientoForm() {
   const [plazo, setPlazo] = useState("");
   const [vidaUtil, setVidaUtil] = useState("");
   const [notas, setNotas] = useState("");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
+  const muestraBanco = tipo !== "depreciacion";
   const baseInsert = (cuenta: string, bs: number) => ({
     fecha, cuenta_codigo: cuenta, centro_costo: "Compartido" as any,
     monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
     tasa_bcv: tasaN, monto_usd: tasaN ? bs / tasaN : 0,
     metodo_pago: "transferencia" as any, notas: notas || detalle || null,
-    modo: "on_balance" as any, created_by: user!.id,
+    modo: "on_balance" as any,
+    cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
+    created_by: user!.id,
   });
 
   const submit = async (e: React.FormEvent) => {
@@ -635,6 +661,11 @@ function FinanciamientoForm() {
               {tipo === "capex" && <div className="md:col-span-2 text-xs text-muted-foreground">La depreciación se registra mensualmente por separado (10.7).</div>}
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
             </>
+          )}
+          {muestraBanco && (
+            <div className="md:col-span-2">
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+            </div>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">

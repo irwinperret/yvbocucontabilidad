@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { DeleteButton } from "@/components/delete-button";
 import { METODOS } from "@/lib/account-helpers";
+import { BankAccountSelect } from "@/components/bank-account-select";
 
 export const Route = createFileRoute("/_authenticated/pagar-cxp")({ component: PagarCxPPage });
 
@@ -121,6 +122,7 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
   const [metodo, setMetodo] = useState("transferencia");
   const [ref, setRef] = useState("");
   const [notas, setNotas] = useState("");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSug } = useQuery({
@@ -155,6 +157,7 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
       referencia: ref || null,
       notas: `Pago CxP — ${cxp.proveedor} · Fact ${cxp.numero_factura}${notas ? " · " + notas : ""}`,
       modo: "on_balance" as any,
+      cuenta_bancaria_id: cuentaBancariaId || null,
       created_by: userId,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
@@ -194,6 +197,7 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
             </Select>
           </div>
           <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+          <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
           <div><Label>Notas</Label><Input value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           {!esTotal && total > 0 && (
             <div className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">

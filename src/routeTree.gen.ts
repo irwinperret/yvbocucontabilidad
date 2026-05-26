@@ -25,6 +25,7 @@ import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
+import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
 const LoginRoute = LoginRouteImport.update({
@@ -108,6 +109,12 @@ const AuthenticatedCxcRoute = AuthenticatedCxcRouteImport.update({
   path: '/cxc',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedCuentasBancariasRoute =
+  AuthenticatedCuentasBancariasRouteImport.update({
+    id: '/cuentas-bancarias',
+    path: '/cuentas-bancarias',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicHooksSyncBcvRoute = ApiPublicHooksSyncBcvRouteImport.update({
   id: '/api/public/hooks/sync-bcv',
   path: '/api/public/hooks/sync-bcv',
@@ -117,6 +124,7 @@ const ApiPublicHooksSyncBcvRoute = ApiPublicHooksSyncBcvRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -135,6 +143,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -155,6 +164,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/_authenticated/cxc': typeof AuthenticatedCxcRoute
   '/_authenticated/cxp': typeof AuthenticatedCxpRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/cuentas-bancarias'
     | '/cxc'
     | '/cxp'
     | '/dashboard'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/cuentas-bancarias'
     | '/cxc'
     | '/cxp'
     | '/dashboard'
@@ -212,6 +224,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/cuentas-bancarias'
     | '/_authenticated/cxc'
     | '/_authenticated/cxp'
     | '/_authenticated/dashboard'
@@ -349,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCxcRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/cuentas-bancarias': {
+      id: '/_authenticated/cuentas-bancarias'
+      path: '/cuentas-bancarias'
+      fullPath: '/cuentas-bancarias'
+      preLoaderRoute: typeof AuthenticatedCuentasBancariasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/sync-bcv': {
       id: '/api/public/hooks/sync-bcv'
       path: '/api/public/hooks/sync-bcv'
@@ -360,6 +380,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedCuentasBancariasRoute: typeof AuthenticatedCuentasBancariasRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRoute
   AuthenticatedCxpRoute: typeof AuthenticatedCxpRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -376,6 +397,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedCuentasBancariasRoute: AuthenticatedCuentasBancariasRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRoute,
   AuthenticatedCxpRoute: AuthenticatedCxpRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
@@ -404,13 +426,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
