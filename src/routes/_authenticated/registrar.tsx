@@ -15,6 +15,7 @@ import { fmtBs, fmtUsd, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { CENTROS, METODOS, cuentaVenta, cuentaNomina, FINANCIAMIENTO, type Centro } from "@/lib/account-helpers";
+import { BankAccountSelect } from "@/components/bank-account-select";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
