@@ -14,16 +14,641 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      auditoria: {
+        Row: {
+          accion: string
+          created_at: string
+          datos: Json | null
+          id: string
+          registro_id: string | null
+          tabla: string
+          user_id: string | null
+        }
+        Insert: {
+          accion: string
+          created_at?: string
+          datos?: Json | null
+          id?: string
+          registro_id?: string | null
+          tabla: string
+          user_id?: string | null
+        }
+        Update: {
+          accion?: string
+          created_at?: string
+          datos?: Json | null
+          id?: string
+          registro_id?: string | null
+          tabla?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      cierres_de_mes: {
+        Row: {
+          cogs_bs: number
+          cogs_usd: number
+          compras_mes_bs: number
+          created_at: string
+          depreciacion_bs: number
+          id: string
+          inventario_final_bs: number
+          inventario_inicial_bs: number
+          notas: string | null
+          pasivos_laborales_bs: number
+          periodo: string
+          registrado_por: string | null
+          tasa_bcv_promedio: number
+        }
+        Insert: {
+          cogs_bs: number
+          cogs_usd: number
+          compras_mes_bs: number
+          created_at?: string
+          depreciacion_bs?: number
+          id?: string
+          inventario_final_bs: number
+          inventario_inicial_bs: number
+          notas?: string | null
+          pasivos_laborales_bs?: number
+          periodo: string
+          registrado_por?: string | null
+          tasa_bcv_promedio: number
+        }
+        Update: {
+          cogs_bs?: number
+          cogs_usd?: number
+          compras_mes_bs?: number
+          created_at?: string
+          depreciacion_bs?: number
+          id?: string
+          inventario_final_bs?: number
+          inventario_inicial_bs?: number
+          notas?: string | null
+          pasivos_laborales_bs?: number
+          periodo?: string
+          registrado_por?: string | null
+          tasa_bcv_promedio?: number
+        }
+        Relationships: []
+      }
+      cuentas_por_cobrar: {
+        Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"]
+          cliente: string
+          cobrada_at: string | null
+          created_at: string
+          estado: string
+          fecha_vencimiento: string | null
+          id: string
+          monto_bs: number
+          monto_usd: number
+          transaccion_cobro_id: string | null
+          transaccion_id: string | null
+        }
+        Insert: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"]
+          cliente: string
+          cobrada_at?: string | null
+          created_at?: string
+          estado?: string
+          fecha_vencimiento?: string | null
+          id?: string
+          monto_bs: number
+          monto_usd: number
+          transaccion_cobro_id?: string | null
+          transaccion_id?: string | null
+        }
+        Update: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"]
+          cliente?: string
+          cobrada_at?: string | null
+          created_at?: string
+          estado?: string
+          fecha_vencimiento?: string | null
+          id?: string
+          monto_bs?: number
+          monto_usd?: number
+          transaccion_cobro_id?: string | null
+          transaccion_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cuentas_por_cobrar_transaccion_cobro_id_fkey"
+            columns: ["transaccion_cobro_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_por_cobrar_transaccion_cobro_id_fkey"
+            columns: ["transaccion_cobro_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_por_cobrar_transaccion_id_fkey"
+            columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_por_cobrar_transaccion_id_fkey"
+            columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cuentas_por_pagar: {
+        Row: {
+          created_at: string
+          estado: string
+          fecha_vencimiento: string | null
+          id: string
+          monto_bs: number
+          monto_usd: number
+          pagada_at: string | null
+          tercero_id: string | null
+          transaccion_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          fecha_vencimiento?: string | null
+          id?: string
+          monto_bs: number
+          monto_usd: number
+          pagada_at?: string | null
+          tercero_id?: string | null
+          transaccion_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          fecha_vencimiento?: string | null
+          id?: string
+          monto_bs?: number
+          monto_usd?: number
+          pagada_at?: string | null
+          tercero_id?: string | null
+          transaccion_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cuentas_por_pagar_tercero_id_fkey"
+            columns: ["tercero_id"]
+            isOneToOne: false
+            referencedRelation: "terceros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_por_pagar_transaccion_id_fkey"
+            columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_por_pagar_transaccion_id_fkey"
+            columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventario_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          monto_bs: number
+          periodo: string
+          registrado_por: string | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          monto_bs: number
+          periodo: string
+          registrado_por?: string | null
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          monto_bs?: number
+          periodo?: string
+          registrado_por?: string | null
+          tipo?: string
+        }
+        Relationships: []
+      }
+      plan_de_cuentas: {
+        Row: {
+          activa: boolean
+          afecta_fc: boolean
+          afecta_gyp: boolean
+          codigo: string
+          grupo: string
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          activa?: boolean
+          afecta_fc?: boolean
+          afecta_gyp?: boolean
+          codigo: string
+          grupo: string
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          activa?: boolean
+          afecta_fc?: boolean
+          afecta_gyp?: boolean
+          codigo?: string
+          grupo?: string
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
+      prestamos: {
+        Row: {
+          created_at: string
+          estado: string
+          id: string
+          monto_bs: number
+          monto_usd: number
+          plazo_meses: number
+          prestamista: string
+          saldo_bs: number
+          transaccion_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          id?: string
+          monto_bs: number
+          monto_usd: number
+          plazo_meses: number
+          prestamista: string
+          saldo_bs: number
+          transaccion_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          id?: string
+          monto_bs?: number
+          monto_usd?: number
+          plazo_meses?: number
+          prestamista?: string
+          saldo_bs?: number
+          transaccion_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prestamos_transaccion_id_fkey"
+            columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prestamos_transaccion_id_fkey"
+            columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          nombre: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id: string
+          nombre?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          nombre?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tasas_bcv: {
+        Row: {
+          created_at: string
+          fecha: string
+          id: string
+          registrado_por: string | null
+          tasa: number
+        }
+        Insert: {
+          created_at?: string
+          fecha: string
+          id?: string
+          registrado_por?: string | null
+          tasa: number
+        }
+        Update: {
+          created_at?: string
+          fecha?: string
+          id?: string
+          registrado_por?: string | null
+          tasa?: number
+        }
+        Relationships: []
+      }
+      terceros: {
+        Row: {
+          created_at: string
+          direccion_fiscal: string | null
+          email: string | null
+          id: string
+          nombre_comercial: string | null
+          razon_social: string
+          rif: string
+          telefono: string | null
+          tipo: Database["public"]["Enums"]["tipo_tercero"]
+          tipo_rif: Database["public"]["Enums"]["tipo_rif"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          direccion_fiscal?: string | null
+          email?: string | null
+          id?: string
+          nombre_comercial?: string | null
+          razon_social: string
+          rif: string
+          telefono?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_tercero"]
+          tipo_rif: Database["public"]["Enums"]["tipo_rif"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          direccion_fiscal?: string | null
+          email?: string | null
+          id?: string
+          nombre_comercial?: string | null
+          razon_social?: string
+          rif?: string
+          telefono?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_tercero"]
+          tipo_rif?: Database["public"]["Enums"]["tipo_rif"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      transacciones: {
+        Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"]
+          created_at: string
+          created_by: string
+          cuenta_codigo: string
+          fecha: string
+          id: string
+          marcada_error: boolean
+          metodo_pago: Database["public"]["Enums"]["metodo_pago"] | null
+          modo: Database["public"]["Enums"]["modo_transaccion"]
+          monto_bs: number
+          monto_usd: number
+          notas: string | null
+          referencia: string | null
+          tasa_bcv: number
+          tercero_id: string | null
+        }
+        Insert: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"]
+          created_at?: string
+          created_by: string
+          cuenta_codigo: string
+          fecha?: string
+          id?: string
+          marcada_error?: boolean
+          metodo_pago?: Database["public"]["Enums"]["metodo_pago"] | null
+          modo?: Database["public"]["Enums"]["modo_transaccion"]
+          monto_bs: number
+          monto_usd: number
+          notas?: string | null
+          referencia?: string | null
+          tasa_bcv: number
+          tercero_id?: string | null
+        }
+        Update: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"]
+          created_at?: string
+          created_by?: string
+          cuenta_codigo?: string
+          fecha?: string
+          id?: string
+          marcada_error?: boolean
+          metodo_pago?: Database["public"]["Enums"]["metodo_pago"] | null
+          modo?: Database["public"]["Enums"]["modo_transaccion"]
+          monto_bs?: number
+          monto_usd?: number
+          notas?: string | null
+          referencia?: string | null
+          tasa_bcv?: number
+          tercero_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "plan_de_cuentas"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "v_fc_mes_actual"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "v_gyp_mes_actual"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_tercero_id_fkey"
+            columns: ["tercero_id"]
+            isOneToOne: false
+            referencedRelation: "terceros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      v_cxc_activas: {
+        Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          cliente: string | null
+          created_at: string | null
+          estado: string | null
+          fecha_vencimiento: string | null
+          id: string | null
+          monto_bs: number | null
+          monto_usd: number | null
+          urgencia: string | null
+        }
+        Insert: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
+          cliente?: string | null
+          created_at?: string | null
+          estado?: string | null
+          fecha_vencimiento?: string | null
+          id?: string | null
+          monto_bs?: number | null
+          monto_usd?: number | null
+          urgencia?: never
+        }
+        Update: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
+          cliente?: string | null
+          created_at?: string | null
+          estado?: string | null
+          fecha_vencimiento?: string | null
+          id?: string | null
+          monto_bs?: number | null
+          monto_usd?: number | null
+          urgencia?: never
+        }
+        Relationships: []
+      }
+      v_fc_mes_actual: {
+        Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          codigo: string | null
+          grupo: string | null
+          nombre: string | null
+          total_bs: number | null
+          total_usd: number | null
+        }
+        Relationships: []
+      }
+      v_gyp_mes_actual: {
+        Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          codigo: string | null
+          grupo: string | null
+          nombre: string | null
+          num_movimientos: number | null
+          total_bs: number | null
+          total_usd: number | null
+        }
+        Relationships: []
+      }
+      v_off_balance_pendientes: {
+        Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          cuenta_codigo: string | null
+          cuenta_nombre: string | null
+          dias_pendientes: number | null
+          fecha: string | null
+          id: string | null
+          monto_bs: number | null
+          monto_usd: number | null
+          urgencia: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "plan_de_cuentas"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "v_fc_mes_actual"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "v_gyp_mes_actual"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "contador" | "usuario"
+      centro_costo:
+        | "YV"
+        | "Bocu"
+        | "YV_Market"
+        | "Administracion"
+        | "Compartido"
+      metodo_pago:
+        | "tarjeta"
+        | "transferencia"
+        | "pago_movil"
+        | "zelle"
+        | "efectivo_usd"
+        | "efectivo_bs"
+        | "pendiente"
+      modo_transaccion: "on_balance" | "off_balance"
+      tipo_rif: "J" | "V" | "E" | "G"
+      tipo_tercero: "cliente" | "proveedor" | "ambos"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +775,21 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "contador", "usuario"],
+      centro_costo: ["YV", "Bocu", "YV_Market", "Administracion", "Compartido"],
+      metodo_pago: [
+        "tarjeta",
+        "transferencia",
+        "pago_movil",
+        "zelle",
+        "efectivo_usd",
+        "efectivo_bs",
+        "pendiente",
+      ],
+      modo_transaccion: ["on_balance", "off_balance"],
+      tipo_rif: ["J", "V", "E", "G"],
+      tipo_tercero: ["cliente", "proveedor", "ambos"],
+    },
   },
 } as const
