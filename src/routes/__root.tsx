@@ -6,6 +6,7 @@ import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
 import { ModeProvider } from "@/lib/mode-context";
 import { Toaster } from "@/components/ui/sonner";
+import { SiteGate } from "@/components/site-gate";
 
 function NotFoundComponent() {
   return (
