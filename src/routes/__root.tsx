@@ -6,6 +6,7 @@ import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
 import { ModeProvider } from "@/lib/mode-context";
 import { Toaster } from "@/components/ui/sonner";
+import { SiteGate } from "@/components/site-gate";
 
 function NotFoundComponent() {
   return (
@@ -67,12 +68,14 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ModeProvider>
-          <Outlet />
-          <Toaster richColors position="top-right" />
-        </ModeProvider>
-      </AuthProvider>
+      <SiteGate>
+        <AuthProvider>
+          <ModeProvider>
+            <Outlet />
+            <Toaster richColors position="top-right" />
+          </ModeProvider>
+        </AuthProvider>
+      </SiteGate>
     </QueryClientProvider>
   );
 }
