@@ -251,9 +251,20 @@ function GastosForm() {
 
   const grupos = useMemo(() => {
     const g: Record<string, any[]> = {};
-    (cuentas ?? []).filter((c: any) => !c.codigo.startsWith("1.")).forEach((c: any) => { (g[c.grupo] ||= []).push(c); });
+    (cuentas ?? [])
+      .filter((c: any) => !c.codigo.startsWith("1."))
+      .filter((c: any) => !c.centros_permitidos || c.centros_permitidos.includes(centro))
+      .forEach((c: any) => { (g[c.grupo] ||= []).push(c); });
     return g;
-  }, [cuentas]);
+  }, [cuentas, centro]);
+
+  // Si cambia el centro y la cuenta seleccionada ya no es válida, la limpiamos.
+  useEffect(() => {
+    if (!cuenta || !cuentaSel) return;
+    const permitidos = cuentaSel.centros_permitidos as string[] | null | undefined;
+    if (permitidos && !permitidos.includes(centro)) setCuenta("");
+  }, [centro, cuentaSel, cuenta]);
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -402,7 +413,7 @@ function NominaForm() {
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [tipo, setTipo] = useState("regular");
-  const [centro, setCentro] = useState<Centro>("Administracion");
+  const [centro, setCentro] = useState<Centro>("Compartido");
   const [montoBs, setMontoBs] = useState("");
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
