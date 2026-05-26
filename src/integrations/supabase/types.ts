@@ -101,6 +101,42 @@ export type Database = {
         }
         Relationships: []
       }
+      cuentas_bancarias: {
+        Row: {
+          activa: boolean
+          banco: string
+          created_at: string
+          id: string
+          moneda: string
+          nombre: string
+          numero: string
+          titular: string
+          updated_at: string
+        }
+        Insert: {
+          activa?: boolean
+          banco: string
+          created_at?: string
+          id?: string
+          moneda?: string
+          nombre: string
+          numero: string
+          titular: string
+          updated_at?: string
+        }
+        Update: {
+          activa?: boolean
+          banco?: string
+          created_at?: string
+          id?: string
+          moneda?: string
+          nombre?: string
+          numero?: string
+          titular?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cuentas_por_cobrar: {
         Row: {
           centro_costo: Database["public"]["Enums"]["centro_costo"]
@@ -454,6 +490,7 @@ export type Database = {
           centro_costo: Database["public"]["Enums"]["centro_costo"]
           created_at: string
           created_by: string
+          cuenta_bancaria_id: string | null
           cuenta_codigo: string
           fecha: string
           id: string
@@ -476,6 +513,7 @@ export type Database = {
           centro_costo: Database["public"]["Enums"]["centro_costo"]
           created_at?: string
           created_by: string
+          cuenta_bancaria_id?: string | null
           cuenta_codigo: string
           fecha?: string
           id?: string
@@ -498,6 +536,7 @@ export type Database = {
           centro_costo?: Database["public"]["Enums"]["centro_costo"]
           created_at?: string
           created_by?: string
+          cuenta_bancaria_id?: string | null
           cuenta_codigo?: string
           fecha?: string
           id?: string
@@ -517,6 +556,13 @@ export type Database = {
           tipo_iva?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "transacciones_cuenta_bancaria_id_fkey"
+            columns: ["cuenta_bancaria_id"]
+            isOneToOne: false
+            referencedRelation: "cuentas_bancarias"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "transacciones_cuenta_codigo_fkey"
             columns: ["cuenta_codigo"]
