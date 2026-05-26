@@ -25,6 +25,7 @@ import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
+import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -107,6 +108,11 @@ const AuthenticatedCxcRoute = AuthenticatedCxcRouteImport.update({
   path: '/cxc',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiPublicHooksSyncBcvRoute = ApiPublicHooksSyncBcvRouteImport.update({
+  id: '/api/public/hooks/sync-bcv',
+  path: '/api/public/hooks/sync-bcv',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
+  '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
+  '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/tasa': typeof AuthenticatedTasaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
+  '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/registrar'
     | '/tasa'
     | '/terceros'
+    | '/api/public/hooks/sync-bcv'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/registrar'
     | '/tasa'
     | '/terceros'
+    | '/api/public/hooks/sync-bcv'
   id:
     | '__root__'
     | '/'
@@ -214,12 +225,14 @@ export interface FileRouteTypes {
     | '/_authenticated/registrar'
     | '/_authenticated/tasa'
     | '/_authenticated/terceros'
+    | '/api/public/hooks/sync-bcv'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiPublicHooksSyncBcvRoute: typeof ApiPublicHooksSyncBcvRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -336,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCxcRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/hooks/sync-bcv': {
+      id: '/api/public/hooks/sync-bcv'
+      path: '/api/public/hooks/sync-bcv'
+      fullPath: '/api/public/hooks/sync-bcv'
+      preLoaderRoute: typeof ApiPublicHooksSyncBcvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -379,6 +399,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiPublicHooksSyncBcvRoute: ApiPublicHooksSyncBcvRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
