@@ -89,6 +89,8 @@ function Dashboard() {
         </Card>
       </div>
 
+      <DashboardCharts />
+
       <Card>
         <CardHeader><CardTitle className="text-base">Últimos movimientos</CardTitle></CardHeader>
         <CardContent>
