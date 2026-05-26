@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedTransaccionesRouteImport } from './routes/_authenticated/transacciones'
 import { Route as AuthenticatedTercerosRouteImport } from './routes/_authenticated/terceros'
 import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/tasa'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
@@ -42,6 +43,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedTransaccionesRoute =
+  AuthenticatedTransaccionesRouteImport.update({
+    id: '/transacciones',
+    path: '/transacciones',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedTercerosRoute = AuthenticatedTercerosRouteImport.update({
   id: '/terceros',
   path: '/terceros',
@@ -138,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
+  '/transacciones': typeof AuthenticatedTransaccionesRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
 }
 export interface FileRoutesByTo {
@@ -157,6 +165,7 @@ export interface FileRoutesByTo {
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
+  '/transacciones': typeof AuthenticatedTransaccionesRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
 }
 export interface FileRoutesById {
@@ -178,6 +187,7 @@ export interface FileRoutesById {
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/tasa': typeof AuthenticatedTasaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
+  '/_authenticated/transacciones': typeof AuthenticatedTransaccionesRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
 }
 export interface FileRouteTypes {
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/registrar'
     | '/tasa'
     | '/terceros'
+    | '/transacciones'
     | '/api/public/hooks/sync-bcv'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -218,6 +229,7 @@ export interface FileRouteTypes {
     | '/registrar'
     | '/tasa'
     | '/terceros'
+    | '/transacciones'
     | '/api/public/hooks/sync-bcv'
   id:
     | '__root__'
@@ -238,6 +250,7 @@ export interface FileRouteTypes {
     | '/_authenticated/registrar'
     | '/_authenticated/tasa'
     | '/_authenticated/terceros'
+    | '/_authenticated/transacciones'
     | '/api/public/hooks/sync-bcv'
   fileRoutesById: FileRoutesById
 }
@@ -270,6 +283,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/transacciones': {
+      id: '/_authenticated/transacciones'
+      path: '/transacciones'
+      fullPath: '/transacciones'
+      preLoaderRoute: typeof AuthenticatedTransaccionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/terceros': {
       id: '/_authenticated/terceros'
@@ -394,6 +414,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
   AuthenticatedTasaRoute: typeof AuthenticatedTasaRoute
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
+  AuthenticatedTransaccionesRoute: typeof AuthenticatedTransaccionesRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -411,6 +432,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
   AuthenticatedTasaRoute: AuthenticatedTasaRoute,
   AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,
+  AuthenticatedTransaccionesRoute: AuthenticatedTransaccionesRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
