@@ -65,16 +65,23 @@ export function AppSidebar() {
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {registroDirectos.map((item) => (
-                    <SidebarMenuItem key={item.url}>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                        <Link to={item.url} className="flex items-center gap-2">
-                          <item.icon className="h-4 w-4" />
-                          {!collapsed && <span>{item.title}</span>}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  {registroDirectos.map((item) => {
+                    const highlight = item.url === "/registrar";
+                    return (
+                      <SidebarMenuItem key={item.url}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive(item.url)}
+                          className={highlight ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground font-semibold shadow-sm ring-1 ring-primary/40" : ""}
+                        >
+                          <Link to={item.url} className="flex items-center gap-2">
+                            <item.icon className="h-4 w-4" />
+                            {!collapsed && <span>{item.title}</span>}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -83,15 +90,12 @@ export function AppSidebar() {
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton
-                      onClick={() => setGestionOpen((v) => !v)}
-                      className="flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary/20 font-semibold ring-1 ring-primary/30"
-                    >
+                    <SidebarMenuButton onClick={() => setGestionOpen((v) => !v)} className="flex items-center gap-2">
                       <Settings className="h-4 w-4" />
                       {!collapsed && (
                         <>
                           <span className="flex-1 text-left">Gestión</span>
-                          {gestionOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5 animate-pulse" />}
+                          {gestionOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                         </>
                       )}
                     </SidebarMenuButton>
