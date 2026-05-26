@@ -662,6 +662,11 @@ function FinanciamientoForm() {
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
             </>
           )}
+          {muestraBanco && (
+            <div className="md:col-span-2">
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+            </div>
+          )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar movimiento"}</Button>
