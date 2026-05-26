@@ -9,38 +9,173 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedTercerosRouteImport } from './routes/_authenticated/terceros'
+import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/tasa'
+import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
+import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
+import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
+import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedTercerosRoute = AuthenticatedTercerosRouteImport.update({
+  id: '/terceros',
+  path: '/terceros',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTasaRoute = AuthenticatedTasaRouteImport.update({
+  id: '/tasa',
+  path: '/tasa',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedRegistrarRoute = AuthenticatedRegistrarRouteImport.update({
+  id: '/registrar',
+  path: '/registrar',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedGypRoute = AuthenticatedGypRouteImport.update({
+  id: '/gyp',
+  path: '/gyp',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedFcRoute = AuthenticatedFcRouteImport.update({
+  id: '/fc',
+  path: '/fc',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCxpRoute = AuthenticatedCxpRouteImport.update({
+  id: '/cxp',
+  path: '/cxp',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCxcRoute = AuthenticatedCxcRouteImport.update({
+  id: '/cxc',
+  path: '/cxc',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/cxc': typeof AuthenticatedCxcRoute
+  '/cxp': typeof AuthenticatedCxpRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/fc': typeof AuthenticatedFcRoute
+  '/gyp': typeof AuthenticatedGypRoute
+  '/registrar': typeof AuthenticatedRegistrarRoute
+  '/tasa': typeof AuthenticatedTasaRoute
+  '/terceros': typeof AuthenticatedTercerosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/cxc': typeof AuthenticatedCxcRoute
+  '/cxp': typeof AuthenticatedCxpRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/fc': typeof AuthenticatedFcRoute
+  '/gyp': typeof AuthenticatedGypRoute
+  '/registrar': typeof AuthenticatedRegistrarRoute
+  '/tasa': typeof AuthenticatedTasaRoute
+  '/terceros': typeof AuthenticatedTercerosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_authenticated/cxc': typeof AuthenticatedCxcRoute
+  '/_authenticated/cxp': typeof AuthenticatedCxpRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/fc': typeof AuthenticatedFcRoute
+  '/_authenticated/gyp': typeof AuthenticatedGypRoute
+  '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
+  '/_authenticated/tasa': typeof AuthenticatedTasaRoute
+  '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/cxc'
+    | '/cxp'
+    | '/dashboard'
+    | '/fc'
+    | '/gyp'
+    | '/registrar'
+    | '/tasa'
+    | '/terceros'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/login'
+    | '/cxc'
+    | '/cxp'
+    | '/dashboard'
+    | '/fc'
+    | '/gyp'
+    | '/registrar'
+    | '/tasa'
+    | '/terceros'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/login'
+    | '/_authenticated/cxc'
+    | '/_authenticated/cxp'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/fc'
+    | '/_authenticated/gyp'
+    | '/_authenticated/registrar'
+    | '/_authenticated/tasa'
+    | '/_authenticated/terceros'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +183,95 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/terceros': {
+      id: '/_authenticated/terceros'
+      path: '/terceros'
+      fullPath: '/terceros'
+      preLoaderRoute: typeof AuthenticatedTercerosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/tasa': {
+      id: '/_authenticated/tasa'
+      path: '/tasa'
+      fullPath: '/tasa'
+      preLoaderRoute: typeof AuthenticatedTasaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/registrar': {
+      id: '/_authenticated/registrar'
+      path: '/registrar'
+      fullPath: '/registrar'
+      preLoaderRoute: typeof AuthenticatedRegistrarRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/gyp': {
+      id: '/_authenticated/gyp'
+      path: '/gyp'
+      fullPath: '/gyp'
+      preLoaderRoute: typeof AuthenticatedGypRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/fc': {
+      id: '/_authenticated/fc'
+      path: '/fc'
+      fullPath: '/fc'
+      preLoaderRoute: typeof AuthenticatedFcRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/cxp': {
+      id: '/_authenticated/cxp'
+      path: '/cxp'
+      fullPath: '/cxp'
+      preLoaderRoute: typeof AuthenticatedCxpRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/cxc': {
+      id: '/_authenticated/cxc'
+      path: '/cxc'
+      fullPath: '/cxc'
+      preLoaderRoute: typeof AuthenticatedCxcRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
+interface AuthenticatedRouteChildren {
+  AuthenticatedCxcRoute: typeof AuthenticatedCxcRoute
+  AuthenticatedCxpRoute: typeof AuthenticatedCxpRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedFcRoute: typeof AuthenticatedFcRoute
+  AuthenticatedGypRoute: typeof AuthenticatedGypRoute
+  AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
+  AuthenticatedTasaRoute: typeof AuthenticatedTasaRoute
+  AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedCxcRoute: AuthenticatedCxcRoute,
+  AuthenticatedCxpRoute: AuthenticatedCxpRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedFcRoute: AuthenticatedFcRoute,
+  AuthenticatedGypRoute: AuthenticatedGypRoute,
+  AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
+  AuthenticatedTasaRoute: AuthenticatedTasaRoute,
+  AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
