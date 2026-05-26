@@ -274,6 +274,9 @@ export type Database = {
           activa: boolean
           afecta_fc: boolean
           afecta_gyp: boolean
+          centros_permitidos:
+            | Database["public"]["Enums"]["centro_costo"][]
+            | null
           codigo: string
           grupo: string
           nombre: string
@@ -283,6 +286,9 @@ export type Database = {
           activa?: boolean
           afecta_fc?: boolean
           afecta_gyp?: boolean
+          centros_permitidos?:
+            | Database["public"]["Enums"]["centro_costo"][]
+            | null
           codigo: string
           grupo: string
           nombre: string
@@ -292,6 +298,9 @@ export type Database = {
           activa?: boolean
           afecta_fc?: boolean
           afecta_gyp?: boolean
+          centros_permitidos?:
+            | Database["public"]["Enums"]["centro_costo"][]
+            | null
           codigo?: string
           grupo?: string
           nombre?: string
