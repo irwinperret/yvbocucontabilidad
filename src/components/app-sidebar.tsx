@@ -46,7 +46,14 @@ export function AppSidebar() {
   const isActive = (url: string) => path === url;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar
+      collapsible="icon"
+      className={
+        mode === "analisis"
+          ? "[&_[data-sidebar=sidebar]]:bg-[#E8F5F0] [&_[data-sidebar=sidebar]]:border-[#0F6E56]/20"
+          : "[&_[data-sidebar=sidebar]]:bg-[#EEECFA] [&_[data-sidebar=sidebar]]:border-[#534AB7]/20"
+      }
+    >
       <SidebarHeader className="border-b">
         <div className="px-2 py-3">
           {!collapsed && (
