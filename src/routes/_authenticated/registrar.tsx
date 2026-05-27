@@ -629,6 +629,7 @@ function FinanciamientoForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !tasaN) return toast.error("Falta tasa");
+    if (muestraBanco && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     try {
       if (tipo === "pago_cuota") {
