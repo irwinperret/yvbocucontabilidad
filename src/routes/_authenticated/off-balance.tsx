@@ -24,6 +24,30 @@ function OffBalancePage() {
     },
   });
 
+  const { data: diferencial } = useQuery({
+    queryKey: ["off-balance-diferencial-mes"],
+    queryFn: async () => {
+      const hoy = new Date();
+      const desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-01`;
+      const [{ data: txs }, { data: tasas }] = await Promise.all([
+        supabase.from("transacciones").select("fecha, metodo_pago, monto_usd, tasa_bcv, tasa_paralela")
+          .gte("fecha", desde).in("metodo_pago", ["efectivo_usd", "zelle"]),
+        supabase.from("tasas_paralela").select("fecha, tasa").gte("fecha", desde),
+      ]);
+      const byFecha = new Map((tasas ?? []).map((t: any) => [t.fecha, Number(t.tasa)]));
+      let total = 0, count = 0, totalUsd = 0;
+      for (const t of txs ?? []) {
+        const par = t.tasa_paralela != null ? Number(t.tasa_paralela) : byFecha.get(t.fecha);
+        if (!par) continue;
+        const usd = Number(t.monto_usd) || 0;
+        total += usd * (par - Number(t.tasa_bcv));
+        totalUsd += usd;
+        count++;
+      }
+      return { total, count, totalUsd };
+    },
+  });
+
   const dias = (fecha: string) => Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000);
 
   const migrar = async (t: any) => {
