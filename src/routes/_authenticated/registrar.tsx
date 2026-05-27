@@ -129,6 +129,7 @@ function VentasForm() {
     if (!user) return;
     if (!tasaN) return toast.error("Falta tasa BCV");
     if (tipo === "credito" && !cliente) return toast.error("Indica el cliente");
+    if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
