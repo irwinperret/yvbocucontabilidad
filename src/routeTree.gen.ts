@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTransaccionesRouteImport } from './routes/_authenticated/transacciones'
 import { Route as AuthenticatedTercerosRouteImport } from './routes/_authenticated/terceros'
+import { Route as AuthenticatedTasaParalelaRouteImport } from './routes/_authenticated/tasa-paralela'
 import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/tasa'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
 import { Route as AuthenticatedProveedoresRouteImport } from './routes/_authenticated/proveedores'
@@ -23,10 +24,12 @@ import { Route as AuthenticatedOffBalanceRouteImport } from './routes/_authentic
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
 import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
+import { Route as AuthenticatedDiferencialCambiarioRouteImport } from './routes/_authenticated/diferencial-cambiario'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
+import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
 const LoginRoute = LoginRouteImport.update({
@@ -54,6 +57,12 @@ const AuthenticatedTercerosRoute = AuthenticatedTercerosRouteImport.update({
   path: '/terceros',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedTasaParalelaRoute =
+  AuthenticatedTasaParalelaRouteImport.update({
+    id: '/tasa-paralela',
+    path: '/tasa-paralela',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedTasaRoute = AuthenticatedTasaRouteImport.update({
   id: '/tasa',
   path: '/tasa',
@@ -101,6 +110,12 @@ const AuthenticatedFcRoute = AuthenticatedFcRouteImport.update({
   path: '/fc',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedDiferencialCambiarioRoute =
+  AuthenticatedDiferencialCambiarioRouteImport.update({
+    id: '/diferencial-cambiario',
+    path: '/diferencial-cambiario',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -122,6 +137,12 @@ const AuthenticatedCuentasBancariasRoute =
     path: '/cuentas-bancarias',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiPublicHooksSyncParalelaRoute =
+  ApiPublicHooksSyncParalelaRouteImport.update({
+    id: '/api/public/hooks/sync-paralela',
+    path: '/api/public/hooks/sync-paralela',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksSyncBcvRoute = ApiPublicHooksSyncBcvRouteImport.update({
   id: '/api/public/hooks/sync-bcv',
   path: '/api/public/hooks/sync-bcv',
@@ -135,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
   '/inicio': typeof AuthenticatedInicioRoute
@@ -144,9 +166,11 @@ export interface FileRoutesByFullPath {
   '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/tasa': typeof AuthenticatedTasaRoute
+  '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
+  '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -155,6 +179,7 @@ export interface FileRoutesByTo {
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
   '/inicio': typeof AuthenticatedInicioRoute
@@ -164,9 +189,11 @@ export interface FileRoutesByTo {
   '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/tasa': typeof AuthenticatedTasaRoute
+  '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
+  '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -177,6 +204,7 @@ export interface FileRoutesById {
   '/_authenticated/cxc': typeof AuthenticatedCxcRoute
   '/_authenticated/cxp': typeof AuthenticatedCxpRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/_authenticated/fc': typeof AuthenticatedFcRoute
   '/_authenticated/gyp': typeof AuthenticatedGypRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
@@ -186,9 +214,11 @@ export interface FileRoutesById {
   '/_authenticated/proveedores': typeof AuthenticatedProveedoresRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/tasa': typeof AuthenticatedTasaRoute
+  '/_authenticated/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
   '/_authenticated/transacciones': typeof AuthenticatedTransaccionesRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
+  '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -199,6 +229,7 @@ export interface FileRouteTypes {
     | '/cxc'
     | '/cxp'
     | '/dashboard'
+    | '/diferencial-cambiario'
     | '/fc'
     | '/gyp'
     | '/inicio'
@@ -208,9 +239,11 @@ export interface FileRouteTypes {
     | '/proveedores'
     | '/registrar'
     | '/tasa'
+    | '/tasa-paralela'
     | '/terceros'
     | '/transacciones'
     | '/api/public/hooks/sync-bcv'
+    | '/api/public/hooks/sync-paralela'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -219,6 +252,7 @@ export interface FileRouteTypes {
     | '/cxc'
     | '/cxp'
     | '/dashboard'
+    | '/diferencial-cambiario'
     | '/fc'
     | '/gyp'
     | '/inicio'
@@ -228,9 +262,11 @@ export interface FileRouteTypes {
     | '/proveedores'
     | '/registrar'
     | '/tasa'
+    | '/tasa-paralela'
     | '/terceros'
     | '/transacciones'
     | '/api/public/hooks/sync-bcv'
+    | '/api/public/hooks/sync-paralela'
   id:
     | '__root__'
     | '/'
@@ -240,6 +276,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxc'
     | '/_authenticated/cxp'
     | '/_authenticated/dashboard'
+    | '/_authenticated/diferencial-cambiario'
     | '/_authenticated/fc'
     | '/_authenticated/gyp'
     | '/_authenticated/inicio'
@@ -249,9 +286,11 @@ export interface FileRouteTypes {
     | '/_authenticated/proveedores'
     | '/_authenticated/registrar'
     | '/_authenticated/tasa'
+    | '/_authenticated/tasa-paralela'
     | '/_authenticated/terceros'
     | '/_authenticated/transacciones'
     | '/api/public/hooks/sync-bcv'
+    | '/api/public/hooks/sync-paralela'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -259,6 +298,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiPublicHooksSyncBcvRoute: typeof ApiPublicHooksSyncBcvRoute
+  ApiPublicHooksSyncParalelaRoute: typeof ApiPublicHooksSyncParalelaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -296,6 +336,13 @@ declare module '@tanstack/react-router' {
       path: '/terceros'
       fullPath: '/terceros'
       preLoaderRoute: typeof AuthenticatedTercerosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/tasa-paralela': {
+      id: '/_authenticated/tasa-paralela'
+      path: '/tasa-paralela'
+      fullPath: '/tasa-paralela'
+      preLoaderRoute: typeof AuthenticatedTasaParalelaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/tasa': {
@@ -361,6 +408,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFcRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/diferencial-cambiario': {
+      id: '/_authenticated/diferencial-cambiario'
+      path: '/diferencial-cambiario'
+      fullPath: '/diferencial-cambiario'
+      preLoaderRoute: typeof AuthenticatedDiferencialCambiarioRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -389,6 +443,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCuentasBancariasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/hooks/sync-paralela': {
+      id: '/api/public/hooks/sync-paralela'
+      path: '/api/public/hooks/sync-paralela'
+      fullPath: '/api/public/hooks/sync-paralela'
+      preLoaderRoute: typeof ApiPublicHooksSyncParalelaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/sync-bcv': {
       id: '/api/public/hooks/sync-bcv'
       path: '/api/public/hooks/sync-bcv'
@@ -404,6 +465,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRoute
   AuthenticatedCxpRoute: typeof AuthenticatedCxpRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDiferencialCambiarioRoute: typeof AuthenticatedDiferencialCambiarioRoute
   AuthenticatedFcRoute: typeof AuthenticatedFcRoute
   AuthenticatedGypRoute: typeof AuthenticatedGypRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
@@ -413,6 +475,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProveedoresRoute: typeof AuthenticatedProveedoresRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
   AuthenticatedTasaRoute: typeof AuthenticatedTasaRoute
+  AuthenticatedTasaParalelaRoute: typeof AuthenticatedTasaParalelaRoute
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
   AuthenticatedTransaccionesRoute: typeof AuthenticatedTransaccionesRoute
 }
@@ -422,6 +485,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCxcRoute: AuthenticatedCxcRoute,
   AuthenticatedCxpRoute: AuthenticatedCxpRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDiferencialCambiarioRoute:
+    AuthenticatedDiferencialCambiarioRoute,
   AuthenticatedFcRoute: AuthenticatedFcRoute,
   AuthenticatedGypRoute: AuthenticatedGypRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
@@ -431,6 +496,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProveedoresRoute: AuthenticatedProveedoresRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
   AuthenticatedTasaRoute: AuthenticatedTasaRoute,
+  AuthenticatedTasaParalelaRoute: AuthenticatedTasaParalelaRoute,
   AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,
   AuthenticatedTransaccionesRoute: AuthenticatedTransaccionesRoute,
 }
@@ -444,6 +510,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiPublicHooksSyncBcvRoute: ApiPublicHooksSyncBcvRoute,
+  ApiPublicHooksSyncParalelaRoute: ApiPublicHooksSyncParalelaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
