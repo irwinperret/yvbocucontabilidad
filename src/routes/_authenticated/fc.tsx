@@ -10,6 +10,9 @@ import { Label } from "@/components/ui/label";
 import { fmtUsd } from "@/lib/format";
 import { CENTROS, MESES } from "@/lib/account-helpers";
 import { useCuentasBancarias } from "@/components/bank-account-select";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { exportFC } from "@/lib/excel-export";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
 
