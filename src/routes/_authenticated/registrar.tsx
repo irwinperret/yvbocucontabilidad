@@ -427,16 +427,17 @@ function GastosForm() {
 }
 
 /* ---------------- NÓMINA ---------------- */
+type EmpleadoLinea = { nombre: string; monto: string };
+
 function NominaForm() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [tipo, setTipo] = useState("regular");
   const [centro, setCentro] = useState<Centro>("Compartido");
-  const [montoBs, setMontoBs] = useState("");
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
-  const [empleados, setEmpleados] = useState("");
+  const [empleados, setEmpleados] = useState<EmpleadoLinea[]>([{ nombre: "", monto: "" }]);
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
@@ -445,32 +446,47 @@ function NominaForm() {
   const { data: tasaSugerida } = useTasaForDate(fecha);
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
-  const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
+  const total = empleados.reduce((s, e) => s + (Number(e.monto) || 0), 0);
   const usd = tasaN ? total / tasaN : 0;
   const cuenta = cuentaNomina(tipo, centro);
   const esProvision = tipo === "pasivos";
 
+  const updateLinea = (i: number, patch: Partial<EmpleadoLinea>) => {
+    setEmpleados((arr) => arr.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  };
+  const addLinea = () => setEmpleados((arr) => [...arr, { nombre: "", monto: "" }]);
+  const delLinea = (i: number) => setEmpleados((arr) => arr.length === 1 ? arr : arr.filter((_, idx) => idx !== i));
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !tasaN) return toast.error("Falta tasa");
+    const lineas = empleados.filter((l) => l.nombre.trim() && Number(l.monto) > 0);
+    if (!lineas.length) return toast.error("Agrega al menos un empleado con monto");
     setBusy(true);
-    const { data: tx, error } = await supabase.from("transacciones").insert({
-      fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-      monto_bs: total, monto_base_bs: total, iva_bs: 0,
-      tasa_bcv: tasaN, monto_usd: usd,
-      metodo_pago: esProvision ? "pendiente" : (metodo as any),
-      notas: notas || (empleados ? `Empleados: ${empleados}` : null),
-      modo: offBalance ? "off_balance" : "on_balance",
-      cuenta_bancaria_id: !esProvision && cuentaBancariaId ? cuentaBancariaId : null,
-      created_by: user.id,
-    } as any).select().single();
-    if (error) { setBusy(false); return toast.error(error.message); }
-    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+
+    for (const l of lineas) {
+      const monto = Number(l.monto);
+      const lineaUsd = tasaN ? monto / tasaN : 0;
+      const notaLinea = `Empleado: ${l.nombre.trim()}${notas ? ` · ${notas}` : ""}`;
+      const { data: tx, error } = await supabase.from("transacciones").insert({
+        fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
+        monto_bs: monto, monto_base_bs: monto, iva_bs: 0,
+        tasa_bcv: tasaN, monto_usd: lineaUsd,
+        metodo_pago: esProvision ? "pendiente" : (metodo as any),
+        notas: notaLinea,
+        modo: offBalance ? "off_balance" : "on_balance",
+        cuenta_bancaria_id: !esProvision && cuentaBancariaId ? cuentaBancariaId : null,
+        created_by: user.id,
+      } as any).select().single();
+      if (error) { setBusy(false); return toast.error(error.message); }
+      if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    }
+
     setBusy(false);
-    toast.success("Nómina registrada");
+    toast.success(`Nómina registrada (${lineas.length} empleado${lineas.length > 1 ? "s" : ""})`);
     qc.invalidateQueries();
-    setMontoBs(""); setEmpleados(""); setNotas("");
+    setEmpleados([{ nombre: "", monto: "" }]); setNotas("");
   };
 
   return (
@@ -505,11 +521,23 @@ function NominaForm() {
               Solo G&amp;P. FC se afecta al pagar la liquidación.
             </div>
           )}
-          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
           <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">USD</span>
-            <span className="text-lg font-bold mono">{fmtUsd(usd)}</span>
+          <div className="md:col-span-2 border rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Empleados</Label>
+              <Button type="button" size="sm" variant="outline" onClick={addLinea}>+ Empleado</Button>
+            </div>
+            {empleados.map((l, i) => (
+              <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2 items-center">
+                <Input placeholder="Nombre del empleado" value={l.nombre} onChange={(e) => updateLinea(i, { nombre: e.target.value })} />
+                <Input type="number" step="0.01" placeholder="Monto Bs" value={l.monto} onChange={(e) => updateLinea(i, { monto: e.target.value })} className="mono" />
+                <Button type="button" variant="ghost" size="sm" disabled={empleados.length === 1} onClick={() => delLinea(i)} className="text-destructive">×</Button>
+              </div>
+            ))}
+            <div className="flex justify-between border-t pt-2 text-sm">
+              <span className="text-muted-foreground">Total ({empleados.filter((l) => l.nombre.trim() && Number(l.monto) > 0).length} empleado(s))</span>
+              <span className="font-semibold mono">{fmtBs(total)} · {fmtUsd(usd)}</span>
+            </div>
           </div>
           {!esProvision && (
             <>
@@ -525,8 +553,7 @@ function NominaForm() {
               </div>
             </>
           )}
-          <div><Label>N° empleados</Label><Input type="number" value={empleados} onChange={(e) => setEmpleados(e.target.value)} /></div>
-          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          <div className="md:col-span-2"><Label>Notas (común a todos)</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>
             <Switch checked={offBalance} onCheckedChange={setOffBalance} />
