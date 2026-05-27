@@ -129,16 +129,17 @@ function VentasForm() {
     },
   });
 
-  // Cuando seleccionas una CxC para cobrar, prellena los datos
+  const cxcSel: any = (cxcVigentes ?? []).find((x: any) => x.id === cxcId);
+  const pendienteCxc = Number(cxcSel?.monto_pendiente_bs ?? cxcSel?.monto_bs ?? 0);
+
+  // Cuando seleccionas una CxC para cobrar, prellena los datos con el saldo pendiente
   useEffect(() => {
-    if (tipo !== "cobro" || !cxcId) return;
-    const c: any = (cxcVigentes ?? []).find((x: any) => x.id === cxcId);
-    if (!c) return;
-    setCliente(c.cliente ?? "");
-    setCentro(c.centro_costo as Centro);
-    setMontoTotal(String(c.monto_bs ?? ""));
+    if (tipo !== "cobro" || !cxcId || !cxcSel) return;
+    setCliente(cxcSel.cliente ?? "");
+    setCentro(cxcSel.centro_costo as Centro);
+    setMontoTotal(String(pendienteCxc));
     setIvaAplica(false); // el IVA ya se causó al emitir la venta a crédito
-  }, [cxcId, tipo, cxcVigentes]);
+  }, [cxcId, tipo, cxcSel?.id]);
 
   const total = Number(montoTotal) || 0;
   const base = ivaAplica ? total / 1.16 : total;
@@ -154,6 +155,7 @@ function VentasForm() {
     if (!tasaN) return toast.error("Falta tasa BCV");
     if (tipo === "credito" && !cliente) return toast.error("Indica el cliente");
     if (tipo === "cobro" && !cxcId) return toast.error("Selecciona la cuenta por cobrar a cancelar");
+    if (tipo === "cobro" && total > pendienteCxc + 0.01) return toast.error(`El cobro no puede ser mayor al saldo pendiente (${fmtBs(pendienteCxc)})`);
     if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
@@ -173,21 +175,31 @@ function VentasForm() {
     if (tipo === "credito" && tx) {
       await supabase.from("cuentas_por_cobrar").insert({
         cliente, centro_costo: centro as any, monto_bs: total, monto_usd: baseUsd,
+        monto_pendiente_bs: total,
         fecha_vencimiento: fechaVenc || null, transaccion_id: tx.id, estado: "vigente",
       } as any);
     }
-    if (tipo === "cobro" && tx && cxcId) {
+    if (tipo === "cobro" && tx && cxcId && cxcSel) {
+      const nuevoPendiente = Math.max(0, pendienteCxc - total);
+      const completaCobrada = nuevoPendiente < 0.01;
       await supabase.from("cuentas_por_cobrar").update({
-        estado: "cobrada",
-        cobrada_at: new Date().toISOString(),
-        transaccion_cobro_id: tx.id,
-      }).eq("id", cxcId);
+        monto_pendiente_bs: nuevoPendiente,
+        estado: completaCobrada ? "cobrada" : "vigente",
+        cobrada_at: completaCobrada ? new Date().toISOString() : null,
+        transaccion_cobro_id: completaCobrada ? tx.id : cxcSel.transaccion_cobro_id ?? null,
+      } as any).eq("id", cxcId);
     }
     setBusy(false);
-    toast.success(tipo === "credito" ? "Venta a crédito registrada (CxC creada)" : tipo === "cobro" ? "Cobro registrado y CxC marcada como cobrada" : "Venta registrada");
+    const msg = tipo === "credito"
+      ? "Venta a crédito registrada (CxC creada)"
+      : tipo === "cobro"
+        ? (total >= pendienteCxc - 0.01 ? "Cobro registrado y CxC cerrada" : `Cobro parcial registrado · saldo restante ${fmtBs(pendienteCxc - total)}`)
+        : "Venta registrada";
+    toast.success(msg);
     qc.invalidateQueries();
     setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId("");
   };
+
 
 
   return (
@@ -232,14 +244,22 @@ function VentasForm() {
                   {(cxcVigentes ?? []).length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">No hay cuentas por cobrar vigentes</div>
                   )}
-                  {(cxcVigentes ?? []).map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.cliente} — {c.centro_costo} — {fmtBs(c.monto_bs)}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
-                    </SelectItem>
-                  ))}
+                  {(cxcVigentes ?? []).map((c: any) => {
+                    const pend = Number(c.monto_pendiente_bs ?? c.monto_bs);
+                    const parcial = pend < Number(c.monto_bs);
+                    return (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.cliente} — {c.centro_costo} — pendiente {fmtBs(pend)}{parcial ? ` (de ${fmtBs(c.monto_bs)})` : ""}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">Al guardar, la CxC se marca como cobrada y queda enlazada a este cobro.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {cxcSel
+                  ? `Saldo pendiente: ${fmtBs(pendienteCxc)}. Puedes cobrar el total o un monto menor (cobro parcial); la CxC se cierra cuando el saldo llegue a 0.`
+                  : "Al guardar, el monto cobrado se descuenta del saldo pendiente de la CxC."}
+              </p>
             </div>
           )}
 
