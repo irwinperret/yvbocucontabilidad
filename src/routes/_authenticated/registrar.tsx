@@ -263,7 +263,7 @@ function GastosForm() {
     const g: Record<string, any[]> = {};
     (cuentas ?? [])
       .filter((c: any) => !c.codigo.startsWith("1."))
-      .filter((c: any) => c.codigo !== "2.1") // 2.1 se maneja solo desde COGS e Inventario
+      .filter((c: any) => c.codigo !== "2.1" && c.codigo !== "2.2") // COGS se maneja solo desde COGS e Inventario
       .filter((c: any) => !c.centros_permitidos || c.centros_permitidos.includes(centro))
       .forEach((c: any) => { (g[c.grupo] ||= []).push(c); });
     return g;
