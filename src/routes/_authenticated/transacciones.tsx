@@ -165,6 +165,17 @@ function TransaccionesPage() {
                           ? <Badge variant="outline" className="text-[10px]">off</Badge>
                           : <Badge className="text-[10px]">on</Badge>}
                       </td>
+                      <td className="py-2 px-2 text-center">
+                        <AdjuntoCell
+                          transaccionId={t.id}
+                          adjuntoPath={t.adjunto_url ?? null}
+                          canDelete={true}
+                          onChange={(p) => {
+                            t.adjunto_url = p;
+                            qc.invalidateQueries({ queryKey: ["transacciones-list"] });
+                          }}
+                        />
+                      </td>
                       <td className="py-2 px-2">
                         <div className="flex items-center justify-end gap-1">
                           <Button
