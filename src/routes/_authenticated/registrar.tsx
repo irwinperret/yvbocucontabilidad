@@ -248,7 +248,7 @@ function GastosForm() {
   const [terceroId, setTerceroId] = useState("");
   const [cuenta, setCuenta] = useState("");
   const [centro, setCentro] = useState<Centro>("YV");
-  const [ivaAplica, setIvaAplica] = useState(false);
+  const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
