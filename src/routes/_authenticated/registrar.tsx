@@ -223,6 +223,26 @@ function VentasForm() {
             </>
           )}
 
+          {tipo === "cobro" && (
+            <div className="md:col-span-2">
+              <Label>Cuenta por cobrar a cancelar</Label>
+              <Select value={cxcId} onValueChange={setCxcId}>
+                <SelectTrigger><SelectValue placeholder="Selecciona la venta a crédito que se está cobrando" /></SelectTrigger>
+                <SelectContent>
+                  {(cxcVigentes ?? []).length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No hay cuentas por cobrar vigentes</div>
+                  )}
+                  {(cxcVigentes ?? []).map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.cliente} — {c.centro_costo} — {fmtBs(c.monto_bs)}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Al guardar, la CxC se marca como cobrada y queda enlazada a este cobro.</p>
+            </div>
+          )}
+
           <div className="md:col-span-2 border-t pt-3 flex items-center justify-between">
             <Label>¿Aplica IVA 16%?</Label>
             <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
@@ -247,17 +267,24 @@ function VentasForm() {
             <span className="text-sm text-muted-foreground">G&P: base USD</span>
             <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
           </div>
-          <div>
-            <Label>Método de pago</Label>
-            <Select value={metodo} onValueChange={setMetodo}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{METODOS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
           {tipo !== "credito" && (
-            <div className="md:col-span-2">
-              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+            <>
+              <div>
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+              </div>
+            </>
+          )}
+          {tipo === "credito" && (
+            <div className="md:col-span-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+              Esta venta queda <span className="font-semibold">pendiente de cobro</span>. No requiere método de pago ni cuenta bancaria — se registrarán cuando se cobre desde "Cobro de crédito anterior".
             </div>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
