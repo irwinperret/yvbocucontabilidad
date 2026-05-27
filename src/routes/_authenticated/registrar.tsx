@@ -110,11 +110,35 @@ function VentasForm() {
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [cxcId, setCxcId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+
+  const { data: cxcVigentes } = useQuery({
+    queryKey: ["cxc-vigentes"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("cuentas_por_cobrar")
+        .select("*")
+        .eq("estado", "vigente")
+        .order("fecha_vencimiento", { ascending: true });
+      return data ?? [];
+    },
+  });
+
+  // Cuando seleccionas una CxC para cobrar, prellena los datos
+  useEffect(() => {
+    if (tipo !== "cobro" || !cxcId) return;
+    const c: any = (cxcVigentes ?? []).find((x: any) => x.id === cxcId);
+    if (!c) return;
+    setCliente(c.cliente ?? "");
+    setCentro(c.centro_costo as Centro);
+    setMontoTotal(String(c.monto_bs ?? ""));
+    setIvaAplica(false); // el IVA ya se causó al emitir la venta a crédito
+  }, [cxcId, tipo, cxcVigentes]);
 
   const total = Number(montoTotal) || 0;
   const base = ivaAplica ? total / 1.16 : total;
@@ -129,6 +153,7 @@ function VentasForm() {
     if (!user) return;
     if (!tasaN) return toast.error("Falta tasa BCV");
     if (tipo === "credito" && !cliente) return toast.error("Indica el cliente");
+    if (tipo === "cobro" && !cxcId) return toast.error("Selecciona la cuenta por cobrar a cancelar");
     if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
@@ -136,7 +161,9 @@ function VentasForm() {
       monto_bs: total, monto_base_bs: base, iva_bs: iva,
       iva_aplica: ivaAplica, tipo_iva: ivaAplica ? "debito_fiscal" : null,
       tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
-      metodo_pago: metodo as any, referencia: ref || null, notas: notas || null,
+      metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
+      referencia: tipo === "credito" ? null : (ref || null),
+      notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
@@ -149,11 +176,19 @@ function VentasForm() {
         fecha_vencimiento: fechaVenc || null, transaccion_id: tx.id, estado: "vigente",
       } as any);
     }
+    if (tipo === "cobro" && tx && cxcId) {
+      await supabase.from("cuentas_por_cobrar").update({
+        estado: "cobrada",
+        cobrada_at: new Date().toISOString(),
+        transaccion_cobro_id: tx.id,
+      }).eq("id", cxcId);
+    }
     setBusy(false);
-    toast.success("Venta registrada");
+    toast.success(tipo === "credito" ? "Venta a crédito registrada (CxC creada)" : tipo === "cobro" ? "Cobro registrado y CxC marcada como cobrada" : "Venta registrada");
     qc.invalidateQueries();
-    setMontoTotal(""); setRef(""); setNotas(""); setCliente("");
+    setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId("");
   };
+
 
   return (
     <Card>
