@@ -885,17 +885,44 @@ function CierreForm() {
               <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
             </div>
             <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-              <div>
-                <Label className="text-xs">¿Ya fue pagada?</Label>
-                <p className="text-xs text-muted-foreground">Si no, se creará una Cuenta por Pagar.</p>
-              </div>
-              <Switch checked={compraPagada} onCheckedChange={setCompraPagada} />
+              <Label className="text-xs">¿Factura con IVA 16%?</Label>
+              <Switch checked={compraIvaAplica} onCheckedChange={setCompraIvaAplica} />
             </div>
-            {compraPagada ? (
+            <div>
+              <Label className="text-xs">{compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+              <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
+            </div>
+            <div>
+              <Label className="text-xs">Costo a inventario (base)</Label>
+              <Input value={fmtBs(compraBase)} disabled className="mono bg-muted/50" />
+            </div>
+            {compraIvaAplica && (
+              <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/50 p-2 rounded">
+                <div>Base: <span className="mono font-semibold">{fmtBs(compraBase)}</span></div>
+                <div>IVA crédito: <span className="mono font-semibold">{fmtBs(compraIva)}</span></div>
+              </div>
+            )}
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <div>
+                <Label className="text-xs">Off-balance</Label>
+                <p className="text-xs text-muted-foreground">Informativo: no afecta COGS ni FC</p>
+              </div>
+              <Switch checked={compraOffBalance} onCheckedChange={setCompraOffBalance} />
+            </div>
+            {!compraOffBalance && (
+              <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+                <div>
+                  <Label className="text-xs">¿Ya fue pagada?</Label>
+                  <p className="text-xs text-muted-foreground">Si no, se creará una Cuenta por Pagar.</p>
+                </div>
+                <Switch checked={compraPagada} onCheckedChange={setCompraPagada} />
+              </div>
+            )}
+            {!compraOffBalance && compraPagada ? (
               <div className="md:col-span-2">
                 <BankAccountSelect value={compraCuentaBanco} onChange={setCompraCuentaBanco} label="Cuenta bancaria de la que salió" required />
               </div>
-            ) : (
+            ) : !compraOffBalance ? (
               <div className="md:col-span-2">
                 <Label className="text-xs">Fecha vencimiento (opcional)</Label>
                 <Input type="date" value={compraVenc} onChange={(e) => setCompraVenc(e.target.value)} />
