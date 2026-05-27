@@ -700,11 +700,17 @@ function CierreForm() {
   const [compraTerceroId, setCompraTerceroId] = useState("");
   const [compraNumFactura, setCompraNumFactura] = useState("");
   const [compraMonto, setCompraMonto] = useState("");
+  const [compraIvaAplica, setCompraIvaAplica] = useState(false);
+  const [compraOffBalance, setCompraOffBalance] = useState(false);
   const [compraPagada, setCompraPagada] = useState(true);
   const [compraCuentaBanco, setCompraCuentaBanco] = useState("");
   const [compraVenc, setCompraVenc] = useState("");
   const [compraNotas, setCompraNotas] = useState("");
   const [compraBusy, setCompraBusy] = useState(false);
+
+  const compraTotal = Number(compraMonto) || 0;
+  const compraBase = compraIvaAplica ? compraTotal / 1.16 : compraTotal;
+  const compraIva = compraIvaAplica ? compraTotal - compraBase : 0;
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
   useEffect(() => { if (tasaCompraSug && !compraTasa) setCompraTasa(String(tasaCompraSug.tasa)); }, [tasaCompraSug]);
