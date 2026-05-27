@@ -700,11 +700,17 @@ function CierreForm() {
   const [compraTerceroId, setCompraTerceroId] = useState("");
   const [compraNumFactura, setCompraNumFactura] = useState("");
   const [compraMonto, setCompraMonto] = useState("");
+  const [compraIvaAplica, setCompraIvaAplica] = useState(false);
+  const [compraOffBalance, setCompraOffBalance] = useState(false);
   const [compraPagada, setCompraPagada] = useState(true);
   const [compraCuentaBanco, setCompraCuentaBanco] = useState("");
   const [compraVenc, setCompraVenc] = useState("");
   const [compraNotas, setCompraNotas] = useState("");
   const [compraBusy, setCompraBusy] = useState(false);
+
+  const compraTotal = Number(compraMonto) || 0;
+  const compraBase = compraIvaAplica ? compraTotal / 1.16 : compraTotal;
+  const compraIva = compraIvaAplica ? compraTotal - compraBase : 0;
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
   useEffect(() => { if (tasaCompraSug && !compraTasa) setCompraTasa(String(tasaCompraSug.tasa)); }, [tasaCompraSug]);
@@ -744,7 +750,9 @@ function CierreForm() {
     return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
   }, [tasasMes]);
 
-  const totalCompras = (compras ?? []).reduce((s: number, c: any) => s + Number(c.monto_bs || 0), 0);
+  const totalCompras = (compras ?? [])
+    .filter((c: any) => c.modo !== "off_balance")
+    .reduce((s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
 
   const ini = Number(invIni) || 0;
   const fin = Number(invFin) || 0;
@@ -760,11 +768,11 @@ function CierreForm() {
     if (!tasaN) return toast.error("Tasa requerida");
     if (!compraTerceroId) return toast.error("Selecciona proveedor");
     if (!compraNumFactura) return toast.error("N° factura requerido");
-    if (compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
+    if (!compraOffBalance && compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
 
     let cxpId: string | null = null;
-    if (!compraPagada) {
+    if (!compraOffBalance && !compraPagada) {
       const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
       const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
@@ -782,11 +790,13 @@ function CierreForm() {
 
     const { error } = await supabase.from("inventario_snapshots").insert({
       periodo, tipo: "compra", monto_bs: monto,
+      monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
+      modo: compraOffBalance ? "off_balance" : "on_balance",
       fecha: compraFecha, tasa_bcv: tasaN,
       tercero_id: compraTerceroId, numero_factura: compraNumFactura,
-      pagada: compraPagada,
-      cuenta_bancaria_id: compraPagada ? compraCuentaBanco : null,
-      fecha_vencimiento: !compraPagada ? (compraVenc || null) : null,
+      pagada: compraOffBalance ? true : compraPagada,
+      cuenta_bancaria_id: !compraOffBalance && compraPagada ? compraCuentaBanco : null,
+      fecha_vencimiento: !compraOffBalance && !compraPagada ? (compraVenc || null) : null,
       cxp_id: cxpId,
       notas: compraNotas || null,
       registrado_por: user.id,
@@ -795,6 +805,7 @@ function CierreForm() {
     if (error) return toast.error(error.message);
     toast.success("Compra registrada");
     setCompraMonto(""); setCompraNumFactura(""); setCompraNotas(""); setCompraVenc("");
+    setCompraIvaAplica(false); setCompraOffBalance(false);
     qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
     qc.invalidateQueries({ queryKey: ["cxp"] });
   };
@@ -869,27 +880,50 @@ function CierreForm() {
               <Label className="text-xs">N° factura</Label>
               <Input value={compraNumFactura} onChange={(e) => setCompraNumFactura(e.target.value)} required />
             </div>
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <Label className="text-xs">¿Factura con IVA 16%?</Label>
+              <Switch checked={compraIvaAplica} onCheckedChange={setCompraIvaAplica} />
+            </div>
             <div>
-              <Label className="text-xs">Monto Bs</Label>
+              <Label className="text-xs">{compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
               <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
             </div>
+            <div>
+              <Label className="text-xs">Costo a inventario (base)</Label>
+              <Input value={fmtBs(compraBase)} disabled className="mono bg-muted/50" />
+            </div>
+            {compraIvaAplica && (
+              <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/50 p-2 rounded">
+                <div>Base: <span className="mono font-semibold">{fmtBs(compraBase)}</span></div>
+                <div>IVA crédito: <span className="mono font-semibold">{fmtBs(compraIva)}</span></div>
+              </div>
+            )}
             <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
               <div>
-                <Label className="text-xs">¿Ya fue pagada?</Label>
-                <p className="text-xs text-muted-foreground">Si no, se creará una Cuenta por Pagar.</p>
+                <Label className="text-xs">Off-balance</Label>
+                <p className="text-xs text-muted-foreground">Informativo: no afecta COGS ni FC</p>
               </div>
-              <Switch checked={compraPagada} onCheckedChange={setCompraPagada} />
+              <Switch checked={compraOffBalance} onCheckedChange={setCompraOffBalance} />
             </div>
-            {compraPagada ? (
+            {!compraOffBalance && (
+              <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+                <div>
+                  <Label className="text-xs">¿Ya fue pagada?</Label>
+                  <p className="text-xs text-muted-foreground">Si no, se creará una Cuenta por Pagar.</p>
+                </div>
+                <Switch checked={compraPagada} onCheckedChange={setCompraPagada} />
+              </div>
+            )}
+            {!compraOffBalance && compraPagada ? (
               <div className="md:col-span-2">
                 <BankAccountSelect value={compraCuentaBanco} onChange={setCompraCuentaBanco} label="Cuenta bancaria de la que salió" required />
               </div>
-            ) : (
+            ) : !compraOffBalance ? (
               <div className="md:col-span-2">
                 <Label className="text-xs">Fecha vencimiento (opcional)</Label>
                 <Input type="date" value={compraVenc} onChange={(e) => setCompraVenc(e.target.value)} />
               </div>
-            )}
+            ) : null}
             <div className="md:col-span-2">
               <Label className="text-xs">Notas (opcional)</Label>
               <Input value={compraNotas} onChange={(e) => setCompraNotas(e.target.value)} />
