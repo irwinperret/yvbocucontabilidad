@@ -34,6 +34,16 @@ function useTasaForDate(fecha: string) {
   });
 }
 
+function useParalelaForDate(fecha: string) {
+  return useQuery({
+    queryKey: ["paralela-for", fecha],
+    queryFn: async () => {
+      const { data } = await supabase.from("tasas_paralela").select("*").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+      return data;
+    },
+  });
+}
+
 function useCuentas() {
   return useQuery({
     queryKey: ["cuentas-all"],
