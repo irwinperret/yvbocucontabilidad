@@ -80,7 +80,10 @@ function TransaccionesPage() {
 
   const eliminar = async (t: any) => {
     if (await isPeriodClosed(t.fecha)) {
-      toast.error("Período cerrado — no se puede eliminar");
+      toast.error("Este mes ya está cerrado, así que no puedes borrar esta transacción todavía.", {
+        description: "Si necesitas corregirla, ve a Registrar → pestaña «COGS e Inventario» y reabre el mes. Luego podrás editarla o eliminarla y volver a cerrarlo.",
+        duration: 8000,
+      });
       throw new Error("blocked");
     }
     const { error } = await supabase.from("transacciones").delete().eq("id", t.id);
