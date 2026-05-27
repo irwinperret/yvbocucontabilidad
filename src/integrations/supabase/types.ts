@@ -286,6 +286,10 @@ export type Database = {
           fecha: string | null
           fecha_vencimiento: string | null
           id: string
+          iva_aplica: boolean
+          iva_bs: number
+          modo: Database["public"]["Enums"]["modo_transaccion"]
+          monto_base_bs: number
           monto_bs: number
           notas: string | null
           numero_factura: string | null
@@ -303,6 +307,10 @@ export type Database = {
           fecha?: string | null
           fecha_vencimiento?: string | null
           id?: string
+          iva_aplica?: boolean
+          iva_bs?: number
+          modo?: Database["public"]["Enums"]["modo_transaccion"]
+          monto_base_bs?: number
           monto_bs: number
           notas?: string | null
           numero_factura?: string | null
@@ -320,6 +328,10 @@ export type Database = {
           fecha?: string | null
           fecha_vencimiento?: string | null
           id?: string
+          iva_aplica?: boolean
+          iva_bs?: number
+          modo?: Database["public"]["Enums"]["modo_transaccion"]
+          monto_base_bs?: number
           monto_bs?: number
           notas?: string | null
           numero_factura?: string | null
