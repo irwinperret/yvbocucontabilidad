@@ -191,6 +191,7 @@ function TransaccionesPage() {
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <DeleteButton
+                            fecha={t.fecha}
                             detail={`${fmtDate(t.fecha)} · ${t.cuenta_codigo} · ${fmtBs(t.monto_bs)}`}
                             onConfirm={() => eliminar(t)}
                           />
