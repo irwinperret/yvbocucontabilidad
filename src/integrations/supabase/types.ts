@@ -482,6 +482,30 @@ export type Database = {
         }
         Relationships: []
       }
+      tasas_paralela: {
+        Row: {
+          created_at: string
+          fecha: string
+          id: string
+          registrado_por: string | null
+          tasa: number
+        }
+        Insert: {
+          created_at?: string
+          fecha: string
+          id?: string
+          registrado_por?: string | null
+          tasa: number
+        }
+        Update: {
+          created_at?: string
+          fecha?: string
+          id?: string
+          registrado_por?: string | null
+          tasa?: number
+        }
+        Relationships: []
+      }
       terceros: {
         Row: {
           created_at: string
@@ -545,6 +569,7 @@ export type Database = {
           numero_factura: string | null
           referencia: string | null
           tasa_bcv: number
+          tasa_paralela: number | null
           tercero_id: string | null
           tipo_iva: string | null
         }
@@ -568,6 +593,7 @@ export type Database = {
           numero_factura?: string | null
           referencia?: string | null
           tasa_bcv: number
+          tasa_paralela?: number | null
           tercero_id?: string | null
           tipo_iva?: string | null
         }
@@ -591,6 +617,7 @@ export type Database = {
           numero_factura?: string | null
           referencia?: string | null
           tasa_bcv?: number
+          tasa_paralela?: number | null
           tercero_id?: string | null
           tipo_iva?: string | null
         }

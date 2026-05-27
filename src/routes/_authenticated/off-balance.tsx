@@ -1,13 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { fmtUsd, fmtDate } from "@/lib/format";
+import { fmtUsd, fmtBs, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { DeleteButton } from "@/components/delete-button";
+import { ArrowLeftRight } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/off-balance")({ component: OffBalancePage });
 
@@ -20,6 +21,30 @@ function OffBalancePage() {
         .from("transacciones").select("*")
         .eq("modo", "off_balance").order("fecha", { ascending: true });
       return data ?? [];
+    },
+  });
+
+  const { data: diferencial } = useQuery({
+    queryKey: ["off-balance-diferencial-mes"],
+    queryFn: async () => {
+      const hoy = new Date();
+      const desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-01`;
+      const [{ data: txs }, { data: tasas }] = await Promise.all([
+        supabase.from("transacciones").select("fecha, metodo_pago, monto_usd, tasa_bcv, tasa_paralela")
+          .gte("fecha", desde).in("metodo_pago", ["efectivo_usd", "zelle"]),
+        supabase.from("tasas_paralela").select("fecha, tasa").gte("fecha", desde),
+      ]);
+      const byFecha = new Map((tasas ?? []).map((t: any) => [t.fecha, Number(t.tasa)]));
+      let total = 0, count = 0, totalUsd = 0;
+      for (const t of txs ?? []) {
+        const par = t.tasa_paralela != null ? Number(t.tasa_paralela) : byFecha.get(t.fecha);
+        if (!par) continue;
+        const usd = Number(t.monto_usd) || 0;
+        total += usd * (par - Number(t.tasa_bcv));
+        totalUsd += usd;
+        count++;
+      }
+      return { total, count, totalUsd };
     },
   });
 
@@ -53,6 +78,37 @@ function OffBalancePage() {
         <h1 className="text-2xl font-bold tracking-tight">Off balance</h1>
         <p className="text-sm text-muted-foreground">Movimientos pendientes de migrar al flujo principal</p>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ArrowLeftRight className="h-4 w-4" /> Diferencial cambiario (mes actual)
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">USD × (paralela − BCV) · informativo, no afecta G&amp;P</p>
+          </div>
+          <Button asChild variant="outline" size="sm"><Link to="/diferencial-cambiario">Ver detalle</Link></Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <div className="text-xs text-muted-foreground">Movimientos USD</div>
+              <div className="text-xl font-bold mono">{diferencial?.count ?? 0}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Volumen</div>
+              <div className="text-xl font-bold mono">{fmtUsd(diferencial?.totalUsd ?? 0)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Diferencial total</div>
+              <div className={`text-xl font-bold mono ${(diferencial?.total ?? 0) >= 0 ? "text-orange-600" : "text-green-700"}`}>
+                {(diferencial?.total ?? 0) >= 0 ? "+" : ""}{fmtBs(diferencial?.total ?? 0)}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Pendientes</CardTitle></CardHeader>
