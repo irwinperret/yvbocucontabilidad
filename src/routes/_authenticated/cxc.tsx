@@ -133,7 +133,8 @@ function CxCPage() {
                   <tr>
                     <th className="text-left py-2 px-2">Cliente</th>
                     <th className="text-left py-2 px-2">Centro</th>
-                    <th className="text-right py-2 px-2">Bs</th>
+                    <th className="text-right py-2 px-2">Original Bs</th>
+                    <th className="text-right py-2 px-2">Pendiente Bs</th>
                     <th className="text-right py-2 px-2">USD</th>
                     <th className="text-left py-2 px-2">Vence</th>
                     <th className="text-left py-2 px-2">Estado</th>
@@ -141,23 +142,31 @@ function CxCPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((c: any) => (
-                    <tr key={c.id} className="border-b last:border-0">
-                      <td className="py-2 px-2">{c.cliente}</td>
-                      <td className="py-2 px-2">{c.centro_costo}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtBs(c.monto_bs)}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
-                      <td className="py-2 px-2 mono">{c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</td>
-                      <td className="py-2 px-2">{estadoBadge(c)}</td>
-                      <td className="py-2 px-2 flex justify-end gap-1">
-                        {c.estado !== "cobrada" && <Button size="sm" variant="outline" onClick={() => cobrar(c)}>Cobrar</Button>}
-                        <DeleteButton
-                          detail={`${c.cliente} · ${fmtBs(c.monto_bs)} · ${fmtUsd(c.monto_usd)}`}
-                          onConfirm={() => eliminar(c)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {data.map((c: any) => {
+                    const pend = Number(c.monto_pendiente_bs ?? c.monto_bs);
+                    const parcial = pend > 0 && pend < Number(c.monto_bs) - 0.01;
+                    return (
+                      <tr key={c.id} className="border-b last:border-0">
+                        <td className="py-2 px-2">{c.cliente}</td>
+                        <td className="py-2 px-2">{c.centro_costo}</td>
+                        <td className="py-2 px-2 text-right mono">{fmtBs(c.monto_bs)}</td>
+                        <td className="py-2 px-2 text-right mono">
+                          {fmtBs(pend)}
+                          {parcial && <span className="ml-1 text-[10px] text-orange-600">parcial</span>}
+                        </td>
+                        <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
+                        <td className="py-2 px-2 mono">{c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</td>
+                        <td className="py-2 px-2">{estadoBadge(c)}</td>
+                        <td className="py-2 px-2 flex justify-end gap-1">
+                          {c.estado !== "cobrada" && <Button size="sm" variant="outline" onClick={() => cobrar(c)}>Cobrar saldo</Button>}
+                          <DeleteButton
+                            detail={`${c.cliente} · ${fmtBs(c.monto_bs)} · ${fmtUsd(c.monto_usd)}`}
+                            onConfirm={() => eliminar(c)}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
