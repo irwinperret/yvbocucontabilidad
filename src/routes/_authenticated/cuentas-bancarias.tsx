@@ -24,7 +24,10 @@ type Cuenta = {
   titular: string;
   moneda: "BS" | "USD";
   activa: boolean;
+  saldo_inicial?: number;
+  saldo_inicial_fecha?: string | null;
 };
+
 
 function CuentasBancariasPage() {
   const qc = useQueryClient();
@@ -135,13 +138,19 @@ function CuentaModal({ cuenta, onClose, onDone }: { cuenta: Cuenta | null; onClo
   const [numero, setNumero] = useState(cuenta?.numero ?? "");
   const [titular, setTitular] = useState(cuenta?.titular ?? "");
   const [moneda, setMoneda] = useState<"BS" | "USD">(cuenta?.moneda ?? "BS");
+  const [saldoInicial, setSaldoInicial] = useState<string>(String(cuenta?.saldo_inicial ?? "0"));
+  const [saldoFecha, setSaldoFecha] = useState<string>(cuenta?.saldo_inicial_fecha ?? "");
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre || !banco || !numero || !titular) return toast.error("Completa todos los campos");
     setBusy(true);
-    const payload = { nombre, banco, numero, titular, moneda };
+    const payload = {
+      nombre, banco, numero, titular, moneda,
+      saldo_inicial: Number(saldoInicial) || 0,
+      saldo_inicial_fecha: saldoFecha || null,
+    };
     if (cuenta) {
       const { error } = await supabase.from("cuentas_bancarias" as any).update(payload as any).eq("id", cuenta.id);
       if (error) { setBusy(false); return toast.error(error.message); }
@@ -156,6 +165,7 @@ function CuentaModal({ cuenta, onClose, onDone }: { cuenta: Cuenta | null; onClo
     setBusy(false);
     onDone();
   };
+
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -178,6 +188,20 @@ function CuentaModal({ cuenta, onClose, onDone }: { cuenta: Cuenta | null; onClo
           </div>
           <div><Label>Número de cuenta</Label><Input value={numero} onChange={(e) => setNumero(e.target.value)} className="mono" required /></div>
           <div><Label>Titular</Label><Input value={titular} onChange={(e) => setTitular(e.target.value)} required /></div>
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+            <div>
+              <Label>Saldo inicial ({moneda})</Label>
+              <Input type="number" step="0.01" value={saldoInicial} onChange={(e) => setSaldoInicial(e.target.value)} className="mono" />
+            </div>
+            <div>
+              <Label>Fecha del saldo inicial</Label>
+              <Input type="date" value={saldoFecha} onChange={(e) => setSaldoFecha(e.target.value)} />
+            </div>
+            <p className="col-span-2 text-[11px] text-muted-foreground">
+              Solo se cuentan transacciones posteriores a esta fecha para calcular el saldo teórico.
+            </p>
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
             <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Guardar"}</Button>
