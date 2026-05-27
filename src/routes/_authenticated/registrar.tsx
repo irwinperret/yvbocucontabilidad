@@ -921,9 +921,20 @@ function CierreForm() {
     <Card>
       <CardHeader><CardTitle className="text-base">COGS, Inventario y Cierre</CardTitle></CardHeader>
       <CardContent className="space-y-6">
-        <div className="rounded border border-orange-300 bg-orange-50 text-orange-800 text-xs p-2.5 font-medium">
-          ⚠ Una vez cerrado el mes, no se podrán modificar ni borrar transacciones de este período.
-        </div>
+        {cierreActual ? (
+          <div className="rounded border border-red-300 bg-red-50 text-red-800 text-xs p-3 font-medium flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              🔒 <strong>Mes {periodo} cerrado</strong> el {new Date(cierreActual.created_at).toLocaleDateString()}. Las transacciones están bloqueadas. Si necesitas corregir algo, reabre el mes, edita y vuelve a cerrarlo.
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={reabrirMes} className="border-red-400 text-red-800 hover:bg-red-100">
+              Reabrir mes
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded border border-orange-300 bg-orange-50 text-orange-800 text-xs p-2.5 font-medium">
+            ⚠ Una vez cerrado el mes, no se podrán modificar ni borrar transacciones de este período (un admin puede reabrirlo después si hay errores).
+          </div>
+        )}
 
         <div>
           <Label className="text-sm">Período</Label>
