@@ -750,7 +750,9 @@ function CierreForm() {
     return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
   }, [tasasMes]);
 
-  const totalCompras = (compras ?? []).reduce((s: number, c: any) => s + Number(c.monto_bs || 0), 0);
+  const totalCompras = (compras ?? [])
+    .filter((c: any) => c.modo !== "off_balance")
+    .reduce((s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
 
   const ini = Number(invIni) || 0;
   const fin = Number(invFin) || 0;
