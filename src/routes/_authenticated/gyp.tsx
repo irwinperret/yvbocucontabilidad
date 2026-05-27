@@ -9,6 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { fmtUsd } from "@/lib/format";
 import { CENTROS, MESES } from "@/lib/account-helpers";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { exportGyP } from "@/lib/excel-export";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
