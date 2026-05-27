@@ -432,6 +432,7 @@ type EmpleadoLinea = { nombre: string; monto: string };
 function NominaForm() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
   const [fecha, setFecha] = useState(todayISO());
   const [tipo, setTipo] = useState("regular");
   const [centro, setCentro] = useState<Centro>("Compartido");
@@ -439,18 +440,21 @@ function NominaForm() {
   const [metodo, setMetodo] = useState("transferencia");
   const [empleados, setEmpleados] = useState<EmpleadoLinea[]>([{ nombre: "", monto: "" }]);
   const [notas, setNotas] = useState("");
-  const [offBalance, setOffBalance] = useState(false);
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const esUSD = moneda === "USD";
+  const offBalance = esUSD; // USD siempre off-balance
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
-  const total = empleados.reduce((s, e) => s + (Number(e.monto) || 0), 0);
-  const usd = tasaN ? total / tasaN : 0;
+  const totalInput = empleados.reduce((s, e) => s + (Number(e.monto) || 0), 0);
+  const totalBs = esUSD ? totalInput * tasaN : totalInput;
+  const totalUsd = esUSD ? totalInput : (tasaN ? totalInput / tasaN : 0);
   const cuenta = cuentaNomina(tipo, centro);
-  const esProvision = tipo === "pasivos";
+  const esProvision = tipo === "pasivos" && !esUSD; // provisión solo aplica a Bs on-balance
 
   const updateLinea = (i: number, patch: Partial<EmpleadoLinea>) => {
     setEmpleados((arr) => arr.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -467,16 +471,17 @@ function NominaForm() {
 
     for (const l of lineas) {
       const monto = Number(l.monto);
-      const lineaUsd = tasaN ? monto / tasaN : 0;
+      const lineaBs = esUSD ? monto * tasaN : monto;
+      const lineaUsd = esUSD ? monto : (tasaN ? monto / tasaN : 0);
       const notaLinea = `Empleado: ${l.nombre.trim()}${notas ? ` · ${notas}` : ""}`;
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-        monto_bs: monto, monto_base_bs: monto, iva_bs: 0,
+        monto_bs: lineaBs, monto_base_bs: lineaBs, iva_bs: 0,
         tasa_bcv: tasaN, monto_usd: lineaUsd,
-        metodo_pago: esProvision ? "pendiente" : (metodo as any),
+        metodo_pago: esProvision ? "pendiente" : (esUSD ? "efectivo-usd" : metodo) as any,
         notas: notaLinea,
         modo: offBalance ? "off_balance" : "on_balance",
-        cuenta_bancaria_id: !esProvision && cuentaBancariaId ? cuentaBancariaId : null,
+        cuenta_bancaria_id: !esProvision && !esUSD && cuentaBancariaId ? cuentaBancariaId : null,
         created_by: user.id,
       } as any).select().single();
       if (error) { setBusy(false); return toast.error(error.message); }
@@ -494,6 +499,10 @@ function NominaForm() {
       <CardHeader><CardTitle className="text-base">Nómina</CardTitle></CardHeader>
       <CardContent>
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2 inline-flex rounded-lg border p-1 w-fit">
+            <button type="button" onClick={() => setMoneda("BS")} className={`px-3 py-1.5 text-sm rounded-md ${!esUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Nómina en Bs (on-balance)</button>
+            <button type="button" onClick={() => setMoneda("USD")} className={`px-3 py-1.5 text-sm rounded-md ${esUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Nómina en USD (off-balance)</button>
+          </div>
           <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
           <div>
             <Label>Tipo</Label>
@@ -503,7 +512,7 @@ function NominaForm() {
                 <SelectItem value="regular">Nómina regular</SelectItem>
                 <SelectItem value="bono">Bono</SelectItem>
                 <SelectItem value="liquidacion">Liquidación</SelectItem>
-                <SelectItem value="pasivos">Provisión pasivos laborales</SelectItem>
+                {!esUSD && <SelectItem value="pasivos">Provisión pasivos laborales</SelectItem>}
                 <SelectItem value="parafiscales">Parafiscales</SelectItem>
               </SelectContent>
             </Select>
@@ -521,6 +530,11 @@ function NominaForm() {
               Solo G&amp;P. FC se afecta al pagar la liquidación.
             </div>
           )}
+          {esUSD && (
+            <div className="md:col-span-2 bg-blue-50 border border-blue-200 text-blue-800 text-xs p-2 rounded">
+              Nómina en USD: pago directo en efectivo USD, registrado como off-balance.
+            </div>
+          )}
           <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
           <div className="md:col-span-2 border rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -530,16 +544,16 @@ function NominaForm() {
             {empleados.map((l, i) => (
               <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2 items-center">
                 <Input placeholder="Nombre del empleado" value={l.nombre} onChange={(e) => updateLinea(i, { nombre: e.target.value })} />
-                <Input type="number" step="0.01" placeholder="Monto Bs" value={l.monto} onChange={(e) => updateLinea(i, { monto: e.target.value })} className="mono" />
+                <Input type="number" step="0.01" placeholder={esUSD ? "Monto USD" : "Monto Bs"} value={l.monto} onChange={(e) => updateLinea(i, { monto: e.target.value })} className="mono" />
                 <Button type="button" variant="ghost" size="sm" disabled={empleados.length === 1} onClick={() => delLinea(i)} className="text-destructive">×</Button>
               </div>
             ))}
             <div className="flex justify-between border-t pt-2 text-sm">
               <span className="text-muted-foreground">Total ({empleados.filter((l) => l.nombre.trim() && Number(l.monto) > 0).length} empleado(s))</span>
-              <span className="font-semibold mono">{fmtBs(total)} · {fmtUsd(usd)}</span>
+              <span className="font-semibold mono">{fmtBs(totalBs)} · {fmtUsd(totalUsd)}</span>
             </div>
           </div>
-          {!esProvision && (
+          {!esProvision && !esUSD && (
             <>
               <div>
                 <Label>Método de pago</Label>
@@ -554,10 +568,6 @@ function NominaForm() {
             </>
           )}
           <div className="md:col-span-2"><Label>Notas (común a todos)</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
-          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-            <Label>Off-balance</Label>
-            <Switch checked={offBalance} onCheckedChange={setOffBalance} />
-          </div>
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar nómina"}</Button>
           </div>
