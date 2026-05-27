@@ -301,6 +301,7 @@ function GastosForm() {
     if (!cuenta) return toast.error("Selecciona cuenta");
     if (!tasaN) return toast.error("Falta tasa");
     if (!numFactura) return toast.error("N° factura obligatorio");
+    if (!pendiente && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
@@ -421,7 +422,7 @@ function GastosForm() {
                 </Select>
               </div>
               <div className="md:col-span-2">
-                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
               </div>
             </>
           )}
@@ -481,6 +482,7 @@ function NominaForm() {
     if (!user || !tasaN) return toast.error("Falta tasa");
     const lineas = empleados.filter((l) => l.nombre.trim() && Number(l.monto) > 0);
     if (!lineas.length) return toast.error("Agrega al menos un empleado con monto");
+    if (!esProvision && !esUSD && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
 
     for (const l of lineas) {
@@ -577,7 +579,7 @@ function NominaForm() {
                 </Select>
               </div>
               <div className="md:col-span-2">
-                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
               </div>
             </>
           )}
@@ -627,6 +629,7 @@ function FinanciamientoForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !tasaN) return toast.error("Falta tasa");
+    if (muestraBanco && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     try {
       if (tipo === "pago_cuota") {
@@ -720,7 +723,7 @@ function FinanciamientoForm() {
           )}
           {muestraBanco && (
             <div className="md:col-span-2">
-              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
             </div>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
