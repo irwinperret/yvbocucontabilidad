@@ -924,11 +924,6 @@ function CierreForm() {
                 <Input type="date" value={compraVenc} onChange={(e) => setCompraVenc(e.target.value)} />
               </div>
             ) : null}
-              <div className="md:col-span-2">
-                <Label className="text-xs">Fecha vencimiento (opcional)</Label>
-                <Input type="date" value={compraVenc} onChange={(e) => setCompraVenc(e.target.value)} />
-              </div>
-            )}
             <div className="md:col-span-2">
               <Label className="text-xs">Notas (opcional)</Label>
               <Input value={compraNotas} onChange={(e) => setCompraNotas(e.target.value)} />
