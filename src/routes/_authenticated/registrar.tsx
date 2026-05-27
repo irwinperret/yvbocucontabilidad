@@ -129,6 +129,7 @@ function VentasForm() {
     if (!user) return;
     if (!tasaN) return toast.error("Falta tasa BCV");
     if (tipo === "credito" && !cliente) return toast.error("Indica el cliente");
+    if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
@@ -221,7 +222,7 @@ function VentasForm() {
           <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
           {tipo !== "credito" && (
             <div className="md:col-span-2">
-              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
             </div>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
