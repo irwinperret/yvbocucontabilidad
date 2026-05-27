@@ -138,7 +138,7 @@ export function AppSidebar() {
             <SidebarGroupLabel>Análisis</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {analisisItems.map((item) => (
+                {analisisPrincipales.map((item) => (
                   <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton asChild isActive={isActive(item.url)}>
                       <Link to={item.url} className="flex items-center gap-2">
@@ -148,9 +148,32 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton onClick={() => setDetallesOpen((v) => !v)} className="flex items-center gap-2">
+                    <Layers className="h-4 w-4" />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left">Detalles contables</span>
+                        {detallesOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      </>
+                    )}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {detallesOpen && analisisDetalles.map((item) => (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
+                      <Link to={item.url} className="flex items-center gap-2">
+                        <item.icon className="h-3.5 w-3.5" />
+                        {!collapsed && <span className="text-sm">{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
         )}
       </SidebarContent>
       <SidebarFooter className="border-t">
