@@ -113,6 +113,7 @@ function VentasForm() {
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
+  const { data: paralelaSugerida } = useParalelaForDate(fecha);
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const total = Number(montoTotal) || 0;
