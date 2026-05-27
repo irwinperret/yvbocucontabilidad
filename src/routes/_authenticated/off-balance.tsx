@@ -80,6 +80,37 @@ function OffBalancePage() {
       </div>
 
       <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ArrowLeftRight className="h-4 w-4" /> Diferencial cambiario (mes actual)
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">USD × (paralela − BCV) · informativo, no afecta G&amp;P</p>
+          </div>
+          <Button asChild variant="outline" size="sm"><Link to="/diferencial-cambiario">Ver detalle</Link></Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <div className="text-xs text-muted-foreground">Movimientos USD</div>
+              <div className="text-xl font-bold mono">{diferencial?.count ?? 0}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Volumen</div>
+              <div className="text-xl font-bold mono">{fmtUsd(diferencial?.totalUsd ?? 0)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Diferencial total</div>
+              <div className={`text-xl font-bold mono ${(diferencial?.total ?? 0) >= 0 ? "text-orange-600" : "text-green-700"}`}>
+                {(diferencial?.total ?? 0) >= 0 ? "+" : ""}{fmtBs(diferencial?.total ?? 0)}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+
+      <Card>
         <CardHeader><CardTitle className="text-base">Pendientes</CardTitle></CardHeader>
         <CardContent>
           {!data || data.length === 0 ? <p className="text-sm text-muted-foreground">Sin pendientes.</p> : (
