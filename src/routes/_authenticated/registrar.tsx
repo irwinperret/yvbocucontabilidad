@@ -880,10 +880,6 @@ function CierreForm() {
               <Label className="text-xs">N° factura</Label>
               <Input value={compraNumFactura} onChange={(e) => setCompraNumFactura(e.target.value)} required />
             </div>
-            <div>
-              <Label className="text-xs">Monto Bs</Label>
-              <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
-            </div>
             <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
               <Label className="text-xs">¿Factura con IVA 16%?</Label>
               <Switch checked={compraIvaAplica} onCheckedChange={setCompraIvaAplica} />
