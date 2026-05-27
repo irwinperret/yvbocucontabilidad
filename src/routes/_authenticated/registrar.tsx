@@ -130,16 +130,20 @@ function VentasForm() {
   });
 
   const cxcSel: any = (cxcVigentes ?? []).find((x: any) => x.id === cxcId);
-  const pendienteCxc = Number(cxcSel?.monto_pendiente_bs ?? cxcSel?.monto_bs ?? 0);
+  const pendienteUsdCxc = Number(cxcSel?.monto_pendiente_usd ?? cxcSel?.monto_usd ?? 0);
+  const tasaOrigCxc = cxcSel && Number(cxcSel.monto_usd) > 0
+    ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd)
+    : 0;
 
-  // Cuando seleccionas una CxC para cobrar, prellena los datos con el saldo pendiente
+  // Cuando seleccionas una CxC para cobrar, prellena con el equivalente en Bs a la tasa BCV de hoy
   useEffect(() => {
     if (tipo !== "cobro" || !cxcId || !cxcSel) return;
     setCliente(cxcSel.cliente ?? "");
     setCentro(cxcSel.centro_costo as Centro);
-    setMontoTotal(String(pendienteCxc));
+    const tasaHoy = Number(tasa) || Number(tasaSugerida?.tasa) || 0;
+    if (tasaHoy > 0) setMontoTotal((pendienteUsdCxc * tasaHoy).toFixed(2));
     setIvaAplica(false); // el IVA ya se causó al emitir la venta a crédito
-  }, [cxcId, tipo, cxcSel?.id]);
+  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa]);
 
   const total = Number(montoTotal) || 0;
   const base = ivaAplica ? total / 1.16 : total;
@@ -148,6 +152,8 @@ function VentasForm() {
   const baseUsd = tasaN ? base / tasaN : 0;
   const ivaUsd = tasaN ? iva / tasaN : 0;
   const cuenta = cuentaVenta(centro, tipo);
+  // Para cobros: USD que se está cancelando con este pago (según tasa BCV de hoy)
+  const usdCobrado = tipo === "cobro" && tasaN ? total / tasaN : 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,7 +161,7 @@ function VentasForm() {
     if (!tasaN) return toast.error("Falta tasa BCV");
     if (tipo === "credito" && !cliente) return toast.error("Indica el cliente");
     if (tipo === "cobro" && !cxcId) return toast.error("Selecciona la cuenta por cobrar a cancelar");
-    if (tipo === "cobro" && total > pendienteCxc + 0.01) return toast.error(`El cobro no puede ser mayor al saldo pendiente (${fmtBs(pendienteCxc)})`);
+    if (tipo === "cobro" && usdCobrado > pendienteUsdCxc + 0.01) return toast.error(`El cobro no puede exceder el saldo pendiente (${fmtUsd(pendienteUsdCxc)})`);
     if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
@@ -175,30 +181,57 @@ function VentasForm() {
     if (tipo === "credito" && tx) {
       await supabase.from("cuentas_por_cobrar").insert({
         cliente, centro_costo: centro as any, monto_bs: total, monto_usd: baseUsd,
-        monto_pendiente_bs: total,
+        monto_pendiente_bs: total, monto_pendiente_usd: baseUsd,
         fecha_vencimiento: fechaVenc || null, transaccion_id: tx.id, estado: "vigente",
       } as any);
     }
     if (tipo === "cobro" && tx && cxcId && cxcSel) {
-      const nuevoPendiente = Math.max(0, pendienteCxc - total);
-      const completaCobrada = nuevoPendiente < 0.01;
+      const nuevoPendienteUsd = Math.max(0, pendienteUsdCxc - usdCobrado);
+      const completaCobrada = nuevoPendienteUsd < 0.01;
+      const nuevoPendienteBs = nuevoPendienteUsd * tasaN; // referencia en Bs a la tasa de hoy
       await supabase.from("cuentas_por_cobrar").update({
-        monto_pendiente_bs: nuevoPendiente,
+        monto_pendiente_usd: nuevoPendienteUsd,
+        monto_pendiente_bs: nuevoPendienteBs,
         estado: completaCobrada ? "cobrada" : "vigente",
         cobrada_at: completaCobrada ? new Date().toISOString() : null,
         transaccion_cobro_id: completaCobrada ? tx.id : cxcSel.transaccion_cobro_id ?? null,
       } as any).eq("id", cxcId);
+
+      // Diferencia cambiaria sobre la porción cobrada: USD cobrado × (tasa_hoy - tasa_orig)
+      if (tasaOrigCxc > 0) {
+        const fxBs = usdCobrado * (tasaN - tasaOrigCxc);
+        const fxUsd = tasaN > 0 ? fxBs / tasaN : 0;
+        if (Math.abs(fxUsd) >= 0.01) {
+          const esGanancia = fxUsd > 0;
+          const cuentaFx = esGanancia ? "11.1" : "11.2";
+          const absUsd = Math.abs(fxUsd);
+          const absBs = Math.abs(fxBs);
+          const { data: txFx, error: errFx } = await supabase.from("transacciones").insert({
+            fecha,
+            cuenta_codigo: cuentaFx,
+            centro_costo: centro as any,
+            monto_bs: absBs, monto_base_bs: absBs, iva_bs: 0,
+            tasa_bcv: tasaN, monto_usd: absUsd,
+            metodo_pago: "transferencia" as any,
+            notas: `Dif. cambiaria cobro CxC ${cxcSel.cliente} — tasa orig ${tasaOrigCxc.toFixed(4)} → hoy ${tasaN.toFixed(4)}`,
+            modo: "on_balance" as any, created_by: user.id,
+          } as any).select().single();
+          if (errFx) toast.error("Cobro OK, pero falló el ajuste cambiario: " + errFx.message);
+          else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
+        }
+      }
     }
     setBusy(false);
     const msg = tipo === "credito"
       ? "Venta a crédito registrada (CxC creada)"
       : tipo === "cobro"
-        ? (total >= pendienteCxc - 0.01 ? "Cobro registrado y CxC cerrada" : `Cobro parcial registrado · saldo restante ${fmtBs(pendienteCxc - total)}`)
+        ? (usdCobrado >= pendienteUsdCxc - 0.01 ? "Cobro registrado y CxC cerrada" : `Cobro parcial registrado · saldo restante ${fmtUsd(pendienteUsdCxc - usdCobrado)}`)
         : "Venta registrada";
     toast.success(msg);
     qc.invalidateQueries();
     setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId("");
   };
+
 
 
 
