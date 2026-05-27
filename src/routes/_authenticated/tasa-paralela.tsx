@@ -12,7 +12,8 @@ import { fmtDate, todayISO } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { syncTasaParalela } from "@/lib/paralela-sync.functions";
-import { RefreshCw } from "lucide-react";
+import { backfillTasaParalela } from "@/lib/paralela-backfill.functions";
+import { RefreshCw, History } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tasa-paralela")({ component: TasaParalelaPage });
 
@@ -23,7 +24,9 @@ function TasaParalelaPage() {
   const [tasa, setTasa] = useState("");
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const sync = useServerFn(syncTasaParalela);
+  const backfill = useServerFn(backfillTasaParalela);
 
   const { data: tasas } = useQuery({
     queryKey: ["tasas-paralela-list"],
@@ -79,21 +82,42 @@ function TasaParalelaPage() {
     }
   };
 
+  const handleBackfill = async () => {
+    if (!confirm("¿Cargar tasas paralelas históricas desde el 1 de enero de 2026 (fuente: ve.dolarapi.com)? Solo se insertan días que aún no existan.")) return;
+    setBackfilling(true);
+    try {
+      const r = await backfill();
+      toast.success(`Histórico: ${r.insertadas} insertadas, ${r.existentes} ya existían (rango ${r.minFecha} → ${r.maxFecha})`);
+      qc.invalidateQueries({ queryKey: ["tasas-paralela-list"] });
+      qc.invalidateQueries({ queryKey: ["paralela-for"] });
+    } catch (e: any) {
+      toast.error(`No se pudo cargar histórico: ${e?.message ?? "error"}`);
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const bcvByFecha = new Map((bcvHoy ?? []).map((b: any) => [b.fecha, Number(b.tasa)]));
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Tasa paralela</h1>
           <p className="text-sm text-muted-foreground">
             Usada para valorar transacciones en USD (efectivo, Zelle, nómina USD). El diferencial vs BCV es informativo y queda off-balance.
           </p>
         </div>
-        <Button variant="outline" onClick={handleSync} disabled={syncing}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Sincronizando..." : "Sincronizar ahora"}
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={handleBackfill} disabled={backfilling}>
+            <History className={`h-4 w-4 mr-2 ${backfilling ? "animate-spin" : ""}`} />
+            {backfilling ? "Cargando..." : "Cargar histórico 2026"}
+          </Button>
+          <Button variant="outline" onClick={handleSync} disabled={syncing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Sincronizando..." : "Sincronizar ahora"}
+          </Button>
+        </div>
       </div>
 
       <Card>
