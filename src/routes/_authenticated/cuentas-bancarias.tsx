@@ -138,13 +138,19 @@ function CuentaModal({ cuenta, onClose, onDone }: { cuenta: Cuenta | null; onClo
   const [numero, setNumero] = useState(cuenta?.numero ?? "");
   const [titular, setTitular] = useState(cuenta?.titular ?? "");
   const [moneda, setMoneda] = useState<"BS" | "USD">(cuenta?.moneda ?? "BS");
+  const [saldoInicial, setSaldoInicial] = useState<string>(String(cuenta?.saldo_inicial ?? "0"));
+  const [saldoFecha, setSaldoFecha] = useState<string>(cuenta?.saldo_inicial_fecha ?? "");
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre || !banco || !numero || !titular) return toast.error("Completa todos los campos");
     setBusy(true);
-    const payload = { nombre, banco, numero, titular, moneda };
+    const payload = {
+      nombre, banco, numero, titular, moneda,
+      saldo_inicial: Number(saldoInicial) || 0,
+      saldo_inicial_fecha: saldoFecha || null,
+    };
     if (cuenta) {
       const { error } = await supabase.from("cuentas_bancarias" as any).update(payload as any).eq("id", cuenta.id);
       if (error) { setBusy(false); return toast.error(error.message); }
@@ -159,6 +165,7 @@ function CuentaModal({ cuenta, onClose, onDone }: { cuenta: Cuenta | null; onClo
     setBusy(false);
     onDone();
   };
+
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
