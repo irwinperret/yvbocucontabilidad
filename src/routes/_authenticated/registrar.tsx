@@ -255,7 +255,11 @@ function VentasForm() {
                   })}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">Al guardar, la CxC se marca como cobrada y queda enlazada a este cobro.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {cxcSel
+                  ? `Saldo pendiente: ${fmtBs(pendienteCxc)}. Puedes cobrar el total o un monto menor (cobro parcial); la CxC se cierra cuando el saldo llegue a 0.`
+                  : "Al guardar, el monto cobrado se descuenta del saldo pendiente de la CxC."}
+              </p>
             </div>
           )}
 
