@@ -143,6 +143,7 @@ function TransaccionesPage() {
                     <th className="text-right py-2 px-2">USD</th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-left py-2 px-2">Modo</th>
+                    <th className="text-center py-2 px-2">Factura</th>
                     <th></th>
                   </tr>
                 </thead>
