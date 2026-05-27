@@ -779,6 +779,27 @@ function CierreForm() {
     },
   });
 
+  const { data: cierreActual } = useQuery({
+    queryKey: ["cierre-actual", periodo],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("cierres_de_mes")
+        .select("*")
+        .eq("periodo", periodo)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  const reabrirMes = async () => {
+    if (!cierreActual) return;
+    if (!confirm(`¿Reabrir el mes ${periodo}? Se eliminará el cierre actual y podrás editar transacciones y volver a cerrarlo. Esta acción queda registrada en auditoría.`)) return;
+    const { error } = await supabase.from("cierres_de_mes").delete().eq("id", cierreActual.id);
+    if (error) return toast.error(error.message);
+    toast.success(`Mes ${periodo} reabierto`);
+    qc.invalidateQueries();
+  };
+
   // Tasa promedio del mes: promedio de tasas BCV registradas en el período
   const { data: tasasMes } = useQuery({
     queryKey: ["tasas-periodo", periodo],
