@@ -723,7 +723,7 @@ function FinanciamientoForm() {
           )}
           {muestraBanco && (
             <div className="md:col-span-2">
-              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
             </div>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
