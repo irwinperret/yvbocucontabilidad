@@ -1080,7 +1080,7 @@ function CierreForm() {
           <div><Label>Depreciación del mes Bs</Label><Input type="number" step="0.01" value={deprec} onChange={(e) => setDeprec(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" disabled={busy}>{busy ? "Cerrando…" : "Cerrar mes"}</Button>
+            <Button type="submit" disabled={busy || !!cierreActual}>{busy ? "Cerrando…" : cierreActual ? "Mes ya cerrado" : "Cerrar mes"}</Button>
           </div>
         </form>
       </CardContent>
