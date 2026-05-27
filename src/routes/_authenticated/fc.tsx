@@ -99,26 +99,43 @@ function FCPage() {
         </TabsList>
 
         <TabsContent value="mes">
-          <div className="mb-3"><Label className="text-xs">Mes</Label>
-            <Select value={String(mesSel)} onValueChange={(v) => setMesSel(Number(v))}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="mb-3 flex items-end justify-between gap-3 flex-wrap">
+            <div>
+              <Label className="text-xs">Mes</Label>
+              <Select value={String(mesSel)} onValueChange={(v) => setMesSel(Number(v))}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => exportFC({ tab: "mes", anio, mes: mesSel, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
           </div>
           <ReporteFC rows={(rows ?? []).filter((r) => r.mes === mesSel)} cuentas={cuentas ?? []} />
         </TabsContent>
 
         <TabsContent value="ytd">
-          <div className="mb-3"><Label className="text-xs">Hasta el mes</Label>
-            <Select value={String(hastaMes)} onValueChange={(v) => setHastaMes(Number(v))}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="mb-3 flex items-end justify-between gap-3 flex-wrap">
+            <div>
+              <Label className="text-xs">Hasta el mes</Label>
+              <Select value={String(hastaMes)} onValueChange={(v) => setHastaMes(Number(v))}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => exportFC({ tab: "ytd", anio, hastaMes, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
           </div>
           <ReporteFC rows={(rows ?? []).filter((r) => r.mes <= hastaMes)} cuentas={cuentas ?? []} />
         </TabsContent>
 
         <TabsContent value="comp">
+          <div className="mb-3 flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => exportFC({ tab: "comp", anio, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
+          </div>
           <ReporteFCComparativo rows={rows ?? []} cuentas={cuentas ?? []} />
         </TabsContent>
       </Tabs>
