@@ -66,27 +66,44 @@ function GyPPage() {
         </TabsList>
 
         <TabsContent value="mes">
-          <div className="mb-3"><Label className="text-xs">Mes</Label>
-            <Select value={String(mesSel)} onValueChange={(v) => setMesSel(Number(v))}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="mb-3 flex items-end justify-between gap-3 flex-wrap">
+            <div>
+              <Label className="text-xs">Mes</Label>
+              <Select value={String(mesSel)} onValueChange={(v) => setMesSel(Number(v))}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "mes", anio, mes: mesSel, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
           </div>
           <ReporteMes rows={rows ?? []} cuentas={cuentas ?? []} mes={mesSel} />
         </TabsContent>
 
         <TabsContent value="ytd">
-          <div className="mb-3"><Label className="text-xs">Hasta el mes</Label>
-            <Select value={String(hastaMes)} onValueChange={(v) => setHastaMes(Number(v))}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">{hastaMes} meses — Ene a {MESES[hastaMes-1]} {anio}</p>
+          <div className="mb-3 flex items-end justify-between gap-3 flex-wrap">
+            <div>
+              <Label className="text-xs">Hasta el mes</Label>
+              <Select value={String(hastaMes)} onValueChange={(v) => setHastaMes(Number(v))}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">{hastaMes} meses — Ene a {MESES[hastaMes-1]} {anio}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "ytd", anio, hastaMes, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
           </div>
           <ReporteYTD rows={rows ?? []} cuentas={cuentas ?? []} hastaMes={hastaMes} />
         </TabsContent>
 
         <TabsContent value="comp">
+          <div className="mb-3 flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "comp", anio, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
+          </div>
           <ReporteComparativo rows={rows ?? []} cuentas={cuentas ?? []} />
         </TabsContent>
       </Tabs>
