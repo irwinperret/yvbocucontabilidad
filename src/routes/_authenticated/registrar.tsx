@@ -579,7 +579,7 @@ function NominaForm() {
                 </Select>
               </div>
               <div className="md:col-span-2">
-                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
               </div>
             </>
           )}
