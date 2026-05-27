@@ -244,11 +244,15 @@ function VentasForm() {
                   {(cxcVigentes ?? []).length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">No hay cuentas por cobrar vigentes</div>
                   )}
-                  {(cxcVigentes ?? []).map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.cliente} — {c.centro_costo} — {fmtBs(c.monto_bs)}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
-                    </SelectItem>
-                  ))}
+                  {(cxcVigentes ?? []).map((c: any) => {
+                    const pend = Number(c.monto_pendiente_bs ?? c.monto_bs);
+                    const parcial = pend < Number(c.monto_bs);
+                    return (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.cliente} — {c.centro_costo} — pendiente {fmtBs(pend)}{parcial ? ` (de ${fmtBs(c.monto_bs)})` : ""}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">Al guardar, la CxC se marca como cobrada y queda enlazada a este cobro.</p>
