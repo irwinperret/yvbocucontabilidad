@@ -766,11 +766,11 @@ function CierreForm() {
     if (!tasaN) return toast.error("Tasa requerida");
     if (!compraTerceroId) return toast.error("Selecciona proveedor");
     if (!compraNumFactura) return toast.error("N° factura requerido");
-    if (compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
+    if (!compraOffBalance && compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
 
     let cxpId: string | null = null;
-    if (!compraPagada) {
+    if (!compraOffBalance && !compraPagada) {
       const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
       const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
@@ -788,11 +788,13 @@ function CierreForm() {
 
     const { error } = await supabase.from("inventario_snapshots").insert({
       periodo, tipo: "compra", monto_bs: monto,
+      monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
+      modo: compraOffBalance ? "off_balance" : "on_balance",
       fecha: compraFecha, tasa_bcv: tasaN,
       tercero_id: compraTerceroId, numero_factura: compraNumFactura,
-      pagada: compraPagada,
-      cuenta_bancaria_id: compraPagada ? compraCuentaBanco : null,
-      fecha_vencimiento: !compraPagada ? (compraVenc || null) : null,
+      pagada: compraOffBalance ? true : compraPagada,
+      cuenta_bancaria_id: !compraOffBalance && compraPagada ? compraCuentaBanco : null,
+      fecha_vencimiento: !compraOffBalance && !compraPagada ? (compraVenc || null) : null,
       cxp_id: cxpId,
       notas: compraNotas || null,
       registrado_por: user.id,
@@ -801,6 +803,7 @@ function CierreForm() {
     if (error) return toast.error(error.message);
     toast.success("Compra registrada");
     setCompraMonto(""); setCompraNumFactura(""); setCompraNotas(""); setCompraVenc("");
+    setCompraIvaAplica(false); setCompraOffBalance(false);
     qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
     qc.invalidateQueries({ queryKey: ["cxp"] });
   };
