@@ -52,6 +52,8 @@ export function AppSidebar() {
   const { signOut, user } = useAuth();
   const path = useRouterState({ select: (r) => r.location.pathname });
   const [gestionOpen, setGestionOpen] = useState(false);
+  const [detallesOpen, setDetallesOpen] = useState(false);
+
 
   const isActive = (url: string) => path === url;
 
