@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Home, PlusCircle, DollarSign, FileText, TrendingUp, Users, FileInput, FileOutput,
-  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark, ListChecks,
+  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark, ListChecks, ArrowLeftRight,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -20,6 +20,7 @@ const registroDirectos = [
 const registroGestion = [
   { title: "Transacciones", url: "/transacciones", icon: ListChecks },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
+  { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
   { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
   { title: "Proveedores", url: "/proveedores", icon: Users },
@@ -34,6 +35,8 @@ const analisisItems = [
   { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
+  { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
+  { title: "Diferencial cambiario", url: "/diferencial-cambiario", icon: ArrowLeftRight },
 ];
 
 export function AppSidebar() {
