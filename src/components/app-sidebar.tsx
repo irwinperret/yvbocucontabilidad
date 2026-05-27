@@ -28,19 +28,22 @@ const registroGestion = [
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
 ];
 
-const analisisItems = [
+const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
   { title: "Flujo de caja", url: "/fc", icon: FileText },
+];
+
+const analisisDetalles = [
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
   { title: "CxC pendientes", url: "/cxc", icon: FileInput },
   { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
-
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Diferencial cambiario", url: "/diferencial-cambiario", icon: ArrowLeftRight },
 ];
+
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -49,6 +52,8 @@ export function AppSidebar() {
   const { signOut, user } = useAuth();
   const path = useRouterState({ select: (r) => r.location.pathname });
   const [gestionOpen, setGestionOpen] = useState(false);
+  const [detallesOpen, setDetallesOpen] = useState(false);
+
 
   const isActive = (url: string) => path === url;
 
@@ -133,7 +138,7 @@ export function AppSidebar() {
             <SidebarGroupLabel>Análisis</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {analisisItems.map((item) => (
+                {analisisPrincipales.map((item) => (
                   <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton asChild isActive={isActive(item.url)}>
                       <Link to={item.url} className="flex items-center gap-2">
@@ -143,9 +148,32 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton onClick={() => setDetallesOpen((v) => !v)} className="flex items-center gap-2">
+                    <Layers className="h-4 w-4" />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left">Detalles contables</span>
+                        {detallesOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      </>
+                    )}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {detallesOpen && analisisDetalles.map((item) => (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
+                      <Link to={item.url} className="flex items-center gap-2">
+                        <item.icon className="h-3.5 w-3.5" />
+                        {!collapsed && <span className="text-sm">{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
         )}
       </SidebarContent>
       <SidebarFooter className="border-t">
