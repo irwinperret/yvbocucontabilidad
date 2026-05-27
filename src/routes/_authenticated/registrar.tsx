@@ -478,7 +478,7 @@ function NominaForm() {
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
         monto_bs: lineaBs, monto_base_bs: lineaBs, iva_bs: 0,
         tasa_bcv: tasaN, monto_usd: lineaUsd,
-        metodo_pago: esProvision ? "pendiente" : (esUSD ? "efectivo-usd" : metodo) as any,
+        metodo_pago: esProvision ? "pendiente" : (esUSD ? "efectivo_usd" : metodo) as any,
         notas: notaLinea,
         modo: offBalance ? "off_balance" : "on_balance",
         cuenta_bancaria_id: !esProvision && !esUSD && cuentaBancariaId ? cuentaBancariaId : null,
