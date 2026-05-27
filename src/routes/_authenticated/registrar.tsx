@@ -305,7 +305,7 @@ function GastosForm() {
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: total, monto_base_bs: base, iva_bs: iva,
       iva_aplica: ivaAplica, tipo_iva: ivaAplica ? "credito_fiscal" : null,
-      tasa_bcv: tasaN, monto_usd: baseUsd,
+      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
       metodo_pago: pendiente ? "pendiente" : (metodo as any),
       tercero_id: terceroId || null, numero_factura: numFactura, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
@@ -459,6 +459,7 @@ function NominaForm() {
   const offBalance = esUSD; // USD siempre off-balance
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
+  const { data: paralelaSugerida } = useParalelaForDate(fecha);
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
@@ -489,7 +490,7 @@ function NominaForm() {
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
         monto_bs: lineaBs, monto_base_bs: lineaBs, iva_bs: 0,
-        tasa_bcv: tasaN, monto_usd: lineaUsd,
+        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: lineaUsd,
         metodo_pago: esProvision ? "pendiente" : (esUSD ? "efectivo_usd" : metodo) as any,
         notas: notaLinea,
         modo: offBalance ? "off_balance" : "on_balance",
@@ -607,6 +608,7 @@ function FinanciamientoForm() {
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
+  const { data: paralelaSugerida } = useParalelaForDate(fecha);
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
@@ -614,7 +616,7 @@ function FinanciamientoForm() {
   const baseInsert = (cuenta: string, bs: number) => ({
     fecha, cuenta_codigo: cuenta, centro_costo: "Compartido" as any,
     monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
-    tasa_bcv: tasaN, monto_usd: tasaN ? bs / tasaN : 0,
+    tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: tasaN ? bs / tasaN : 0,
     metodo_pago: "transferencia" as any, notas: notas || detalle || null,
     modo: "on_balance" as any,
     cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
