@@ -24,7 +24,9 @@ function TasaParalelaPage() {
   const [tasa, setTasa] = useState("");
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const sync = useServerFn(syncTasaParalela);
+  const backfill = useServerFn(backfillTasaParalela);
 
   const { data: tasas } = useQuery({
     queryKey: ["tasas-paralela-list"],
