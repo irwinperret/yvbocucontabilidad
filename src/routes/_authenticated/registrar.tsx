@@ -751,7 +751,7 @@ function CierreForm() {
   const [compraTerceroId, setCompraTerceroId] = useState("");
   const [compraNumFactura, setCompraNumFactura] = useState("");
   const [compraMonto, setCompraMonto] = useState("");
-  const [compraIvaAplica, setCompraIvaAplica] = useState(false);
+  const [compraIvaAplica, setCompraIvaAplica] = useState(true);
   const [compraOffBalance, setCompraOffBalance] = useState(false);
   const [compraPagada, setCompraPagada] = useState(true);
   const [compraCuentaBanco, setCompraCuentaBanco] = useState("");
