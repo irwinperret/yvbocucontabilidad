@@ -16,6 +16,7 @@ import { Route as AuthenticatedTransaccionesRouteImport } from './routes/_authen
 import { Route as AuthenticatedTercerosRouteImport } from './routes/_authenticated/terceros'
 import { Route as AuthenticatedTasaParalelaRouteImport } from './routes/_authenticated/tasa-paralela'
 import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/tasa'
+import { Route as AuthenticatedSaldosBancariosRouteImport } from './routes/_authenticated/saldos-bancarios'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
 import { Route as AuthenticatedProveedoresRouteImport } from './routes/_authenticated/proveedores'
 import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenticated/plan-cuentas'
@@ -68,6 +69,12 @@ const AuthenticatedTasaRoute = AuthenticatedTasaRouteImport.update({
   path: '/tasa',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSaldosBancariosRoute =
+  AuthenticatedSaldosBancariosRouteImport.update({
+    id: '/saldos-bancarios',
+    path: '/saldos-bancarios',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedRegistrarRoute = AuthenticatedRegistrarRouteImport.update({
   id: '/registrar',
   path: '/registrar',
@@ -165,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
+  '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
@@ -188,6 +196,7 @@ export interface FileRoutesByTo {
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
+  '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
@@ -213,6 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/_authenticated/proveedores': typeof AuthenticatedProveedoresRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
+  '/_authenticated/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/_authenticated/tasa': typeof AuthenticatedTasaRoute
   '/_authenticated/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/plan-cuentas'
     | '/proveedores'
     | '/registrar'
+    | '/saldos-bancarios'
     | '/tasa'
     | '/tasa-paralela'
     | '/terceros'
@@ -261,6 +272,7 @@ export interface FileRouteTypes {
     | '/plan-cuentas'
     | '/proveedores'
     | '/registrar'
+    | '/saldos-bancarios'
     | '/tasa'
     | '/tasa-paralela'
     | '/terceros'
@@ -285,6 +297,7 @@ export interface FileRouteTypes {
     | '/_authenticated/plan-cuentas'
     | '/_authenticated/proveedores'
     | '/_authenticated/registrar'
+    | '/_authenticated/saldos-bancarios'
     | '/_authenticated/tasa'
     | '/_authenticated/tasa-paralela'
     | '/_authenticated/terceros'
@@ -350,6 +363,13 @@ declare module '@tanstack/react-router' {
       path: '/tasa'
       fullPath: '/tasa'
       preLoaderRoute: typeof AuthenticatedTasaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/saldos-bancarios': {
+      id: '/_authenticated/saldos-bancarios'
+      path: '/saldos-bancarios'
+      fullPath: '/saldos-bancarios'
+      preLoaderRoute: typeof AuthenticatedSaldosBancariosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/registrar': {
@@ -474,6 +494,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPlanCuentasRoute: typeof AuthenticatedPlanCuentasRoute
   AuthenticatedProveedoresRoute: typeof AuthenticatedProveedoresRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
+  AuthenticatedSaldosBancariosRoute: typeof AuthenticatedSaldosBancariosRoute
   AuthenticatedTasaRoute: typeof AuthenticatedTasaRoute
   AuthenticatedTasaParalelaRoute: typeof AuthenticatedTasaParalelaRoute
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
@@ -495,6 +516,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPlanCuentasRoute: AuthenticatedPlanCuentasRoute,
   AuthenticatedProveedoresRoute: AuthenticatedProveedoresRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
+  AuthenticatedSaldosBancariosRoute: AuthenticatedSaldosBancariosRoute,
   AuthenticatedTasaRoute: AuthenticatedTasaRoute,
   AuthenticatedTasaParalelaRoute: AuthenticatedTasaParalelaRoute,
   AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,

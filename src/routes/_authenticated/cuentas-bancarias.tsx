@@ -24,7 +24,10 @@ type Cuenta = {
   titular: string;
   moneda: "BS" | "USD";
   activa: boolean;
+  saldo_inicial?: number;
+  saldo_inicial_fecha?: string | null;
 };
+
 
 function CuentasBancariasPage() {
   const qc = useQueryClient();
