@@ -188,6 +188,20 @@ function CuentaModal({ cuenta, onClose, onDone }: { cuenta: Cuenta | null; onClo
           </div>
           <div><Label>Número de cuenta</Label><Input value={numero} onChange={(e) => setNumero(e.target.value)} className="mono" required /></div>
           <div><Label>Titular</Label><Input value={titular} onChange={(e) => setTitular(e.target.value)} required /></div>
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+            <div>
+              <Label>Saldo inicial ({moneda})</Label>
+              <Input type="number" step="0.01" value={saldoInicial} onChange={(e) => setSaldoInicial(e.target.value)} className="mono" />
+            </div>
+            <div>
+              <Label>Fecha del saldo inicial</Label>
+              <Input type="date" value={saldoFecha} onChange={(e) => setSaldoFecha(e.target.value)} />
+            </div>
+            <p className="col-span-2 text-[11px] text-muted-foreground">
+              Solo se cuentan transacciones posteriores a esta fecha para calcular el saldo teórico.
+            </p>
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
             <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Guardar"}</Button>
