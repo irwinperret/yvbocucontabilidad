@@ -259,15 +259,19 @@ function GastosForm() {
   const baseUsd = tasaN ? base / tasaN : 0;
   const cuentaSel = (cuentas ?? []).find((c: any) => c.codigo === cuenta);
 
+  const NOMINA_CODES = new Set(["3.1","3.2","3.3","3.4","3.5","3.6","3.7","3.9","3.10","3.11","3.12","3.14","3.15"]);
   const grupos = useMemo(() => {
     const g: Record<string, any[]> = {};
     (cuentas ?? [])
       .filter((c: any) => !c.codigo.startsWith("1."))
       .filter((c: any) => c.codigo !== "2.1" && c.codigo !== "2.2") // COGS se maneja solo desde COGS e Inventario
+      .filter((c: any) => !NOMINA_CODES.has(c.codigo)) // Nómina solo desde su pestaña
+      .filter((c: any) => !c.codigo.startsWith("10.")) // Financiamiento solo desde su pestaña
       .filter((c: any) => !c.centros_permitidos || c.centros_permitidos.includes(centro))
       .forEach((c: any) => { (g[c.grupo] ||= []).push(c); });
     return g;
   }, [cuentas, centro]);
+
 
 
   // Si cambia el centro y la cuenta seleccionada ya no es válida, la limpiamos.
