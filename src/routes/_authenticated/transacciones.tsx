@@ -17,6 +17,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
 import { CENTROS, METODOS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
+import { AdjuntoCell } from "@/components/adjunto-cell";
 
 export const Route = createFileRoute("/_authenticated/transacciones")({
   component: TransaccionesPage,
@@ -142,6 +143,7 @@ function TransaccionesPage() {
                     <th className="text-right py-2 px-2">USD</th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-left py-2 px-2">Modo</th>
+                    <th className="text-center py-2 px-2">Factura</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -162,6 +164,17 @@ function TransaccionesPage() {
                         {t.modo === "off_balance"
                           ? <Badge variant="outline" className="text-[10px]">off</Badge>
                           : <Badge className="text-[10px]">on</Badge>}
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <AdjuntoCell
+                          transaccionId={t.id}
+                          adjuntoPath={t.adjunto_url ?? null}
+                          canDelete={true}
+                          onChange={(p) => {
+                            t.adjunto_url = p;
+                            qc.invalidateQueries({ queryKey: ["transacciones-list"] });
+                          }}
+                        />
                       </td>
                       <td className="py-2 px-2">
                         <div className="flex items-center justify-end gap-1">
