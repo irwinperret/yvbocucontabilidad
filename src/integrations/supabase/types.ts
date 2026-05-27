@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      ajustes_bancarios: {
+        Row: {
+          created_at: string
+          cuenta_bancaria_id: string
+          fecha: string
+          id: string
+          monto: number
+          notas: string | null
+          registrado_por: string | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          cuenta_bancaria_id: string
+          fecha?: string
+          id?: string
+          monto: number
+          notas?: string | null
+          registrado_por?: string | null
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          cuenta_bancaria_id?: string
+          fecha?: string
+          id?: string
+          monto?: number
+          notas?: string | null
+          registrado_por?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ajustes_bancarios_cuenta_bancaria_id_fkey"
+            columns: ["cuenta_bancaria_id"]
+            isOneToOne: false
+            referencedRelation: "cuentas_bancarias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auditoria: {
         Row: {
           accion: string
@@ -110,6 +151,8 @@ export type Database = {
           moneda: string
           nombre: string
           numero: string
+          saldo_inicial: number
+          saldo_inicial_fecha: string | null
           titular: string
           updated_at: string
         }
@@ -121,6 +164,8 @@ export type Database = {
           moneda?: string
           nombre: string
           numero: string
+          saldo_inicial?: number
+          saldo_inicial_fecha?: string | null
           titular: string
           updated_at?: string
         }
@@ -132,6 +177,8 @@ export type Database = {
           moneda?: string
           nombre?: string
           numero?: string
+          saldo_inicial?: number
+          saldo_inicial_fecha?: string | null
           titular?: string
           updated_at?: string
         }
