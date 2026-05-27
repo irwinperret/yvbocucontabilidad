@@ -26,6 +26,7 @@ const registroGestion = [
   { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
   { title: "Proveedores", url: "/proveedores", icon: Users },
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
+  { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
 ];
 
 const analisisPrincipales = [
