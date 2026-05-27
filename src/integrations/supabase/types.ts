@@ -550,6 +550,7 @@ export type Database = {
       }
       transacciones: {
         Row: {
+          adjunto_url: string | null
           centro_costo: Database["public"]["Enums"]["centro_costo"]
           created_at: string
           created_by: string
@@ -574,6 +575,7 @@ export type Database = {
           tipo_iva: string | null
         }
         Insert: {
+          adjunto_url?: string | null
           centro_costo: Database["public"]["Enums"]["centro_costo"]
           created_at?: string
           created_by: string
@@ -598,6 +600,7 @@ export type Database = {
           tipo_iva?: string | null
         }
         Update: {
+          adjunto_url?: string | null
           centro_costo?: Database["public"]["Enums"]["centro_costo"]
           created_at?: string
           created_by?: string
