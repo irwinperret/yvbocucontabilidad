@@ -12,7 +12,8 @@ import { fmtDate, todayISO } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { syncTasaParalela } from "@/lib/paralela-sync.functions";
-import { RefreshCw } from "lucide-react";
+import { backfillTasaParalela } from "@/lib/paralela-backfill.functions";
+import { RefreshCw, History } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tasa-paralela")({ component: TasaParalelaPage });
 
