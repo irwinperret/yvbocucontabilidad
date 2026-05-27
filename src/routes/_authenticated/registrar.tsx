@@ -301,6 +301,7 @@ function GastosForm() {
     if (!cuenta) return toast.error("Selecciona cuenta");
     if (!tasaN) return toast.error("Falta tasa");
     if (!numFactura) return toast.error("N° factura obligatorio");
+    if (!pendiente && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
