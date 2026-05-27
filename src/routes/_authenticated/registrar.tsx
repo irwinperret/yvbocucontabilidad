@@ -278,11 +278,11 @@ function VentasForm() {
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">No hay cuentas por cobrar vigentes</div>
                   )}
                   {(cxcVigentes ?? []).map((c: any) => {
-                    const pend = Number(c.monto_pendiente_bs ?? c.monto_bs);
-                    const parcial = pend < Number(c.monto_bs);
+                    const pendUsd = Number(c.monto_pendiente_usd ?? c.monto_usd);
+                    const parcial = pendUsd < Number(c.monto_usd) - 0.01;
                     return (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.cliente} — {c.centro_costo} — pendiente {fmtBs(pend)}{parcial ? ` (de ${fmtBs(c.monto_bs)})` : ""}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
+                        {c.cliente} — {c.centro_costo} — pendiente {fmtUsd(pendUsd)}{parcial ? ` (de ${fmtUsd(c.monto_usd)})` : ""}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
                       </SelectItem>
                     );
                   })}
@@ -290,8 +290,8 @@ function VentasForm() {
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {cxcSel
-                  ? `Saldo pendiente: ${fmtBs(pendienteCxc)}. Puedes cobrar el total o un monto menor (cobro parcial); la CxC se cierra cuando el saldo llegue a 0.`
-                  : "Al guardar, el monto cobrado se descuenta del saldo pendiente de la CxC."}
+                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaN)} a tasa ${tasaN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
+                  : "Al guardar, se descuenta del saldo en USD el equivalente del monto cobrado a la tasa BCV de hoy."}
               </p>
             </div>
           )}
