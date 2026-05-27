@@ -779,6 +779,27 @@ function CierreForm() {
     },
   });
 
+  const { data: cierreActual } = useQuery({
+    queryKey: ["cierre-actual", periodo],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("cierres_de_mes")
+        .select("*")
+        .eq("periodo", periodo)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  const reabrirMes = async () => {
+    if (!cierreActual) return;
+    if (!confirm(`¿Reabrir el mes ${periodo}? Se eliminará el cierre actual y podrás editar transacciones y volver a cerrarlo. Esta acción queda registrada en auditoría.`)) return;
+    const { error } = await supabase.from("cierres_de_mes").delete().eq("id", cierreActual.id);
+    if (error) return toast.error(error.message);
+    toast.success(`Mes ${periodo} reabierto`);
+    qc.invalidateQueries();
+  };
+
   // Tasa promedio del mes: promedio de tasas BCV registradas en el período
   const { data: tasasMes } = useQuery({
     queryKey: ["tasas-periodo", periodo],
@@ -900,9 +921,20 @@ function CierreForm() {
     <Card>
       <CardHeader><CardTitle className="text-base">COGS, Inventario y Cierre</CardTitle></CardHeader>
       <CardContent className="space-y-6">
-        <div className="rounded border border-orange-300 bg-orange-50 text-orange-800 text-xs p-2.5 font-medium">
-          ⚠ Una vez cerrado el mes, no se podrán modificar ni borrar transacciones de este período.
-        </div>
+        {cierreActual ? (
+          <div className="rounded border border-red-300 bg-red-50 text-red-800 text-xs p-3 font-medium flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              🔒 <strong>Mes {periodo} cerrado</strong> el {new Date(cierreActual.created_at).toLocaleDateString()}. Las transacciones están bloqueadas. Si necesitas corregir algo, reabre el mes, edita y vuelve a cerrarlo.
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={reabrirMes} className="border-red-400 text-red-800 hover:bg-red-100">
+              Reabrir mes
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded border border-orange-300 bg-orange-50 text-orange-800 text-xs p-2.5 font-medium">
+            ⚠ Una vez cerrado el mes, no se podrán modificar ni borrar transacciones de este período (un admin puede reabrirlo después si hay errores).
+          </div>
+        )}
 
         <div>
           <Label className="text-sm">Período</Label>
@@ -1048,7 +1080,7 @@ function CierreForm() {
           <div><Label>Depreciación del mes Bs</Label><Input type="number" step="0.01" value={deprec} onChange={(e) => setDeprec(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" disabled={busy}>{busy ? "Cerrando…" : "Cerrar mes"}</Button>
+            <Button type="submit" disabled={busy || !!cierreActual}>{busy ? "Cerrando…" : cierreActual ? "Mes ya cerrado" : "Cerrar mes"}</Button>
           </div>
         </form>
       </CardContent>
