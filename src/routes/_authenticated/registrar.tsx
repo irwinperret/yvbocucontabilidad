@@ -102,7 +102,7 @@ function VentasForm() {
   const [tipo, setTipo] = useState<"contado" | "credito" | "cobro">("contado");
   const [cliente, setCliente] = useState("");
   const [fechaVenc, setFechaVenc] = useState("");
-  const [ivaAplica, setIvaAplica] = useState(false);
+  const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
@@ -248,7 +248,7 @@ function GastosForm() {
   const [terceroId, setTerceroId] = useState("");
   const [cuenta, setCuenta] = useState("");
   const [centro, setCentro] = useState<Centro>("YV");
-  const [ivaAplica, setIvaAplica] = useState(false);
+  const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
@@ -751,7 +751,7 @@ function CierreForm() {
   const [compraTerceroId, setCompraTerceroId] = useState("");
   const [compraNumFactura, setCompraNumFactura] = useState("");
   const [compraMonto, setCompraMonto] = useState("");
-  const [compraIvaAplica, setCompraIvaAplica] = useState(false);
+  const [compraIvaAplica, setCompraIvaAplica] = useState(true);
   const [compraOffBalance, setCompraOffBalance] = useState(false);
   const [compraPagada, setCompraPagada] = useState(true);
   const [compraCuentaBanco, setCompraCuentaBanco] = useState("");
