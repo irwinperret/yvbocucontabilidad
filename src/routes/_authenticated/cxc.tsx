@@ -29,16 +29,18 @@ function CxCPage() {
     const { data: tasa } = await supabase.from("tasas_bcv").select("*").lte("fecha", todayISO()).order("fecha", { ascending: false }).limit(1).maybeSingle();
     if (!tasa) return toast.error("Registra la tasa BCV de hoy primero");
     const tasaHoy = Number(tasa.tasa);
-    const montoBs = Number(c.monto_bs);
-    const cobroUsd = montoBs / tasaHoy;
-    const originalUsd = Number(c.monto_usd);
-    const fxDeltaUsd = cobroUsd - originalUsd; // >0 ganancia, <0 pérdida
+    const pendienteBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
+    const cobroUsd = pendienteBs / tasaHoy;
+    // Para la dif. cambiaria usamos la tasa original implícita (monto_bs / monto_usd) sobre la porción que se está cobrando
+    const tasaOrig = Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : tasaHoy;
+    const originalUsdEquivalente = pendienteBs / tasaOrig;
+    const fxDeltaUsd = cobroUsd - originalUsdEquivalente; // >0 ganancia, <0 pérdida
 
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha: todayISO(),
       cuenta_codigo: "1.5",
       centro_costo: c.centro_costo,
-      monto_bs: montoBs, monto_base_bs: montoBs, iva_bs: 0,
+      monto_bs: pendienteBs, monto_base_bs: pendienteBs, iva_bs: 0,
       tasa_bcv: tasaHoy, monto_usd: cobroUsd,
       metodo_pago: "transferencia",
       notas: `Cobro CxC — ${c.cliente}`,
@@ -53,7 +55,6 @@ function CxCPage() {
       const cuentaFx = esGanancia ? "11.1" : "11.2";
       const absUsd = Math.abs(fxDeltaUsd);
       const absBs = absUsd * tasaHoy;
-      const tasaOrig = originalUsd > 0 ? montoBs / originalUsd : tasaHoy;
       const { data: txFx, error: errFx } = await supabase.from("transacciones").insert({
         fecha: todayISO(),
         cuenta_codigo: cuentaFx,
@@ -68,7 +69,12 @@ function CxCPage() {
       else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
     }
 
-    await supabase.from("cuentas_por_cobrar").update({ estado: "cobrada", cobrada_at: new Date().toISOString(), transaccion_cobro_id: tx!.id }).eq("id", c.id);
+    await supabase.from("cuentas_por_cobrar").update({
+      estado: "cobrada",
+      monto_pendiente_bs: 0,
+      cobrada_at: new Date().toISOString(),
+      transaccion_cobro_id: tx!.id,
+    }).eq("id", c.id);
     toast.success(
       Math.abs(fxDeltaUsd) >= 0.01
         ? `Cobro registrado · ${fxDeltaUsd > 0 ? "ganancia" : "pérdida"} cambiaria ${fmtUsd(Math.abs(fxDeltaUsd))}`
@@ -76,6 +82,7 @@ function CxCPage() {
     );
     qc.invalidateQueries();
   };
+
 
   const eliminar = async (c: any) => {
     const { error } = await supabase.from("cuentas_por_cobrar").delete().eq("id", c.id);
