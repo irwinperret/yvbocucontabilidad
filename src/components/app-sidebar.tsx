@@ -80,7 +80,7 @@ export function AppSidebar() {
                         <SidebarMenuButton
                           asChild
                           isActive={isActive(item.url)}
-                          className={highlight ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground font-semibold shadow-sm ring-1 ring-primary/40" : ""}
+                          className={highlight ? "font-bold" : ""}
                         >
                           <Link to={item.url} className="flex items-center gap-2">
                             <item.icon className="h-4 w-4" />
