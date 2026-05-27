@@ -482,6 +482,7 @@ function NominaForm() {
     if (!user || !tasaN) return toast.error("Falta tasa");
     const lineas = empleados.filter((l) => l.nombre.trim() && Number(l.monto) > 0);
     if (!lineas.length) return toast.error("Agrega al menos un empleado con monto");
+    if (!esProvision && !esUSD && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
 
     for (const l of lineas) {
