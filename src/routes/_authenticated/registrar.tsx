@@ -679,19 +679,29 @@ function FinanciamientoForm() {
 function CierreForm() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { data: terceros } = useTerceros();
   const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7));
   const [invIni, setInvIni] = useState("");
   const [invFin, setInvFin] = useState("");
-  const [tasa, setTasa] = useState("");
   const [pasivos, setPasivos] = useState("");
   const [deprec, setDeprec] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
   // Compras individuales del período
+  const [compraFecha, setCompraFecha] = useState(todayISO());
+  const [compraTasa, setCompraTasa] = useState("");
+  const [compraTerceroId, setCompraTerceroId] = useState("");
+  const [compraNumFactura, setCompraNumFactura] = useState("");
   const [compraMonto, setCompraMonto] = useState("");
+  const [compraPagada, setCompraPagada] = useState(true);
+  const [compraCuentaBanco, setCompraCuentaBanco] = useState("");
+  const [compraVenc, setCompraVenc] = useState("");
   const [compraNotas, setCompraNotas] = useState("");
   const [compraBusy, setCompraBusy] = useState(false);
+
+  const { data: tasaCompraSug } = useTasaForDate(compraFecha);
+  useEffect(() => { if (tasaCompraSug && !compraTasa) setCompraTasa(String(tasaCompraSug.tasa)); }, [tasaCompraSug]);
 
   const { data: compras } = useQuery({
     queryKey: ["compras-periodo", periodo],
@@ -701,50 +711,107 @@ function CierreForm() {
         .select("*")
         .eq("periodo", periodo)
         .eq("tipo", "compra")
-        .order("created_at", { ascending: false });
+        .order("fecha", { ascending: false });
       return data ?? [];
     },
   });
+
+  // Tasa promedio del mes: promedio de tasas BCV registradas en el período
+  const { data: tasasMes } = useQuery({
+    queryKey: ["tasas-periodo", periodo],
+    queryFn: async () => {
+      const ini = `${periodo}-01`;
+      const finDate = new Date(`${periodo}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      const fin = finDate.toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from("tasas_bcv")
+        .select("tasa")
+        .gte("fecha", ini)
+        .lt("fecha", fin);
+      return data ?? [];
+    },
+  });
+  const tasaPromedio = useMemo(() => {
+    const arr = (tasasMes ?? []) as any[];
+    if (!arr.length) return 0;
+    return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
+  }, [tasasMes]);
 
   const totalCompras = (compras ?? []).reduce((s: number, c: any) => s + Number(c.monto_bs || 0), 0);
 
   const ini = Number(invIni) || 0;
   const fin = Number(invFin) || 0;
-  const tasaN = Number(tasa) || 0;
   const cogs = ini + totalCompras - fin;
-  const cogsUsd = tasaN ? cogs / tasaN : 0;
+  const cogsUsd = tasaPromedio ? cogs / tasaPromedio : 0;
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     const monto = Number(compraMonto) || 0;
+    const tasaN = Number(compraTasa) || 0;
     if (!monto) return toast.error("Monto requerido");
+    if (!tasaN) return toast.error("Tasa requerida");
+    if (!compraTerceroId) return toast.error("Selecciona proveedor");
+    if (!compraNumFactura) return toast.error("N° factura requerido");
+    if (compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
+
+    let cxpId: string | null = null;
+    if (!compraPagada) {
+      const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
+      const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
+        proveedor: prov?.razon_social ?? "Proveedor",
+        numero_factura: compraNumFactura,
+        tercero_id: compraTerceroId,
+        centro_costo: "Compartido" as any,
+        monto_bs: monto, monto_usd: monto / tasaN,
+        monto_pendiente_bs: monto,
+        fecha_vencimiento: compraVenc || null,
+        estado: "pendiente",
+      } as any).select().single();
+      if (cxpErr) { setCompraBusy(false); return toast.error(cxpErr.message); }
+      cxpId = cxp?.id ?? null;
+    }
+
     const { error } = await supabase.from("inventario_snapshots").insert({
       periodo, tipo: "compra", monto_bs: monto,
+      fecha: compraFecha, tasa_bcv: tasaN,
+      tercero_id: compraTerceroId, numero_factura: compraNumFactura,
+      pagada: compraPagada,
+      cuenta_bancaria_id: compraPagada ? compraCuentaBanco : null,
+      fecha_vencimiento: !compraPagada ? (compraVenc || null) : null,
+      cxp_id: cxpId,
+      notas: compraNotas || null,
       registrado_por: user.id,
     } as any);
     setCompraBusy(false);
     if (error) return toast.error(error.message);
     toast.success("Compra registrada");
-    setCompraMonto(""); setCompraNotas("");
+    setCompraMonto(""); setCompraNumFactura(""); setCompraNotas(""); setCompraVenc("");
     qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
+    qc.invalidateQueries({ queryKey: ["cxp"] });
   };
 
-  const delCompra = async (id: string) => {
-    const { error } = await supabase.from("inventario_snapshots").delete().eq("id", id);
+  const delCompra = async (c: any) => {
+    if (c.cxp_id) {
+      await supabase.from("cuentas_por_pagar").delete().eq("id", c.cxp_id);
+    }
+    const { error } = await supabase.from("inventario_snapshots").delete().eq("id", c.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
+    qc.invalidateQueries({ queryKey: ["cxp"] });
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !tasaN) return toast.error("Falta tasa promedio");
+    if (!user) return;
+    if (!tasaPromedio) return toast.error("No hay tasas BCV registradas en el período");
     setBusy(true);
     const { error } = await supabase.from("cierres_de_mes").insert({
       periodo, inventario_inicial_bs: ini, inventario_final_bs: fin,
       compras_mes_bs: totalCompras, cogs_bs: cogs, cogs_usd: cogsUsd,
-      tasa_bcv_promedio: tasaN,
+      tasa_bcv_promedio: tasaPromedio,
       pasivos_laborales_bs: Number(pasivos) || 0,
       depreciacion_bs: Number(deprec) || 0,
       notas: notas || null, registrado_por: user.id, estado: "cerrado",
@@ -754,6 +821,12 @@ function CierreForm() {
     toast.success("Mes cerrado");
     qc.invalidateQueries();
   };
+
+  const tercerosMap = useMemo(() => {
+    const m: Record<string, any> = {};
+    (terceros ?? []).forEach((t: any) => { m[t.id] = t; });
+    return m;
+  }, [terceros]);
 
   return (
     <Card>
@@ -772,32 +845,93 @@ function CierreForm() {
         <div className="border rounded-lg p-4 space-y-3">
           <div>
             <h3 className="font-semibold text-sm">Compras de inventario / insumos del período</h3>
-            <p className="text-xs text-muted-foreground">Registra cada compra individualmente. Estas compras forman el COGS y NO deben registrarse también como gastos.</p>
+            <p className="text-xs text-muted-foreground">Cada compra forma parte del COGS y NO debe registrarse también en Gastos/Facturas.</p>
           </div>
-          <form onSubmit={addCompra} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2 items-end">
+          <form onSubmit={addCompra} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Fecha</Label>
+              <Input type="date" value={compraFecha} onChange={(e) => setCompraFecha(e.target.value)} required />
+            </div>
+            <div>
+              <Label className="text-xs">Tasa BCV del día</Label>
+              <Input type="number" step="0.0001" value={compraTasa} onChange={(e) => setCompraTasa(e.target.value)} required className="mono" />
+            </div>
+            <div className="md:col-span-2">
+              <TerceroSelect value={compraTerceroId} onChange={setCompraTerceroId} terceros={(terceros ?? []) as any} />
+            </div>
+            <div>
+              <Label className="text-xs">N° factura</Label>
+              <Input value={compraNumFactura} onChange={(e) => setCompraNumFactura(e.target.value)} required />
+            </div>
             <div>
               <Label className="text-xs">Monto Bs</Label>
               <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
             </div>
-            <div>
-              <Label className="text-xs">Descripción (opcional)</Label>
-              <Input value={compraNotas} onChange={(e) => setCompraNotas(e.target.value)} placeholder="proveedor, factura, detalle…" />
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <div>
+                <Label className="text-xs">¿Ya fue pagada?</Label>
+                <p className="text-xs text-muted-foreground">Si no, se creará una Cuenta por Pagar.</p>
+              </div>
+              <Switch checked={compraPagada} onCheckedChange={setCompraPagada} />
             </div>
-            <Button type="submit" disabled={compraBusy} size="sm">{compraBusy ? "…" : "Añadir"}</Button>
+            {compraPagada ? (
+              <div className="md:col-span-2">
+                <BankAccountSelect value={compraCuentaBanco} onChange={setCompraCuentaBanco} label="Cuenta bancaria de la que salió" required />
+              </div>
+            ) : (
+              <div className="md:col-span-2">
+                <Label className="text-xs">Fecha vencimiento (opcional)</Label>
+                <Input type="date" value={compraVenc} onChange={(e) => setCompraVenc(e.target.value)} />
+              </div>
+            )}
+            <div className="md:col-span-2">
+              <Label className="text-xs">Notas (opcional)</Label>
+              <Input value={compraNotas} onChange={(e) => setCompraNotas(e.target.value)} />
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <Button type="submit" disabled={compraBusy} size="sm">{compraBusy ? "…" : "Añadir compra"}</Button>
+            </div>
           </form>
           {(compras ?? []).length > 0 && (
-            <div className="border-t pt-2 space-y-1">
-              {(compras ?? []).map((c: any) => (
-                <div key={c.id} className="flex justify-between items-center text-sm py-1">
-                  <span className="text-muted-foreground text-xs">{new Date(c.created_at).toLocaleDateString()}</span>
-                  <span className="mono">{fmtBs(Number(c.monto_bs))}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => delCompra(c.id)} className="text-destructive h-7">×</Button>
-                </div>
-              ))}
-              <div className="flex justify-between font-semibold border-t pt-2 text-sm">
-                <span>Total compras del período</span>
-                <span className="mono">{fmtBs(totalCompras)}</span>
-              </div>
+            <div className="border-t pt-2 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left">
+                    <th className="py-1">Fecha</th>
+                    <th>Proveedor</th>
+                    <th>N° fact.</th>
+                    <th className="text-right">Monto Bs</th>
+                    <th className="text-right">Tasa</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(compras ?? []).map((c: any) => {
+                    const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
+                    return (
+                      <tr key={c.id} className="border-t">
+                        <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
+                        <td>{prov?.razon_social ?? "—"}</td>
+                        <td>{c.numero_factura ?? "—"}</td>
+                        <td className="text-right mono">{fmtBs(Number(c.monto_bs))}</td>
+                        <td className="text-right mono">{c.tasa_bcv ? Number(c.tasa_bcv).toFixed(2) : "—"}</td>
+                        <td>{c.pagada ? <span className="text-green-700">Pagada</span> : <span className="text-orange-700">CxP</span>}</td>
+                        <td>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => delCompra(c)} className="text-destructive h-7">×</Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t font-semibold">
+                    <td colSpan={3} className="py-2">Total compras del período</td>
+                    <td className="text-right mono">{fmtBs(totalCompras)}</td>
+                    <td colSpan={3}></td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           )}
         </div>
@@ -810,7 +944,11 @@ function CierreForm() {
             <span className="text-muted-foreground">Compras del mes (auto)</span>
             <span className="mono font-semibold">{fmtBs(totalCompras)}</span>
           </div>
-          <div><Label>Tasa BCV promedio</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div className="rounded-md bg-muted/50 p-3">
+            <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
+            <div className="text-base font-bold mono">{tasaPromedio ? tasaPromedio.toFixed(4) : "—"}</div>
+            <div className="text-xs text-muted-foreground">{(tasasMes ?? []).length} tasa(s) registradas</div>
+          </div>
           <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
             <span className="text-xs text-muted-foreground">COGS estimado</span>
             <span className="text-base font-bold mono">{fmtBs(cogs)} · {fmtUsd(cogsUsd)}</span>

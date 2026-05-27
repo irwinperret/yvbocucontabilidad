@@ -281,26 +281,53 @@ export type Database = {
       inventario_snapshots: {
         Row: {
           created_at: string
+          cuenta_bancaria_id: string | null
+          cxp_id: string | null
+          fecha: string | null
+          fecha_vencimiento: string | null
           id: string
           monto_bs: number
+          notas: string | null
+          numero_factura: string | null
+          pagada: boolean
           periodo: string
           registrado_por: string | null
+          tasa_bcv: number | null
+          tercero_id: string | null
           tipo: string
         }
         Insert: {
           created_at?: string
+          cuenta_bancaria_id?: string | null
+          cxp_id?: string | null
+          fecha?: string | null
+          fecha_vencimiento?: string | null
           id?: string
           monto_bs: number
+          notas?: string | null
+          numero_factura?: string | null
+          pagada?: boolean
           periodo: string
           registrado_por?: string | null
+          tasa_bcv?: number | null
+          tercero_id?: string | null
           tipo: string
         }
         Update: {
           created_at?: string
+          cuenta_bancaria_id?: string | null
+          cxp_id?: string | null
+          fecha?: string | null
+          fecha_vencimiento?: string | null
           id?: string
           monto_bs?: number
+          notas?: string | null
+          numero_factura?: string | null
+          pagada?: boolean
           periodo?: string
           registrado_por?: string | null
+          tasa_bcv?: number | null
+          tercero_id?: string | null
           tipo?: string
         }
         Relationships: []
