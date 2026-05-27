@@ -682,19 +682,60 @@ function CierreForm() {
   const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7));
   const [invIni, setInvIni] = useState("");
   const [invFin, setInvFin] = useState("");
-  const [compras, setCompras] = useState("");
   const [tasa, setTasa] = useState("");
   const [pasivos, setPasivos] = useState("");
   const [deprec, setDeprec] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Compras individuales del período
+  const [compraMonto, setCompraMonto] = useState("");
+  const [compraNotas, setCompraNotas] = useState("");
+  const [compraBusy, setCompraBusy] = useState(false);
+
+  const { data: compras } = useQuery({
+    queryKey: ["compras-periodo", periodo],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("inventario_snapshots")
+        .select("*")
+        .eq("periodo", periodo)
+        .eq("tipo", "compra")
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const totalCompras = (compras ?? []).reduce((s: number, c: any) => s + Number(c.monto_bs || 0), 0);
+
   const ini = Number(invIni) || 0;
   const fin = Number(invFin) || 0;
-  const com = Number(compras) || 0;
   const tasaN = Number(tasa) || 0;
-  const cogs = ini + com - fin;
+  const cogs = ini + totalCompras - fin;
   const cogsUsd = tasaN ? cogs / tasaN : 0;
+
+  const addCompra = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    const monto = Number(compraMonto) || 0;
+    if (!monto) return toast.error("Monto requerido");
+    setCompraBusy(true);
+    const { error } = await supabase.from("inventario_snapshots").insert({
+      periodo, tipo: "compra", monto_bs: monto,
+      registrado_por: user.id,
+    } as any);
+    setCompraBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Compra registrada");
+    setCompraMonto(""); setCompraNotas("");
+    qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
+  };
+
+  const delCompra = async (id: string) => {
+    const { error } = await supabase.from("inventario_snapshots").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -702,7 +743,7 @@ function CierreForm() {
     setBusy(true);
     const { error } = await supabase.from("cierres_de_mes").insert({
       periodo, inventario_inicial_bs: ini, inventario_final_bs: fin,
-      compras_mes_bs: com, cogs_bs: cogs, cogs_usd: cogsUsd,
+      compras_mes_bs: totalCompras, cogs_bs: cogs, cogs_usd: cogsUsd,
       tasa_bcv_promedio: tasaN,
       pasivos_laborales_bs: Number(pasivos) || 0,
       depreciacion_bs: Number(deprec) || 0,
@@ -716,24 +757,67 @@ function CierreForm() {
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Cierre de mes</CardTitle></CardHeader>
-      <CardContent>
+      <CardHeader><CardTitle className="text-base">COGS, Inventario y Cierre</CardTitle></CardHeader>
+      <CardContent className="space-y-6">
+        <div className="rounded border border-orange-300 bg-orange-50 text-orange-800 text-xs p-2.5 font-medium">
+          ⚠ Una vez cerrado el mes, no se podrán modificar ni borrar transacciones de este período.
+        </div>
+
+        <div>
+          <Label className="text-sm">Período</Label>
+          <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} required className="max-w-xs" />
+        </div>
+
+        {/* Compras individuales */}
+        <div className="border rounded-lg p-4 space-y-3">
+          <div>
+            <h3 className="font-semibold text-sm">Compras de inventario / insumos del período</h3>
+            <p className="text-xs text-muted-foreground">Registra cada compra individualmente. Estas compras forman el COGS y NO deben registrarse también como gastos.</p>
+          </div>
+          <form onSubmit={addCompra} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2 items-end">
+            <div>
+              <Label className="text-xs">Monto Bs</Label>
+              <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
+            </div>
+            <div>
+              <Label className="text-xs">Descripción (opcional)</Label>
+              <Input value={compraNotas} onChange={(e) => setCompraNotas(e.target.value)} placeholder="proveedor, factura, detalle…" />
+            </div>
+            <Button type="submit" disabled={compraBusy} size="sm">{compraBusy ? "…" : "Añadir"}</Button>
+          </form>
+          {(compras ?? []).length > 0 && (
+            <div className="border-t pt-2 space-y-1">
+              {(compras ?? []).map((c: any) => (
+                <div key={c.id} className="flex justify-between items-center text-sm py-1">
+                  <span className="text-muted-foreground text-xs">{new Date(c.created_at).toLocaleDateString()}</span>
+                  <span className="mono">{fmtBs(Number(c.monto_bs))}</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => delCompra(c.id)} className="text-destructive h-7">×</Button>
+                </div>
+              ))}
+              <div className="flex justify-between font-semibold border-t pt-2 text-sm">
+                <span>Total compras del período</span>
+                <span className="mono">{fmtBs(totalCompras)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Cierre */}
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2"><Label>Período</Label><Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} required /></div>
           <div><Label>Inventario inicial Bs</Label><Input type="number" step="0.01" value={invIni} onChange={(e) => setInvIni(e.target.value)} className="mono" /></div>
           <div><Label>Inventario final Bs</Label><Input type="number" step="0.01" value={invFin} onChange={(e) => setInvFin(e.target.value)} className="mono" /></div>
-          <div><Label>Compras del mes Bs</Label><Input type="number" step="0.01" value={compras} onChange={(e) => setCompras(e.target.value)} className="mono" /></div>
+          <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex justify-between text-sm">
+            <span className="text-muted-foreground">Compras del mes (auto)</span>
+            <span className="mono font-semibold">{fmtBs(totalCompras)}</span>
+          </div>
           <div><Label>Tasa BCV promedio</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">COGS estimado</span>
-            <span className="text-lg font-bold mono">{fmtBs(cogs)} · {fmtUsd(cogsUsd)}</span>
+          <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
+            <span className="text-xs text-muted-foreground">COGS estimado</span>
+            <span className="text-base font-bold mono">{fmtBs(cogs)} · {fmtUsd(cogsUsd)}</span>
           </div>
           <div><Label>Pasivos laborales del mes Bs</Label><Input type="number" step="0.01" value={pasivos} onChange={(e) => setPasivos(e.target.value)} className="mono" /></div>
           <div><Label>Depreciación del mes Bs</Label><Input type="number" step="0.01" value={deprec} onChange={(e) => setDeprec(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
-          <div className="md:col-span-2 bg-orange-50 border border-orange-200 text-orange-800 text-xs p-2 rounded">
-            ⚠ Una vez cerrado, no se podrán modificar ni borrar transacciones de este período.
-          </div>
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" disabled={busy}>{busy ? "Cerrando…" : "Cerrar mes"}</Button>
           </div>
