@@ -102,7 +102,7 @@ function VentasForm() {
   const [tipo, setTipo] = useState<"contado" | "credito" | "cobro">("contado");
   const [cliente, setCliente] = useState("");
   const [fechaVenc, setFechaVenc] = useState("");
-  const [ivaAplica, setIvaAplica] = useState(false);
+  const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
