@@ -194,6 +194,7 @@ export type Database = {
           fecha_vencimiento: string | null
           id: string
           monto_bs: number
+          monto_pendiente_bs: number | null
           monto_usd: number
           transaccion_cobro_id: string | null
           transaccion_id: string | null
@@ -207,6 +208,7 @@ export type Database = {
           fecha_vencimiento?: string | null
           id?: string
           monto_bs: number
+          monto_pendiente_bs?: number | null
           monto_usd: number
           transaccion_cobro_id?: string | null
           transaccion_id?: string | null
@@ -220,6 +222,7 @@ export type Database = {
           fecha_vencimiento?: string | null
           id?: string
           monto_bs?: number
+          monto_pendiente_bs?: number | null
           monto_usd?: number
           transaccion_cobro_id?: string | null
           transaccion_id?: string | null
