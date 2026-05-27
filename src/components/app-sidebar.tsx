@@ -28,19 +28,22 @@ const registroGestion = [
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
 ];
 
-const analisisItems = [
+const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
   { title: "Flujo de caja", url: "/fc", icon: FileText },
+];
+
+const analisisDetalles = [
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
   { title: "CxC pendientes", url: "/cxc", icon: FileInput },
   { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
-
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Diferencial cambiario", url: "/diferencial-cambiario", icon: ArrowLeftRight },
 ];
+
 
 export function AppSidebar() {
   const { state } = useSidebar();
