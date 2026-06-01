@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 const registroDirectos = [
   { title: "Inicio", url: "/inicio", icon: Home },
   { title: "Registrar movimiento", url: "/registrar", icon: PlusCircle },
+  { title: "Importar ventas (Xetux)", url: "/importar-ventas", icon: Upload },
 ];
 
 const registroGestion = [
