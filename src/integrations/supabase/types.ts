@@ -736,6 +736,38 @@ export type Database = {
         }
         Relationships: []
       }
+      xetux_payment_map: {
+        Row: {
+          created_at: string
+          cuenta_bancaria_id: string | null
+          forma_pago: string
+          metodo_pago: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cuenta_bancaria_id?: string | null
+          forma_pago: string
+          metodo_pago?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cuenta_bancaria_id?: string | null
+          forma_pago?: string
+          metodo_pago?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xetux_payment_map_cuenta_bancaria_id_fkey"
+            columns: ["cuenta_bancaria_id"]
+            isOneToOne: false
+            referencedRelation: "cuentas_bancarias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       v_cxc_activas: {
