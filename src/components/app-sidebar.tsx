@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Home, PlusCircle, DollarSign, FileText, TrendingUp, Users, FileInput, FileOutput,
-  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark, ListChecks, ArrowLeftRight, Wallet,
+  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark, ListChecks, ArrowLeftRight, Wallet, Upload,
 
 } from "lucide-react";
 import {
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 const registroDirectos = [
   { title: "Inicio", url: "/inicio", icon: Home },
   { title: "Registrar movimiento", url: "/registrar", icon: PlusCircle },
+  { title: "Importar ventas (Xetux)", url: "/importar-ventas", icon: Upload },
 ];
 
 const registroGestion = [
