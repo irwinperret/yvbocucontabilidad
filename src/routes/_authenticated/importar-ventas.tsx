@@ -252,7 +252,7 @@ function ImportarVentasPage() {
     toast.success(`Importadas: ${ok} · Duplicadas: ${skip} · Fallidas: ${fail}`);
     if (ok > 0) {
       // Quitar las importadas de la lista para evitar reintentos
-      setRows((all) => all.filter((r) => r.esMixto || (!mapByForma.has(norm(r.forma_pago_raw)) && !r.esCxC)));
+      setRows((all) => all.filter((r) => !r.esCxC && !mapByForma.has(formaKeyOf(r))));
     }
   };
 
