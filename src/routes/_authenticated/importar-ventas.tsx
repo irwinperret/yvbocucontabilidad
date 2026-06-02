@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CENTROS, METODOS, cuentaVenta, type Centro, type Metodo } from "@/lib/account-helpers";
+import { METODOS, cuentaVenta, type Centro, type Metodo } from "@/lib/account-helpers";
 import { fmtUsd } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import { toast } from "sonner";
