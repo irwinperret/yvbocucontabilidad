@@ -44,10 +44,14 @@ function parseDateCell(v: any): string {
   return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
 
+function centroDeFactura(numero_factura: string): Centro {
+  const n = parseInt(String(numero_factura).replace(/\D/g, ""), 10);
+  return Number.isFinite(n) && n > 11000 ? "Bocu" : "YV";
+}
+
 function ImportarVentasPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [centro, setCentro] = useState<Centro>("YV");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
