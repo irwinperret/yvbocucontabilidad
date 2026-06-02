@@ -334,6 +334,7 @@ function ImportarVentasPage() {
                   <thead className="bg-muted/50 sticky top-0">
                     <tr className="text-left">
                       <th className="p-2">Factura</th>
+                      <th className="p-2">Centro</th>
                       <th className="p-2">Fecha</th>
                       <th className="p-2">Cliente</th>
                       <th className="p-2 text-right">USD</th>
@@ -349,9 +350,11 @@ function ImportarVentasPage() {
                       else if (r.esCxC) estado = { label: "CxC", cls: "text-blue-700" };
                       else if (!mapByForma.has(norm(r.forma_pago_raw))) estado = { label: "Sin mapear", cls: "text-orange-700" };
                       else estado = { label: "Importable", cls: "text-emerald-700" };
+                      const centroRow = centroDeFactura(r.numero_factura);
                       return (
                         <tr key={r.idx} className="border-t">
                           <td className="p-2 font-mono">{r.numero_factura}</td>
+                          <td className="p-2"><Badge variant="outline" className="text-[10px]">{centroRow}</Badge></td>
                           <td className="p-2">{r.fecha}</td>
                           <td className="p-2 truncate max-w-[200px]">{r.cliente}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.total_usd)}</td>
