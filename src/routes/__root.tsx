@@ -44,10 +44,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Finanzas YV / Bocú / Market" },
+      { title: "Finanzas YV / Bocú" },
       { name: "description", content: "Sistema financiero interno" },
-      { property: "og:title", content: "Finanzas YV / Bocú / Market" },
-      { name: "twitter:title", content: "Finanzas YV / Bocú / Market" },
+      { property: "og:title", content: "Finanzas YV / Bocú" },
+      { name: "twitter:title", content: "Finanzas YV / Bocú" },
       { property: "og:description", content: "Sistema financiero interno" },
       { name: "twitter:description", content: "Sistema financiero interno" },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/cb5e0ec1-d2ea-47d9-9cb7-3ab40d0056c8/id-preview-628a27b7--9027d41f-6c7c-4d8d-9174-492af88ee4b3.lovable.app-1779822602870.png" },
