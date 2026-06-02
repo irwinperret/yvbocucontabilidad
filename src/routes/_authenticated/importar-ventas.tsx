@@ -147,15 +147,15 @@ function ImportarVentasPage() {
 
   // Stats
   const stats = useMemo(() => {
-    let importable = 0, manual = 0, cxc = 0, sinMapeo = 0, totalUsd = 0;
+    let importable = 0, mixto = 0, cxc = 0, sinMapeo = 0, totalUsd = 0;
     for (const r of rows) {
       totalUsd += r.total_usd;
-      if (r.esMixto) { manual++; continue; }
       if (r.esCxC) { cxc++; importable++; continue; }
-      if (!mapByForma.has(norm(r.forma_pago_raw))) { sinMapeo++; continue; }
+      if (r.esMixto) mixto++;
+      if (!mapByForma.has(formaKeyOf(r))) { sinMapeo++; continue; }
       importable++;
     }
-    return { importable, manual, cxc, sinMapeo, totalUsd };
+    return { importable, mixto, cxc, sinMapeo, totalUsd };
   }, [rows, mapByForma]);
 
   const fetchTasa = async (fecha: string): Promise<number> => {
