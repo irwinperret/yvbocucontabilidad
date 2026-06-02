@@ -72,7 +72,7 @@ export function AppSidebar() {
         <div className="px-2 py-3">
           {!collapsed && (
             <>
-              <div className="text-sm font-bold tracking-tight">YV · Bocú · Market</div>
+              <div className="text-sm font-bold tracking-tight">YV · Bocú</div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
                 {mode === "registro" ? "Modo registro" : "Modo análisis"}
               </div>
