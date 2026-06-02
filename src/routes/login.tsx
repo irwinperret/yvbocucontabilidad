@@ -50,7 +50,7 @@ function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-xl">Finanzas YV / Bocú / Market</CardTitle>
+          <CardTitle className="text-xl">Finanzas YV / Bocú</CardTitle>
           <p className="text-sm text-muted-foreground">Sistema interno</p>
         </CardHeader>
         <CardContent>

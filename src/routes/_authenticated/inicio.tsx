@@ -103,7 +103,7 @@ function InicioPage() {
         </div>
         <div className="text-center pb-4 -mt-1">
           <p className="text-[10px] tracking-[0.4em] text-muted-foreground uppercase">
-            Yanqui Victor · Bocú · YV Market
+            Yanqui Victor · Bocú
           </p>
         </div>
       </div>
