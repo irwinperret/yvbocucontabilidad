@@ -1,6 +1,6 @@
 // Cuentas según el prompt (centro de costo + tipo → cuenta)
-// Nota: "Administración" se eliminó del UI; se asume Compartido.
-export const CENTROS = ["YV", "Bocu", "YV_Market", "Compartido"] as const;
+// Nota: "Administración" y "YV_Market" se eliminaron del UI; se asume Compartido.
+export const CENTROS = ["YV", "Bocu", "Compartido"] as const;
 export type Centro = (typeof CENTROS)[number];
 
 export const METODOS = ["tarjeta", "transferencia", "pago_movil", "zelle", "efectivo_usd", "efectivo_bs", "pendiente"] as const;
@@ -11,18 +11,17 @@ export function cuentaVenta(centro: Centro, tipo: "contado" | "credito" | "cobro
   if (tipo === "cobro") return "1.5";
   if (centro === "YV") return "1.1";
   if (centro === "Bocu") return "1.2";
-  if (centro === "YV_Market") return "1.3";
   return "1.1";
 }
 
 export function cuentaNomina(tipo: string, centro: Centro): string {
   // Compartido reutiliza los códigos que antes eran de Administración (3.1, 3.2, 3.3).
   const map: Record<string, Record<string, string>> = {
-    regular:      { Bocu: "3.4", YV: "3.9",  Compartido: "3.1",  YV_Market: "3.14" },
-    bono:         { Bocu: "3.5", YV: "3.10", Compartido: "3.14", YV_Market: "3.14" },
-    liquidacion:  { Bocu: "3.7", YV: "3.12", Compartido: "3.3",  YV_Market: "3.14" },
-    pasivos:      { Bocu: "3.6", YV: "3.11", Compartido: "3.2",  YV_Market: "3.14" },
-    parafiscales: { Bocu: "3.15",YV: "3.15", Compartido: "3.15", YV_Market: "3.15" },
+    regular:      { Bocu: "3.4", YV: "3.9",  Compartido: "3.1" },
+    bono:         { Bocu: "3.5", YV: "3.10", Compartido: "3.14" },
+    liquidacion:  { Bocu: "3.7", YV: "3.12", Compartido: "3.3" },
+    pasivos:      { Bocu: "3.6", YV: "3.11", Compartido: "3.2" },
+    parafiscales: { Bocu: "3.15",YV: "3.15", Compartido: "3.15" },
   };
   return map[tipo]?.[centro] ?? "3.14";
 }
