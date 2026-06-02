@@ -348,10 +348,9 @@ function ImportarVentasPage() {
                   <tbody>
                     {rows.map((r) => {
                       let estado: { label: string; cls: string };
-                      if (r.esMixto) estado = { label: "Manual (mixto)", cls: "text-amber-700" };
-                      else if (r.esCxC) estado = { label: "CxC", cls: "text-blue-700" };
-                      else if (!mapByForma.has(norm(r.forma_pago_raw))) estado = { label: "Sin mapear", cls: "text-orange-700" };
-                      else estado = { label: "Importable", cls: "text-emerald-700" };
+                      if (r.esCxC) estado = { label: "CxC", cls: "text-blue-700" };
+                      else if (!mapByForma.has(formaKeyOf(r))) estado = { label: "Sin mapear", cls: "text-orange-700" };
+                      else estado = { label: r.esMixto ? "Mixto" : "Importable", cls: r.esMixto ? "text-amber-700" : "text-emerald-700" };
                       const centroRow = centroDeFactura(r.numero_factura);
                       return (
                         <tr key={r.idx} className="border-t">
