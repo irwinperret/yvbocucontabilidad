@@ -329,7 +329,7 @@ function ImportarVentasPage() {
                 <Badge variant="default">Importables: {stats.importable}</Badge>
                 <Badge variant="secondary">CxC: {stats.cxc}</Badge>
                 <Badge variant="outline" className="border-orange-400 text-orange-700">Sin mapear: {stats.sinMapeo}</Badge>
-                <Badge variant="outline" className="border-amber-400 text-amber-700">Mixtos (manual): {stats.manual}</Badge>
+                <Badge variant="outline" className="border-amber-400 text-amber-700">Mixtos: {stats.mixto}</Badge>
               </div>
               <div className="border rounded overflow-x-auto max-h-[500px]">
                 <table className="w-full text-xs">
