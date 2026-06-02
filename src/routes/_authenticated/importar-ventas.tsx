@@ -166,7 +166,7 @@ function ImportarVentasPage() {
   const importar = async () => {
     if (!user) return;
     if (formasSinMapear.length > 0) return toast.error(`Configura el mapeo de: ${formasSinMapear.join(", ")}`);
-    const elegibles = rows.filter((r) => !r.esMixto);
+    const elegibles = rows.filter((r) => r.esCxC || mapByForma.has(formaKeyOf(r)));
     if (!elegibles.length) return toast.error("No hay facturas importables");
     setBusy(true);
     let ok = 0, skip = 0, fail = 0;
@@ -193,8 +193,7 @@ function ImportarVentasPage() {
         const baseBs = r.base_usd * tasa;
         const ivaBs = r.iva_usd * tasa;
 
-        const formaKey = norm(r.forma_pago_raw);
-        const cfg = mapByForma.get(formaKey);
+        const cfg = mapByForma.get(formaKeyOf(r));
 
         const esCxC = r.esCxC;
         const centroRow = centroDeFactura(r.numero_factura);
