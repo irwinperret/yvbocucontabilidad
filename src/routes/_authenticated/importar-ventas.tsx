@@ -79,10 +79,13 @@ function ImportarVentasPage() {
     return m;
   }, [mapeo]);
 
-  // Determine unique payment forms found in parsed rows (single-method only)
+  // Clave de forma de pago para mapeo. Mixtos se tratan como una sola clave "MIXTO".
+  const formaKeyOf = (r: ParsedRow) => (r.esMixto ? "MIXTO" : norm(r.forma_pago_raw));
+
+  // Determine unique payment forms found in parsed rows
   const formasUsadas = useMemo(() => {
     const set = new Set<string>();
-    for (const r of rows) if (!r.esMixto) set.add(norm(r.forma_pago_raw));
+    for (const r of rows) set.add(formaKeyOf(r));
     return Array.from(set).sort();
   }, [rows]);
 
@@ -144,15 +147,15 @@ function ImportarVentasPage() {
 
   // Stats
   const stats = useMemo(() => {
-    let importable = 0, manual = 0, cxc = 0, sinMapeo = 0, totalUsd = 0;
+    let importable = 0, mixto = 0, cxc = 0, sinMapeo = 0, totalUsd = 0;
     for (const r of rows) {
       totalUsd += r.total_usd;
-      if (r.esMixto) { manual++; continue; }
       if (r.esCxC) { cxc++; importable++; continue; }
-      if (!mapByForma.has(norm(r.forma_pago_raw))) { sinMapeo++; continue; }
+      if (r.esMixto) mixto++;
+      if (!mapByForma.has(formaKeyOf(r))) { sinMapeo++; continue; }
       importable++;
     }
-    return { importable, manual, cxc, sinMapeo, totalUsd };
+    return { importable, mixto, cxc, sinMapeo, totalUsd };
   }, [rows, mapByForma]);
 
   const fetchTasa = async (fecha: string): Promise<number> => {
@@ -163,7 +166,7 @@ function ImportarVentasPage() {
   const importar = async () => {
     if (!user) return;
     if (formasSinMapear.length > 0) return toast.error(`Configura el mapeo de: ${formasSinMapear.join(", ")}`);
-    const elegibles = rows.filter((r) => !r.esMixto);
+    const elegibles = rows.filter((r) => r.esCxC || mapByForma.has(formaKeyOf(r)));
     if (!elegibles.length) return toast.error("No hay facturas importables");
     setBusy(true);
     let ok = 0, skip = 0, fail = 0;
@@ -190,8 +193,7 @@ function ImportarVentasPage() {
         const baseBs = r.base_usd * tasa;
         const ivaBs = r.iva_usd * tasa;
 
-        const formaKey = norm(r.forma_pago_raw);
-        const cfg = mapByForma.get(formaKey);
+        const cfg = mapByForma.get(formaKeyOf(r));
 
         const esCxC = r.esCxC;
         const centroRow = centroDeFactura(r.numero_factura);
@@ -250,7 +252,7 @@ function ImportarVentasPage() {
     toast.success(`Importadas: ${ok} · Duplicadas: ${skip} · Fallidas: ${fail}`);
     if (ok > 0) {
       // Quitar las importadas de la lista para evitar reintentos
-      setRows((all) => all.filter((r) => r.esMixto || (!mapByForma.has(norm(r.forma_pago_raw)) && !r.esCxC)));
+      setRows((all) => all.filter((r) => !r.esCxC && !mapByForma.has(formaKeyOf(r))));
     }
   };
 
@@ -327,7 +329,7 @@ function ImportarVentasPage() {
                 <Badge variant="default">Importables: {stats.importable}</Badge>
                 <Badge variant="secondary">CxC: {stats.cxc}</Badge>
                 <Badge variant="outline" className="border-orange-400 text-orange-700">Sin mapear: {stats.sinMapeo}</Badge>
-                <Badge variant="outline" className="border-amber-400 text-amber-700">Mixtos (manual): {stats.manual}</Badge>
+                <Badge variant="outline" className="border-amber-400 text-amber-700">Mixtos: {stats.mixto}</Badge>
               </div>
               <div className="border rounded overflow-x-auto max-h-[500px]">
                 <table className="w-full text-xs">
@@ -346,10 +348,9 @@ function ImportarVentasPage() {
                   <tbody>
                     {rows.map((r) => {
                       let estado: { label: string; cls: string };
-                      if (r.esMixto) estado = { label: "Manual (mixto)", cls: "text-amber-700" };
-                      else if (r.esCxC) estado = { label: "CxC", cls: "text-blue-700" };
-                      else if (!mapByForma.has(norm(r.forma_pago_raw))) estado = { label: "Sin mapear", cls: "text-orange-700" };
-                      else estado = { label: "Importable", cls: "text-emerald-700" };
+                      if (r.esCxC) estado = { label: "CxC", cls: "text-blue-700" };
+                      else if (!mapByForma.has(formaKeyOf(r))) estado = { label: "Sin mapear", cls: "text-orange-700" };
+                      else estado = { label: r.esMixto ? "Mixto" : "Importable", cls: r.esMixto ? "text-amber-700" : "text-emerald-700" };
                       const centroRow = centroDeFactura(r.numero_factura);
                       return (
                         <tr key={r.idx} className="border-t">
