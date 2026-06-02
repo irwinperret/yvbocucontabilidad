@@ -194,14 +194,15 @@ function ImportarVentasPage() {
         const cfg = mapByForma.get(formaKey);
 
         const esCxC = r.esCxC;
-        const cuenta_codigo = esCxC ? cuentaVenta(centro, "credito") : cuentaVenta(centro, "contado");
+        const centroRow = centroDeFactura(r.numero_factura);
+        const cuenta_codigo = esCxC ? cuentaVenta(centroRow, "credito") : cuentaVenta(centroRow, "contado");
         const metodo = (esCxC ? "pendiente" : (cfg?.metodo_pago || "transferencia")) as Metodo;
         const cuenta_bancaria_id = esCxC ? null : (cfg?.cuenta_bancaria_id || null);
 
         const { data: tx, error } = await supabase.from("transacciones").insert({
           fecha: r.fecha,
           cuenta_codigo,
-          centro_costo: centro as any,
+          centro_costo: centroRow as any,
           monto_bs: totalBs,
           monto_base_bs: baseBs,
           iva_bs: ivaBs,
@@ -224,7 +225,7 @@ function ImportarVentasPage() {
         if (esCxC && tx) {
           await supabase.from("cuentas_por_cobrar").insert({
             cliente: r.cliente,
-            centro_costo: centro as any,
+            centro_costo: centroRow as any,
             monto_bs: totalBs,
             monto_usd: r.total_usd,
             monto_pendiente_bs: totalBs,
