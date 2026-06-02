@@ -79,10 +79,13 @@ function ImportarVentasPage() {
     return m;
   }, [mapeo]);
 
-  // Determine unique payment forms found in parsed rows (single-method only)
+  // Clave de forma de pago para mapeo. Mixtos se tratan como una sola clave "MIXTO".
+  const formaKeyOf = (r: ParsedRow) => (r.esMixto ? "MIXTO" : norm(r.forma_pago_raw));
+
+  // Determine unique payment forms found in parsed rows
   const formasUsadas = useMemo(() => {
     const set = new Set<string>();
-    for (const r of rows) if (!r.esMixto) set.add(norm(r.forma_pago_raw));
+    for (const r of rows) set.add(formaKeyOf(r));
     return Array.from(set).sort();
   }, [rows]);
 
