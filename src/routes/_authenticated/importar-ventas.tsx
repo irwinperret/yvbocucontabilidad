@@ -262,22 +262,15 @@ function ImportarVentasPage() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">1. Archivo y centro de costo</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <Label>Centro de costo</Label>
-            <Select value={centro} onValueChange={(v) => setCentro(v as Centro)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="md:col-span-2">
-            <Label>Reporte Xetux (.xlsx)</Label>
-            <Input type="file" accept=".xlsx" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
-            {fileName && <div className="text-xs text-muted-foreground mt-1">{fileName}</div>}
-          </div>
+        <CardHeader><CardTitle className="text-base">1. Archivo</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Label>Reporte Xetux (.xlsx)</Label>
+          <Input type="file" accept=".xlsx" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
+          {fileName && <div className="text-xs text-muted-foreground mt-1">{fileName}</div>}
+          <div className="text-xs text-muted-foreground">El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt; 11000 → Bocú</span>, <span className="font-mono">≤ 11000 → YV</span>.</div>
         </CardContent>
       </Card>
+
 
       {rows.length > 0 && (
         <>
