@@ -443,6 +443,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
             </Select>
           </div>
           <div><Label>N° factura</Label><Input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} /></div>
+          <div><Label>N° orden</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} /></div>
           <div className="md:col-span-2">
             <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
           </div>
