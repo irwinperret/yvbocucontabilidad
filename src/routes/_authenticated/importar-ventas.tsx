@@ -436,16 +436,16 @@ function ImportarVentasPage() {
               </div>
               <div className="border rounded overflow-x-auto max-h-[500px]">
                 <table className="w-full text-xs">
-                  <thead className="bg-muted/50 sticky top-0">
+                  <thead className="bg-muted sticky top-0 z-10 shadow-sm">
                     <tr className="text-left">
-                      <th className="p-2">Factura</th>
-                      <th className="p-2">Centro</th>
-                      <th className="p-2">Fecha</th>
-                      <th className="p-2">Cliente</th>
-                      <th className="p-2 text-right">USD</th>
-                      <th className="p-2 text-right">IVA USD</th>
-                      <th className="p-2">Forma</th>
-                      <th className="p-2">Estado</th>
+                      <th className="p-2 bg-muted">Factura</th>
+                      <th className="p-2 bg-muted">Centro</th>
+                      <th className="p-2 bg-muted">Fecha</th>
+                      <th className="p-2 bg-muted">Cliente</th>
+                      <th className="p-2 bg-muted text-right">USD</th>
+                      <th className="p-2 bg-muted text-right">IVA USD</th>
+                      <th className="p-2 bg-muted">Forma</th>
+                      <th className="p-2 bg-muted">Estado</th>
                     </tr>
                   </thead>
                   <tbody>
