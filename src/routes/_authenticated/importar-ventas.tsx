@@ -19,12 +19,17 @@ export const Route = createFileRoute("/_authenticated/importar-ventas")({
   component: ImportarVentasPage,
 });
 
+type Clase = "factura" | "descuento" | "nota_credito" | "por_determinar";
+
 type ParsedRow = {
   idx: number;
-  numero_factura: string;
+  numero_factura: string;   // puede ser ""
+  numero_orden: string;     // puede ser ""
+  clase: Clase;
+  tipo_raw: string;         // valor de la columna B tal cual
   cliente: string;
   fecha: string; // YYYY-MM-DD
-  total_usd: number;
+  total_usd: number;        // absoluto (para descuentos/NC)
   iva_usd: number;
   base_usd: number;
   forma_pago_raw: string;
@@ -54,9 +59,7 @@ function parseDateCell(v: any): string {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   const s = String(v ?? "").trim();
   if (!s) return "";
-  // "YYYY-MM-DD ..."
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  // "DD-MMM-YYYY ..." (Spanish month, e.g. "19-abr-2026 0:40:28")
   const m = s.match(/^(\d{1,2})[\-\/\s]+([A-Za-zÁÉÍÓÚáéíóú\.]+)[\-\/\s]+(\d{2,4})/);
   if (m) {
     const dia = m[1].padStart(2, "0");
@@ -73,6 +76,13 @@ function parseDateCell(v: any): string {
 function centroDeFactura(numero_factura: string): Centro {
   const n = parseInt(String(numero_factura).replace(/\D/g, ""), 10);
   return Number.isFinite(n) && n > 11000 ? "Bocu" : "YV";
+}
+
+function clasificarPorTipo(tipoRaw: string): Clase {
+  const t = String(tipoRaw ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (t.includes("nota de credito") || t.includes("nota credito") || t.includes("n/c")) return "nota_credito";
+  if (t.includes("desc")) return "descuento";
+  return "por_determinar";
 }
 
 function ImportarVentasPage() {
@@ -105,13 +115,16 @@ function ImportarVentasPage() {
     return m;
   }, [mapeo]);
 
-  // Clave de forma de pago para mapeo. Mixtos se tratan como una sola clave "MIXTO".
   const formaKeyOf = (r: ParsedRow) => (r.esMixto ? "MIXTO" : norm(r.forma_pago_raw));
 
-  // Determine unique payment forms found in parsed rows
+  // Para mapeo solo nos importan las filas tipo "factura" con forma de pago.
   const formasUsadas = useMemo(() => {
     const set = new Set<string>();
-    for (const r of rows) set.add(formaKeyOf(r));
+    for (const r of rows) {
+      if (r.clase !== "factura") continue;
+      const k = formaKeyOf(r);
+      if (k) set.add(k);
+    }
     return Array.from(set).sort();
   }, [rows]);
 
@@ -126,37 +139,61 @@ function ImportarVentasPage() {
     const ws = wb.worksheets[0];
     if (!ws) return toast.error("El archivo no tiene hojas");
     const parsed: ParsedRow[] = [];
-    // header is on row 1 (per inspection). Data starts row 2.
     ws.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;
-      const tipo = String(row.getCell(2).value ?? "").trim();
-      if (tipo !== "Facturada") return;
-      const total = Number(row.getCell(22).value ?? 0); // "Total Venta"
-      if (!(total > 0)) return;
-      const numero_factura = String(row.getCell(3).value ?? "").trim();
+      const tipoRaw = String(row.getCell(2).value ?? "").trim(); // B
+      const numero_factura = String(row.getCell(3).value ?? "").trim(); // C
+      const numero_orden = String(row.getCell(6).value ?? "").trim();   // F
+      const totalRaw = Number(row.getCell(22).value ?? 0); // V "Total Venta"
       const cliente = String(row.getCell(8).value ?? "").trim() || "Contado";
-      const iva = Number(row.getCell(18).value ?? 0); // "Impuesto"
-      const formaRaw = String(row.getCell(32).value ?? "").trim(); // "Formas de Pago"
-      const fecha = parseDateCell(row.getCell(37).value); // AK "Fecha de la factura"
+      const iva = Number(row.getCell(18).value ?? 0); // R
+      const formaRaw = String(row.getCell(32).value ?? "").trim(); // AF
+      const fecha = parseDateCell(row.getCell(37).value); // AK
       const formas = formaRaw.split("|").map((s) => s.trim()).filter(Boolean);
       const esMixto = formas.length > 1;
       const esCxC = formas.length === 1 && norm(formas[0]) === "CXC";
-      parsed.push({
-        idx: rowNumber,
-        numero_factura,
-        cliente,
-        fecha,
-        total_usd: total,
-        iva_usd: iva,
-        base_usd: Math.max(0, total - iva),
-        forma_pago_raw: formaRaw,
-        formas,
-        esMixto,
-        esCxC,
-      });
+
+      // Caso A: factura normal
+      if (tipoRaw === "Facturada" && numero_factura && totalRaw > 0) {
+        parsed.push({
+          idx: rowNumber,
+          numero_factura,
+          numero_orden,
+          clase: "factura",
+          tipo_raw: tipoRaw,
+          cliente, fecha,
+          total_usd: totalRaw,
+          iva_usd: iva,
+          base_usd: Math.max(0, totalRaw - iva),
+          forma_pago_raw: formaRaw,
+          formas, esMixto, esCxC,
+        });
+        return;
+      }
+
+      // Caso B: sin factura pero con número de orden → clasificar por col B
+      if (!numero_factura && numero_orden) {
+        const clase = clasificarPorTipo(tipoRaw);
+        const absTotal = Math.abs(totalRaw);
+        if (absTotal === 0 && clase !== "por_determinar") return;
+        parsed.push({
+          idx: rowNumber,
+          numero_factura: "",
+          numero_orden,
+          clase,
+          tipo_raw: tipoRaw,
+          cliente, fecha,
+          total_usd: absTotal,
+          iva_usd: Math.abs(iva),
+          base_usd: Math.max(0, absTotal - Math.abs(iva)),
+          forma_pago_raw: formaRaw,
+          formas, esMixto, esCxC,
+        });
+      }
+      // En cualquier otro caso (sin factura y sin orden) se descarta.
     });
     setRows(parsed);
-    toast.success(`${parsed.length} facturas detectadas`);
+    toast.success(`${parsed.length} filas detectadas`);
   };
 
   const defaultMetodoFor = (forma: string) => (norm(forma) === "MIXTO" ? "tarjeta" : "transferencia");
@@ -173,17 +210,28 @@ function ImportarVentasPage() {
     refetchMapeo();
   };
 
+  const filaImportable = (r: ParsedRow): boolean => {
+    if (r.clase === "descuento" || r.clase === "nota_credito" || r.clase === "por_determinar") return true;
+    // factura
+    if (r.esCxC) return true;
+    return mapByForma.has(formaKeyOf(r));
+  };
+
   // Stats
   const stats = useMemo(() => {
-    let importable = 0, mixto = 0, cxc = 0, sinMapeo = 0, totalUsd = 0;
+    let importable = 0, mixto = 0, cxc = 0, sinMapeo = 0, descuento = 0, notaCredito = 0, porDeterminar = 0, totalUsd = 0;
     for (const r of rows) {
       totalUsd += r.total_usd;
+      if (r.clase === "descuento") { descuento++; importable++; continue; }
+      if (r.clase === "nota_credito") { notaCredito++; importable++; continue; }
+      if (r.clase === "por_determinar") { porDeterminar++; importable++; continue; }
+      // factura
       if (r.esCxC) { cxc++; importable++; continue; }
       if (r.esMixto) mixto++;
       if (!mapByForma.has(formaKeyOf(r))) { sinMapeo++; continue; }
       importable++;
     }
-    return { importable, mixto, cxc, sinMapeo, totalUsd };
+    return { importable, mixto, cxc, sinMapeo, descuento, notaCredito, porDeterminar, totalUsd };
   }, [rows, mapByForma]);
 
   const fetchTasa = async (fecha: string): Promise<number> => {
@@ -194,15 +242,13 @@ function ImportarVentasPage() {
   const importar = async () => {
     if (!user) return;
     if (formasSinMapear.length > 0) return toast.error(`Configura el mapeo de: ${formasSinMapear.join(", ")}`);
-    const elegibles = rows.filter((r) => r.esCxC || mapByForma.has(formaKeyOf(r)));
-    if (!elegibles.length) return toast.error("No hay facturas importables");
+    const elegibles = rows.filter(filaImportable);
+    if (!elegibles.length) return toast.error("No hay filas importables");
     setBusy(true);
     let ok = 0, updated = 0, unchanged = 0, fail = 0;
     setProgress({ done: 0, total: elegibles.length });
 
-    // Cache de tasas por fecha
     const tasaCache = new Map<string, number>();
-
     const approxEq = (a: number, b: number) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
 
     for (const r of elegibles) {
@@ -213,20 +259,48 @@ function ImportarVentasPage() {
           tasa = await fetchTasa(r.fecha);
           tasaCache.set(r.fecha, tasa);
         }
-        if (!tasa) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (factura ${r.numero_factura})`); continue; }
+        if (!tasa) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura || r.numero_orden})`); continue; }
 
         const totalBs = r.total_usd * tasa;
         const baseBs = r.base_usd * tasa;
         const ivaBs = r.iva_usd * tasa;
 
-        const cfg = mapByForma.get(formaKeyOf(r));
+        // Centro: factura → derivado del nº factura; resto (orden) → Bocu por regla.
+        const centroRow: Centro = r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu";
 
-        const esCxC = r.esCxC;
-        const centroRow = centroDeFactura(r.numero_factura);
-        const cuenta_codigo = esCxC ? cuentaVenta(centroRow, "credito") : cuentaVenta(centroRow, "contado");
-        const metodo = (esCxC ? "pendiente" : (cfg?.metodo_pago || "transferencia")) as Metodo;
-        const cuenta_bancaria_id = esCxC ? null : (cfg?.cuenta_bancaria_id || null);
-        const notasBase = `Xetux · ${r.cliente}${r.forma_pago_raw ? ` · ${r.forma_pago_raw}` : ""}`;
+        let cuenta_codigo: string;
+        let metodo: Metodo;
+        let cuenta_bancaria_id: string | null;
+        let modo: "on_balance" | "off_balance" = "on_balance";
+        let notasExtra = "";
+
+        if (r.clase === "factura") {
+          const cfg = mapByForma.get(formaKeyOf(r));
+          const esCxC = r.esCxC;
+          cuenta_codigo = esCxC ? cuentaVenta(centroRow, "credito") : cuentaVenta(centroRow, "contado");
+          metodo = (esCxC ? "pendiente" : (cfg?.metodo_pago || "transferencia")) as Metodo;
+          cuenta_bancaria_id = esCxC ? null : (cfg?.cuenta_bancaria_id || null);
+        } else if (r.clase === "descuento") {
+          cuenta_codigo = "1.6"; // Descuentos sobre ventas
+          metodo = "pendiente";
+          cuenta_bancaria_id = null;
+          notasExtra = " · DESCUENTO";
+        } else if (r.clase === "nota_credito") {
+          cuenta_codigo = "1.7"; // Devoluciones / NC
+          metodo = "pendiente";
+          cuenta_bancaria_id = null;
+          notasExtra = " · NOTA DE CRÉDITO";
+        } else {
+          // por_determinar → off_balance, cuenta ventas contado del centro por defecto
+          cuenta_codigo = cuentaVenta(centroRow, "contado");
+          metodo = "pendiente";
+          cuenta_bancaria_id = null;
+          modo = "off_balance";
+          notasExtra = " · POR DETERMINAR — revisar (tipo Xetux: " + (r.tipo_raw || "vacío") + ")";
+        }
+
+        const refIdent = r.numero_factura || r.numero_orden;
+        const notasBase = `Xetux · ${r.cliente}${r.forma_pago_raw ? ` · ${r.forma_pago_raw}` : ""}${notasExtra}`;
 
         const payload = {
           fecha: r.fecha,
@@ -240,23 +314,26 @@ function ImportarVentasPage() {
           tasa_bcv: tasa,
           monto_usd: r.base_usd,
           metodo_pago: metodo as any,
-          numero_factura: r.numero_factura,
+          numero_factura: r.numero_factura || null,
+          numero_orden: r.numero_orden || null,
           referencia: "xetux",
-          modo: "on_balance" as any,
+          modo: modo as any,
           cuenta_bancaria_id,
         };
 
-        // Buscar duplicado por número de factura ya importado de Xetux
-        const { data: dup } = await supabase
+        // Dedup: por número de factura O número de orden con ref=xetux
+        let dupQuery = supabase
           .from("transacciones")
           .select("*")
-          .eq("numero_factura", r.numero_factura)
-          .eq("referencia", "xetux")
-          .limit(1)
-          .maybeSingle();
+          .eq("referencia", "xetux");
+        if (r.numero_factura) {
+          dupQuery = dupQuery.eq("numero_factura", r.numero_factura);
+        } else {
+          dupQuery = dupQuery.eq("numero_orden" as any, r.numero_orden);
+        }
+        const { data: dup } = await dupQuery.limit(1).maybeSingle();
 
         if (dup) {
-          // Detectar cambios en campos relevantes
           const cambios =
             dup.fecha !== payload.fecha ||
             dup.cuenta_codigo !== payload.cuenta_codigo ||
@@ -267,7 +344,8 @@ function ImportarVentasPage() {
             !approxEq(Number(dup.tasa_bcv), payload.tasa_bcv) ||
             !approxEq(Number(dup.monto_usd), payload.monto_usd) ||
             (dup.metodo_pago ?? null) !== (payload.metodo_pago ?? null) ||
-            (dup.cuenta_bancaria_id ?? null) !== (payload.cuenta_bancaria_id ?? null);
+            (dup.cuenta_bancaria_id ?? null) !== (payload.cuenta_bancaria_id ?? null) ||
+            ((dup as any).numero_orden ?? null) !== (payload.numero_orden ?? null);
 
           if (!cambios) { unchanged++; continue; }
 
@@ -278,11 +356,11 @@ function ImportarVentasPage() {
             .eq("id", dup.id)
             .select()
             .single();
-          if (error) { fail++; toast.error(`Factura ${r.numero_factura}: ${error.message}`); continue; }
+          if (error) { fail++; toast.error(`${refIdent}: ${error.message}`); continue; }
           if (tx) await logAudit("transacciones", "UPDATE", tx.id, dup, tx);
 
-          // Sincronizar CxC asociada si aplica
-          if (esCxC && tx) {
+          // Sync CxC asociada solo para facturas a crédito
+          if (r.clase === "factura" && r.esCxC && tx) {
             const { data: cxcExist } = await supabase
               .from("cuentas_por_cobrar")
               .select("id, estado, monto_pendiente_bs")
@@ -290,7 +368,6 @@ function ImportarVentasPage() {
               .limit(1)
               .maybeSingle();
             if (cxcExist) {
-              // Solo actualiza si sigue vigente (no pisar cobros parciales)
               if (cxcExist.estado === "vigente") {
                 await supabase.from("cuentas_por_cobrar").update({
                   cliente: r.cliente,
@@ -299,6 +376,7 @@ function ImportarVentasPage() {
                   monto_usd: r.total_usd,
                   monto_pendiente_bs: totalBs,
                   monto_pendiente_usd: r.total_usd,
+                  numero_orden: r.numero_orden || null,
                 } as any).eq("id", cxcExist.id);
               }
             } else {
@@ -311,6 +389,7 @@ function ImportarVentasPage() {
                 monto_pendiente_usd: r.total_usd,
                 transaccion_id: tx.id,
                 estado: "vigente",
+                numero_orden: r.numero_orden || null,
               } as any);
             }
           }
@@ -324,10 +403,10 @@ function ImportarVentasPage() {
           created_by: user.id,
         } as any).select().single();
 
-        if (error) { fail++; toast.error(`Factura ${r.numero_factura}: ${error.message}`); continue; }
+        if (error) { fail++; toast.error(`${refIdent}: ${error.message}`); continue; }
         if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
 
-        if (esCxC && tx) {
+        if (r.clase === "factura" && r.esCxC && tx) {
           await supabase.from("cuentas_por_cobrar").insert({
             cliente: r.cliente,
             centro_costo: centroRow as any,
@@ -337,13 +416,14 @@ function ImportarVentasPage() {
             monto_pendiente_usd: r.total_usd,
             transaccion_id: tx.id,
             estado: "vigente",
+            numero_orden: r.numero_orden || null,
           } as any);
         }
 
         ok++;
       } catch (e: any) {
         fail++;
-        toast.error(`Factura ${r.numero_factura}: ${e?.message ?? "error"}`);
+        toast.error(`${r.numero_factura || r.numero_orden}: ${e?.message ?? "error"}`);
       } finally {
         setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
       }
@@ -354,8 +434,7 @@ function ImportarVentasPage() {
     qc.invalidateQueries();
     toast.success(`Nuevas: ${ok} · Actualizadas: ${updated} · Sin cambios: ${unchanged} · Fallidas: ${fail}`);
     if (ok > 0) {
-      // Quitar las importadas de la lista para evitar reintentos
-      setRows((all) => all.filter((r) => !r.esCxC && !mapByForma.has(formaKeyOf(r))));
+      setRows((all) => all.filter((r) => !filaImportable(r)));
     }
   };
 
@@ -372,7 +451,10 @@ function ImportarVentasPage() {
           <Label>Reporte Xetux (.xlsx)</Label>
           <Input type="file" accept=".xlsx" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
           {fileName && <div className="text-xs text-muted-foreground mt-1">{fileName}</div>}
-          <div className="text-xs text-muted-foreground">El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt; 11000 → Bocú</span>, <span className="font-mono">≤ 11000 → YV</span>.</div>
+          <div className="text-xs text-muted-foreground space-y-1 mt-1">
+            <div>El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt; 11000 → Bocú</span>, <span className="font-mono">≤ 11000 → YV</span>.</div>
+            <div>Las filas <span className="font-semibold">sin factura pero con N° de orden</span> se asignan a <span className="font-mono">Bocú</span> y se clasifican por la columna B: <span className="font-mono">"desc*" → Descuento (1.6)</span>, <span className="font-mono">"Nota de Crédito" → NC (1.7)</span>, resto → <span className="font-mono">POR DETERMINAR</span> (off-balance).</div>
+          </div>
         </CardContent>
       </Card>
 
@@ -426,44 +508,52 @@ function ImportarVentasPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">3. Vista previa ({rows.length} facturas · {fmtUsd(stats.totalUsd)})</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">3. Vista previa ({rows.length} filas · {fmtUsd(stats.totalUsd)})</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-3 text-xs">
                 <Badge variant="default">Importables: {stats.importable}</Badge>
                 <Badge variant="secondary">CxC: {stats.cxc}</Badge>
                 <Badge variant="outline" className="border-orange-400 text-orange-700">Sin mapear: {stats.sinMapeo}</Badge>
                 <Badge variant="outline" className="border-amber-400 text-amber-700">Mixtos: {stats.mixto}</Badge>
+                <Badge variant="outline" className="border-rose-400 text-rose-700">Descuentos: {stats.descuento}</Badge>
+                <Badge variant="outline" className="border-violet-400 text-violet-700">N. Crédito: {stats.notaCredito}</Badge>
+                <Badge variant="outline" className="border-zinc-400 text-zinc-700">Por determinar: {stats.porDeterminar}</Badge>
               </div>
               <div className="border rounded overflow-x-auto max-h-[500px]">
                 <table className="w-full text-xs">
                   <thead className="bg-muted sticky top-0 z-10 shadow-sm">
                     <tr className="text-left">
                       <th className="p-2 bg-muted">Factura</th>
+                      <th className="p-2 bg-muted">N° Orden</th>
                       <th className="p-2 bg-muted">Centro</th>
                       <th className="p-2 bg-muted">Fecha</th>
                       <th className="p-2 bg-muted">Cliente</th>
                       <th className="p-2 bg-muted text-right">USD</th>
                       <th className="p-2 bg-muted text-right">IVA USD</th>
-                      <th className="p-2 bg-muted">Forma</th>
+                      <th className="p-2 bg-muted">Forma / Tipo</th>
                       <th className="p-2 bg-muted">Estado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((r) => {
                       let estado: { label: string; cls: string };
-                      if (r.esCxC) estado = { label: "CxC", cls: "text-blue-700" };
+                      if (r.clase === "descuento") estado = { label: "Descuento", cls: "text-rose-700" };
+                      else if (r.clase === "nota_credito") estado = { label: "N. Crédito", cls: "text-violet-700" };
+                      else if (r.clase === "por_determinar") estado = { label: "Por determinar", cls: "text-zinc-700" };
+                      else if (r.esCxC) estado = { label: "CxC", cls: "text-blue-700" };
                       else if (!mapByForma.has(formaKeyOf(r))) estado = { label: "Sin mapear", cls: "text-orange-700" };
                       else estado = { label: r.esMixto ? "Mixto" : "Importable", cls: r.esMixto ? "text-amber-700" : "text-emerald-700" };
-                      const centroRow = centroDeFactura(r.numero_factura);
+                      const centroRow: Centro = r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu";
                       return (
                         <tr key={r.idx} className="border-t">
-                          <td className="p-2 font-mono">{r.numero_factura}</td>
+                          <td className="p-2 font-mono">{r.numero_factura || "—"}</td>
+                          <td className="p-2 font-mono">{r.numero_orden || "—"}</td>
                           <td className="p-2"><Badge variant="outline" className="text-[10px]">{centroRow}</Badge></td>
                           <td className="p-2">{r.fecha}</td>
-                          <td className="p-2 truncate max-w-[200px]">{r.cliente}</td>
+                          <td className="p-2 truncate max-w-[180px]">{r.cliente}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.total_usd)}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.iva_usd)}</td>
-                          <td className="p-2 font-mono text-[10px]">{r.forma_pago_raw}</td>
+                          <td className="p-2 font-mono text-[10px]">{r.clase === "factura" ? r.forma_pago_raw : r.tipo_raw}</td>
                           <td className={`p-2 font-medium ${estado.cls}`}>{estado.label}</td>
                         </tr>
                       );
@@ -473,10 +563,10 @@ function ImportarVentasPage() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="text-xs text-muted-foreground">
-                  {progress ? `Importando ${progress.done}/${progress.total}...` : `Se importarán ${stats.importable} facturas. Las que están sin mapear quedan fuera.`}
+                  {progress ? `Importando ${progress.done}/${progress.total}...` : `Se importarán ${stats.importable} filas. Las que están sin mapear quedan fuera.`}
                 </div>
                 <Button onClick={importar} disabled={busy || stats.importable === 0 || formasSinMapear.length > 0}>
-                  {busy ? "Importando..." : `Importar ${stats.importable} facturas`}
+                  {busy ? "Importando..." : `Importar ${stats.importable} filas`}
                 </Button>
               </div>
             </CardContent>
@@ -487,7 +577,7 @@ function ImportarVentasPage() {
       {progress && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="bg-card border rounded-lg shadow-xl px-8 py-6 min-w-[320px] text-center space-y-3">
-            <div className="text-sm text-muted-foreground">Importando facturas...</div>
+            <div className="text-sm text-muted-foreground">Importando filas...</div>
             <div className="text-3xl font-bold mono">
               {progress.done} <span className="text-muted-foreground text-xl">/ {progress.total}</span>
             </div>
