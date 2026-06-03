@@ -137,6 +137,7 @@ function CxCPage() {
                   <tr>
                     <th className="text-left py-2 px-2">Cliente</th>
                     <th className="text-left py-2 px-2">Centro</th>
+                    <th className="text-left py-2 px-2">N° Orden</th>
                     <th className="text-right py-2 px-2">Original USD</th>
                     <th className="text-right py-2 px-2">Pendiente USD</th>
                     <th className="text-right py-2 px-2">Original Bs (a tasa emisión)</th>
