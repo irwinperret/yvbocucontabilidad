@@ -35,11 +35,37 @@ type ParsedRow = {
 
 const norm = (s: any) => String(s ?? "").trim().toUpperCase();
 
+const MESES_ES: Record<string, string> = {
+  ene: "01", enero: "01",
+  feb: "02", febrero: "02",
+  mar: "03", marzo: "03",
+  abr: "04", abril: "04",
+  may: "05", mayo: "05",
+  jun: "06", junio: "06",
+  jul: "07", julio: "07",
+  ago: "08", agosto: "08",
+  sep: "09", sept: "09", septiembre: "09", set: "09",
+  oct: "10", octubre: "10",
+  nov: "11", noviembre: "11",
+  dic: "12", diciembre: "12",
+};
+
 function parseDateCell(v: any): string {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   const s = String(v ?? "").trim();
-  // Handle "YYYY-MM-DD HH:MM:SS"
+  if (!s) return "";
+  // "YYYY-MM-DD ..."
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // "DD-MMM-YYYY ..." (Spanish month, e.g. "19-abr-2026 0:40:28")
+  const m = s.match(/^(\d{1,2})[\-\/\s]+([A-Za-zÁÉÍÓÚáéíóú\.]+)[\-\/\s]+(\d{2,4})/);
+  if (m) {
+    const dia = m[1].padStart(2, "0");
+    const mesRaw = m[2].toLowerCase().replace(/\./g, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const mes = MESES_ES[mesRaw];
+    let anio = m[3];
+    if (anio.length === 2) anio = "20" + anio;
+    if (mes) return `${anio}-${mes}-${dia}`;
+  }
   const d = new Date(s);
   return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
