@@ -189,10 +189,6 @@ function ImportarVentasPage() {
         }
         if (!tasa) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (factura ${r.numero_factura})`); continue; }
 
-        // Skip duplicates por número de factura ya importado de Xetux
-        const { data: dup } = await supabase.from("transacciones").select("id").eq("numero_factura", r.numero_factura).eq("referencia", "xetux").limit(1).maybeSingle();
-        if (dup) { skip++; continue; }
-
         const totalBs = r.total_usd * tasa;
         const baseBs = r.base_usd * tasa;
         const ivaBs = r.iva_usd * tasa;
@@ -204,8 +200,9 @@ function ImportarVentasPage() {
         const cuenta_codigo = esCxC ? cuentaVenta(centroRow, "credito") : cuentaVenta(centroRow, "contado");
         const metodo = (esCxC ? "pendiente" : (cfg?.metodo_pago || "transferencia")) as Metodo;
         const cuenta_bancaria_id = esCxC ? null : (cfg?.cuenta_bancaria_id || null);
+        const notasBase = `Xetux · ${r.cliente}${r.forma_pago_raw ? ` · ${r.forma_pago_raw}` : ""}`;
 
-        const { data: tx, error } = await supabase.from("transacciones").insert({
+        const payload = {
           fecha: r.fecha,
           cuenta_codigo,
           centro_costo: centroRow as any,
@@ -219,9 +216,85 @@ function ImportarVentasPage() {
           metodo_pago: metodo as any,
           numero_factura: r.numero_factura,
           referencia: "xetux",
-          notas: `Xetux · ${r.cliente}${r.forma_pago_raw ? ` · ${r.forma_pago_raw}` : ""}`,
           modo: "on_balance" as any,
           cuenta_bancaria_id,
+        };
+
+        // Buscar duplicado por número de factura ya importado de Xetux
+        const { data: dup } = await supabase
+          .from("transacciones")
+          .select("*")
+          .eq("numero_factura", r.numero_factura)
+          .eq("referencia", "xetux")
+          .limit(1)
+          .maybeSingle();
+
+        if (dup) {
+          // Detectar cambios en campos relevantes
+          const cambios =
+            dup.fecha !== payload.fecha ||
+            dup.cuenta_codigo !== payload.cuenta_codigo ||
+            dup.centro_costo !== payload.centro_costo ||
+            !approxEq(Number(dup.monto_bs), payload.monto_bs) ||
+            !approxEq(Number(dup.monto_base_bs), payload.monto_base_bs) ||
+            !approxEq(Number(dup.iva_bs), payload.iva_bs) ||
+            !approxEq(Number(dup.tasa_bcv), payload.tasa_bcv) ||
+            !approxEq(Number(dup.monto_usd), payload.monto_usd) ||
+            (dup.metodo_pago ?? null) !== (payload.metodo_pago ?? null) ||
+            (dup.cuenta_bancaria_id ?? null) !== (payload.cuenta_bancaria_id ?? null);
+
+          if (!cambios) { unchanged++; continue; }
+
+          const nuevasNotas = `${notasBase} · [ACTUALIZADA ${new Date().toISOString().slice(0, 10)}]`;
+          const { data: tx, error } = await supabase
+            .from("transacciones")
+            .update({ ...payload, notas: nuevasNotas } as any)
+            .eq("id", dup.id)
+            .select()
+            .single();
+          if (error) { fail++; toast.error(`Factura ${r.numero_factura}: ${error.message}`); continue; }
+          if (tx) await logAudit("transacciones", "UPDATE", tx.id, dup, tx);
+
+          // Sincronizar CxC asociada si aplica
+          if (esCxC && tx) {
+            const { data: cxcExist } = await supabase
+              .from("cuentas_por_cobrar")
+              .select("id, estado, monto_pendiente_bs")
+              .eq("transaccion_id", tx.id)
+              .limit(1)
+              .maybeSingle();
+            if (cxcExist) {
+              // Solo actualiza si sigue vigente (no pisar cobros parciales)
+              if (cxcExist.estado === "vigente") {
+                await supabase.from("cuentas_por_cobrar").update({
+                  cliente: r.cliente,
+                  centro_costo: centroRow as any,
+                  monto_bs: totalBs,
+                  monto_usd: r.total_usd,
+                  monto_pendiente_bs: totalBs,
+                  monto_pendiente_usd: r.total_usd,
+                } as any).eq("id", cxcExist.id);
+              }
+            } else {
+              await supabase.from("cuentas_por_cobrar").insert({
+                cliente: r.cliente,
+                centro_costo: centroRow as any,
+                monto_bs: totalBs,
+                monto_usd: r.total_usd,
+                monto_pendiente_bs: totalBs,
+                monto_pendiente_usd: r.total_usd,
+                transaccion_id: tx.id,
+                estado: "vigente",
+              } as any);
+            }
+          }
+          updated++;
+          continue;
+        }
+
+        const { data: tx, error } = await supabase.from("transacciones").insert({
+          ...payload,
+          notas: notasBase,
           created_by: user.id,
         } as any).select().single();
 
@@ -253,7 +326,7 @@ function ImportarVentasPage() {
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Importadas: ${ok} · Duplicadas: ${skip} · Fallidas: ${fail}`);
+    toast.success(`Nuevas: ${ok} · Actualizadas: ${updated} · Sin cambios: ${unchanged} · Fallidas: ${fail}`);
     if (ok > 0) {
       // Quitar las importadas de la lista para evitar reintentos
       setRows((all) => all.filter((r) => !r.esCxC && !mapByForma.has(formaKeyOf(r))));
