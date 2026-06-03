@@ -78,6 +78,7 @@ function TransaccionesPage() {
       t.cuenta_codigo?.toLowerCase().includes(s) ||
       cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
       t.numero_factura?.toLowerCase().includes(s) ||
+      (t.numero_orden ?? "").toLowerCase().includes(s) ||
       t.referencia?.toLowerCase().includes(s) ||
       t.notas?.toLowerCase().includes(s)
     );
@@ -112,6 +113,7 @@ function TransaccionesPage() {
         { header: "Código", key: "codigo", width: 10 },
         { header: "Cuenta", key: "cuenta", width: 36 },
         { header: "N° Factura", key: "factura", width: 14 },
+        { header: "N° Orden", key: "orden", width: 14 },
         { header: "Referencia", key: "referencia", width: 18 },
         { header: "Monto Bs", key: "bs", width: 16 },
         { header: "Base Bs", key: "base", width: 16 },
@@ -126,13 +128,14 @@ function TransaccionesPage() {
       header.font = { bold: true, color: { argb: "FFFFFFFF" } };
       header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } };
 
-      for (const t of filtradas) {
+      for (const t of filtradas as any[]) {
         const r = ws.addRow({
           fecha: t.fecha,
           centro: t.centro_costo,
           codigo: t.cuenta_codigo,
           cuenta: cuentaNombre[t.cuenta_codigo] ?? "",
           factura: t.numero_factura ?? "",
+          orden: t.numero_orden ?? "",
           referencia: t.referencia ?? "",
           bs: Number(t.monto_bs) || 0,
           base: Number(t.monto_base_bs) || 0,
@@ -245,6 +248,7 @@ function TransaccionesPage() {
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">Cuenta</th>
                     <th className="text-left py-2 px-2">Factura</th>
+                    <th className="text-left py-2 px-2">N° Orden</th>
                     <th className="text-right py-2 px-2">Bs</th>
                     <th className="text-right py-2 px-2">USD</th>
                     <th className="text-left py-2 px-2">Método</th>
@@ -263,6 +267,7 @@ function TransaccionesPage() {
                         <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
                       </td>
                       <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
+                      <td className="py-2 px-2 mono text-xs">{t.numero_orden ?? "—"}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(t.monto_usd)}</td>
                       <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
@@ -356,6 +361,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [tasa, setTasa] = useState<string>(String(tx.tasa_bcv ?? ""));
   const [metodo, setMetodo] = useState<string>(tx.metodo_pago ?? "transferencia");
   const [numFactura, setNumFactura] = useState<string>(tx.numero_factura ?? "");
+  const [numOrden, setNumOrden] = useState<string>(tx.numero_orden ?? "");
   const [referencia, setReferencia] = useState<string>(tx.referencia ?? "");
   const [notas, setNotas] = useState<string>(tx.notas ?? "");
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(tx.cuenta_bancaria_id ?? "");
@@ -384,6 +390,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       monto_usd: usd,
       metodo_pago: metodo as any,
       numero_factura: numFactura || null,
+      numero_orden: numOrden || null,
       referencia: referencia || null,
       notas: notas || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
@@ -436,6 +443,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
             </Select>
           </div>
           <div><Label>N° factura</Label><Input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} /></div>
+          <div><Label>N° orden</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} /></div>
           <div className="md:col-span-2">
             <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
           </div>

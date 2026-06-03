@@ -107,6 +107,7 @@ function VentasForm() {
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
   const [ref, setRef] = useState("");
+  const [numOrden, setNumOrden] = useState("");
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
@@ -171,6 +172,7 @@ function VentasForm() {
       tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
       metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
       referencia: tipo === "credito" ? null : (ref || null),
+      numero_orden: numOrden || null,
       notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
@@ -229,7 +231,7 @@ function VentasForm() {
         : "Venta registrada";
     toast.success(msg);
     qc.invalidateQueries();
-    setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId("");
+    setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId(""); setNumOrden("");
   };
 
 
@@ -340,6 +342,7 @@ function VentasForm() {
               Esta venta queda <span className="font-semibold">pendiente de cobro</span>. No requiere método de pago ni cuenta bancaria — se registrarán cuando se cobre desde "Cobro de crédito anterior".
             </div>
           )}
+          <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>

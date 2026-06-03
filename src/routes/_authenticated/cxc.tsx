@@ -137,6 +137,7 @@ function CxCPage() {
                   <tr>
                     <th className="text-left py-2 px-2">Cliente</th>
                     <th className="text-left py-2 px-2">Centro</th>
+                    <th className="text-left py-2 px-2">N° Orden</th>
                     <th className="text-right py-2 px-2">Original USD</th>
                     <th className="text-right py-2 px-2">Pendiente USD</th>
                     <th className="text-right py-2 px-2">Original Bs (a tasa emisión)</th>
@@ -153,6 +154,7 @@ function CxCPage() {
                       <tr key={c.id} className="border-b last:border-0">
                         <td className="py-2 px-2">{c.cliente}</td>
                         <td className="py-2 px-2">{c.centro_costo}</td>
+                        <td className="py-2 px-2 mono text-xs">{(c as any).numero_orden ?? "—"}</td>
                         <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
                         <td className="py-2 px-2 text-right mono">
                           {fmtUsd(pendUsd)}
