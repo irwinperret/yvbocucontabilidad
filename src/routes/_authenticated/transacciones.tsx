@@ -98,6 +98,92 @@ function TransaccionesPage() {
     qc.invalidateQueries();
   };
 
+  const exportar = async () => {
+    if (!filtradas.length) return toast.error("No hay movimientos para exportar");
+    setExporting(true);
+    try {
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "Yvbocu Contabilidad";
+      wb.created = new Date();
+      const ws = wb.addWorksheet("Transacciones");
+      ws.columns = [
+        { header: "Fecha", key: "fecha", width: 12 },
+        { header: "Centro", key: "centro", width: 10 },
+        { header: "Código", key: "codigo", width: 10 },
+        { header: "Cuenta", key: "cuenta", width: 36 },
+        { header: "N° Factura", key: "factura", width: 14 },
+        { header: "Referencia", key: "referencia", width: 18 },
+        { header: "Monto Bs", key: "bs", width: 16 },
+        { header: "Base Bs", key: "base", width: 16 },
+        { header: "IVA Bs", key: "iva", width: 14 },
+        { header: "Tasa BCV", key: "tasa", width: 12 },
+        { header: "Monto USD", key: "usd", width: 14 },
+        { header: "Método", key: "metodo", width: 14 },
+        { header: "Modo", key: "modo", width: 12 },
+        { header: "Notas", key: "notas", width: 40 },
+      ];
+      const header = ws.getRow(1);
+      header.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } };
+
+      for (const t of filtradas) {
+        const r = ws.addRow({
+          fecha: t.fecha,
+          centro: t.centro_costo,
+          codigo: t.cuenta_codigo,
+          cuenta: cuentaNombre[t.cuenta_codigo] ?? "",
+          factura: t.numero_factura ?? "",
+          referencia: t.referencia ?? "",
+          bs: Number(t.monto_bs) || 0,
+          base: Number(t.monto_base_bs) || 0,
+          iva: Number(t.iva_bs) || 0,
+          tasa: Number(t.tasa_bcv) || 0,
+          usd: Number(t.monto_usd) || 0,
+          metodo: t.metodo_pago ?? "",
+          modo: t.modo,
+          notas: t.notas ?? "",
+        });
+        ["bs", "base", "iva"].forEach((k) => { r.getCell(k as any).numFmt = '#,##0.00'; });
+        r.getCell("tasa" as any).numFmt = '#,##0.0000';
+        r.getCell("usd" as any).numFmt = '"$"#,##0.00';
+      }
+
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `transacciones_${desde}_a_${hasta}${centro !== "todos" ? `_${centro}` : ""}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exportadas ${filtradas.length} transacciones`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const borrarTodo = async () => {
+    if (wipePwd !== "12345678") return toast.error("Contraseña incorrecta");
+    setWipeBusy(true);
+    try {
+      // Borrar dependencias primero (cuentas por cobrar/pagar referencian transacciones)
+      await supabase.from("cuentas_por_cobrar").delete().not("id", "is", null);
+      await supabase.from("cuentas_por_pagar").delete().not("id", "is", null);
+      const { error, count } = await supabase
+        .from("transacciones")
+        .delete({ count: "exact" })
+        .not("id", "is", null);
+      if (error) { toast.error(error.message); return; }
+      await logAudit("transacciones", "DELETE", "ALL" as any, { borradas: count ?? 0 }, null);
+      toast.success(`Se borraron ${count ?? 0} transacciones`);
+      setWipeOpen(false);
+      setWipePwd("");
+      qc.invalidateQueries();
+    } finally {
+      setWipeBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
