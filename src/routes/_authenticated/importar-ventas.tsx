@@ -133,12 +133,14 @@ function ImportarVentasPage() {
     toast.success(`${parsed.length} facturas detectadas`);
   };
 
+  const defaultMetodoFor = (forma: string) => (norm(forma) === "MIXTO" ? "tarjeta" : "transferencia");
+
   const updateMap = async (forma: string, patch: { cuenta_bancaria_id?: string | null; metodo_pago?: string }) => {
     const existing = mapByForma.get(norm(forma));
     const payload = {
       forma_pago: norm(forma),
       cuenta_bancaria_id: patch.cuenta_bancaria_id ?? existing?.cuenta_bancaria_id ?? null,
-      metodo_pago: patch.metodo_pago ?? existing?.metodo_pago ?? "transferencia",
+      metodo_pago: patch.metodo_pago ?? existing?.metodo_pago ?? defaultMetodoFor(forma),
     };
     const { error } = await supabase.from("xetux_payment_map" as any).upsert(payload as any);
     if (error) return toast.error(error.message);
@@ -308,7 +310,7 @@ function ImportarVentasPage() {
                         <div className="text-xs text-muted-foreground">N/A (crédito)</div>
                       )}
                       {requiereCuenta ? (
-                        <Select value={cfg?.metodo_pago ?? "transferencia"} onValueChange={(v) => updateMap(forma, { metodo_pago: v })}>
+                        <Select value={cfg?.metodo_pago ?? defaultMetodoFor(forma)} onValueChange={(v) => updateMap(forma, { metodo_pago: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
