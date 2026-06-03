@@ -111,7 +111,7 @@ function ImportarVentasPage() {
       const cliente = String(row.getCell(8).value ?? "").trim() || "Contado";
       const iva = Number(row.getCell(18).value ?? 0); // "Impuesto"
       const formaRaw = String(row.getCell(32).value ?? "").trim(); // "Formas de Pago"
-      const fecha = parseDateCell(row.getCell(36).value); // "Fecha de la factura"
+      const fecha = parseDateCell(row.getCell(37).value); // AK "Fecha de la factura"
       const formas = formaRaw.split("|").map((s) => s.trim()).filter(Boolean);
       const esMixto = formas.length > 1;
       const esCxC = formas.length === 1 && norm(formas[0]) === "CXC";
