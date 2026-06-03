@@ -217,9 +217,21 @@ function TransaccionesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            {isLoading ? "Cargando…" : `${filtradas.length} movimientos`}
-          </CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base">
+              {isLoading ? "Cargando…" : `${filtradas.length} movimientos`}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={exportar} disabled={exporting || filtradas.length === 0}>
+                <Download className="h-4 w-4 mr-1.5" />
+                {exporting ? "Exportando…" : "Exportar a Excel"}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setWipeOpen(true)}>
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Borrar todo
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {filtradas.length === 0 ? (
