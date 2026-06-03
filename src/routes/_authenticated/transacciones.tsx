@@ -390,6 +390,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       monto_usd: usd,
       metodo_pago: metodo as any,
       numero_factura: numFactura || null,
+      numero_orden: numOrden || null,
       referencia: referencia || null,
       notas: notas || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
