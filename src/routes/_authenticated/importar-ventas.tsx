@@ -171,11 +171,13 @@ function ImportarVentasPage() {
     const elegibles = rows.filter((r) => r.esCxC || mapByForma.has(formaKeyOf(r)));
     if (!elegibles.length) return toast.error("No hay facturas importables");
     setBusy(true);
-    let ok = 0, skip = 0, fail = 0;
+    let ok = 0, updated = 0, unchanged = 0, fail = 0;
     setProgress({ done: 0, total: elegibles.length });
 
     // Cache de tasas por fecha
     const tasaCache = new Map<string, number>();
+
+    const approxEq = (a: number, b: number) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
 
     for (const r of elegibles) {
       try {
