@@ -154,6 +154,7 @@ function CxCPage() {
                       <tr key={c.id} className="border-b last:border-0">
                         <td className="py-2 px-2">{c.cliente}</td>
                         <td className="py-2 px-2">{c.centro_costo}</td>
+                        <td className="py-2 px-2 mono text-xs">{(c as any).numero_orden ?? "—"}</td>
                         <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
                         <td className="py-2 px-2 text-right mono">
                           {fmtUsd(pendUsd)}
