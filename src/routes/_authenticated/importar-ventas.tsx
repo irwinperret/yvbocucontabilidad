@@ -483,6 +483,24 @@ function ImportarVentasPage() {
           </Card>
         </>
       )}
+
+      {progress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="bg-card border rounded-lg shadow-xl px-8 py-6 min-w-[320px] text-center space-y-3">
+            <div className="text-sm text-muted-foreground">Importando facturas...</div>
+            <div className="text-3xl font-bold mono">
+              {progress.done} <span className="text-muted-foreground text-xl">/ {progress.total}</span>
+            </div>
+            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-150"
+                style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground">Por favor espera, no cierres esta página.</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
