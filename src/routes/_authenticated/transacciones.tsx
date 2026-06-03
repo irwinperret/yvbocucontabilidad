@@ -128,7 +128,7 @@ function TransaccionesPage() {
       header.font = { bold: true, color: { argb: "FFFFFFFF" } };
       header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } };
 
-      for (const t of filtradas) {
+      for (const t of filtradas as any[]) {
         const r = ws.addRow({
           fecha: t.fecha,
           centro: t.centro_costo,
