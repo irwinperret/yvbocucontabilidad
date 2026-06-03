@@ -310,7 +310,7 @@ function ImportarVentasPage() {
                         <div className="text-xs text-muted-foreground">N/A (crédito)</div>
                       )}
                       {requiereCuenta ? (
-                        <Select value={cfg?.metodo_pago ?? "transferencia"} onValueChange={(v) => updateMap(forma, { metodo_pago: v })}>
+                        <Select value={cfg?.metodo_pago ?? defaultMetodoFor(forma)} onValueChange={(v) => updateMap(forma, { metodo_pago: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
