@@ -78,7 +78,7 @@ function TransaccionesPage() {
       t.cuenta_codigo?.toLowerCase().includes(s) ||
       cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
       t.numero_factura?.toLowerCase().includes(s) ||
-      t.numero_orden?.toLowerCase().includes(s) ||
+      (t.numero_orden ?? "").toLowerCase().includes(s) ||
       t.referencia?.toLowerCase().includes(s) ||
       t.notas?.toLowerCase().includes(s)
     );
