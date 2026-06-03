@@ -107,6 +107,7 @@ function VentasForm() {
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
   const [ref, setRef] = useState("");
+  const [numOrden, setNumOrden] = useState("");
   const [notas, setNotas] = useState("");
   const [offBalance, setOffBalance] = useState(false);
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
