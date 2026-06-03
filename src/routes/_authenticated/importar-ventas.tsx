@@ -133,12 +133,14 @@ function ImportarVentasPage() {
     toast.success(`${parsed.length} facturas detectadas`);
   };
 
+  const defaultMetodoFor = (forma: string) => (norm(forma) === "MIXTO" ? "tarjeta" : "transferencia");
+
   const updateMap = async (forma: string, patch: { cuenta_bancaria_id?: string | null; metodo_pago?: string }) => {
     const existing = mapByForma.get(norm(forma));
     const payload = {
       forma_pago: norm(forma),
       cuenta_bancaria_id: patch.cuenta_bancaria_id ?? existing?.cuenta_bancaria_id ?? null,
-      metodo_pago: patch.metodo_pago ?? existing?.metodo_pago ?? "transferencia",
+      metodo_pago: patch.metodo_pago ?? existing?.metodo_pago ?? defaultMetodoFor(forma),
     };
     const { error } = await supabase.from("xetux_payment_map" as any).upsert(payload as any);
     if (error) return toast.error(error.message);
