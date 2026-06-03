@@ -342,6 +342,7 @@ function VentasForm() {
               Esta venta queda <span className="font-semibold">pendiente de cobro</span>. No requiere método de pago ni cuenta bancaria — se registrarán cuando se cobre desde "Cobro de crédito anterior".
             </div>
           )}
+          <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>
