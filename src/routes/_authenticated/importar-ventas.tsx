@@ -473,7 +473,7 @@ function ImportarVentasPage() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="text-xs text-muted-foreground">
-                  {progress ? `Importando ${progress.done}/${progress.total}...` : `Se importarán ${stats.importable} facturas. Las mixtas y sin mapear quedan fuera.`}
+                  {progress ? `Importando ${progress.done}/${progress.total}...` : `Se importarán ${stats.importable} facturas. Las que están sin mapear quedan fuera.`}
                 </div>
                 <Button onClick={importar} disabled={busy || stats.importable === 0 || formasSinMapear.length > 0}>
                   {busy ? "Importando..." : `Importar ${stats.importable} facturas`}
