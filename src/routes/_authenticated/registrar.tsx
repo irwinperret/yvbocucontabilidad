@@ -172,6 +172,7 @@ function VentasForm() {
       tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
       metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
       referencia: tipo === "credito" ? null : (ref || null),
+      numero_orden: numOrden || null,
       notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
