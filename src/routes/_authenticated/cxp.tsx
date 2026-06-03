@@ -67,6 +67,7 @@ function CxPAnalisisPage() {
                     <tr key={c.id} className="border-b last:border-0">
                       <td className="py-2 px-2">{c.proveedor ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{c.numero_factura ?? "—"}</td>
+                      <td className="py-2 px-2 mono text-xs">{(c as any).numero_orden ?? "—"}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(c.monto_pendiente_bs ?? c.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
                       <td className="py-2 px-2 mono">{c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</td>
