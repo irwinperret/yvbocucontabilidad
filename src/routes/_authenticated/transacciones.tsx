@@ -34,6 +34,10 @@ function TransaccionesPage() {
   const [centro, setCentro] = useState<string>("todos");
   const [busca, setBusca] = useState("");
   const [editing, setEditing] = useState<any>(null);
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const [wipePwd, setWipePwd] = useState("");
+  const [wipeBusy, setWipeBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["transacciones-list", desde, hasta, centro],
