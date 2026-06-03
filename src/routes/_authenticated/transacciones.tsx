@@ -316,6 +316,35 @@ function TransaccionesPage() {
           onSaved={() => { setEditing(null); qc.invalidateQueries(); }}
         />
       )}
+
+      <Dialog open={wipeOpen} onOpenChange={(o) => { if (!o) { setWipeOpen(false); setWipePwd(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Borrar TODAS las transacciones</DialogTitle>
+            <DialogDescription>
+              Esta acción es irreversible. Se eliminarán todas las transacciones, junto con sus cuentas por cobrar y cuentas por pagar asociadas. Escribe la contraseña de la página para confirmar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Contraseña</Label>
+            <Input
+              type="password"
+              value={wipePwd}
+              onChange={(e) => setWipePwd(e.target.value)}
+              placeholder="Contraseña de la página"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setWipeOpen(false); setWipePwd(""); }} disabled={wipeBusy}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={borrarTodo} disabled={wipeBusy || !wipePwd}>
+              {wipeBusy ? "Borrando…" : "Sí, borrar todo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
