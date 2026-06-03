@@ -248,6 +248,7 @@ function TransaccionesPage() {
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">Cuenta</th>
                     <th className="text-left py-2 px-2">Factura</th>
+                    <th className="text-left py-2 px-2">N° Orden</th>
                     <th className="text-right py-2 px-2">Bs</th>
                     <th className="text-right py-2 px-2">USD</th>
                     <th className="text-left py-2 px-2">Método</th>
@@ -266,6 +267,7 @@ function TransaccionesPage() {
                         <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
                       </td>
                       <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
+                      <td className="py-2 px-2 mono text-xs">{t.numero_orden ?? "—"}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(t.monto_usd)}</td>
                       <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
