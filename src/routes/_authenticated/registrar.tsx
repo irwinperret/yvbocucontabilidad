@@ -231,7 +231,7 @@ function VentasForm() {
         : "Venta registrada";
     toast.success(msg);
     qc.invalidateQueries();
-    setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId("");
+    setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId(""); setNumOrden("");
   };
 
 
