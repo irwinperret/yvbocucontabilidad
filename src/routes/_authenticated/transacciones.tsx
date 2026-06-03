@@ -361,6 +361,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [tasa, setTasa] = useState<string>(String(tx.tasa_bcv ?? ""));
   const [metodo, setMetodo] = useState<string>(tx.metodo_pago ?? "transferencia");
   const [numFactura, setNumFactura] = useState<string>(tx.numero_factura ?? "");
+  const [numOrden, setNumOrden] = useState<string>(tx.numero_orden ?? "");
   const [referencia, setReferencia] = useState<string>(tx.referencia ?? "");
   const [notas, setNotas] = useState<string>(tx.notas ?? "");
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(tx.cuenta_bancaria_id ?? "");
