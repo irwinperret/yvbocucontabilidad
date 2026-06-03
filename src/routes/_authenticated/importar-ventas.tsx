@@ -89,7 +89,7 @@ function ImportarVentasPage() {
     return Array.from(set).sort();
   }, [rows]);
 
-  const formasSinMapear = formasUsadas.filter((f) => !mapByForma.has(f));
+  const formasSinMapear = formasUsadas.filter((f) => f !== "CXC" && !mapByForma.has(f));
 
   const onFile = async (file: File) => {
     setFileName(file.name);
