@@ -76,17 +76,19 @@ function RegistrarPage() {
         <p className="text-sm text-muted-foreground">Elige el tipo de transacción</p>
       </div>
       <Tabs value={current} onValueChange={(v) => navigate({ to: "/registrar", search: { tab: v } })}>
-        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 w-full h-auto gap-1 p-1">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 w-full h-auto gap-1 p-1">
           <TabsTrigger value="ventas" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Ventas</TabsTrigger>
           <TabsTrigger value="gastos" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Gastos / Facturas</TabsTrigger>
           <TabsTrigger value="cierre" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">COGS e Inventario</TabsTrigger>
           <TabsTrigger value="nomina" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Nómina</TabsTrigger>
+          <TabsTrigger value="ops-iva" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Ops IVA</TabsTrigger>
           <TabsTrigger value="financiamiento" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Financiamiento</TabsTrigger>
         </TabsList>
         <TabsContent value="ventas"><VentasForm /></TabsContent>
         <TabsContent value="gastos"><GastosForm /></TabsContent>
         <TabsContent value="cierre"><CierreForm /></TabsContent>
         <TabsContent value="nomina"><NominaForm /></TabsContent>
+        <TabsContent value="ops-iva"><OpsIvaForm /></TabsContent>
         <TabsContent value="financiamiento"><FinanciamientoForm /></TabsContent>
       </Tabs>
     </div>
@@ -704,6 +706,98 @@ function NominaForm() {
           <div className="md:col-span-2"><Label>Notas (común a todos)</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar nómina"}</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ---------------- OPS IVA ---------------- */
+function OpsIvaForm() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [fecha, setFecha] = useState(todayISO());
+  const [montoBs, setMontoBs] = useState("");
+  const [tasa, setTasa] = useState("");
+  const [metodo, setMetodo] = useState("transferencia");
+  const [ref, setRef] = useState("");
+  const [numOrden, setNumOrden] = useState("");
+  const [notas, setNotas] = useState("");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const { data: tasaSugerida } = useTasaForDate(fecha);
+  const { data: paralelaSugerida } = useParalelaForDate(fecha);
+  useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+
+  const total = Number(montoBs) || 0;
+  const tasaN = Number(tasa) || 0;
+  const usd = tasaN ? total / tasaN : 0;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!total) return toast.error("Monto requerido");
+    if (!tasaN) return toast.error("Falta tasa BCV");
+    if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
+    setBusy(true);
+    const { data: tx, error } = await supabase.from("transacciones").insert({
+      fecha,
+      cuenta_codigo: "1.8",
+      centro_costo: "Compartido" as any,
+      monto_bs: total,
+      monto_base_bs: total,
+      iva_bs: 0,
+      iva_aplica: false,
+      tipo_iva: null,
+      tasa_bcv: tasaN,
+      tasa_paralela: paralelaSugerida?.tasa ?? null,
+      monto_usd: usd,
+      metodo_pago: metodo as any,
+      referencia: ref || null,
+      numero_orden: numOrden || null,
+      notas: notas || null,
+      modo: "off_balance" as any,
+      cuenta_bancaria_id: cuentaBancariaId,
+      created_by: user.id,
+    } as any).select().single();
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    toast.success("Ops IVA registrado");
+    setMontoBs(""); setRef(""); setNumOrden(""); setNotas("");
+    qc.invalidateQueries();
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Ops IVA</CardTitle></CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
+          <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
+            <span className="text-xs text-muted-foreground">USD neto</span>
+            <span className="text-base font-bold mono">{fmtUsd(usd)}</span>
+          </div>
+          <div>
+            <Label>Método de pago</Label>
+            <Select value={metodo} onValueChange={setMetodo}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label>Referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+          <div><Label>N° orden / soporte</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} /></div>
+          <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
+          <div className="md:col-span-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+            Se registra como ingreso neto Ops IVA, compartido, sin IVA y fuera de balance.
+          </div>
+          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar Ops IVA"}</Button>
           </div>
         </form>
       </CardContent>
