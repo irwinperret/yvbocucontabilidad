@@ -1059,6 +1059,21 @@ function CierreForm() {
     if (!compraOffBalance && compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
 
+    // Evitar facturas duplicadas (mismo proveedor + mismo N° factura), incluso en otros meses
+    const { data: dup } = await supabase
+      .from("inventario_snapshots")
+      .select("id, periodo, fecha")
+      .eq("tipo", "compra")
+      .eq("tercero_id", compraTerceroId)
+      .eq("numero_factura", compraNumFactura)
+      .limit(1);
+    if (dup && dup.length > 0) {
+      setCompraBusy(false);
+      const d: any = dup[0];
+      return toast.error(`Factura duplicada: ya existe N° ${compraNumFactura} de este proveedor (período ${d.periodo ?? d.fecha})`);
+    }
+
+
     let cxpId: string | null = null;
     if (!compraOffBalance && !compraPagada) {
       const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
