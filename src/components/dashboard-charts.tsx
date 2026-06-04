@@ -211,7 +211,9 @@ function TipGyp({ active, payload, label }: any) {
     <div className="rounded-md border bg-background p-2 text-xs shadow-md">
       <div className="font-semibold mb-1">{label}</div>
       <Row k="Ingresos" v={d.ingresos} positive />
-      <Row k="Gastos" v={-d.gastos} />
+      <Row k="COGS" v={-d.cogs} />
+      <Row k="Gastos / facturas" v={-d.gastos} />
+
       <div className="border-t mt-1 pt-1">
         <Row k="Utilidad neta" v={d.utilidad} bold />
       </div>
