@@ -1233,7 +1233,7 @@ function CierreForm() {
           </form>
           {(compras ?? []).length > 0 && (
             <div className="border-t pt-2 overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs [&_th]:px-2 [&_td]:px-2 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
                 <thead className="text-muted-foreground">
                   <tr className="text-left">
                     <th className="py-1">Fecha</th>
@@ -1241,7 +1241,7 @@ function CierreForm() {
                     <th>N° fact.</th>
                     <th className="text-right">Monto Bs</th>
                     <th className="text-right">Tasa</th>
-                    <th>Estado</th>
+                    <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1255,7 +1255,7 @@ function CierreForm() {
                         <td>{c.numero_factura ?? "—"}</td>
                         <td className="text-right mono">{fmtBs(Number(c.monto_bs))}</td>
                         <td className="text-right mono">{c.tasa_bcv ? Number(c.tasa_bcv).toFixed(2) : "—"}</td>
-                        <td>{c.pagada ? <span className="text-green-700">Pagada</span> : <span className="text-orange-700">CxP</span>}</td>
+                        <td className="text-center">{c.pagada ? <span className="text-green-700">Pagada</span> : <span className="text-orange-700">CxP</span>}</td>
                         <td>
                           <Button type="button" variant="ghost" size="sm" onClick={() => delCompra(c)} className="text-destructive h-7">×</Button>
                         </td>
@@ -1271,6 +1271,7 @@ function CierreForm() {
                   </tr>
                 </tfoot>
               </table>
+
             </div>
           )}
         </div>
