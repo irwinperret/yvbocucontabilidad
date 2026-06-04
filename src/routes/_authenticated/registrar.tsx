@@ -76,17 +76,19 @@ function RegistrarPage() {
         <p className="text-sm text-muted-foreground">Elige el tipo de transacción</p>
       </div>
       <Tabs value={current} onValueChange={(v) => navigate({ to: "/registrar", search: { tab: v } })}>
-        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 w-full h-auto gap-1 p-1">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 w-full h-auto gap-1 p-1">
           <TabsTrigger value="ventas" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Ventas</TabsTrigger>
           <TabsTrigger value="gastos" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Gastos / Facturas</TabsTrigger>
           <TabsTrigger value="cierre" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">COGS e Inventario</TabsTrigger>
           <TabsTrigger value="nomina" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Nómina</TabsTrigger>
+          <TabsTrigger value="ops-iva" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Ops IVA</TabsTrigger>
           <TabsTrigger value="financiamiento" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">Financiamiento</TabsTrigger>
         </TabsList>
         <TabsContent value="ventas"><VentasForm /></TabsContent>
         <TabsContent value="gastos"><GastosForm /></TabsContent>
         <TabsContent value="cierre"><CierreForm /></TabsContent>
         <TabsContent value="nomina"><NominaForm /></TabsContent>
+        <TabsContent value="ops-iva"><OpsIvaForm /></TabsContent>
         <TabsContent value="financiamiento"><FinanciamientoForm /></TabsContent>
       </Tabs>
     </div>
