@@ -713,6 +713,98 @@ function NominaForm() {
   );
 }
 
+/* ---------------- OPS IVA ---------------- */
+function OpsIvaForm() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [fecha, setFecha] = useState(todayISO());
+  const [montoBs, setMontoBs] = useState("");
+  const [tasa, setTasa] = useState("");
+  const [metodo, setMetodo] = useState("transferencia");
+  const [ref, setRef] = useState("");
+  const [numOrden, setNumOrden] = useState("");
+  const [notas, setNotas] = useState("");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const { data: tasaSugerida } = useTasaForDate(fecha);
+  const { data: paralelaSugerida } = useParalelaForDate(fecha);
+  useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+
+  const total = Number(montoBs) || 0;
+  const tasaN = Number(tasa) || 0;
+  const usd = tasaN ? total / tasaN : 0;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!total) return toast.error("Monto requerido");
+    if (!tasaN) return toast.error("Falta tasa BCV");
+    if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
+    setBusy(true);
+    const { data: tx, error } = await supabase.from("transacciones").insert({
+      fecha,
+      cuenta_codigo: "1.8",
+      centro_costo: "Compartido" as any,
+      monto_bs: total,
+      monto_base_bs: total,
+      iva_bs: 0,
+      iva_aplica: false,
+      tipo_iva: null,
+      tasa_bcv: tasaN,
+      tasa_paralela: paralelaSugerida?.tasa ?? null,
+      monto_usd: usd,
+      metodo_pago: metodo as any,
+      referencia: ref || null,
+      numero_orden: numOrden || null,
+      notas: notas || null,
+      modo: "off_balance" as any,
+      cuenta_bancaria_id: cuentaBancariaId,
+      created_by: user.id,
+    } as any).select().single();
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    toast.success("Ops IVA registrado");
+    setMontoBs(""); setRef(""); setNumOrden(""); setNotas("");
+    qc.invalidateQueries();
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Ops IVA</CardTitle></CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
+          <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
+            <span className="text-xs text-muted-foreground">USD neto</span>
+            <span className="text-base font-bold mono">{fmtUsd(usd)}</span>
+          </div>
+          <div>
+            <Label>Método de pago</Label>
+            <Select value={metodo} onValueChange={setMetodo}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label>Referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+          <div><Label>N° orden / soporte</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} /></div>
+          <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
+          <div className="md:col-span-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+            Se registra como ingreso neto Ops IVA, compartido, sin IVA y fuera de balance.
+          </div>
+          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar Ops IVA"}</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ---------------- FINANCIAMIENTO ---------------- */
 function FinanciamientoForm() {
   const { user } = useAuth();
