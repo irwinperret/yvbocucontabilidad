@@ -621,6 +621,7 @@ export type Database = {
           monto_usd: number
           notas: string | null
           numero_factura: string | null
+          numero_orden: string | null
           referencia: string | null
           tasa_bcv: number
           tasa_paralela: number | null
@@ -646,6 +647,7 @@ export type Database = {
           monto_usd: number
           notas?: string | null
           numero_factura?: string | null
+          numero_orden?: string | null
           referencia?: string | null
           tasa_bcv: number
           tasa_paralela?: number | null
@@ -671,6 +673,7 @@ export type Database = {
           monto_usd?: number
           notas?: string | null
           numero_factura?: string | null
+          numero_orden?: string | null
           referencia?: string | null
           tasa_bcv?: number
           tasa_paralela?: number | null
