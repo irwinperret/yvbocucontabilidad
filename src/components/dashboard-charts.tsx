@@ -55,7 +55,7 @@ export function DashboardCharts() {
     return MESES.map((nombre, i) => {
       const mes = i + 1;
       const rs = (rows ?? []).filter((r) => r.mes === mes);
-      let ingresos = 0, gastos = 0, fcIn = 0, fcOut = 0;
+      let ingresos = 0, cogs = 0, gastos = 0, fcIn = 0, fcOut = 0;
       rs.forEach((r) => {
         const c = mapCuentas.get(r.cuenta_codigo);
         if (!c) return;
@@ -63,6 +63,7 @@ export function DashboardCharts() {
         const total = Number(r.total_usd || 0);
         if (c.afecta_gyp) {
           if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo === "11.1") ingresos += base;
+          else if (r.cuenta_codigo.startsWith("2.")) cogs += base;
           else gastos += base;
         }
         if (c.afecta_fc) {
@@ -70,12 +71,13 @@ export function DashboardCharts() {
           else fcOut += total;
         }
       });
-      const utilidad = ingresos - gastos;
+      const utilidad = ingresos - cogs - gastos;
       const flujoNeto = fcIn - fcOut;
       return {
         mes: nombre, mesNum: mes,
-        ingresos: Math.round(ingresos), gastos: Math.round(gastos),
+        ingresos: Math.round(ingresos), cogs: Math.round(cogs), gastos: Math.round(gastos),
         utilidad: Math.round(utilidad),
+        cogsNeg: -Math.round(cogs),
         gastosNeg: -Math.round(gastos),
         fcIn: Math.round(fcIn), fcOut: Math.round(fcOut),
         flujoNeto: Math.round(flujoNeto),
@@ -83,6 +85,7 @@ export function DashboardCharts() {
       };
     });
   }, [rows, mapCuentas]);
+
 
   // Acumulado: efectivo disponible = suma corrida de flujoNeto
   const dataConAcumulado = useMemo(() => {
@@ -149,8 +152,11 @@ export function DashboardCharts() {
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <ReferenceLine y={0} stroke="hsl(var(--border))" />
                 <Bar dataKey="ingresos" stackId="g" name="Ingresos" fill="#10b981" radius={[2, 2, 0, 0]} />
-                <Bar dataKey="gastosNeg" stackId="g" name="Gastos" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="cogsNeg" stackId="g" name="COGS" fill="#7f1d1d" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="gastosNeg" stackId="g" name="Gastos / facturas" fill="#f87171" radius={[2, 2, 0, 0]} />
+
                 <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} />
+
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -205,7 +211,9 @@ function TipGyp({ active, payload, label }: any) {
     <div className="rounded-md border bg-background p-2 text-xs shadow-md">
       <div className="font-semibold mb-1">{label}</div>
       <Row k="Ingresos" v={d.ingresos} positive />
-      <Row k="Gastos" v={-d.gastos} />
+      <Row k="COGS" v={-d.cogs} />
+      <Row k="Gastos / facturas" v={-d.gastos} />
+
       <div className="border-t mt-1 pt-1">
         <Row k="Utilidad neta" v={d.utilidad} bold />
       </div>
