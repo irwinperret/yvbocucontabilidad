@@ -152,8 +152,10 @@ export function DashboardCharts() {
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <ReferenceLine y={0} stroke="hsl(var(--border))" />
                 <Bar dataKey="ingresos" stackId="g" name="Ingresos" fill="#10b981" radius={[2, 2, 0, 0]} />
-                <Bar dataKey="gastosNeg" stackId="g" name="Gastos" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="cogsNeg" stackId="g" name="COGS" fill="#7f1d1d" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="gastosNeg" stackId="g" name="Gastos / facturas" fill="#fb923c" radius={[2, 2, 0, 0]} />
                 <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} />
+
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
