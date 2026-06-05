@@ -183,9 +183,75 @@ function VentasForm() {
   const iva = ivaAplica ? total - base : 0;
   const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
   const ivaUsd = ivaAplica ? totalUsd - baseUsd : 0;
-  const cuenta = cuentaVenta(centro, tipo);
+  const cuenta = tipo === "ajuste_off" ? cuentaVenta(centro, "contado") : cuentaVenta(centro, tipo);
   // Para cobros: USD que se está cancelando con este pago
   const usdCobrado = tipo === "cobro" ? totalUsd : 0;
+
+  // ====== Ajuste off-balance: cálculos derivados ======
+  const montoOffUsdN = Number(montoOffUsd) || 0;
+  const bonoUsdN = Number(bonoUsd) || 0;
+  const bonoAuto = Number((montoOffUsdN * 0.1).toFixed(2));
+  // tasa para convertir el ajuste off-balance → tasa paralela del día de la factura origen
+  const tasaOffN = facturaTx ? (Number(facturaTx.tasa_paralela) || Number(facturaTx.tasa_bcv) || tasaParalelaN || tasaBcvN) : (tasaParalelaN || tasaBcvN);
+  const cuentaBonoOff = centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14";
+
+  // Autollenar bono = 10% del monto off si la persona no lo ha tocado
+  useEffect(() => {
+    if (tipo !== "ajuste_off") return;
+    if (bonoTouched) return;
+    setBonoUsd(bonoAuto > 0 ? bonoAuto.toFixed(2) : "");
+  }, [tipo, bonoAuto, bonoTouched]);
+
+  // Sincronizar centro con la factura origen
+  useEffect(() => {
+    if (tipo !== "ajuste_off" || !facturaTx) return;
+    if (facturaTx.centro_costo && facturaTx.centro_costo !== centro) {
+      setCentro(facturaTx.centro_costo as Centro);
+    }
+  }, [facturaTx?.id, tipo]);
+
+  const buscarFactura = async () => {
+    const q = facturaQuery.trim();
+    if (!q) return toast.error("Ingresa el número de factura");
+    setBuscandoFactura(true);
+    try {
+      // Busca venta on-balance previa (cuentas 1.1, 1.2, 1.4) por numero_factura o numero_orden
+      const { data, error } = await supabase
+        .from("transacciones")
+        .select("*")
+        .in("cuenta_codigo", ["1.1", "1.2", "1.4"])
+        .or(`numero_factura.eq.${q},numero_orden.eq.${q}`)
+        .order("fecha", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      const tx = data?.[0];
+      if (!tx) { setFacturaTx(null); setFacturaCliente(""); return toast.error("No se encontró ninguna factura con ese número"); }
+      setFacturaTx(tx);
+      // Intentar resolver nombre del cliente
+      let cli = "";
+      const { data: cxc } = await supabase
+        .from("cuentas_por_cobrar")
+        .select("cliente")
+        .eq("transaccion_id", tx.id)
+        .maybeSingle();
+      if (cxc?.cliente) cli = cxc.cliente;
+      if (!cli && tx.tercero_id) {
+        const { data: ter } = await supabase.from("terceros").select("nombre").eq("id", tx.tercero_id).maybeSingle();
+        if (ter?.nombre) cli = ter.nombre;
+      }
+      if (!cli && tx.notas) {
+        const m = String(tx.notas).match(/cliente\s*[:\-]\s*([^|\n]+)/i);
+        if (m) cli = m[1].trim();
+      }
+      setFacturaCliente(cli);
+      toast.success("Factura cargada");
+    } catch (e: any) {
+      toast.error(e.message ?? "Error buscando factura");
+    } finally {
+      setBuscandoFactura(false);
+    }
+  };
+
 
 
   const submit = async (e: React.FormEvent) => {
