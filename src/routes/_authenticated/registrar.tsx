@@ -954,10 +954,8 @@ function CierreForm() {
   const qc = useQueryClient();
   const { data: terceros } = useTerceros();
   const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7));
-  const [invIni, setInvIni] = useState("");
-  const [invFin, setInvFin] = useState("");
-  const [pasivos, setPasivos] = useState("");
-  const [deprec, setDeprec] = useState("");
+  const [invIniUsd, setInvIniUsd] = useState("");
+  const [invFinUsd, setInvFinUsd] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
