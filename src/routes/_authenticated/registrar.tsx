@@ -519,29 +519,6 @@ function GastosForm() {
           <div className="md:col-span-2"><Label>N° factura</Label><Input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} required /></div>
 
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-            <Label>¿Factura con IVA 16%?</Label>
-            <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
-          </div>
-          <div>
-            <Label>{ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
-            <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
-          </div>
-          <div>
-            <Label>Tasa paralela</Label>
-            <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
-          </div>
-          {ivaAplica && (
-            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
-              <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
-              <div>IVA crédito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
-            </div>
-          )}
-          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">G&P: base USD</span>
-            <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
-          </div>
-
-          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <div>
               <Label>Pendiente de pago (crear CxP)</Label>
               <p className="text-xs text-muted-foreground">Si está activo, no afecta FC hoy</p>
@@ -564,6 +541,29 @@ function GastosForm() {
               </div>
             </>
           )}
+
+          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+            <Label>¿Factura con IVA 16%?</Label>
+            <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
+          </div>
+          <div>
+            <Label>{ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+            <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
+          </div>
+          <div>
+            <Label>Tasa paralela</Label>
+            <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+          </div>
+          {ivaAplica && (
+            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
+              <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
+              <div>IVA crédito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
+            </div>
+          )}
+          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
+            <span className="text-sm text-muted-foreground">G&P: base USD</span>
+            <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
+          </div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>
