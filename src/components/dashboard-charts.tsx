@@ -203,9 +203,60 @@ export function DashboardCharts() {
           </CardContent>
         </Card>
       </div>
+
+      {/* CapEx acumulado vs Utilidad acumulada */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">CapEx acumulado vs Utilidad acumulada</CardTitle>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs mt-1">
+            <span className="text-muted-foreground">Utilidad acumulada</span>
+            <span className={`mono font-semibold ${utilidadAcumActual >= 0 ? "text-emerald-600" : "text-red-600"}`}>{fmtUsd(utilidadAcumActual)}</span>
+            <span className="text-muted-foreground">CapEx acumulado</span>
+            <span className="mono font-semibold text-amber-600">{fmtUsd(capexAcumActual)}</span>
+            <span className="text-muted-foreground">CapEx YTD</span>
+            <span className="mono font-semibold text-amber-600">{fmtUsd(ytdCapex)}</span>
+            <span className="text-muted-foreground">Cobertura</span>
+            <span className={`mono font-semibold ${utilidadAcumActual >= capexAcumActual ? "text-emerald-600" : "text-red-600"}`}>
+              {capexAcumActual > 0 ? `${((utilidadAcumActual / capexAcumActual) * 100).toFixed(0)}%` : "—"}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={dataConAcumulado} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+              <XAxis dataKey="mes" fontSize={11} />
+              <YAxis fontSize={11} tickFormatter={(v) => compactUsd(v)} />
+              <Tooltip content={<TipCapex />} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <ReferenceLine y={0} stroke="hsl(var(--border))" />
+              <Bar dataKey="capex" name="CapEx mes" fill="#fbbf24" radius={[2, 2, 0, 0]} />
+              <Line type="monotone" dataKey="capexAcum" name="CapEx acumulado" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="utilidadAcum" name="Utilidad acumulada" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 }
+
+function TipCapex({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <div className="font-semibold mb-1">{label}</div>
+      <Row k="CapEx del mes" v={d.capex} />
+      <Row k="Utilidad del mes" v={d.utilidad} />
+      <div className="border-t mt-1 pt-1">
+        <Row k="CapEx acumulado" v={d.capexAcum} bold />
+        <Row k="Utilidad acumulada" v={d.utilidadAcum} bold />
+      </div>
+    </div>
+  );
+}
+
 
 function compactUsd(v: number): string {
   const abs = Math.abs(v);
