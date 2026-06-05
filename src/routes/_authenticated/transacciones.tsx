@@ -339,8 +339,10 @@ function TransaccionesPage() {
                           <DeleteButton
                             fecha={t.fecha}
                             detail={`${fmtDate(t.fecha)} · ${t.cuenta_codigo} · ${fmtBs(t.monto_bs)}`}
+                            warnings={t.pareja_off_balance_id ? ["Esta transacción está enlazada a otro movimiento off-balance (venta ↔ bono). Si confirmas, se eliminarán las DOS transacciones."] : []}
                             onConfirm={() => eliminar(t)}
                           />
+
                         </div>
                       </td>
                     </tr>
