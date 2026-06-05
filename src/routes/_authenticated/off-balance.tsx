@@ -140,7 +140,7 @@ function OffBalancePage() {
                           <Button size="sm" variant="outline" onClick={() => migrar(t)}>Migrar</Button>
                           <DeleteButton
                             fecha={t.fecha}
-                            detail={`${t.cuenta_codigo} · ${t.centro_costo} · ${fmtUsd(Number(t.monto_bs)/Number(t.tasa_bcv||1))} · ${fmtDate(t.fecha)}`}
+                            detail={`${t.cuenta_codigo} · ${t.centro_costo} · ${fmtUsd(Number(t.monto_bs)/Number(t.tasa_paralela||t.tasa_bcv||1))} · ${fmtDate(t.fecha)}`}
                             onConfirm={() => eliminar(t)}
                           />
                         </td>
