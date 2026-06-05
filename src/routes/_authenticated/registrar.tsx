@@ -949,7 +949,7 @@ function FinanciamientoForm() {
               <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
               <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
                 <span className="text-sm text-muted-foreground">USD</span>
-                <span className="text-lg font-bold mono">{fmtUsd(tasaN ? Number(montoBs)/tasaN : 0)}</span>
+                <span className="text-lg font-bold mono">{fmtUsd(tasaConvN ? Number(montoBs)/tasaConvN : 0)}</span>
               </div>
               {tipo === "capex" && <div className="md:col-span-2 text-xs text-muted-foreground">La depreciación se registra mensualmente por separado (10.7).</div>}
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
