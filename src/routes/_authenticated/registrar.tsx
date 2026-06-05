@@ -1036,14 +1036,44 @@ function CierreForm() {
     return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
   }, [tasasMes]);
 
+  // Tasas paralela del período (para mostrar USD-paralela por compra)
+  const { data: paralelasMes } = useQuery({
+    queryKey: ["paralelas-periodo", periodo],
+    queryFn: async () => {
+      const ini = `${periodo}-01`;
+      const finDate = new Date(`${periodo}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      const fin = finDate.toISOString().slice(0, 10);
+      const { data } = await supabase.from("tasas_paralela").select("fecha, tasa").gte("fecha", ini).lt("fecha", fin);
+      return data ?? [];
+    },
+  });
+  const paralelaByFecha = useMemo(() => {
+    const m = new Map<string, number>();
+    (paralelasMes ?? []).forEach((p: any) => m.set(p.fecha, Number(p.tasa)));
+    return m;
+  }, [paralelasMes]);
+  const paralelaPromedio = useMemo(() => {
+    const arr = (paralelasMes ?? []) as any[];
+    if (!arr.length) return 0;
+    return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
+  }, [paralelasMes]);
+
   const totalCompras = (compras ?? [])
     .filter((c: any) => c.modo !== "off_balance")
     .reduce((s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
+  const totalComprasUsdParalela = (compras ?? [])
+    .filter((c: any) => c.modo !== "off_balance")
+    .reduce((s: number, c: any) => {
+      const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+      const tp = paralelaByFecha.get(c.fecha) ?? paralelaPromedio;
+      return s + (tp ? base / tp : 0);
+    }, 0);
 
-  const ini = Number(invIni) || 0;
-  const fin = Number(invFin) || 0;
-  const cogs = ini + totalCompras - fin;
-  const cogsUsd = tasaPromedio ? cogs / tasaPromedio : 0;
+  const iniUsd = Number(invIniUsd) || 0;
+  const finUsd = Number(invFinUsd) || 0;
+  const cogsUsd = iniUsd + totalComprasUsdParalela - finUsd;
+  const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
