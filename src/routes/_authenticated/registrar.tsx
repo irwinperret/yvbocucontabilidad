@@ -693,6 +693,20 @@ function NominaForm() {
               Nómina en USD: pago directo en efectivo USD, registrado como off-balance.
             </div>
           )}
+          {!esProvision && !esUSD && (
+            <>
+              <div>
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+              </div>
+            </>
+          )}
           <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
           <div className="md:col-span-2 border rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -711,20 +725,6 @@ function NominaForm() {
               <span className="font-semibold mono">{fmtBs(totalBs)} · {fmtUsd(totalUsd)}</span>
             </div>
           </div>
-          {!esProvision && !esUSD && (
-            <>
-              <div>
-                <Label>Método de pago</Label>
-                <Select value={metodo} onValueChange={setMetodo}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2">
-                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
-              </div>
-            </>
-          )}
           <div className="md:col-span-2"><Label>Notas (común a todos)</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar nómina"}</Button>
