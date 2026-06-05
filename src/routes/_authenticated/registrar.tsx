@@ -148,10 +148,15 @@ function VentasForm() {
     if (tipo !== "cobro" || !cxcId || !cxcSel) return;
     setCliente(cxcSel.cliente ?? "");
     setCentro(cxcSel.centro_costo as Centro);
-    const tasaHoy = Number(tasaSugerida?.tasa) || Number(tasa) || 0;
-    if (tasaHoy > 0) setMontoTotal((pendienteUsdCxc * tasaHoy).toFixed(2));
+    const enUsd = metodo === "zelle" || metodo === "efectivo_usd";
+    if (enUsd) {
+      setMontoTotal(pendienteUsdCxc.toFixed(2));
+    } else {
+      const tasaHoy = Number(tasaSugerida?.tasa) || Number(tasa) || 0;
+      if (tasaHoy > 0) setMontoTotal((pendienteUsdCxc * tasaHoy).toFixed(2));
+    }
     setIvaAplica(false); // el IVA ya se causó al emitir la venta a crédito
-  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa]);
+  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa, metodo]);
 
 
   // Pago en divisas: el monto total se ingresa directamente en USD
