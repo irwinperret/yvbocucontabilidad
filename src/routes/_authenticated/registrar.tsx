@@ -1098,7 +1098,7 @@ function CierreForm() {
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
   const cogsUsd = iniUsd + totalComprasUsdParalela - finUsd;
-  const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
+  const cogs = paralelaPromedio ? cogsUsd * paralelaPromedio : (tasaPromedio ? cogsUsd * tasaPromedio : 0);
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
