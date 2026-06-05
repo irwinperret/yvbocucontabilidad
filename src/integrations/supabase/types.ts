@@ -622,6 +622,7 @@ export type Database = {
           notas: string | null
           numero_factura: string | null
           numero_orden: string | null
+          pareja_off_balance_id: string | null
           referencia: string | null
           tasa_bcv: number
           tasa_paralela: number | null
@@ -648,6 +649,7 @@ export type Database = {
           notas?: string | null
           numero_factura?: string | null
           numero_orden?: string | null
+          pareja_off_balance_id?: string | null
           referencia?: string | null
           tasa_bcv: number
           tasa_paralela?: number | null
@@ -674,6 +676,7 @@ export type Database = {
           notas?: string | null
           numero_factura?: string | null
           numero_orden?: string | null
+          pareja_off_balance_id?: string | null
           referencia?: string | null
           tasa_bcv?: number
           tasa_paralela?: number | null
@@ -708,6 +711,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_gyp_mes_actual"
             referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_pareja_off_balance_id_fkey"
+            columns: ["pareja_off_balance_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transacciones_pareja_off_balance_id_fkey"
+            columns: ["pareja_off_balance_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "transacciones_tercero_id_fkey"
