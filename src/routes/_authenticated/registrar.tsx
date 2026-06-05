@@ -801,12 +801,6 @@ function OpsIvaForm() {
       <CardContent>
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
-          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
-          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-          <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
-            <span className="text-xs text-muted-foreground">USD neto</span>
-            <span className="text-base font-bold mono">{fmtUsd(usd)}</span>
-          </div>
           <div>
             <Label>Método de pago</Label>
             <Select value={metodo} onValueChange={setMetodo}>
@@ -814,9 +808,15 @@ function OpsIvaForm() {
               <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
+          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
+          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
+            <span className="text-xs text-muted-foreground">USD neto</span>
+            <span className="text-base font-bold mono">{fmtUsd(usd)}</span>
+          </div>
           <div><Label>Referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
           <div><Label>N° orden / soporte</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} /></div>
-          <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
             Se registra como ingreso neto Ops IVA, compartido, sin IVA y fuera de balance.
           </div>
