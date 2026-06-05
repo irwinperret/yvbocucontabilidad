@@ -371,7 +371,11 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const tasaN = Number(tasa) || 0;
   const base = tx.iva_aplica ? total / 1.16 : total;
   const iva = tx.iva_aplica ? total - base : 0;
-  const usd = tasaN ? base / tasaN : 0;
+  // USD se calcula al paralelo (si la transacción tenía tasa_paralela registrada), si no usa BCV.
+  const tasaParalelaN = Number(tx.tasa_paralela) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
+  const usd = tasaConvN ? base / tasaConvN : 0;
+
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
