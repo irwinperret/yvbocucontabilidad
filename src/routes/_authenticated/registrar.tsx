@@ -118,7 +118,12 @@ function VentasForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
+  // Crédito (fiar) y Cobro de crédito anterior se contabilizan a tasa BCV. Contado va a paralela.
+  const usaBCV = tipo === "credito" || tipo === "cobro";
+  useEffect(() => {
+    const sug = usaBCV ? tasaSugerida : paralelaSugerida;
+    if (sug) setTasa(String(sug.tasa));
+  }, [paralelaSugerida?.tasa, tasaSugerida?.tasa, usaBCV]);
 
   const { data: cxcVigentes } = useQuery({
     queryKey: ["cxc-vigentes"],
@@ -138,29 +143,29 @@ function VentasForm() {
     ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd)
     : 0;
 
-  // Cuando seleccionas una CxC para cobrar, prellena con el equivalente en Bs a la tasa paralela de hoy
+  // Cuando seleccionas una CxC para cobrar, prellena con el equivalente en Bs a la tasa BCV de hoy
   useEffect(() => {
     if (tipo !== "cobro" || !cxcId || !cxcSel) return;
     setCliente(cxcSel.cliente ?? "");
     setCentro(cxcSel.centro_costo as Centro);
-    const tasaHoy = Number(paralelaSugerida?.tasa) || Number(tasa) || Number(tasaSugerida?.tasa) || 0;
+    const tasaHoy = Number(tasaSugerida?.tasa) || Number(tasa) || 0;
     if (tasaHoy > 0) setMontoTotal((pendienteUsdCxc * tasaHoy).toFixed(2));
     setIvaAplica(false); // el IVA ya se causó al emitir la venta a crédito
-  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa, paralelaSugerida?.tasa]);
+  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa]);
 
 
   const total = Number(montoTotal) || 0;
   const base = ivaAplica ? total / 1.16 : total;
   const iva = ivaAplica ? total - base : 0;
   const tasaN = Number(tasa) || 0;
-  // VENTAS: la conversión Bs→USD se hace SIEMPRE al dólar paralelo.
-  // tasa_bcv se mantiene como referencia fiscal, pero monto_usd usa paralela.
+  // Contado: Bs→USD a tasa paralela. Crédito y Cobro: a tasa BCV.
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN; // fallback a BCV si no hay paralela
+  const tasaBcvN = Number(tasaSugerida?.tasa) || 0;
+  const tasaConvN = usaBCV ? (tasaN || tasaBcvN) : (tasaParalelaN || tasaN);
   const baseUsd = tasaConvN ? base / tasaConvN : 0;
   const ivaUsd = tasaConvN ? iva / tasaConvN : 0;
   const cuenta = cuentaVenta(centro, tipo);
-  // Para cobros: USD que se está cancelando con este pago (al paralelo de hoy)
+  // Para cobros: USD que se está cancelando con este pago
   const usdCobrado = tipo === "cobro" && tasaConvN ? total / tasaConvN : 0;
 
 
@@ -301,8 +306,8 @@ function VentasForm() {
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {cxcSel
-                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaConvN)} a tasa paralela ${tasaConvN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
-                  : "Al guardar, se descuenta del saldo en USD el equivalente del monto cobrado a la tasa paralela de hoy."}
+                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaConvN)} a tasa BCV ${tasaConvN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
+                  : "Al guardar, se descuenta del saldo en USD el equivalente del monto cobrado a la tasa BCV de hoy."}
 
               </p>
             </div>
@@ -317,7 +322,7 @@ function VentasForm() {
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
           <div>
-            <Label>Tasa paralela</Label>
+            <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
           {ivaAplica && (
