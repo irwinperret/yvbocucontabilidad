@@ -887,7 +887,7 @@ function FinanciamientoForm() {
           await supabase.from("prestamos").insert({
             prestamista: detalle || "Prestamista",
             plazo_meses: Number(plazo) || 12,
-            monto_bs: bs, monto_usd: bs / tasaN, saldo_bs: bs,
+            monto_bs: bs, monto_usd: tasaConvN ? bs / tasaConvN : 0, saldo_bs: bs,
             transaccion_id: tx.id, estado: "activo",
           } as any);
         }
