@@ -931,8 +931,9 @@ function FinanciamientoForm() {
               <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
               <div className="md:col-span-2 rounded-md bg-muted p-3 text-sm">
                 <div className="flex justify-between"><span>Total cuota:</span><span className="mono font-semibold">{fmtBs(totalCuota)}</span></div>
-                <div className="flex justify-between"><span>Capital USD:</span><span className="mono">{fmtUsd(tasaN ? Number(capitalBs)/tasaN : 0)}</span></div>
-                <div className="flex justify-between"><span>Intereses USD:</span><span className="mono">{fmtUsd(tasaN ? Number(interesesBs)/tasaN : 0)}</span></div>
+                <div className="flex justify-between"><span>Capital USD:</span><span className="mono">{fmtUsd(tasaConvN ? Number(capitalBs)/tasaConvN : 0)}</span></div>
+                <div className="flex justify-between"><span>Intereses USD:</span><span className="mono">{fmtUsd(tasaConvN ? Number(interesesBs)/tasaConvN : 0)}</span></div>
+
               </div>
             </>
           ) : (
