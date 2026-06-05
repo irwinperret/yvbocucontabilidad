@@ -107,12 +107,31 @@ function TransaccionesPage() {
       });
       throw new Error("blocked");
     }
-    const { error } = await supabase.from("transacciones").delete().eq("id", t.id);
+    const ids: string[] = [t.id];
+    // Si la transacción tiene pareja off-balance, borramos también la otra
+    if (t.pareja_off_balance_id) {
+      const { data: pareja } = await supabase
+        .from("transacciones")
+        .select("id, fecha")
+        .eq("id", t.pareja_off_balance_id)
+        .maybeSingle();
+      if (pareja) {
+        if (await isPeriodClosed(pareja.fecha)) {
+          toast.error("La transacción enlazada está en un mes cerrado — no se puede eliminar el par.");
+          throw new Error("blocked");
+        }
+        ids.push(pareja.id);
+        // Romper el FK self-reference antes de borrar para no bloquearnos
+        await supabase.from("transacciones").update({ pareja_off_balance_id: null } as any).in("id", ids);
+      }
+    }
+    const { error } = await supabase.from("transacciones").delete().in("id", ids);
     if (error) { toast.error(error.message); throw error; }
-    await logAudit("transacciones", "DELETE", t.id, t, null);
-    toast.success("Movimiento eliminado");
+    for (const id of ids) await logAudit("transacciones", "DELETE", id, id === t.id ? t : null, null);
+    toast.success(ids.length > 1 ? "Par off-balance eliminado (2 movimientos)" : "Movimiento eliminado");
     qc.invalidateQueries();
   };
+
 
   const exportar = async () => {
     if (!filtradas.length) return toast.error("No hay movimientos para exportar");
