@@ -118,7 +118,7 @@ function VentasForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
 
   const { data: cxcVigentes } = useQuery({
     queryKey: ["cxc-vigentes"],
@@ -317,7 +317,7 @@ function VentasForm() {
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
           <div>
-            <Label>Tasa BCV</Label>
+            <Label>Tasa paralela</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
           {ivaAplica && (
@@ -391,7 +391,7 @@ function GastosForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
 
   const total = Number(montoTotal) || 0;
   const base = ivaAplica ? total / 1.16 : total;
@@ -521,7 +521,7 @@ function GastosForm() {
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
           <div>
-            <Label>Tasa BCV</Label>
+            <Label>Tasa paralela</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
           {ivaAplica && (
@@ -594,7 +594,7 @@ function NominaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
 
   const tasaN = Number(tasa) || 0;
   // Conversión Bs→USD a tasa paralela
@@ -687,7 +687,7 @@ function NominaForm() {
               Nómina en USD: pago directo en efectivo USD, registrado como off-balance.
             </div>
           )}
-          <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
           <div className="md:col-span-2 border rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm">Empleados</Label>
@@ -745,7 +745,7 @@ function OpsIvaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
 
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
@@ -796,7 +796,7 @@ function OpsIvaForm() {
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
           <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
-          <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
           <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
             <span className="text-xs text-muted-foreground">USD neto</span>
             <span className="text-base font-bold mono">{fmtUsd(usd)}</span>
@@ -843,7 +843,7 @@ function FinanciamientoForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
 
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
@@ -929,7 +929,7 @@ function FinanciamientoForm() {
             <>
               <div><Label>Capital Bs (10.2 → FC)</Label><Input type="number" step="0.01" value={capitalBs} onChange={(e) => setCapitalBs(e.target.value)} className="mono" /></div>
               <div><Label>Intereses Bs (10.3 → G&P)</Label><Input type="number" step="0.01" value={interesesBs} onChange={(e) => setInteresesBs(e.target.value)} className="mono" /></div>
-              <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+              <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
               <div className="md:col-span-2 rounded-md bg-muted p-3 text-sm">
                 <div className="flex justify-between"><span>Total cuota:</span><span className="mono font-semibold">{fmtBs(totalCuota)}</span></div>
                 <div className="flex justify-between"><span>Capital USD:</span><span className="mono">{fmtUsd(tasaConvN ? Number(capitalBs)/tasaConvN : 0)}</span></div>
@@ -947,7 +947,7 @@ function FinanciamientoForm() {
                 <div><Label>Vida útil (meses)</Label><Input type="number" value={vidaUtil} onChange={(e) => setVidaUtil(e.target.value)} /></div>
               )}
               <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
-              <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+              <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
               <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
                 <span className="text-sm text-muted-foreground">USD</span>
                 <span className="text-lg font-bold mono">{fmtUsd(tasaConvN ? Number(montoBs)/tasaConvN : 0)}</span>
@@ -1001,7 +1001,9 @@ function CierreForm() {
   const compraIva = compraIvaAplica ? compraTotal - compraBase : 0;
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
-  useEffect(() => { if (tasaCompraSug && !compraTasa) setCompraTasa(String(tasaCompraSug.tasa)); }, [tasaCompraSug]);
+  const { data: paralelaCompraSug } = useParalelaForDate(compraFecha);
+  useEffect(() => { if (paralelaCompraSug && !compraTasa) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug]);
+
 
   const { data: compras } = useQuery({
     queryKey: ["compras-periodo", periodo],
@@ -1096,7 +1098,7 @@ function CierreForm() {
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
   const cogsUsd = iniUsd + totalComprasUsdParalela - finUsd;
-  const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
+  const cogs = paralelaPromedio ? cogsUsd * paralelaPromedio : (tasaPromedio ? cogsUsd * tasaPromedio : 0);
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1146,7 +1148,7 @@ function CierreForm() {
       periodo, tipo: "compra", monto_bs: monto,
       monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
       modo: compraOffBalance ? "off_balance" : "on_balance",
-      fecha: compraFecha, tasa_bcv: tasaN,
+      fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
       tercero_id: compraTerceroId, numero_factura: compraNumFactura,
       pagada: compraOffBalance ? true : compraPagada,
       cuenta_bancaria_id: !compraOffBalance && compraPagada ? compraCuentaBanco : null,
@@ -1177,14 +1179,16 @@ function CierreForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (!tasaPromedio) return toast.error("No hay tasas BCV registradas en el período");
+    const tasaConv = paralelaPromedio || tasaPromedio;
+    if (!tasaConv) return toast.error("No hay tasas registradas en el período");
     setBusy(true);
     const { error } = await supabase.from("cierres_de_mes").insert({
       periodo,
-      inventario_inicial_bs: iniUsd * tasaPromedio,
-      inventario_final_bs: finUsd * tasaPromedio,
+      inventario_inicial_bs: iniUsd * tasaConv,
+      inventario_final_bs: finUsd * tasaConv,
       compras_mes_bs: totalCompras, cogs_bs: cogs, cogs_usd: cogsUsd,
       tasa_bcv_promedio: tasaPromedio,
+
       pasivos_laborales_bs: 0,
       depreciacion_bs: 0,
       notas: notas || null, registrado_por: user.id, estado: "cerrado",
@@ -1237,8 +1241,9 @@ function CierreForm() {
               <Input type="date" value={compraFecha} onChange={(e) => setCompraFecha(e.target.value)} required />
             </div>
             <div>
-              <Label className="text-xs">Tasa BCV del día</Label>
+              <Label className="text-xs">Tasa paralela del día</Label>
               <Input type="number" step="0.0001" value={compraTasa} onChange={(e) => setCompraTasa(e.target.value)} required className="mono" />
+
             </div>
             <div className="md:col-span-2">
               <TerceroSelect value={compraTerceroId} onChange={setCompraTerceroId} terceros={(terceros ?? []) as any} />
@@ -1359,7 +1364,7 @@ function CierreForm() {
             <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdParalela)}</span>
           </div>
           <div className="rounded-md bg-muted/50 p-3">
-            <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
+            <div className="text-xs text-muted-foreground">Tasa paralela promedio del mes (auto)</div>
             <div className="text-base font-bold mono">{tasaPromedio ? tasaPromedio.toFixed(4) : "—"}</div>
             <div className="text-xs text-muted-foreground">{(tasasMes ?? []).length} tasa(s) registradas</div>
           </div>
