@@ -596,9 +596,13 @@ function NominaForm() {
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
+  // Conversión Bs→USD a tasa paralela
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
   const totalInput = empleados.reduce((s, e) => s + (Number(e.monto) || 0), 0);
   const totalBs = esUSD ? totalInput * tasaN : totalInput;
-  const totalUsd = esUSD ? totalInput : (tasaN ? totalInput / tasaN : 0);
+  const totalUsd = esUSD ? totalInput : (tasaConvN ? totalInput / tasaConvN : 0);
+
   const cuenta = cuentaNomina(tipo, centro);
   const esProvision = tipo === "pasivos" && !esUSD; // provisión solo aplica a Bs on-balance
 
