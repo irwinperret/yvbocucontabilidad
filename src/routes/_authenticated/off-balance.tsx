@@ -134,7 +134,7 @@ function OffBalancePage() {
                         <td className="py-2 px-2 mono">{fmtDate(t.fecha)}</td>
                         <td className="py-2 px-2">{t.cuenta_codigo}</td>
                         <td className="py-2 px-2">{t.centro_costo}</td>
-                        <td className="py-2 px-2 text-right mono">{fmtUsd(Number(t.monto_bs) / Number(t.tasa_bcv || 1))}</td>
+                        <td className="py-2 px-2 text-right mono">{fmtUsd(Number(t.monto_bs) / Number(t.tasa_paralela || t.tasa_bcv || 1))}</td>
                         <td className="py-2 px-2">{badge(d)}</td>
                         <td className="py-2 px-2 flex justify-end gap-1">
                           <Button size="sm" variant="outline" onClick={() => migrar(t)}>Migrar</Button>
