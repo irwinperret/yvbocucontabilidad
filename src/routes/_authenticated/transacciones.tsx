@@ -71,6 +71,21 @@ function TransaccionesPage() {
     return m;
   }, [cuentas]);
 
+  const { data: profiles } = useQuery({
+    queryKey: ["profiles-emails"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id,email");
+      return data ?? [];
+    },
+  });
+
+  const emailById = useMemo(() => {
+    const m: Record<string, string> = {};
+    (profiles ?? []).forEach((p: any) => { m[p.id] = p.email; });
+    return m;
+  }, [profiles]);
+
+
   const filtradas = (data ?? []).filter((t: any) => {
     if (!busca) return true;
     const s = busca.toLowerCase();
@@ -254,8 +269,10 @@ function TransaccionesPage() {
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-left py-2 px-2">Modo</th>
                     <th className="text-center py-2 px-2">Factura</th>
+                    <th className="text-left py-2 px-2">Registrado por</th>
                     <th></th>
                   </tr>
+
                 </thead>
                 <tbody>
                   {filtradas.map((t: any) => (
@@ -287,7 +304,9 @@ function TransaccionesPage() {
                           }}
                         />
                       </td>
+                      <td className="py-2 px-2 text-xs text-muted-foreground">{emailById[t.created_by] ?? "—"}</td>
                       <td className="py-2 px-2">
+
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             size="icon"
