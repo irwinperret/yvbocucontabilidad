@@ -306,8 +306,8 @@ function VentasForm() {
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {cxcSel
-                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaConvN)} a tasa paralela ${tasaConvN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
-                  : "Al guardar, se descuenta del saldo en USD el equivalente del monto cobrado a la tasa paralela de hoy."}
+                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaConvN)} a tasa BCV ${tasaConvN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
+                  : "Al guardar, se descuenta del saldo en USD el equivalente del monto cobrado a la tasa BCV de hoy."}
 
               </p>
             </div>
@@ -322,7 +322,7 @@ function VentasForm() {
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
           <div>
-            <Label>Tasa paralela</Label>
+            <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
           {ivaAplica && (
