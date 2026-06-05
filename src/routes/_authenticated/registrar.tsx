@@ -154,19 +154,24 @@ function VentasForm() {
   }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa]);
 
 
-  const total = Number(montoTotal) || 0;
-  const base = ivaAplica ? total / 1.16 : total;
-  const iva = ivaAplica ? total - base : 0;
+  // Pago en divisas: el monto total se ingresa directamente en USD
+  const pagoEnUsd = tipo !== "credito" && (metodo === "zelle" || metodo === "efectivo_usd");
+  const montoN = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
   // Contado: Bs→USD a tasa paralela. Crédito y Cobro: a tasa BCV.
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaBcvN = Number(tasaSugerida?.tasa) || 0;
   const tasaConvN = usaBCV ? (tasaN || tasaBcvN) : (tasaParalelaN || tasaN);
-  const baseUsd = tasaConvN ? base / tasaConvN : 0;
-  const ivaUsd = tasaConvN ? iva / tasaConvN : 0;
+  // total en Bs y USD según moneda de captura
+  const total = pagoEnUsd ? montoN * tasaConvN : montoN;
+  const totalUsd = pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0);
+  const base = ivaAplica ? total / 1.16 : total;
+  const iva = ivaAplica ? total - base : 0;
+  const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
+  const ivaUsd = ivaAplica ? totalUsd - baseUsd : 0;
   const cuenta = cuentaVenta(centro, tipo);
   // Para cobros: USD que se está cancelando con este pago
-  const usdCobrado = tipo === "cobro" && tasaConvN ? total / tasaConvN : 0;
+  const usdCobrado = tipo === "cobro" ? totalUsd : 0;
 
 
   const submit = async (e: React.FormEvent) => {
