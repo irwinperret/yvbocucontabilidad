@@ -134,9 +134,20 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
     },
   });
 
+  const { data: paralelaSug } = useQuery({
+    queryKey: ["paralela-pago", fecha],
+    queryFn: async () => {
+      const { data } = await supabase.from("tasas_paralela").select("*").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+      return data;
+    },
+  });
+
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
-  const usd = tasaN ? total / tasaN : 0;
+  const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
+  const usd = tasaConvN ? total / tasaConvN : 0;
+
   const pendiente = Number(cxp.monto_pendiente_bs ?? cxp.monto_bs);
   const esTotal = total >= pendiente;
 
@@ -152,7 +163,7 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
       cuenta_codigo: txOrig?.cuenta_codigo ?? "9.1",
       centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
       monto_bs: total, monto_base_bs: total, iva_bs: 0,
-      tasa_bcv: tasaN, monto_usd: usd,
+      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usd,
       metodo_pago: metodo as any,
       referencia: ref || null,
       notas: `Pago CxP — ${cxp.proveedor} · Fact ${cxp.numero_factura}${notas ? " · " + notas : ""}`,

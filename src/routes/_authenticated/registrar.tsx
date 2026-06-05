@@ -396,7 +396,11 @@ function GastosForm() {
   const base = ivaAplica ? total / 1.16 : total;
   const iva = ivaAplica ? total - base : 0;
   const tasaN = Number(tasa) || 0;
-  const baseUsd = tasaN ? base / tasaN : 0;
+  // Conversión Bs→USD SIEMPRE a tasa paralela (BCV solo se usa para fijar precios fuera del sistema).
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
+  const baseUsd = tasaConvN ? base / tasaConvN : 0;
+
   const cuentaSel = (cuentas ?? []).find((c: any) => c.codigo === cuenta);
 
   const NOMINA_CODES = new Set(["3.1","3.2","3.3","3.4","3.5","3.6","3.7","3.9","3.10","3.11","3.12","3.14","3.15"]);
@@ -450,7 +454,7 @@ function GastosForm() {
         numero_factura: numFactura,
         tercero_id: terceroId || null,
         centro_costo: centro as any,
-        monto_bs: total, monto_usd: total / tasaN,
+        monto_bs: total, monto_usd: baseUsd,
         monto_pendiente_bs: total,
         fecha_vencimiento: fechaVenc || null,
         transaccion_id: tx.id, estado: "pendiente",
@@ -592,9 +596,13 @@ function NominaForm() {
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
+  // Conversión Bs→USD a tasa paralela
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
   const totalInput = empleados.reduce((s, e) => s + (Number(e.monto) || 0), 0);
   const totalBs = esUSD ? totalInput * tasaN : totalInput;
-  const totalUsd = esUSD ? totalInput : (tasaN ? totalInput / tasaN : 0);
+  const totalUsd = esUSD ? totalInput : (tasaConvN ? totalInput / tasaConvN : 0);
+
   const cuenta = cuentaNomina(tipo, centro);
   const esProvision = tipo === "pasivos" && !esUSD; // provisión solo aplica a Bs on-balance
 
@@ -615,7 +623,7 @@ function NominaForm() {
     for (const l of lineas) {
       const monto = Number(l.monto);
       const lineaBs = esUSD ? monto * tasaN : monto;
-      const lineaUsd = esUSD ? monto : (tasaN ? monto / tasaN : 0);
+      const lineaUsd = esUSD ? monto : (tasaConvN ? monto / tasaConvN : 0);
       const notaLinea = `Empleado: ${l.nombre.trim()}${notas ? ` · ${notas}` : ""}`;
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
@@ -740,7 +748,10 @@ function OpsIvaForm() {
 
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
-  const usd = tasaN ? total / tasaN : 0;
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
+  const usd = tasaConvN ? total / tasaConvN : 0;
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -834,16 +845,19 @@ function FinanciamientoForm() {
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
   const muestraBanco = tipo !== "depreciacion";
   const baseInsert = (cuenta: string, bs: number) => ({
     fecha, cuenta_codigo: cuenta, centro_costo: "Compartido" as any,
     monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
-    tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: tasaN ? bs / tasaN : 0,
+    tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: tasaConvN ? bs / tasaConvN : 0,
     metodo_pago: "transferencia" as any, notas: notas || detalle || null,
     modo: "on_balance" as any,
     cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
     created_by: user!.id,
   });
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -873,7 +887,7 @@ function FinanciamientoForm() {
           await supabase.from("prestamos").insert({
             prestamista: detalle || "Prestamista",
             plazo_meses: Number(plazo) || 12,
-            monto_bs: bs, monto_usd: bs / tasaN, saldo_bs: bs,
+            monto_bs: bs, monto_usd: tasaConvN ? bs / tasaConvN : 0, saldo_bs: bs,
             transaccion_id: tx.id, estado: "activo",
           } as any);
         }
@@ -917,8 +931,9 @@ function FinanciamientoForm() {
               <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
               <div className="md:col-span-2 rounded-md bg-muted p-3 text-sm">
                 <div className="flex justify-between"><span>Total cuota:</span><span className="mono font-semibold">{fmtBs(totalCuota)}</span></div>
-                <div className="flex justify-between"><span>Capital USD:</span><span className="mono">{fmtUsd(tasaN ? Number(capitalBs)/tasaN : 0)}</span></div>
-                <div className="flex justify-between"><span>Intereses USD:</span><span className="mono">{fmtUsd(tasaN ? Number(interesesBs)/tasaN : 0)}</span></div>
+                <div className="flex justify-between"><span>Capital USD:</span><span className="mono">{fmtUsd(tasaConvN ? Number(capitalBs)/tasaConvN : 0)}</span></div>
+                <div className="flex justify-between"><span>Intereses USD:</span><span className="mono">{fmtUsd(tasaConvN ? Number(interesesBs)/tasaConvN : 0)}</span></div>
+
               </div>
             </>
           ) : (
@@ -934,7 +949,7 @@ function FinanciamientoForm() {
               <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
               <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
                 <span className="text-sm text-muted-foreground">USD</span>
-                <span className="text-lg font-bold mono">{fmtUsd(tasaN ? Number(montoBs)/tasaN : 0)}</span>
+                <span className="text-lg font-bold mono">{fmtUsd(tasaConvN ? Number(montoBs)/tasaConvN : 0)}</span>
               </div>
               {tipo === "capex" && <div className="md:col-span-2 text-xs text-muted-foreground">La depreciación se registra mensualmente por separado (10.7).</div>}
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
@@ -1117,7 +1132,7 @@ function CierreForm() {
         numero_factura: compraNumFactura,
         tercero_id: compraTerceroId,
         centro_costo: "Compartido" as any,
-        monto_bs: monto, monto_usd: monto / tasaN,
+        monto_bs: monto, monto_usd: ((): number => { const tp = paralelaByFecha.get(compraFecha) || paralelaPromedio || tasaN; return tp ? monto / tp : 0; })(),
         monto_pendiente_bs: monto,
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
