@@ -343,15 +343,17 @@ function VentasForm() {
             <Label>¿Aplica IVA 16%?</Label>
             <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
           </div>
-          <div>
-            <Label>{ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+          <div className={pagoEnUsd ? "md:col-span-2" : ""}>
+            <Label>{pagoEnUsd ? (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
-          <div>
-            <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
-            <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
-          </div>
-          {ivaAplica && (
+          {!pagoEnUsd && (
+            <div>
+              <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
+              <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+            </div>
+          )}
+          {ivaAplica && tipo === "contado" && (
             <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
               <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
               <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
