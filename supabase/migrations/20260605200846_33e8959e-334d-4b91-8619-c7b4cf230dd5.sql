@@ -1,0 +1,2 @@
+ALTER TABLE public.transacciones ADD COLUMN IF NOT EXISTS pareja_off_balance_id UUID REFERENCES public.transacciones(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_transacciones_pareja_off_balance ON public.transacciones(pareja_off_balance_id) WHERE pareja_off_balance_id IS NOT NULL;

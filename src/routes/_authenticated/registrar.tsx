@@ -101,7 +101,16 @@ function VentasForm() {
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [centro, setCentro] = useState<Centro>("YV");
-  const [tipo, setTipo] = useState<"contado" | "credito" | "cobro">("contado");
+  const [tipo, setTipo] = useState<"contado" | "credito" | "cobro" | "ajuste_off">("contado");
+  // Ajuste off-balance: factura origen + montos
+  const [facturaQuery, setFacturaQuery] = useState("");
+  const [facturaTx, setFacturaTx] = useState<any | null>(null);
+  const [facturaCliente, setFacturaCliente] = useState<string>("");
+  const [buscandoFactura, setBuscandoFactura] = useState(false);
+  const [montoOffUsd, setMontoOffUsd] = useState("");
+  const [bonoUsd, setBonoUsd] = useState("");
+  const [bonoTouched, setBonoTouched] = useState(false);
+
   const [cliente, setCliente] = useState("");
   const [fechaVenc, setFechaVenc] = useState("");
   const [ivaAplica, setIvaAplica] = useState(true);
@@ -174,15 +183,166 @@ function VentasForm() {
   const iva = ivaAplica ? total - base : 0;
   const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
   const ivaUsd = ivaAplica ? totalUsd - baseUsd : 0;
-  const cuenta = cuentaVenta(centro, tipo);
+  const cuenta = tipo === "ajuste_off" ? cuentaVenta(centro, "contado") : cuentaVenta(centro, tipo);
   // Para cobros: USD que se está cancelando con este pago
   const usdCobrado = tipo === "cobro" ? totalUsd : 0;
+
+  // ====== Ajuste off-balance: cálculos derivados ======
+  const montoOffUsdN = Number(montoOffUsd) || 0;
+  const bonoUsdN = Number(bonoUsd) || 0;
+  const bonoAuto = Number((montoOffUsdN * 0.1).toFixed(2));
+  // tasa para convertir el ajuste off-balance → tasa paralela del día de la factura origen
+  const tasaOffN = facturaTx ? (Number(facturaTx.tasa_paralela) || Number(facturaTx.tasa_bcv) || tasaParalelaN || tasaBcvN) : (tasaParalelaN || tasaBcvN);
+  const cuentaBonoOff = centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14";
+
+  // Autollenar bono = 10% del monto off si la persona no lo ha tocado
+  useEffect(() => {
+    if (tipo !== "ajuste_off") return;
+    if (bonoTouched) return;
+    setBonoUsd(bonoAuto > 0 ? bonoAuto.toFixed(2) : "");
+  }, [tipo, bonoAuto, bonoTouched]);
+
+  // Sincronizar centro con la factura origen
+  useEffect(() => {
+    if (tipo !== "ajuste_off" || !facturaTx) return;
+    if (facturaTx.centro_costo && facturaTx.centro_costo !== centro) {
+      setCentro(facturaTx.centro_costo as Centro);
+    }
+  }, [facturaTx?.id, tipo]);
+
+  const buscarFactura = async () => {
+    const q = facturaQuery.trim();
+    if (!q) return toast.error("Ingresa el número de factura");
+    setBuscandoFactura(true);
+    try {
+      // Busca venta on-balance previa (cuentas 1.1, 1.2, 1.4) por numero_factura o numero_orden
+      const { data, error } = await supabase
+        .from("transacciones")
+        .select("*")
+        .in("cuenta_codigo", ["1.1", "1.2", "1.4"])
+        .or(`numero_factura.eq.${q},numero_orden.eq.${q}`)
+        .order("fecha", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      const tx = data?.[0];
+      if (!tx) { setFacturaTx(null); setFacturaCliente(""); return toast.error("No se encontró ninguna factura con ese número"); }
+      setFacturaTx(tx);
+      // Intentar resolver nombre del cliente
+      let cli = "";
+      const { data: cxc } = await supabase
+        .from("cuentas_por_cobrar")
+        .select("cliente")
+        .eq("transaccion_id", tx.id)
+        .maybeSingle();
+      if (cxc?.cliente) cli = cxc.cliente;
+      if (!cli && tx.tercero_id) {
+        const { data: ter } = await supabase.from("terceros").select("razon_social, nombre_comercial").eq("id", tx.tercero_id).maybeSingle();
+        if (ter) cli = (ter.nombre_comercial || ter.razon_social) ?? "";
+      }
+
+      if (!cli && tx.notas) {
+        const m = String(tx.notas).match(/cliente\s*[:\-]\s*([^|\n]+)/i);
+        if (m) cli = m[1].trim();
+      }
+      setFacturaCliente(cli);
+      toast.success("Factura cargada");
+    } catch (e: any) {
+      toast.error(e.message ?? "Error buscando factura");
+    } finally {
+      setBuscandoFactura(false);
+    }
+  };
+
 
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    // ====== Rama especial: Ajuste off-balance ======
+    if (tipo === "ajuste_off") {
+      if (!facturaTx) return toast.error("Busca primero la factura origen");
+      if (montoOffUsdN <= 0) return toast.error("Indica el monto off-balance a registrar ($)");
+      if (bonoUsdN < 0) return toast.error("El bono no puede ser negativo");
+      if (!tasaOffN) return toast.error("Falta la tasa para convertir el monto");
+      setBusy(true);
+      try {
+        const fechaOff = facturaTx.fecha || fecha;
+        const centroOff = (facturaTx.centro_costo as Centro) || centro;
+        const montoOffBs = montoOffUsdN * tasaOffN;
+        const bonoBs = bonoUsdN * tasaOffN;
+        const refFactura = facturaTx.numero_factura || facturaTx.numero_orden || "";
+        const cuentaOffVenta = cuentaVenta(centroOff, "contado");
+
+        // 1) Insert venta off-balance
+        const { data: txVenta, error: e1 } = await supabase.from("transacciones").insert({
+          fecha: fechaOff,
+          cuenta_codigo: cuentaOffVenta,
+          centro_costo: centroOff as any,
+          monto_bs: montoOffBs, monto_base_bs: montoOffBs, iva_bs: 0,
+          iva_aplica: false, tipo_iva: null,
+          tasa_bcv: Number(facturaTx.tasa_bcv) || tasaBcvN || tasaOffN,
+          tasa_paralela: Number(facturaTx.tasa_paralela) || tasaParalelaN || tasaOffN,
+          monto_usd: montoOffUsdN,
+          metodo_pago: "efectivo_usd" as any,
+          referencia: null,
+          numero_factura: facturaTx.numero_factura || null,
+          numero_orden: facturaTx.numero_orden || null,
+          notas: `Ajuste off-balance de factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}${notas ? ` · ${notas}` : ""}`,
+          modo: "off_balance" as any,
+          created_by: user.id,
+        } as any).select().single();
+        if (e1 || !txVenta) throw new Error(e1?.message ?? "No se pudo registrar la venta off-balance");
+        await logAudit("transacciones", "INSERT", txVenta.id, null, txVenta);
+
+        // 2) Insert costo (bono 10%) off-balance — sólo si hay monto
+        let txBono: any = null;
+        if (bonoUsdN > 0) {
+          const { data: txB, error: e2 } = await supabase.from("transacciones").insert({
+            fecha: fechaOff,
+            cuenta_codigo: cuentaBonoOff,
+            centro_costo: centroOff as any,
+            monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
+            iva_aplica: false, tipo_iva: null,
+            tasa_bcv: Number(facturaTx.tasa_bcv) || tasaBcvN || tasaOffN,
+            tasa_paralela: Number(facturaTx.tasa_paralela) || tasaParalelaN || tasaOffN,
+            monto_usd: bonoUsdN,
+            metodo_pago: "efectivo_usd" as any,
+            referencia: null,
+            numero_factura: facturaTx.numero_factura || null,
+            numero_orden: facturaTx.numero_orden || null,
+            notas: `Bono ${centroOff} (off-balance) por factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}`,
+            modo: "off_balance" as any,
+            pareja_off_balance_id: txVenta.id,
+            created_by: user.id,
+          } as any).select().single();
+          if (e2 || !txB) {
+            // Rollback de la venta para no dejar huérfanos
+            await supabase.from("transacciones").delete().eq("id", txVenta.id);
+            throw new Error(e2?.message ?? "No se pudo registrar el bono off-balance");
+          }
+          txBono = txB;
+          await logAudit("transacciones", "INSERT", txBono.id, null, txBono);
+          // Enlace de vuelta venta → bono
+          await supabase.from("transacciones").update({ pareja_off_balance_id: txBono.id } as any).eq("id", txVenta.id);
+        }
+
+        toast.success(bonoUsdN > 0
+          ? `Ajuste off-balance registrado · venta ${fmtUsd(montoOffUsdN)} + bono ${fmtUsd(bonoUsdN)}`
+          : `Ajuste off-balance registrado · venta ${fmtUsd(montoOffUsdN)}`);
+        qc.invalidateQueries();
+        setFacturaQuery(""); setFacturaTx(null); setFacturaCliente("");
+        setMontoOffUsd(""); setBonoUsd(""); setBonoTouched(false); setNotas("");
+      } catch (err: any) {
+        toast.error(err.message ?? "Error al registrar ajuste off-balance");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (!tasaN) return toast.error("Falta tasa BCV");
+
     if (tipo === "credito" && !cliente) return toast.error("Indica el cliente");
     if (tipo === "cobro" && !cxcId) return toast.error("Selecciona la cuenta por cobrar a cancelar");
     if (tipo === "cobro" && usdCobrado > pendienteUsdCxc + 0.01) return toast.error(`El cobro no puede exceder el saldo pendiente (${fmtUsd(pendienteUsdCxc)})`);
@@ -282,10 +442,80 @@ function VentasForm() {
                 <SelectItem value="contado">Contado</SelectItem>
                 <SelectItem value="credito">A crédito (fiar)</SelectItem>
                 <SelectItem value="cobro">Cobro de crédito anterior</SelectItem>
+                <SelectItem value="ajuste_off">Ajuste off-balance</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground mt-1">Cuenta: <span className="font-semibold">{cuenta}</span></p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Cuenta: <span className="font-semibold">{cuenta}</span>
+              {tipo === "ajuste_off" && <> · Bono off: <span className="font-semibold">{cuentaBonoOff}</span></>}
+            </p>
           </div>
+
+          {tipo === "ajuste_off" && (
+            <div className="md:col-span-2 space-y-3 rounded-md border bg-muted/30 p-3">
+              <div className="text-sm font-medium">Factura origen</div>
+              <div className="flex gap-2">
+                <Input
+                  value={facturaQuery}
+                  onChange={(e) => setFacturaQuery(e.target.value)}
+                  placeholder="N° de factura ya registrada (on-balance)"
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarFactura(); } }}
+                />
+                <Button type="button" variant="secondary" onClick={buscarFactura} disabled={buscandoFactura}>
+                  {buscandoFactura ? "Buscando…" : "Buscar"}
+                </Button>
+              </div>
+              {facturaTx && (
+                <div className="grid grid-cols-2 gap-2 text-sm rounded bg-background p-3 border">
+                  <div><span className="text-muted-foreground">Factura:</span> <span className="mono font-semibold">{facturaTx.numero_factura || facturaTx.numero_orden || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Fecha:</span> <span className="mono">{facturaTx.fecha}</span></div>
+                  <div><span className="text-muted-foreground">Centro:</span> <span className="font-semibold">{facturaTx.centro_costo}</span></div>
+                  <div><span className="text-muted-foreground">Monto factura:</span> <span className="mono">{fmtUsd(facturaTx.monto_usd)} · {fmtBs(facturaTx.monto_bs)}</span></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Cliente:</span> <span className="font-semibold">{facturaCliente || "—"}</span></div>
+                </div>
+              )}
+
+              {facturaTx && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <Label>Monto off-balance a registrar ($)</Label>
+                    <Input
+                      type="number" step="0.01" min="0"
+                      value={montoOffUsd}
+                      onChange={(e) => setMontoOffUsd(e.target.value)}
+                      required
+                      className="mono"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Equivale a {fmtBs(montoOffUsdN * tasaOffN)} (tasa paralela {tasaOffN ? tasaOffN.toFixed(2) : "—"})
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Bono {centro === "Bocu" ? "Bocú" : centro} 10% ($)</Label>
+                    <Input
+                      type="number" step="0.01" min="0"
+                      value={bonoUsd}
+                      onChange={(e) => { setBonoUsd(e.target.value); setBonoTouched(true); }}
+                      className="mono"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Sugerido: {fmtUsd(bonoAuto)} (10% del monto off). Cuenta {cuentaBonoOff}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label>Notas (opcional)</Label>
+                <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+              </div>
+
+              <div className="text-xs text-muted-foreground rounded border border-dashed p-2">
+                Al guardar se crean <span className="font-semibold">dos transacciones off-balance enlazadas</span>: la venta y el costo del bono. Si luego eliminas una, la otra también se eliminará (con confirmación).
+              </div>
+            </div>
+          )}
+
 
           {tipo === "credito" && (
             <>
@@ -323,7 +553,7 @@ function VentasForm() {
             </div>
           )}
 
-          {tipo !== "credito" && (
+          {tipo !== "ajuste_off" && tipo !== "credito" && (
             <>
               <div>
                 <Label>Método de pago</Label>
@@ -344,41 +574,46 @@ function VentasForm() {
             </div>
           )}
 
-          <div className="md:col-span-2 border-t pt-3 flex items-center justify-between">
-            <Label>¿Aplica IVA 16%?</Label>
-            <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
-          </div>
-          <div className={pagoEnUsd ? "md:col-span-2" : ""}>
-            <Label>{pagoEnUsd ? (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
-            <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
-          </div>
-          {!pagoEnUsd && (
-            <div>
-              <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
-              <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
-            </div>
+          {tipo !== "ajuste_off" && (
+            <>
+              <div className="md:col-span-2 border-t pt-3 flex items-center justify-between">
+                <Label>¿Aplica IVA 16%?</Label>
+                <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
+              </div>
+              <div className={pagoEnUsd ? "md:col-span-2" : ""}>
+                <Label>{pagoEnUsd ? (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
+                <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
+              </div>
+              {!pagoEnUsd && (
+                <div>
+                  <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
+                  <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+                </div>
+              )}
+              {ivaAplica && tipo === "contado" && (
+                <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
+                  <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
+                  <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
+                  <div>Base USD: <span className="mono">{fmtUsd(baseUsd)}</span></div>
+                  <div>IVA USD: <span className="mono">{fmtUsd(ivaUsd)}</span></div>
+                </div>
+              )}
+              <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
+                <span className="text-sm text-muted-foreground">G&P: base USD</span>
+                <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
+              </div>
+              <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
+              <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+              <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+                <Label>Off-balance</Label>
+                <Switch checked={offBalance} onCheckedChange={setOffBalance} />
+              </div>
+            </>
           )}
-          {ivaAplica && tipo === "contado" && (
-            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
-              <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
-              <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
-              <div>Base USD: <span className="mono">{fmtUsd(baseUsd)}</span></div>
-              <div>IVA USD: <span className="mono">{fmtUsd(ivaUsd)}</span></div>
-            </div>
-          )}
-          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">G&P: base USD</span>
-            <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
-          </div>
-          <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
-          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
-          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-            <Label>Off-balance</Label>
-            <Switch checked={offBalance} onCheckedChange={setOffBalance} />
-          </div>
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar ingreso"}</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : (tipo === "ajuste_off" ? "Registrar ajuste off-balance" : "Registrar ingreso")}</Button>
           </div>
+
         </form>
       </CardContent>
     </Card>
