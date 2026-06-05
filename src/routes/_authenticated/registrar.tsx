@@ -748,7 +748,10 @@ function OpsIvaForm() {
 
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
-  const usd = tasaN ? total / tasaN : 0;
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
+  const usd = tasaConvN ? total / tasaConvN : 0;
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
