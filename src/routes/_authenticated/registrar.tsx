@@ -236,9 +236,10 @@ function VentasForm() {
         .maybeSingle();
       if (cxc?.cliente) cli = cxc.cliente;
       if (!cli && tx.tercero_id) {
-        const { data: ter } = await supabase.from("terceros").select("nombre").eq("id", tx.tercero_id).maybeSingle();
-        if (ter?.nombre) cli = ter.nombre;
+        const { data: ter } = await supabase.from("terceros").select("razon_social, nombre_comercial").eq("id", tx.tercero_id).maybeSingle();
+        if (ter) cli = (ter.nombre_comercial || ter.razon_social) ?? "";
       }
+
       if (!cli && tx.notas) {
         const m = String(tx.notas).match(/cliente\s*[:\-]\s*([^|\n]+)/i);
         if (m) cli = m[1].trim();
