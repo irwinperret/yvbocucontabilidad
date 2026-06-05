@@ -954,10 +954,8 @@ function CierreForm() {
   const qc = useQueryClient();
   const { data: terceros } = useTerceros();
   const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7));
-  const [invIni, setInvIni] = useState("");
-  const [invFin, setInvFin] = useState("");
-  const [pasivos, setPasivos] = useState("");
-  const [deprec, setDeprec] = useState("");
+  const [invIniUsd, setInvIniUsd] = useState("");
+  const [invFinUsd, setInvFinUsd] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -1038,14 +1036,44 @@ function CierreForm() {
     return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
   }, [tasasMes]);
 
+  // Tasas paralela del período (para mostrar USD-paralela por compra)
+  const { data: paralelasMes } = useQuery({
+    queryKey: ["paralelas-periodo", periodo],
+    queryFn: async () => {
+      const ini = `${periodo}-01`;
+      const finDate = new Date(`${periodo}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      const fin = finDate.toISOString().slice(0, 10);
+      const { data } = await supabase.from("tasas_paralela").select("fecha, tasa").gte("fecha", ini).lt("fecha", fin);
+      return data ?? [];
+    },
+  });
+  const paralelaByFecha = useMemo(() => {
+    const m = new Map<string, number>();
+    (paralelasMes ?? []).forEach((p: any) => m.set(p.fecha, Number(p.tasa)));
+    return m;
+  }, [paralelasMes]);
+  const paralelaPromedio = useMemo(() => {
+    const arr = (paralelasMes ?? []) as any[];
+    if (!arr.length) return 0;
+    return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
+  }, [paralelasMes]);
+
   const totalCompras = (compras ?? [])
     .filter((c: any) => c.modo !== "off_balance")
     .reduce((s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
+  const totalComprasUsdParalela = (compras ?? [])
+    .filter((c: any) => c.modo !== "off_balance")
+    .reduce((s: number, c: any) => {
+      const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+      const tp = paralelaByFecha.get(c.fecha) ?? paralelaPromedio;
+      return s + (tp ? base / tp : 0);
+    }, 0);
 
-  const ini = Number(invIni) || 0;
-  const fin = Number(invFin) || 0;
-  const cogs = ini + totalCompras - fin;
-  const cogsUsd = tasaPromedio ? cogs / tasaPromedio : 0;
+  const iniUsd = Number(invIniUsd) || 0;
+  const finUsd = Number(invFinUsd) || 0;
+  const cogsUsd = iniUsd + totalComprasUsdParalela - finUsd;
+  const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1129,11 +1157,13 @@ function CierreForm() {
     if (!tasaPromedio) return toast.error("No hay tasas BCV registradas en el período");
     setBusy(true);
     const { error } = await supabase.from("cierres_de_mes").insert({
-      periodo, inventario_inicial_bs: ini, inventario_final_bs: fin,
+      periodo,
+      inventario_inicial_bs: iniUsd * tasaPromedio,
+      inventario_final_bs: finUsd * tasaPromedio,
       compras_mes_bs: totalCompras, cogs_bs: cogs, cogs_usd: cogsUsd,
       tasa_bcv_promedio: tasaPromedio,
-      pasivos_laborales_bs: Number(pasivos) || 0,
-      depreciacion_bs: Number(deprec) || 0,
+      pasivos_laborales_bs: 0,
+      depreciacion_bs: 0,
       notas: notas || null, registrado_por: user.id, estado: "cerrado",
     } as any);
     setBusy(false);
@@ -1255,6 +1285,7 @@ function CierreForm() {
                     <th>Proveedor</th>
                     <th>N° fact.</th>
                     <th className="text-right">Monto Bs</th>
+                    <th className="text-right">USD (paralela)</th>
                     <th className="text-right">Tasa</th>
                     <th className="text-center">Estado</th>
                     <th></th>
@@ -1263,12 +1294,16 @@ function CierreForm() {
                 <tbody>
                   {(compras ?? []).map((c: any) => {
                     const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
+                    const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+                    const tp = paralelaByFecha.get(c.fecha) ?? paralelaPromedio;
+                    const usdPar = tp ? base / tp : null;
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
                         <td>{prov?.razon_social ?? "—"}</td>
                         <td>{c.numero_factura ?? "—"}</td>
                         <td className="text-right mono">{fmtBs(Number(c.monto_bs))}</td>
+                        <td className="text-right mono">{usdPar != null ? fmtUsd(usdPar) : "—"}</td>
                         <td className="text-right mono">{c.tasa_bcv ? Number(c.tasa_bcv).toFixed(2) : "—"}</td>
                         <td className="text-center">{c.pagada ? <span className="text-green-700">Pagada</span> : <span className="text-orange-700">CxP</span>}</td>
                         <td>
@@ -1282,6 +1317,7 @@ function CierreForm() {
                   <tr className="border-t font-semibold">
                     <td colSpan={3} className="py-2">Total compras del período</td>
                     <td className="text-right mono">{fmtBs(totalCompras)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasUsdParalela)}</td>
                     <td colSpan={3}></td>
                   </tr>
                 </tfoot>
@@ -1293,11 +1329,11 @@ function CierreForm() {
 
         {/* Cierre */}
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><Label>Inventario inicial Bs</Label><Input type="number" step="0.01" value={invIni} onChange={(e) => setInvIni(e.target.value)} className="mono" /></div>
-          <div><Label>Inventario final Bs</Label><Input type="number" step="0.01" value={invFin} onChange={(e) => setInvFin(e.target.value)} className="mono" /></div>
+          <div><Label>Inventario inicial USD</Label><Input type="number" step="0.01" value={invIniUsd} onChange={(e) => setInvIniUsd(e.target.value)} className="mono" /></div>
+          <div><Label>Inventario final USD</Label><Input type="number" step="0.01" value={invFinUsd} onChange={(e) => setInvFinUsd(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex justify-between text-sm">
             <span className="text-muted-foreground">Compras del mes (auto)</span>
-            <span className="mono font-semibold">{fmtBs(totalCompras)}</span>
+            <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdParalela)}</span>
           </div>
           <div className="rounded-md bg-muted/50 p-3">
             <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
@@ -1306,10 +1342,8 @@ function CierreForm() {
           </div>
           <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
             <span className="text-xs text-muted-foreground">COGS estimado</span>
-            <span className="text-base font-bold mono">{fmtBs(cogs)} · {fmtUsd(cogsUsd)}</span>
+            <span className="text-base font-bold mono">{fmtUsd(cogsUsd)} · {fmtBs(cogs)}</span>
           </div>
-          <div><Label>Pasivos laborales del mes Bs</Label><Input type="number" step="0.01" value={pasivos} onChange={(e) => setPasivos(e.target.value)} className="mono" /></div>
-          <div><Label>Depreciación del mes Bs</Label><Input type="number" step="0.01" value={deprec} onChange={(e) => setDeprec(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" disabled={busy || !!cierreActual}>{busy ? "Cerrando…" : cierreActual ? "Mes ya cerrado" : "Cerrar mes"}</Button>
