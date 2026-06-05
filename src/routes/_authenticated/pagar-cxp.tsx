@@ -134,9 +134,20 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
     },
   });
 
+  const { data: paralelaSug } = useQuery({
+    queryKey: ["paralela-pago", fecha],
+    queryFn: async () => {
+      const { data } = await supabase.from("tasas_paralela").select("*").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+      return data;
+    },
+  });
+
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
-  const usd = tasaN ? total / tasaN : 0;
+  const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
+  const usd = tasaConvN ? total / tasaConvN : 0;
+
   const pendiente = Number(cxp.monto_pendiente_bs ?? cxp.monto_bs);
   const esTotal = total >= pendiente;
 
