@@ -1239,8 +1239,9 @@ function CierreForm() {
               <Input type="date" value={compraFecha} onChange={(e) => setCompraFecha(e.target.value)} required />
             </div>
             <div>
-              <Label className="text-xs">Tasa BCV del día</Label>
+              <Label className="text-xs">Tasa paralela del día</Label>
               <Input type="number" step="0.0001" value={compraTasa} onChange={(e) => setCompraTasa(e.target.value)} required className="mono" />
+
             </div>
             <div className="md:col-span-2">
               <TerceroSelect value={compraTerceroId} onChange={setCompraTerceroId} terceros={(terceros ?? []) as any} />
