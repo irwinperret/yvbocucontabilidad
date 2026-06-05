@@ -71,6 +71,21 @@ function TransaccionesPage() {
     return m;
   }, [cuentas]);
 
+  const { data: profiles } = useQuery({
+    queryKey: ["profiles-emails"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id,email");
+      return data ?? [];
+    },
+  });
+
+  const emailById = useMemo(() => {
+    const m: Record<string, string> = {};
+    (profiles ?? []).forEach((p: any) => { m[p.id] = p.email; });
+    return m;
+  }, [profiles]);
+
+
   const filtradas = (data ?? []).filter((t: any) => {
     if (!busca) return true;
     const s = busca.toLowerCase();
