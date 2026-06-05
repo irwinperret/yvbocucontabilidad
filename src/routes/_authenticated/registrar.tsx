@@ -845,16 +845,19 @@ function FinanciamientoForm() {
   useEffect(() => { if (tasaSugerida && !tasa) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
   const muestraBanco = tipo !== "depreciacion";
   const baseInsert = (cuenta: string, bs: number) => ({
     fecha, cuenta_codigo: cuenta, centro_costo: "Compartido" as any,
     monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
-    tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: tasaN ? bs / tasaN : 0,
+    tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: tasaConvN ? bs / tasaConvN : 0,
     metodo_pago: "transferencia" as any, notas: notas || detalle || null,
     modo: "on_balance" as any,
     cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
     created_by: user!.id,
   });
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
