@@ -1132,7 +1132,7 @@ function CierreForm() {
         numero_factura: compraNumFactura,
         tercero_id: compraTerceroId,
         centro_costo: "Compartido" as any,
-        monto_bs: monto, monto_usd: monto / tasaN,
+        monto_bs: monto, monto_usd: (paralelaByFecha.get(compraFecha) ?? paralelaPromedio ?? Number(compraTasa) ?? tasaN) > 0 ? monto / (paralelaByFecha.get(compraFecha) ?? paralelaPromedio ?? Number(compraTasa) ?? tasaN) : 0,
         monto_pendiente_bs: monto,
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
