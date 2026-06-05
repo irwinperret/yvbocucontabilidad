@@ -601,7 +601,7 @@ function NominaForm() {
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaConvN = tasaParalelaN || tasaN;
   const totalInput = empleados.reduce((s, e) => s + (Number(e.monto) || 0), 0);
-  const totalBs = esUSD ? totalInput * tasaN : totalInput;
+  const totalBs = esUSD ? totalInput * tasaConvN : totalInput;
   const totalUsd = esUSD ? totalInput : (tasaConvN ? totalInput / tasaConvN : 0);
 
   const cuenta = cuentaNomina(tipo, centro);
