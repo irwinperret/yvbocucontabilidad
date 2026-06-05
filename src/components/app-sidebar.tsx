@@ -64,8 +64,8 @@ export function AppSidebar() {
       collapsible="icon"
       className={
         mode === "analisis"
-          ? "[&_[data-sidebar=sidebar]]:bg-[#E8F5F0] [&_[data-sidebar=sidebar]]:border-[#0F6E56]/20"
-          : "[&_[data-sidebar=sidebar]]:bg-[#EEECFA] [&_[data-sidebar=sidebar]]:border-[#534AB7]/20"
+          ? "[&_[data-sidebar=sidebar]]:bg-[#E8F5F0] [&_[data-sidebar=sidebar]]:border-[#0F6E56]/20 [&_[data-active=true]]:bg-[#0F6E56] [&_[data-active=true]]:text-white [&_[data-active=true]]:font-bold hover:[&_[data-active=true]]:bg-[#0F6E56] hover:[&_[data-active=true]]:text-white"
+          : "[&_[data-sidebar=sidebar]]:bg-[#EEECFA] [&_[data-sidebar=sidebar]]:border-[#534AB7]/20 [&_[data-active=true]]:bg-[#534AB7] [&_[data-active=true]]:text-white [&_[data-active=true]]:font-bold hover:[&_[data-active=true]]:bg-[#534AB7] hover:[&_[data-active=true]]:text-white"
       }
     >
       <SidebarHeader className="border-b">
