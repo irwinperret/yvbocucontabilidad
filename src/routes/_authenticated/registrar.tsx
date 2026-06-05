@@ -1329,11 +1329,11 @@ function CierreForm() {
 
         {/* Cierre */}
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><Label>Inventario inicial Bs</Label><Input type="number" step="0.01" value={invIni} onChange={(e) => setInvIni(e.target.value)} className="mono" /></div>
-          <div><Label>Inventario final Bs</Label><Input type="number" step="0.01" value={invFin} onChange={(e) => setInvFin(e.target.value)} className="mono" /></div>
+          <div><Label>Inventario inicial USD</Label><Input type="number" step="0.01" value={invIniUsd} onChange={(e) => setInvIniUsd(e.target.value)} className="mono" /></div>
+          <div><Label>Inventario final USD</Label><Input type="number" step="0.01" value={invFinUsd} onChange={(e) => setInvFinUsd(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex justify-between text-sm">
             <span className="text-muted-foreground">Compras del mes (auto)</span>
-            <span className="mono font-semibold">{fmtBs(totalCompras)}</span>
+            <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdParalela)}</span>
           </div>
           <div className="rounded-md bg-muted/50 p-3">
             <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
@@ -1342,10 +1342,8 @@ function CierreForm() {
           </div>
           <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
             <span className="text-xs text-muted-foreground">COGS estimado</span>
-            <span className="text-base font-bold mono">{fmtBs(cogs)} · {fmtUsd(cogsUsd)}</span>
+            <span className="text-base font-bold mono">{fmtUsd(cogsUsd)} · {fmtBs(cogs)}</span>
           </div>
-          <div><Label>Pasivos laborales del mes Bs</Label><Input type="number" step="0.01" value={pasivos} onChange={(e) => setPasivos(e.target.value)} className="mono" /></div>
-          <div><Label>Depreciación del mes Bs</Label><Input type="number" step="0.01" value={deprec} onChange={(e) => setDeprec(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" disabled={busy || !!cierreActual}>{busy ? "Cerrando…" : cierreActual ? "Mes ya cerrado" : "Cerrar mes"}</Button>
