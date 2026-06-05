@@ -148,25 +148,35 @@ function VentasForm() {
     if (tipo !== "cobro" || !cxcId || !cxcSel) return;
     setCliente(cxcSel.cliente ?? "");
     setCentro(cxcSel.centro_costo as Centro);
-    const tasaHoy = Number(tasaSugerida?.tasa) || Number(tasa) || 0;
-    if (tasaHoy > 0) setMontoTotal((pendienteUsdCxc * tasaHoy).toFixed(2));
+    const enUsd = metodo === "zelle" || metodo === "efectivo_usd";
+    if (enUsd) {
+      setMontoTotal(pendienteUsdCxc.toFixed(2));
+    } else {
+      const tasaHoy = Number(tasaSugerida?.tasa) || Number(tasa) || 0;
+      if (tasaHoy > 0) setMontoTotal((pendienteUsdCxc * tasaHoy).toFixed(2));
+    }
     setIvaAplica(false); // el IVA ya se causó al emitir la venta a crédito
-  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa]);
+  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa, metodo]);
 
 
-  const total = Number(montoTotal) || 0;
-  const base = ivaAplica ? total / 1.16 : total;
-  const iva = ivaAplica ? total - base : 0;
+  // Pago en divisas: el monto total se ingresa directamente en USD
+  const pagoEnUsd = tipo !== "credito" && (metodo === "zelle" || metodo === "efectivo_usd");
+  const montoN = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
   // Contado: Bs→USD a tasa paralela. Crédito y Cobro: a tasa BCV.
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaBcvN = Number(tasaSugerida?.tasa) || 0;
   const tasaConvN = usaBCV ? (tasaN || tasaBcvN) : (tasaParalelaN || tasaN);
-  const baseUsd = tasaConvN ? base / tasaConvN : 0;
-  const ivaUsd = tasaConvN ? iva / tasaConvN : 0;
+  // total en Bs y USD según moneda de captura
+  const total = pagoEnUsd ? montoN * tasaConvN : montoN;
+  const totalUsd = pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0);
+  const base = ivaAplica ? total / 1.16 : total;
+  const iva = ivaAplica ? total - base : 0;
+  const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
+  const ivaUsd = ivaAplica ? totalUsd - baseUsd : 0;
   const cuenta = cuentaVenta(centro, tipo);
   // Para cobros: USD que se está cancelando con este pago
-  const usdCobrado = tipo === "cobro" && tasaConvN ? total / tasaConvN : 0;
+  const usdCobrado = tipo === "cobro" ? totalUsd : 0;
 
 
   const submit = async (e: React.FormEvent) => {
@@ -338,15 +348,17 @@ function VentasForm() {
             <Label>¿Aplica IVA 16%?</Label>
             <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
           </div>
-          <div>
-            <Label>{ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+          <div className={pagoEnUsd ? "md:col-span-2" : ""}>
+            <Label>{pagoEnUsd ? (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
-          <div>
-            <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
-            <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
-          </div>
-          {ivaAplica && (
+          {!pagoEnUsd && (
+            <div>
+              <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
+              <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+            </div>
+          )}
+          {ivaAplica && tipo === "contado" && (
             <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
               <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
               <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
