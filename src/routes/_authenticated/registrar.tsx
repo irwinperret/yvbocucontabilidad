@@ -301,8 +301,9 @@ function VentasForm() {
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {cxcSel
-                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaN)} a tasa ${tasaN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
-                  : "Al guardar, se descuenta del saldo en USD el equivalente del monto cobrado a la tasa BCV de hoy."}
+                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaConvN)} a tasa paralela ${tasaConvN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
+                  : "Al guardar, se descuenta del saldo en USD el equivalente del monto cobrado a la tasa paralela de hoy."}
+
               </p>
             </div>
           )}
@@ -600,7 +601,7 @@ function NominaForm() {
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaConvN = tasaParalelaN || tasaN;
   const totalInput = empleados.reduce((s, e) => s + (Number(e.monto) || 0), 0);
-  const totalBs = esUSD ? totalInput * tasaN : totalInput;
+  const totalBs = esUSD ? totalInput * tasaConvN : totalInput;
   const totalUsd = esUSD ? totalInput : (tasaConvN ? totalInput / tasaConvN : 0);
 
   const cuenta = cuentaNomina(tipo, centro);
@@ -622,7 +623,7 @@ function NominaForm() {
 
     for (const l of lineas) {
       const monto = Number(l.monto);
-      const lineaBs = esUSD ? monto * tasaN : monto;
+      const lineaBs = esUSD ? monto * tasaConvN : monto;
       const lineaUsd = esUSD ? monto : (tasaConvN ? monto / tasaConvN : 0);
       const notaLinea = `Empleado: ${l.nombre.trim()}${notas ? ` · ${notas}` : ""}`;
       const { data: tx, error } = await supabase.from("transacciones").insert({
