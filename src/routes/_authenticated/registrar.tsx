@@ -101,7 +101,16 @@ function VentasForm() {
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [centro, setCentro] = useState<Centro>("YV");
-  const [tipo, setTipo] = useState<"contado" | "credito" | "cobro">("contado");
+  const [tipo, setTipo] = useState<"contado" | "credito" | "cobro" | "ajuste_off">("contado");
+  // Ajuste off-balance: factura origen + montos
+  const [facturaQuery, setFacturaQuery] = useState("");
+  const [facturaTx, setFacturaTx] = useState<any | null>(null);
+  const [facturaCliente, setFacturaCliente] = useState<string>("");
+  const [buscandoFactura, setBuscandoFactura] = useState(false);
+  const [montoOffUsd, setMontoOffUsd] = useState("");
+  const [bonoUsd, setBonoUsd] = useState("");
+  const [bonoTouched, setBonoTouched] = useState(false);
+
   const [cliente, setCliente] = useState("");
   const [fechaVenc, setFechaVenc] = useState("");
   const [ivaAplica, setIvaAplica] = useState(true);
