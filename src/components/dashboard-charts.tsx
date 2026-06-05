@@ -55,7 +55,7 @@ export function DashboardCharts() {
     return MESES.map((nombre, i) => {
       const mes = i + 1;
       const rs = (rows ?? []).filter((r) => r.mes === mes);
-      let ingresos = 0, cogs = 0, gastos = 0, fcIn = 0, fcOut = 0;
+      let ingresos = 0, cogs = 0, gastos = 0, fcIn = 0, fcOut = 0, capex = 0;
       rs.forEach((r) => {
         const c = mapCuentas.get(r.cuenta_codigo);
         if (!c) return;
@@ -70,6 +70,8 @@ export function DashboardCharts() {
           if (r.cuenta_codigo.startsWith("1.") || ["10.1", "10.5"].includes(r.cuenta_codigo)) fcIn += total;
           else fcOut += total;
         }
+        // CapEx (activo fijo) — cuenta 10.6
+        if (r.cuenta_codigo === "10.6") capex += total;
       });
       const utilidad = ingresos - cogs - gastos;
       const flujoNeto = fcIn - fcOut;
@@ -81,20 +83,26 @@ export function DashboardCharts() {
         gastosNeg: -Math.round(gastos),
         fcIn: Math.round(fcIn), fcOut: Math.round(fcOut),
         flujoNeto: Math.round(flujoNeto),
+        capex: Math.round(capex),
         efectivo: 0, // se llena abajo
+        capexAcum: 0, // se llena abajo
+        utilidadAcum: 0, // se llena abajo
       };
     });
   }, [rows, mapCuentas]);
 
 
-  // Acumulado: efectivo disponible = suma corrida de flujoNeto
+  // Acumulados: efectivo, CapEx y utilidad
   const dataConAcumulado = useMemo(() => {
-    let acc = 0;
+    let accEf = 0, accCx = 0, accUt = 0;
     return data.map((d) => {
-      acc += d.flujoNeto;
-      return { ...d, efectivo: Math.round(acc) };
+      accEf += d.flujoNeto;
+      accCx += d.capex;
+      accUt += d.utilidad;
+      return { ...d, efectivo: Math.round(accEf), capexAcum: Math.round(accCx), utilidadAcum: Math.round(accUt) };
     });
   }, [data]);
+
 
   const mesHoy = new Date().getMonth() + 1;
   const esAnioActual = anio === anioActual;
