@@ -138,15 +138,16 @@ function VentasForm() {
     ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd)
     : 0;
 
-  // Cuando seleccionas una CxC para cobrar, prellena con el equivalente en Bs a la tasa BCV de hoy
+  // Cuando seleccionas una CxC para cobrar, prellena con el equivalente en Bs a la tasa paralela de hoy
   useEffect(() => {
     if (tipo !== "cobro" || !cxcId || !cxcSel) return;
     setCliente(cxcSel.cliente ?? "");
     setCentro(cxcSel.centro_costo as Centro);
-    const tasaHoy = Number(tasa) || Number(tasaSugerida?.tasa) || 0;
+    const tasaHoy = Number(paralelaSugerida?.tasa) || Number(tasa) || Number(tasaSugerida?.tasa) || 0;
     if (tasaHoy > 0) setMontoTotal((pendienteUsdCxc * tasaHoy).toFixed(2));
     setIvaAplica(false); // el IVA ya se causó al emitir la venta a crédito
-  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa]);
+  }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa, paralelaSugerida?.tasa]);
+
 
   const total = Number(montoTotal) || 0;
   const base = ivaAplica ? total / 1.16 : total;
