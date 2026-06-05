@@ -553,7 +553,7 @@ function VentasForm() {
             </div>
           )}
 
-          {tipo !== "credito" && (
+          {tipo !== "ajuste_off" && tipo !== "credito" && (
             <>
               <div>
                 <Label>Método de pago</Label>
@@ -574,41 +574,46 @@ function VentasForm() {
             </div>
           )}
 
-          <div className="md:col-span-2 border-t pt-3 flex items-center justify-between">
-            <Label>¿Aplica IVA 16%?</Label>
-            <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
-          </div>
-          <div className={pagoEnUsd ? "md:col-span-2" : ""}>
-            <Label>{pagoEnUsd ? (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
-            <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
-          </div>
-          {!pagoEnUsd && (
-            <div>
-              <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
-              <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
-            </div>
+          {tipo !== "ajuste_off" && (
+            <>
+              <div className="md:col-span-2 border-t pt-3 flex items-center justify-between">
+                <Label>¿Aplica IVA 16%?</Label>
+                <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
+              </div>
+              <div className={pagoEnUsd ? "md:col-span-2" : ""}>
+                <Label>{pagoEnUsd ? (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
+                <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
+              </div>
+              {!pagoEnUsd && (
+                <div>
+                  <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
+                  <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+                </div>
+              )}
+              {ivaAplica && tipo === "contado" && (
+                <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
+                  <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
+                  <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
+                  <div>Base USD: <span className="mono">{fmtUsd(baseUsd)}</span></div>
+                  <div>IVA USD: <span className="mono">{fmtUsd(ivaUsd)}</span></div>
+                </div>
+              )}
+              <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
+                <span className="text-sm text-muted-foreground">G&P: base USD</span>
+                <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
+              </div>
+              <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
+              <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+              <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+                <Label>Off-balance</Label>
+                <Switch checked={offBalance} onCheckedChange={setOffBalance} />
+              </div>
+            </>
           )}
-          {ivaAplica && tipo === "contado" && (
-            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
-              <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
-              <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
-              <div>Base USD: <span className="mono">{fmtUsd(baseUsd)}</span></div>
-              <div>IVA USD: <span className="mono">{fmtUsd(ivaUsd)}</span></div>
-            </div>
-          )}
-          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">G&P: base USD</span>
-            <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
-          </div>
-          <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
-          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
-          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-            <Label>Off-balance</Label>
-            <Switch checked={offBalance} onCheckedChange={setOffBalance} />
-          </div>
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar ingreso"}</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : (tipo === "ajuste_off" ? "Registrar ajuste off-balance" : "Registrar ingreso")}</Button>
           </div>
+
         </form>
       </CardContent>
     </Card>
