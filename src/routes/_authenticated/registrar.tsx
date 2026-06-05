@@ -1362,7 +1362,7 @@ function CierreForm() {
             <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdParalela)}</span>
           </div>
           <div className="rounded-md bg-muted/50 p-3">
-            <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
+            <div className="text-xs text-muted-foreground">Tasa paralela promedio del mes (auto)</div>
             <div className="text-base font-bold mono">{tasaPromedio ? tasaPromedio.toFixed(4) : "—"}</div>
             <div className="text-xs text-muted-foreground">{(tasasMes ?? []).length} tasa(s) registradas</div>
           </div>
