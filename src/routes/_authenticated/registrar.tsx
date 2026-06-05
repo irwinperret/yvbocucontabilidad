@@ -396,7 +396,11 @@ function GastosForm() {
   const base = ivaAplica ? total / 1.16 : total;
   const iva = ivaAplica ? total - base : 0;
   const tasaN = Number(tasa) || 0;
-  const baseUsd = tasaN ? base / tasaN : 0;
+  // Conversión Bs→USD SIEMPRE a tasa paralela (BCV solo se usa para fijar precios fuera del sistema).
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN;
+  const baseUsd = tasaConvN ? base / tasaConvN : 0;
+
   const cuentaSel = (cuentas ?? []).find((c: any) => c.codigo === cuenta);
 
   const NOMINA_CODES = new Set(["3.1","3.2","3.3","3.4","3.5","3.6","3.7","3.9","3.10","3.11","3.12","3.14","3.15"]);
