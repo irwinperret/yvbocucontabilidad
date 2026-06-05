@@ -313,6 +313,27 @@ function VentasForm() {
             </div>
           )}
 
+          {tipo !== "credito" && (
+            <>
+              <div>
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+              </div>
+            </>
+          )}
+          {tipo === "credito" && (
+            <div className="md:col-span-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+              Esta venta queda <span className="font-semibold">pendiente de cobro</span>. No requiere método de pago ni cuenta bancaria — se registrarán cuando se cobre desde "Cobro de crédito anterior".
+            </div>
+          )}
+
           <div className="md:col-span-2 border-t pt-3 flex items-center justify-between">
             <Label>¿Aplica IVA 16%?</Label>
             <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
@@ -337,26 +358,6 @@ function VentasForm() {
             <span className="text-sm text-muted-foreground">G&P: base USD</span>
             <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
           </div>
-          {tipo !== "credito" && (
-            <>
-              <div>
-                <Label>Método de pago</Label>
-                <Select value={metodo} onValueChange={setMetodo}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
-              <div className="md:col-span-2">
-                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
-              </div>
-            </>
-          )}
-          {tipo === "credito" && (
-            <div className="md:col-span-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
-              Esta venta queda <span className="font-semibold">pendiente de cobro</span>. No requiere método de pago ni cuenta bancaria — se registrarán cuando se cobre desde "Cobro de crédito anterior".
-            </div>
-          )}
           <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
