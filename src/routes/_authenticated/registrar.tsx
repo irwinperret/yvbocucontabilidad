@@ -152,11 +152,16 @@ function VentasForm() {
   const base = ivaAplica ? total / 1.16 : total;
   const iva = ivaAplica ? total - base : 0;
   const tasaN = Number(tasa) || 0;
-  const baseUsd = tasaN ? base / tasaN : 0;
-  const ivaUsd = tasaN ? iva / tasaN : 0;
+  // VENTAS: la conversión Bs→USD se hace SIEMPRE al dólar paralelo.
+  // tasa_bcv se mantiene como referencia fiscal, pero monto_usd usa paralela.
+  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParalelaN || tasaN; // fallback a BCV si no hay paralela
+  const baseUsd = tasaConvN ? base / tasaConvN : 0;
+  const ivaUsd = tasaConvN ? iva / tasaConvN : 0;
   const cuenta = cuentaVenta(centro, tipo);
-  // Para cobros: USD que se está cancelando con este pago (según tasa BCV de hoy)
-  const usdCobrado = tipo === "cobro" && tasaN ? total / tasaN : 0;
+  // Para cobros: USD que se está cancelando con este pago (al paralelo de hoy)
+  const usdCobrado = tipo === "cobro" && tasaConvN ? total / tasaConvN : 0;
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
