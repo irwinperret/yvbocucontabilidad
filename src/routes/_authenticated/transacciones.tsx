@@ -269,8 +269,10 @@ function TransaccionesPage() {
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-left py-2 px-2">Modo</th>
                     <th className="text-center py-2 px-2">Factura</th>
+                    <th className="text-left py-2 px-2">Registrado por</th>
                     <th></th>
                   </tr>
+
                 </thead>
                 <tbody>
                   {filtradas.map((t: any) => (
