@@ -67,9 +67,10 @@ function InicioPage() {
   });
 
   const ingresosHoy = (hoyTx ?? []).filter((t: any) => t.cuenta_codigo?.startsWith("1."))
-    .reduce((s: number, t: any) => s + Number(t.monto_base_bs) / Number(t.tasa_bcv || 1), 0);
+    .reduce((s: number, t: any) => s + Number(t.monto_base_bs) / Number(t.tasa_paralela || t.tasa_bcv || 1), 0);
   const gastosHoy = (hoyTx ?? []).filter((t: any) => !t.cuenta_codigo?.startsWith("1."))
-    .reduce((s: number, t: any) => s + Number(t.monto_base_bs) / Number(t.tasa_bcv || 1), 0);
+    .reduce((s: number, t: any) => s + Number(t.monto_base_bs) / Number(t.tasa_paralela || t.tasa_bcv || 1), 0);
+
 
   const tasaVencida = tasa && tasa.fecha !== today;
   const fechaTexto = new Date().toLocaleDateString("es-VE", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
