@@ -1148,7 +1148,7 @@ function CierreForm() {
       periodo, tipo: "compra", monto_bs: monto,
       monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
       modo: compraOffBalance ? "off_balance" : "on_balance",
-      fecha: compraFecha, tasa_bcv: tasaN,
+      fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
       tercero_id: compraTerceroId, numero_factura: compraNumFactura,
       pagada: compraOffBalance ? true : compraPagada,
       cuenta_bancaria_id: !compraOffBalance && compraPagada ? compraCuentaBanco : null,
