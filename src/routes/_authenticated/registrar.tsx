@@ -623,7 +623,7 @@ function NominaForm() {
     for (const l of lineas) {
       const monto = Number(l.monto);
       const lineaBs = esUSD ? monto * tasaN : monto;
-      const lineaUsd = esUSD ? monto : (tasaN ? monto / tasaN : 0);
+      const lineaUsd = esUSD ? monto : (tasaConvN ? monto / tasaConvN : 0);
       const notaLinea = `Empleado: ${l.nombre.trim()}${notas ? ` · ${notas}` : ""}`;
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
