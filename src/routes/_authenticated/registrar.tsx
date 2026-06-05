@@ -313,6 +313,27 @@ function VentasForm() {
             </div>
           )}
 
+          {tipo !== "credito" && (
+            <>
+              <div>
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+              </div>
+            </>
+          )}
+          {tipo === "credito" && (
+            <div className="md:col-span-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+              Esta venta queda <span className="font-semibold">pendiente de cobro</span>. No requiere método de pago ni cuenta bancaria — se registrarán cuando se cobre desde "Cobro de crédito anterior".
+            </div>
+          )}
+
           <div className="md:col-span-2 border-t pt-3 flex items-center justify-between">
             <Label>¿Aplica IVA 16%?</Label>
             <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
@@ -337,26 +358,6 @@ function VentasForm() {
             <span className="text-sm text-muted-foreground">G&P: base USD</span>
             <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
           </div>
-          {tipo !== "credito" && (
-            <>
-              <div>
-                <Label>Método de pago</Label>
-                <Select value={metodo} onValueChange={setMetodo}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
-              <div className="md:col-span-2">
-                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
-              </div>
-            </>
-          )}
-          {tipo === "credito" && (
-            <div className="md:col-span-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
-              Esta venta queda <span className="font-semibold">pendiente de cobro</span>. No requiere método de pago ni cuenta bancaria — se registrarán cuando se cobre desde "Cobro de crédito anterior".
-            </div>
-          )}
           <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
@@ -518,29 +519,6 @@ function GastosForm() {
           <div className="md:col-span-2"><Label>N° factura</Label><Input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} required /></div>
 
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-            <Label>¿Factura con IVA 16%?</Label>
-            <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
-          </div>
-          <div>
-            <Label>{ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
-            <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
-          </div>
-          <div>
-            <Label>Tasa paralela</Label>
-            <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
-          </div>
-          {ivaAplica && (
-            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
-              <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
-              <div>IVA crédito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
-            </div>
-          )}
-          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">G&P: base USD</span>
-            <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
-          </div>
-
-          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <div>
               <Label>Pendiente de pago (crear CxP)</Label>
               <p className="text-xs text-muted-foreground">Si está activo, no afecta FC hoy</p>
@@ -563,6 +541,29 @@ function GastosForm() {
               </div>
             </>
           )}
+
+          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+            <Label>¿Factura con IVA 16%?</Label>
+            <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
+          </div>
+          <div>
+            <Label>{ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+            <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
+          </div>
+          <div>
+            <Label>Tasa paralela</Label>
+            <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+          </div>
+          {ivaAplica && (
+            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
+              <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
+              <div>IVA crédito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
+            </div>
+          )}
+          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
+            <span className="text-sm text-muted-foreground">G&P: base USD</span>
+            <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
+          </div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>
@@ -692,6 +693,20 @@ function NominaForm() {
               Nómina en USD: pago directo en efectivo USD, registrado como off-balance.
             </div>
           )}
+          {!esProvision && !esUSD && (
+            <>
+              <div>
+                <Label>Método de pago</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+              </div>
+            </>
+          )}
           <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
           <div className="md:col-span-2 border rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -710,20 +725,6 @@ function NominaForm() {
               <span className="font-semibold mono">{fmtBs(totalBs)} · {fmtUsd(totalUsd)}</span>
             </div>
           </div>
-          {!esProvision && !esUSD && (
-            <>
-              <div>
-                <Label>Método de pago</Label>
-                <Select value={metodo} onValueChange={setMetodo}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2">
-                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
-              </div>
-            </>
-          )}
           <div className="md:col-span-2"><Label>Notas (común a todos)</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
             <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar nómina"}</Button>
@@ -800,12 +801,6 @@ function OpsIvaForm() {
       <CardContent>
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
-          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
-          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-          <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
-            <span className="text-xs text-muted-foreground">USD neto</span>
-            <span className="text-base font-bold mono">{fmtUsd(usd)}</span>
-          </div>
           <div>
             <Label>Método de pago</Label>
             <Select value={metodo} onValueChange={setMetodo}>
@@ -813,9 +808,15 @@ function OpsIvaForm() {
               <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
+          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
+          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
+            <span className="text-xs text-muted-foreground">USD neto</span>
+            <span className="text-base font-bold mono">{fmtUsd(usd)}</span>
+          </div>
           <div><Label>Referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
           <div><Label>N° orden / soporte</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} /></div>
-          <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
             Se registra como ingreso neto Ops IVA, compartido, sin IVA y fuera de balance.
           </div>
@@ -930,6 +931,11 @@ function FinanciamientoForm() {
             {cfg && <p className="text-xs text-muted-foreground mt-1">Afecta: <span className="font-semibold">{cfg.afecta}</span></p>}
           </div>
 
+          {muestraBanco && (
+            <div className="md:col-span-2">
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+            </div>
+          )}
           {tipo === "pago_cuota" ? (
             <>
               <div><Label>Capital Bs (10.2 → FC)</Label><Input type="number" step="0.01" value={capitalBs} onChange={(e) => setCapitalBs(e.target.value)} className="mono" /></div>
@@ -960,11 +966,6 @@ function FinanciamientoForm() {
               {tipo === "capex" && <div className="md:col-span-2 text-xs text-muted-foreground">La depreciación se registra mensualmente por separado (10.7).</div>}
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
             </>
-          )}
-          {muestraBanco && (
-            <div className="md:col-span-2">
-              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
-            </div>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
@@ -1258,24 +1259,6 @@ function CierreForm() {
               <Input value={compraNumFactura} onChange={(e) => setCompraNumFactura(e.target.value)} required />
             </div>
             <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-              <Label className="text-xs">¿Factura con IVA 16%?</Label>
-              <Switch checked={compraIvaAplica} onCheckedChange={setCompraIvaAplica} />
-            </div>
-            <div>
-              <Label className="text-xs">{compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
-              <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
-            </div>
-            <div>
-              <Label className="text-xs">Costo a inventario (base)</Label>
-              <Input value={fmtBs(compraBase)} disabled className="mono bg-muted/50" />
-            </div>
-            {compraIvaAplica && (
-              <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/50 p-2 rounded">
-                <div>Base: <span className="mono font-semibold">{fmtBs(compraBase)}</span></div>
-                <div>IVA crédito: <span className="mono font-semibold">{fmtBs(compraIva)}</span></div>
-              </div>
-            )}
-            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
               <div>
                 <Label className="text-xs">Off-balance</Label>
                 <p className="text-xs text-muted-foreground">Informativo: no afecta COGS ni FC</p>
@@ -1301,6 +1284,24 @@ function CierreForm() {
                 <Input type="date" value={compraVenc} onChange={(e) => setCompraVenc(e.target.value)} />
               </div>
             ) : null}
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <Label className="text-xs">¿Factura con IVA 16%?</Label>
+              <Switch checked={compraIvaAplica} onCheckedChange={setCompraIvaAplica} />
+            </div>
+            <div>
+              <Label className="text-xs">{compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+              <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
+            </div>
+            <div>
+              <Label className="text-xs">Costo a inventario (base)</Label>
+              <Input value={fmtBs(compraBase)} disabled className="mono bg-muted/50" />
+            </div>
+            {compraIvaAplica && (
+              <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/50 p-2 rounded">
+                <div>Base: <span className="mono font-semibold">{fmtBs(compraBase)}</span></div>
+                <div>IVA crédito: <span className="mono font-semibold">{fmtBs(compraIva)}</span></div>
+              </div>
+            )}
             <div className="md:col-span-2">
               <Label className="text-xs">Notas (opcional)</Label>
               <Input value={compraNotas} onChange={(e) => setCompraNotas(e.target.value)} />
