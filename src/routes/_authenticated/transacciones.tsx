@@ -304,7 +304,9 @@ function TransaccionesPage() {
                           }}
                         />
                       </td>
+                      <td className="py-2 px-2 text-xs text-muted-foreground">{emailById[t.created_by] ?? "—"}</td>
                       <td className="py-2 px-2">
+
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             size="icon"
