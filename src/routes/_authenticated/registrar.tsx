@@ -1001,7 +1001,9 @@ function CierreForm() {
   const compraIva = compraIvaAplica ? compraTotal - compraBase : 0;
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
-  useEffect(() => { if (tasaCompraSug && !compraTasa) setCompraTasa(String(tasaCompraSug.tasa)); }, [tasaCompraSug]);
+  const { data: paralelaCompraSug } = useParalelaForDate(compraFecha);
+  useEffect(() => { if (paralelaCompraSug && !compraTasa) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug]);
+
 
   const { data: compras } = useQuery({
     queryKey: ["compras-periodo", periodo],
