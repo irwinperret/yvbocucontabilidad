@@ -1179,14 +1179,16 @@ function CierreForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (!tasaPromedio) return toast.error("No hay tasas BCV registradas en el período");
+    const tasaConv = paralelaPromedio || tasaPromedio;
+    if (!tasaConv) return toast.error("No hay tasas registradas en el período");
     setBusy(true);
     const { error } = await supabase.from("cierres_de_mes").insert({
       periodo,
-      inventario_inicial_bs: iniUsd * tasaPromedio,
-      inventario_final_bs: finUsd * tasaPromedio,
+      inventario_inicial_bs: iniUsd * tasaConv,
+      inventario_final_bs: finUsd * tasaConv,
       compras_mes_bs: totalCompras, cogs_bs: cogs, cogs_usd: cogsUsd,
       tasa_bcv_promedio: tasaPromedio,
+
       pasivos_laborales_bs: 0,
       depreciacion_bs: 0,
       notas: notas || null, registrado_por: user.id, estado: "cerrado",
