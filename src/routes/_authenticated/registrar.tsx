@@ -1157,11 +1157,13 @@ function CierreForm() {
     if (!tasaPromedio) return toast.error("No hay tasas BCV registradas en el período");
     setBusy(true);
     const { error } = await supabase.from("cierres_de_mes").insert({
-      periodo, inventario_inicial_bs: ini, inventario_final_bs: fin,
+      periodo,
+      inventario_inicial_bs: iniUsd * tasaPromedio,
+      inventario_final_bs: finUsd * tasaPromedio,
       compras_mes_bs: totalCompras, cogs_bs: cogs, cogs_usd: cogsUsd,
       tasa_bcv_promedio: tasaPromedio,
-      pasivos_laborales_bs: Number(pasivos) || 0,
-      depreciacion_bs: Number(deprec) || 0,
+      pasivos_laborales_bs: 0,
+      depreciacion_bs: 0,
       notas: notas || null, registrado_por: user.id, estado: "cerrado",
     } as any);
     setBusy(false);
