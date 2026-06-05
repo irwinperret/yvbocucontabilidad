@@ -198,7 +198,7 @@ function VentasForm() {
     if (tipo === "cobro" && tx && cxcId && cxcSel) {
       const nuevoPendienteUsd = Math.max(0, pendienteUsdCxc - usdCobrado);
       const completaCobrada = nuevoPendienteUsd < 0.01;
-      const nuevoPendienteBs = nuevoPendienteUsd * tasaN; // referencia en Bs a la tasa de hoy
+      const nuevoPendienteBs = nuevoPendienteUsd * tasaConvN; // referencia en Bs al paralelo de hoy
       await supabase.from("cuentas_por_cobrar").update({
         monto_pendiente_usd: nuevoPendienteUsd,
         monto_pendiente_bs: nuevoPendienteBs,
@@ -207,10 +207,10 @@ function VentasForm() {
         transaccion_cobro_id: completaCobrada ? tx.id : cxcSel.transaccion_cobro_id ?? null,
       } as any).eq("id", cxcId);
 
-      // Diferencia cambiaria sobre la porción cobrada: USD cobrado × (tasa_hoy - tasa_orig)
-      if (tasaOrigCxc > 0) {
-        const fxBs = usdCobrado * (tasaN - tasaOrigCxc);
-        const fxUsd = tasaN > 0 ? fxBs / tasaN : 0;
+      // Diferencia cambiaria sobre la porción cobrada: USD cobrado × (paralela_hoy - paralela_orig)
+      if (tasaOrigCxc > 0 && tasaConvN > 0) {
+        const fxBs = usdCobrado * (tasaConvN - tasaOrigCxc);
+        const fxUsd = tasaConvN > 0 ? fxBs / tasaConvN : 0;
         if (Math.abs(fxUsd) >= 0.01) {
           const esGanancia = fxUsd > 0;
           const cuentaFx = esGanancia ? "11.1" : "11.2";
@@ -221,15 +221,16 @@ function VentasForm() {
             cuenta_codigo: cuentaFx,
             centro_costo: centro as any,
             monto_bs: absBs, monto_base_bs: absBs, iva_bs: 0,
-            tasa_bcv: tasaN, monto_usd: absUsd,
+            tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: absUsd,
             metodo_pago: "transferencia" as any,
-            notas: `Dif. cambiaria cobro CxC ${cxcSel.cliente} — tasa orig ${tasaOrigCxc.toFixed(4)} → hoy ${tasaN.toFixed(4)}`,
+            notas: `Dif. cambiaria cobro CxC ${cxcSel.cliente} — paralela orig ${tasaOrigCxc.toFixed(4)} → hoy ${tasaConvN.toFixed(4)}`,
             modo: "on_balance" as any, created_by: user.id,
           } as any).select().single();
           if (errFx) toast.error("Cobro OK, pero falló el ajuste cambiario: " + errFx.message);
           else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
         }
       }
+
     }
     setBusy(false);
     const msg = tipo === "credito"
