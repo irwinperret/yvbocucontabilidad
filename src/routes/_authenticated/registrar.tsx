@@ -931,6 +931,11 @@ function FinanciamientoForm() {
             {cfg && <p className="text-xs text-muted-foreground mt-1">Afecta: <span className="font-semibold">{cfg.afecta}</span></p>}
           </div>
 
+          {muestraBanco && (
+            <div className="md:col-span-2">
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+            </div>
+          )}
           {tipo === "pago_cuota" ? (
             <>
               <div><Label>Capital Bs (10.2 → FC)</Label><Input type="number" step="0.01" value={capitalBs} onChange={(e) => setCapitalBs(e.target.value)} className="mono" /></div>
@@ -961,11 +966,6 @@ function FinanciamientoForm() {
               {tipo === "capex" && <div className="md:col-span-2 text-xs text-muted-foreground">La depreciación se registra mensualmente por separado (10.7).</div>}
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
             </>
-          )}
-          {muestraBanco && (
-            <div className="md:col-span-2">
-              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
-            </div>
           )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
