@@ -454,7 +454,7 @@ function GastosForm() {
         numero_factura: numFactura,
         tercero_id: terceroId || null,
         centro_costo: centro as any,
-        monto_bs: total, monto_usd: total / tasaN,
+        monto_bs: total, monto_usd: baseUsd,
         monto_pendiente_bs: total,
         fecha_vencimiento: fechaVenc || null,
         transaccion_id: tx.id, estado: "pendiente",
