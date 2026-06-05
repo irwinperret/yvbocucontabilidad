@@ -442,10 +442,80 @@ function VentasForm() {
                 <SelectItem value="contado">Contado</SelectItem>
                 <SelectItem value="credito">A crédito (fiar)</SelectItem>
                 <SelectItem value="cobro">Cobro de crédito anterior</SelectItem>
+                <SelectItem value="ajuste_off">Ajuste off-balance</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground mt-1">Cuenta: <span className="font-semibold">{cuenta}</span></p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Cuenta: <span className="font-semibold">{cuenta}</span>
+              {tipo === "ajuste_off" && <> · Bono off: <span className="font-semibold">{cuentaBonoOff}</span></>}
+            </p>
           </div>
+
+          {tipo === "ajuste_off" && (
+            <div className="md:col-span-2 space-y-3 rounded-md border bg-muted/30 p-3">
+              <div className="text-sm font-medium">Factura origen</div>
+              <div className="flex gap-2">
+                <Input
+                  value={facturaQuery}
+                  onChange={(e) => setFacturaQuery(e.target.value)}
+                  placeholder="N° de factura ya registrada (on-balance)"
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarFactura(); } }}
+                />
+                <Button type="button" variant="secondary" onClick={buscarFactura} disabled={buscandoFactura}>
+                  {buscandoFactura ? "Buscando…" : "Buscar"}
+                </Button>
+              </div>
+              {facturaTx && (
+                <div className="grid grid-cols-2 gap-2 text-sm rounded bg-background p-3 border">
+                  <div><span className="text-muted-foreground">Factura:</span> <span className="mono font-semibold">{facturaTx.numero_factura || facturaTx.numero_orden || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Fecha:</span> <span className="mono">{facturaTx.fecha}</span></div>
+                  <div><span className="text-muted-foreground">Centro:</span> <span className="font-semibold">{facturaTx.centro_costo}</span></div>
+                  <div><span className="text-muted-foreground">Monto factura:</span> <span className="mono">{fmtUsd(facturaTx.monto_usd)} · {fmtBs(facturaTx.monto_bs)}</span></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Cliente:</span> <span className="font-semibold">{facturaCliente || "—"}</span></div>
+                </div>
+              )}
+
+              {facturaTx && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <Label>Monto off-balance a registrar ($)</Label>
+                    <Input
+                      type="number" step="0.01" min="0"
+                      value={montoOffUsd}
+                      onChange={(e) => setMontoOffUsd(e.target.value)}
+                      required
+                      className="mono"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Equivale a {fmtBs(montoOffUsdN * tasaOffN)} (tasa paralela {tasaOffN ? tasaOffN.toFixed(2) : "—"})
+                    </p>
+                  </div>
+                  <div>
+                    <Label>Bono {centro === "Bocu" ? "Bocú" : centro} 10% ($)</Label>
+                    <Input
+                      type="number" step="0.01" min="0"
+                      value={bonoUsd}
+                      onChange={(e) => { setBonoUsd(e.target.value); setBonoTouched(true); }}
+                      className="mono"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Sugerido: {fmtUsd(bonoAuto)} (10% del monto off). Cuenta {cuentaBonoOff}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label>Notas (opcional)</Label>
+                <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+              </div>
+
+              <div className="text-xs text-muted-foreground rounded border border-dashed p-2">
+                Al guardar se crean <span className="font-semibold">dos transacciones off-balance enlazadas</span>: la venta y el costo del bono. Si luego eliminas una, la otra también se eliminará (con confirmación).
+              </div>
+            </div>
+          )}
+
 
           {tipo === "credito" && (
             <>
