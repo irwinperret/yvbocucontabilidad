@@ -1285,6 +1285,7 @@ function CierreForm() {
                     <th>Proveedor</th>
                     <th>N° fact.</th>
                     <th className="text-right">Monto Bs</th>
+                    <th className="text-right">USD (paralela)</th>
                     <th className="text-right">Tasa</th>
                     <th className="text-center">Estado</th>
                     <th></th>
@@ -1293,12 +1294,16 @@ function CierreForm() {
                 <tbody>
                   {(compras ?? []).map((c: any) => {
                     const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
+                    const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+                    const tp = paralelaByFecha.get(c.fecha) ?? paralelaPromedio;
+                    const usdPar = tp ? base / tp : null;
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
                         <td>{prov?.razon_social ?? "—"}</td>
                         <td>{c.numero_factura ?? "—"}</td>
                         <td className="text-right mono">{fmtBs(Number(c.monto_bs))}</td>
+                        <td className="text-right mono">{usdPar != null ? fmtUsd(usdPar) : "—"}</td>
                         <td className="text-right mono">{c.tasa_bcv ? Number(c.tasa_bcv).toFixed(2) : "—"}</td>
                         <td className="text-center">{c.pagada ? <span className="text-green-700">Pagada</span> : <span className="text-orange-700">CxP</span>}</td>
                         <td>
@@ -1312,6 +1317,7 @@ function CierreForm() {
                   <tr className="border-t font-semibold">
                     <td colSpan={3} className="py-2">Total compras del período</td>
                     <td className="text-right mono">{fmtBs(totalCompras)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasUsdParalela)}</td>
                     <td colSpan={3}></td>
                   </tr>
                 </tfoot>
