@@ -103,14 +103,10 @@ export function DashboardCharts() {
     });
   }, [data]);
 
-
-  const mesHoy = new Date().getMonth() + 1;
-  const esAnioActual = anio === anioActual;
-  const ytdUtilidad = dataConAcumulado.filter((d) => !esAnioActual || d.mesNum <= mesHoy).reduce((s, d) => s + d.utilidad, 0);
-  const ytdFlujo = dataConAcumulado.filter((d) => !esAnioActual || d.mesNum <= mesHoy).reduce((s, d) => s + d.flujoNeto, 0);
-  const efectivoActual = esAnioActual
-    ? dataConAcumulado[mesHoy - 1]?.efectivo ?? 0
-    : dataConAcumulado[11]?.efectivo ?? 0;
+  const ytdCapex = dataConAcumulado.filter((d) => !esAnioActual || d.mesNum <= mesHoy).reduce((s, d) => s + d.capex, 0);
+  const idxHoy = esAnioActual ? mesHoy - 1 : 11;
+  const capexAcumActual = dataConAcumulado[idxHoy]?.capexAcum ?? 0;
+  const utilidadAcumActual = dataConAcumulado[idxHoy]?.utilidadAcum ?? 0;
 
   return (
     <div className="space-y-4">
