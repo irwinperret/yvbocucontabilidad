@@ -258,7 +258,91 @@ function VentasForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    // ====== Rama especial: Ajuste off-balance ======
+    if (tipo === "ajuste_off") {
+      if (!facturaTx) return toast.error("Busca primero la factura origen");
+      if (montoOffUsdN <= 0) return toast.error("Indica el monto off-balance a registrar ($)");
+      if (bonoUsdN < 0) return toast.error("El bono no puede ser negativo");
+      if (!tasaOffN) return toast.error("Falta la tasa para convertir el monto");
+      setBusy(true);
+      try {
+        const fechaOff = facturaTx.fecha || fecha;
+        const centroOff = (facturaTx.centro_costo as Centro) || centro;
+        const montoOffBs = montoOffUsdN * tasaOffN;
+        const bonoBs = bonoUsdN * tasaOffN;
+        const refFactura = facturaTx.numero_factura || facturaTx.numero_orden || "";
+        const cuentaOffVenta = cuentaVenta(centroOff, "contado");
+
+        // 1) Insert venta off-balance
+        const { data: txVenta, error: e1 } = await supabase.from("transacciones").insert({
+          fecha: fechaOff,
+          cuenta_codigo: cuentaOffVenta,
+          centro_costo: centroOff as any,
+          monto_bs: montoOffBs, monto_base_bs: montoOffBs, iva_bs: 0,
+          iva_aplica: false, tipo_iva: null,
+          tasa_bcv: Number(facturaTx.tasa_bcv) || tasaBcvN || tasaOffN,
+          tasa_paralela: Number(facturaTx.tasa_paralela) || tasaParalelaN || tasaOffN,
+          monto_usd: montoOffUsdN,
+          metodo_pago: "efectivo_usd" as any,
+          referencia: null,
+          numero_factura: facturaTx.numero_factura || null,
+          numero_orden: facturaTx.numero_orden || null,
+          notas: `Ajuste off-balance de factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}${notas ? ` · ${notas}` : ""}`,
+          modo: "off_balance" as any,
+          created_by: user.id,
+        } as any).select().single();
+        if (e1 || !txVenta) throw new Error(e1?.message ?? "No se pudo registrar la venta off-balance");
+        await logAudit("transacciones", "INSERT", txVenta.id, null, txVenta);
+
+        // 2) Insert costo (bono 10%) off-balance — sólo si hay monto
+        let txBono: any = null;
+        if (bonoUsdN > 0) {
+          const { data: txB, error: e2 } = await supabase.from("transacciones").insert({
+            fecha: fechaOff,
+            cuenta_codigo: cuentaBonoOff,
+            centro_costo: centroOff as any,
+            monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
+            iva_aplica: false, tipo_iva: null,
+            tasa_bcv: Number(facturaTx.tasa_bcv) || tasaBcvN || tasaOffN,
+            tasa_paralela: Number(facturaTx.tasa_paralela) || tasaParalelaN || tasaOffN,
+            monto_usd: bonoUsdN,
+            metodo_pago: "efectivo_usd" as any,
+            referencia: null,
+            numero_factura: facturaTx.numero_factura || null,
+            numero_orden: facturaTx.numero_orden || null,
+            notas: `Bono ${centroOff} (off-balance) por factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}`,
+            modo: "off_balance" as any,
+            pareja_off_balance_id: txVenta.id,
+            created_by: user.id,
+          } as any).select().single();
+          if (e2 || !txB) {
+            // Rollback de la venta para no dejar huérfanos
+            await supabase.from("transacciones").delete().eq("id", txVenta.id);
+            throw new Error(e2?.message ?? "No se pudo registrar el bono off-balance");
+          }
+          txBono = txB;
+          await logAudit("transacciones", "INSERT", txBono.id, null, txBono);
+          // Enlace de vuelta venta → bono
+          await supabase.from("transacciones").update({ pareja_off_balance_id: txBono.id } as any).eq("id", txVenta.id);
+        }
+
+        toast.success(bonoUsdN > 0
+          ? `Ajuste off-balance registrado · venta ${fmtUsd(montoOffUsdN)} + bono ${fmtUsd(bonoUsdN)}`
+          : `Ajuste off-balance registrado · venta ${fmtUsd(montoOffUsdN)}`);
+        qc.invalidateQueries();
+        setFacturaQuery(""); setFacturaTx(null); setFacturaCliente("");
+        setMontoOffUsd(""); setBonoUsd(""); setBonoTouched(false); setNotas("");
+      } catch (err: any) {
+        toast.error(err.message ?? "Error al registrar ajuste off-balance");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (!tasaN) return toast.error("Falta tasa BCV");
+
     if (tipo === "credito" && !cliente) return toast.error("Indica el cliente");
     if (tipo === "cobro" && !cxcId) return toast.error("Selecciona la cuenta por cobrar a cancelar");
     if (tipo === "cobro" && usdCobrado > pendienteUsdCxc + 0.01) return toast.error(`El cobro no puede exceder el saldo pendiente (${fmtUsd(pendienteUsdCxc)})`);
