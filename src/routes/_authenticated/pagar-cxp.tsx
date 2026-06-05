@@ -163,7 +163,7 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
       cuenta_codigo: txOrig?.cuenta_codigo ?? "9.1",
       centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
       monto_bs: total, monto_base_bs: total, iva_bs: 0,
-      tasa_bcv: tasaN, monto_usd: usd,
+      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usd,
       metodo_pago: metodo as any,
       referencia: ref || null,
       notas: `Pago CxP — ${cxp.proveedor} · Fact ${cxp.numero_factura}${notas ? " · " + notas : ""}`,
