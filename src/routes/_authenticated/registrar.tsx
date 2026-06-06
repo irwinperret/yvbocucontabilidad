@@ -1208,7 +1208,7 @@ function FinanciamientoForm() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="BS">Bolívares (Bs)</SelectItem>
-                <SelectItem value="USD">Dólares (USD) — se contabiliza a tasa paralela</SelectItem>
+                <SelectItem value="USD">Dólares (USD)</SelectItem>
               </SelectContent>
             </Select>
           </div>
