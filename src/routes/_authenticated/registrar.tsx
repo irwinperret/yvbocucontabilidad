@@ -1083,9 +1083,10 @@ function FinanciamientoForm() {
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [tipo, setTipo] = useState<keyof typeof FINANCIAMIENTO | "pago_cuota">("prestamo_recibido");
-  const [montoBs, setMontoBs] = useState("");
-  const [capitalBs, setCapitalBs] = useState("");
-  const [interesesBs, setInteresesBs] = useState("");
+  const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
+  const [montoInput, setMontoInput] = useState("");
+  const [capitalInput, setCapitalInput] = useState("");
+  const [interesesInput, setInteresesInput] = useState("");
   const [tasa, setTasa] = useState("");
   const [detalle, setDetalle] = useState("");
   const [plazo, setPlazo] = useState("");
@@ -1102,6 +1103,22 @@ function FinanciamientoForm() {
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaConvN = tasaParalelaN || tasaN;
   const muestraBanco = tipo !== "depreciacion";
+
+  // Conversión según moneda de entrada (USD → Bs a tasa paralela)
+  const toBs = (v: string) => {
+    const n = Number(v) || 0;
+    return moneda === "USD" ? n * tasaConvN : n;
+  };
+  const toUsd = (v: string) => {
+    const n = Number(v) || 0;
+    return moneda === "USD" ? n : (tasaConvN ? n / tasaConvN : 0);
+  };
+
+  const montoBsCalc = toBs(montoInput);
+  const montoUsdCalc = toUsd(montoInput);
+  const capitalBsCalc = toBs(capitalInput);
+  const interesesBsCalc = toBs(interesesInput);
+
   const baseInsert = (cuenta: string, bs: number) => ({
     fecha, cuenta_codigo: cuenta, centro_costo: "Compartido" as any,
     monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
@@ -1120,8 +1137,8 @@ function FinanciamientoForm() {
     setBusy(true);
     try {
       if (tipo === "pago_cuota") {
-        const cap = Number(capitalBs) || 0;
-        const int = Number(interesesBs) || 0;
+        const cap = capitalBsCalc;
+        const int = interesesBsCalc;
         if (!cap && !int) throw new Error("Indica capital o intereses");
         if (cap) {
           const { data: t1 } = await supabase.from("transacciones").insert(baseInsert("10.2", cap) as any).select().single();
@@ -1133,7 +1150,7 @@ function FinanciamientoForm() {
         }
       } else {
         const cfg = FINANCIAMIENTO[tipo];
-        const bs = Number(montoBs) || 0;
+        const bs = montoBsCalc;
         const { data: tx, error } = await supabase.from("transacciones").insert(baseInsert(cfg.codigo, bs) as any).select().single();
         if (error) throw error;
         if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
@@ -1148,13 +1165,14 @@ function FinanciamientoForm() {
       }
       toast.success("Movimiento registrado");
       qc.invalidateQueries();
-      setMontoBs(""); setCapitalBs(""); setInteresesBs(""); setDetalle(""); setNotas(""); setPlazo(""); setVidaUtil("");
+      setMontoInput(""); setCapitalInput(""); setInteresesInput(""); setDetalle(""); setNotas(""); setPlazo(""); setVidaUtil("");
     } catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   };
 
   const cfg = tipo === "pago_cuota" ? null : FINANCIAMIENTO[tipo];
-  const totalCuota = (Number(capitalBs) || 0) + (Number(interesesBs) || 0);
+  const totalCuotaBs = capitalBsCalc + interesesBsCalc;
+  const sufijo = moneda === "USD" ? "$" : "Bs";
 
   return (
     <Card>
@@ -1183,16 +1201,27 @@ function FinanciamientoForm() {
               <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
             </div>
           )}
+
+          <div className="md:col-span-2">
+            <Label>Moneda de registro</Label>
+            <Select value={moneda} onValueChange={(v: any) => setMoneda(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="BS">Bolívares (Bs)</SelectItem>
+                <SelectItem value="USD">Dólares (USD) — se contabiliza a tasa paralela</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {tipo === "pago_cuota" ? (
             <>
-              <div><Label>Capital Bs (10.2 → FC)</Label><Input type="number" step="0.01" value={capitalBs} onChange={(e) => setCapitalBs(e.target.value)} className="mono" /></div>
-              <div><Label>Intereses Bs (10.3 → G&P)</Label><Input type="number" step="0.01" value={interesesBs} onChange={(e) => setInteresesBs(e.target.value)} className="mono" /></div>
+              <div><Label>Capital {sufijo} (10.2 → FC)</Label><Input type="number" step="0.01" value={capitalInput} onChange={(e) => setCapitalInput(e.target.value)} className="mono" /></div>
+              <div><Label>Intereses {sufijo} (10.3 → G&P)</Label><Input type="number" step="0.01" value={interesesInput} onChange={(e) => setInteresesInput(e.target.value)} className="mono" /></div>
               <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-              <div className="md:col-span-2 rounded-md bg-muted p-3 text-sm">
-                <div className="flex justify-between"><span>Total cuota:</span><span className="mono font-semibold">{fmtBs(totalCuota)}</span></div>
-                <div className="flex justify-between"><span>Capital USD:</span><span className="mono">{fmtUsd(tasaConvN ? Number(capitalBs)/tasaConvN : 0)}</span></div>
-                <div className="flex justify-between"><span>Intereses USD:</span><span className="mono">{fmtUsd(tasaConvN ? Number(interesesBs)/tasaConvN : 0)}</span></div>
-
+              <div className="md:col-span-2 rounded-md bg-muted p-3 text-sm space-y-1">
+                <div className="flex justify-between"><span>Total cuota Bs:</span><span className="mono font-semibold">{fmtBs(totalCuotaBs)}</span></div>
+                <div className="flex justify-between"><span>Capital USD:</span><span className="mono">{fmtUsd(toUsd(capitalInput))}</span></div>
+                <div className="flex justify-between"><span>Intereses USD:</span><span className="mono">{fmtUsd(toUsd(interesesInput))}</span></div>
               </div>
             </>
           ) : (
@@ -1204,11 +1233,11 @@ function FinanciamientoForm() {
               {tipo === "capex" && (
                 <div><Label>Vida útil (meses)</Label><Input type="number" value={vidaUtil} onChange={(e) => setVidaUtil(e.target.value)} /></div>
               )}
-              <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
+              <div><Label>Monto {sufijo}</Label><Input type="number" step="0.01" value={montoInput} onChange={(e) => setMontoInput(e.target.value)} required className="mono" /></div>
               <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
               <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-                <span className="text-sm text-muted-foreground">USD</span>
-                <span className="text-lg font-bold mono">{fmtUsd(tasaConvN ? Number(montoBs)/tasaConvN : 0)}</span>
+                <span className="text-sm text-muted-foreground">{moneda === "USD" ? "Equivalente Bs" : "Equivalente USD"}</span>
+                <span className="text-lg font-bold mono">{moneda === "USD" ? fmtBs(montoBsCalc) : fmtUsd(montoUsdCalc)}</span>
               </div>
               {tipo === "capex" && <div className="md:col-span-2 text-xs text-muted-foreground">La depreciación se registra mensualmente por separado (10.7).</div>}
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
@@ -1223,6 +1252,7 @@ function FinanciamientoForm() {
     </Card>
   );
 }
+
 
 /* ---------------- CIERRE DE MES ---------------- */
 function CierreForm() {
