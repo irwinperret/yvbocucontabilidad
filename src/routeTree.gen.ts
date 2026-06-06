@@ -31,6 +31,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
+import { Route as AuthenticatedCapexRouteImport } from './routes/_authenticated/capex'
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
@@ -151,6 +152,11 @@ const AuthenticatedCuentasBancariasRoute =
     path: '/cuentas-bancarias',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCapexRoute = AuthenticatedCapexRouteImport.update({
+  id: '/capex',
+  path: '/capex',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiPublicHooksSyncParalelaRoute =
   ApiPublicHooksSyncParalelaRouteImport.update({
     id: '/api/public/hooks/sync-paralela',
@@ -166,6 +172,7 @@ const ApiPublicHooksSyncBcvRoute = ApiPublicHooksSyncBcvRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/capex': typeof AuthenticatedCapexRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
@@ -191,6 +198,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/capex': typeof AuthenticatedCapexRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
@@ -218,6 +226,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/capex': typeof AuthenticatedCapexRoute
   '/_authenticated/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/_authenticated/cxc': typeof AuthenticatedCxcRoute
   '/_authenticated/cxp': typeof AuthenticatedCxpRoute
@@ -245,6 +254,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/capex'
     | '/cuentas-bancarias'
     | '/cxc'
     | '/cxp'
@@ -270,6 +280,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/capex'
     | '/cuentas-bancarias'
     | '/cxc'
     | '/cxp'
@@ -296,6 +307,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/capex'
     | '/_authenticated/cuentas-bancarias'
     | '/_authenticated/cxc'
     | '/_authenticated/cxp'
@@ -483,6 +495,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCuentasBancariasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/capex': {
+      id: '/_authenticated/capex'
+      path: '/capex'
+      fullPath: '/capex'
+      preLoaderRoute: typeof AuthenticatedCapexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/sync-paralela': {
       id: '/api/public/hooks/sync-paralela'
       path: '/api/public/hooks/sync-paralela'
@@ -501,6 +520,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedCapexRoute: typeof AuthenticatedCapexRoute
   AuthenticatedCuentasBancariasRoute: typeof AuthenticatedCuentasBancariasRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRoute
   AuthenticatedCxpRoute: typeof AuthenticatedCxpRoute
@@ -523,6 +543,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedCapexRoute: AuthenticatedCapexRoute,
   AuthenticatedCuentasBancariasRoute: AuthenticatedCuentasBancariasRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRoute,
   AuthenticatedCxpRoute: AuthenticatedCxpRoute,

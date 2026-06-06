@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Home, PlusCircle, DollarSign, FileText, TrendingUp, Users, FileInput, FileOutput,
-  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark, ListChecks, ArrowLeftRight, Wallet, Upload,
+  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark, ListChecks, ArrowLeftRight, Wallet, Upload, Building2,
 
 } from "lucide-react";
 import {
@@ -40,6 +40,7 @@ const analisisDetalles = [
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
   { title: "CxC pendientes", url: "/cxc", icon: FileInput },
   { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
+  { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
