@@ -1097,7 +1097,7 @@ function FinanciamientoForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
 
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
@@ -1208,7 +1208,7 @@ function FinanciamientoForm() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="BS">Bolívares (Bs)</SelectItem>
-                <SelectItem value="USD">Dólares (USD) — se contabiliza a tasa paralela</SelectItem>
+                <SelectItem value="USD">Dólares (USD)</SelectItem>
               </SelectContent>
             </Select>
           </div>
