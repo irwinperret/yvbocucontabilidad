@@ -633,6 +633,7 @@ function GastosForm() {
   const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
   const [tasa, setTasa] = useState("");
+  const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
   const [metodo, setMetodo] = useState("transferencia");
   const [pendiente, setPendiente] = useState(false);
   const [fechaVenc, setFechaVenc] = useState("");
@@ -644,16 +645,19 @@ function GastosForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
-  const total = Number(montoTotal) || 0;
-  const base = ivaAplica ? total / 1.16 : total;
-  const iva = ivaAplica ? total - base : 0;
+  const esUSD = moneda === "USD";
+  const totalInput = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
-  // Conversión Bs→USD SIEMPRE a tasa paralela (BCV solo se usa para fijar precios fuera del sistema).
+  // Conversión Bs↔USD SIEMPRE a tasa paralela (BCV solo se usa para fijar precios fuera del sistema).
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaConvN = tasaParalelaN || tasaN;
-  const baseUsd = tasaConvN ? base / tasaConvN : 0;
+  const total = esUSD ? totalInput * tasaConvN : totalInput;
+  const base = ivaAplica ? total / 1.16 : total;
+  const iva = ivaAplica ? total - base : 0;
+  const totalUsd = esUSD ? totalInput : (tasaConvN ? totalInput / tasaConvN : 0);
+  const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
 
   const cuentaSel = (cuentas ?? []).find((c: any) => c.codigo === cuenta);
 
