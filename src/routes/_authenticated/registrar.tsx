@@ -1580,15 +1580,22 @@ function CierreForm() {
               </div>
             ) : null}
             <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <Label className="text-xs">Moneda de registro</Label>
+              <div className="inline-flex rounded-lg border p-1">
+                <button type="button" onClick={() => setCompraMoneda("BS")} className={`px-3 py-1 text-xs rounded-md ${!esCompraUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Bolívares (Bs)</button>
+                <button type="button" onClick={() => setCompraMoneda("USD")} className={`px-3 py-1 text-xs rounded-md ${esCompraUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Dólares (USD)</button>
+              </div>
+            </div>
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
               <Label className="text-xs">¿Factura con IVA 16%?</Label>
               <Switch checked={compraIvaAplica} onCheckedChange={setCompraIvaAplica} />
             </div>
             <div>
-              <Label className="text-xs">{compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+              <Label className="text-xs">{esCompraUSD ? (compraIvaAplica ? "Monto total USD (IVA incluido)" : "Monto USD") : (compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
               <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
             </div>
             <div>
-              <Label className="text-xs">Costo a inventario (base)</Label>
+              <Label className="text-xs">Costo a inventario (base Bs)</Label>
               <Input value={fmtBs(compraBase)} disabled className="mono bg-muted/50" />
             </div>
             {compraIvaAplica && (
