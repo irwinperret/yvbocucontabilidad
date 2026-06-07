@@ -1296,7 +1296,7 @@ function CierreForm() {
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
   const { data: paralelaCompraSug } = useParalelaForDate(compraFecha);
-  useEffect(() => { if (paralelaCompraSug && !compraTasa) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug]);
+  useEffect(() => { if (paralelaCompraSug) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug?.tasa]);
 
 
   const { data: compras } = useQuery({
