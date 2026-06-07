@@ -26,11 +26,28 @@ export const Route = createFileRoute("/_authenticated/transacciones")({
 
 function TransaccionesPage() {
   const qc = useQueryClient();
-  const [desde, setDesde] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
-  });
+  const [desde, setDesde] = useState<string>("");
   const [hasta, setHasta] = useState(todayISO());
+
+  useQuery({
+    queryKey: ["transacciones-min-fecha"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("fecha")
+        .order("fecha", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const f = (data as any)?.fecha ?? null;
+      if (f && !desde) setDesde(f);
+      else if (!desde) {
+        const d = new Date(); d.setDate(d.getDate() - 30);
+        setDesde(d.toISOString().slice(0, 10));
+      }
+      return f;
+    },
+    staleTime: Infinity,
+  });
   const [centro, setCentro] = useState<string>("todos");
   const [busca, setBusca] = useState("");
   const [editing, setEditing] = useState<any>(null);
@@ -40,6 +57,7 @@ function TransaccionesPage() {
   const [exporting, setExporting] = useState(false);
 
   const { data, isLoading } = useQuery({
+    enabled: !!desde,
     queryKey: ["transacciones-list", desde, hasta, centro],
     queryFn: async () => {
       let q = supabase
