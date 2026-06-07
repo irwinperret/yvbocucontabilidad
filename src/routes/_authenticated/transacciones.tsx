@@ -57,6 +57,7 @@ function TransaccionesPage() {
   const [exporting, setExporting] = useState(false);
 
   const { data, isLoading } = useQuery({
+    enabled: !!desde,
     queryKey: ["transacciones-list", desde, hasta, centro],
     queryFn: async () => {
       let q = supabase
