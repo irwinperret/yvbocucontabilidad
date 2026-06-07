@@ -1009,7 +1009,7 @@ function OpsIvaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
