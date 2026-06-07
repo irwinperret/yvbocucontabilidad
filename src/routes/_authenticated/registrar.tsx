@@ -1401,14 +1401,17 @@ function CierreForm() {
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    const monto = Number(compraMonto) || 0;
+    const input = Number(compraMonto) || 0;
     const tasaN = Number(compraTasa) || 0;
-    if (!monto) return toast.error("Monto requerido");
+    if (!input) return toast.error("Monto requerido");
     if (!tasaN) return toast.error("Tasa requerida");
     if (!compraTerceroId) return toast.error("Selecciona proveedor");
     if (!compraNumFactura) return toast.error("N° factura requerido");
     if (!compraOffBalance && compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
+
+    const montoBs = esCompraUSD ? input * tasaN : input;
+    const montoUsd = esCompraUSD ? input : (tasaN ? input / tasaN : 0);
 
     // Evitar facturas duplicadas (mismo proveedor + mismo N° factura), incluso en otros meses
     const { data: dup } = await supabase
@@ -1433,8 +1436,8 @@ function CierreForm() {
         numero_factura: compraNumFactura,
         tercero_id: compraTerceroId,
         centro_costo: "Compartido" as any,
-        monto_bs: monto, monto_usd: ((): number => { const tp = paralelaByFecha.get(compraFecha) || paralelaPromedio || tasaN; return tp ? monto / tp : 0; })(),
-        monto_pendiente_bs: monto,
+        monto_bs: montoBs, monto_usd: montoUsd,
+        monto_pendiente_bs: montoBs,
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
       } as any).select().single();
@@ -1443,7 +1446,7 @@ function CierreForm() {
     }
 
     const { error } = await supabase.from("inventario_snapshots").insert({
-      periodo, tipo: "compra", monto_bs: monto,
+      periodo, tipo: "compra", monto_bs: montoBs,
       monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
       modo: compraOffBalance ? "off_balance" : "on_balance",
       fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
