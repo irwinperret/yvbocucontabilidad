@@ -797,8 +797,15 @@ function GastosForm() {
             <Label>¿Factura con IVA 16%?</Label>
             <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
           </div>
+          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+            <Label>Moneda de registro</Label>
+            <div className="inline-flex rounded-lg border p-1">
+              <button type="button" onClick={() => setMoneda("BS")} className={`px-3 py-1 text-xs rounded-md ${!esUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Bolívares (Bs)</button>
+              <button type="button" onClick={() => setMoneda("USD")} className={`px-3 py-1 text-xs rounded-md ${esUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Dólares (USD)</button>
+            </div>
+          </div>
           <div>
-            <Label>{ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+            <Label>{esUSD ? (ivaAplica ? "Monto total USD (IVA incluido)" : "Monto USD") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
           <div>
@@ -812,8 +819,8 @@ function GastosForm() {
             </div>
           )}
           <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">G&P: base USD</span>
-            <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
+            <span className="text-sm text-muted-foreground">Equivalente · Total {fmtBs(total)}</span>
+            <span className="text-lg font-bold mono">G&P base: {fmtUsd(baseUsd)}</span>
           </div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
