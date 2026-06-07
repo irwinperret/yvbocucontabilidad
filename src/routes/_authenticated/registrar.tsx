@@ -633,6 +633,7 @@ function GastosForm() {
   const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
   const [tasa, setTasa] = useState("");
+  const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
   const [metodo, setMetodo] = useState("transferencia");
   const [pendiente, setPendiente] = useState(false);
   const [fechaVenc, setFechaVenc] = useState("");
@@ -644,16 +645,19 @@ function GastosForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
-  const total = Number(montoTotal) || 0;
-  const base = ivaAplica ? total / 1.16 : total;
-  const iva = ivaAplica ? total - base : 0;
+  const esUSD = moneda === "USD";
+  const totalInput = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
-  // Conversión Bs→USD SIEMPRE a tasa paralela (BCV solo se usa para fijar precios fuera del sistema).
+  // Conversión Bs↔USD SIEMPRE a tasa paralela (BCV solo se usa para fijar precios fuera del sistema).
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaConvN = tasaParalelaN || tasaN;
-  const baseUsd = tasaConvN ? base / tasaConvN : 0;
+  const total = esUSD ? totalInput * tasaConvN : totalInput;
+  const base = ivaAplica ? total / 1.16 : total;
+  const iva = ivaAplica ? total - base : 0;
+  const totalUsd = esUSD ? totalInput : (tasaConvN ? totalInput / tasaConvN : 0);
+  const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
 
   const cuentaSel = (cuentas ?? []).find((c: any) => c.codigo === cuenta);
 
@@ -793,8 +797,15 @@ function GastosForm() {
             <Label>¿Factura con IVA 16%?</Label>
             <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
           </div>
+          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+            <Label>Moneda de registro</Label>
+            <div className="inline-flex rounded-lg border p-1">
+              <button type="button" onClick={() => setMoneda("BS")} className={`px-3 py-1 text-xs rounded-md ${!esUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Bolívares (Bs)</button>
+              <button type="button" onClick={() => setMoneda("USD")} className={`px-3 py-1 text-xs rounded-md ${esUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Dólares (USD)</button>
+            </div>
+          </div>
           <div>
-            <Label>{ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+            <Label>{esUSD ? (ivaAplica ? "Monto total USD (IVA incluido)" : "Monto USD") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
           <div>
@@ -808,8 +819,8 @@ function GastosForm() {
             </div>
           )}
           <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">G&P: base USD</span>
-            <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
+            <span className="text-sm text-muted-foreground">Equivalente · Total {fmtBs(total)}</span>
+            <span className="text-lg font-bold mono">G&P base: {fmtUsd(baseUsd)}</span>
           </div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
@@ -847,7 +858,7 @@ function NominaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
   const tasaN = Number(tasa) || 0;
   // Conversión Bs→USD a tasa paralela
@@ -998,7 +1009,7 @@ function OpsIvaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida && !tasa) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
@@ -1271,6 +1282,7 @@ function CierreForm() {
   const [compraTerceroId, setCompraTerceroId] = useState("");
   const [compraNumFactura, setCompraNumFactura] = useState("");
   const [compraMonto, setCompraMonto] = useState("");
+  const [compraMoneda, setCompraMoneda] = useState<"BS" | "USD">("BS");
   const [compraIvaAplica, setCompraIvaAplica] = useState(true);
   const [compraOffBalance, setCompraOffBalance] = useState(false);
   const [compraPagada, setCompraPagada] = useState(true);
@@ -1279,13 +1291,16 @@ function CierreForm() {
   const [compraNotas, setCompraNotas] = useState("");
   const [compraBusy, setCompraBusy] = useState(false);
 
-  const compraTotal = Number(compraMonto) || 0;
+  const esCompraUSD = compraMoneda === "USD";
+  const compraInput = Number(compraMonto) || 0;
+  const compraTasaN = Number(compraTasa) || 0;
+  const compraTotal = esCompraUSD ? compraInput * compraTasaN : compraInput;
   const compraBase = compraIvaAplica ? compraTotal / 1.16 : compraTotal;
   const compraIva = compraIvaAplica ? compraTotal - compraBase : 0;
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
   const { data: paralelaCompraSug } = useParalelaForDate(compraFecha);
-  useEffect(() => { if (paralelaCompraSug && !compraTasa) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug]);
+  useEffect(() => { if (paralelaCompraSug) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug?.tasa]);
 
 
   const { data: compras } = useQuery({
@@ -1386,14 +1401,17 @@ function CierreForm() {
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    const monto = Number(compraMonto) || 0;
+    const input = Number(compraMonto) || 0;
     const tasaN = Number(compraTasa) || 0;
-    if (!monto) return toast.error("Monto requerido");
+    if (!input) return toast.error("Monto requerido");
     if (!tasaN) return toast.error("Tasa requerida");
     if (!compraTerceroId) return toast.error("Selecciona proveedor");
     if (!compraNumFactura) return toast.error("N° factura requerido");
     if (!compraOffBalance && compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
+
+    const montoBs = esCompraUSD ? input * tasaN : input;
+    const montoUsd = esCompraUSD ? input : (tasaN ? input / tasaN : 0);
 
     // Evitar facturas duplicadas (mismo proveedor + mismo N° factura), incluso en otros meses
     const { data: dup } = await supabase
@@ -1418,8 +1436,8 @@ function CierreForm() {
         numero_factura: compraNumFactura,
         tercero_id: compraTerceroId,
         centro_costo: "Compartido" as any,
-        monto_bs: monto, monto_usd: ((): number => { const tp = paralelaByFecha.get(compraFecha) || paralelaPromedio || tasaN; return tp ? monto / tp : 0; })(),
-        monto_pendiente_bs: monto,
+        monto_bs: montoBs, monto_usd: montoUsd,
+        monto_pendiente_bs: montoBs,
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
       } as any).select().single();
@@ -1428,7 +1446,7 @@ function CierreForm() {
     }
 
     const { error } = await supabase.from("inventario_snapshots").insert({
-      periodo, tipo: "compra", monto_bs: monto,
+      periodo, tipo: "compra", monto_bs: montoBs,
       monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
       modo: compraOffBalance ? "off_balance" : "on_balance",
       fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
@@ -1562,15 +1580,22 @@ function CierreForm() {
               </div>
             ) : null}
             <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <Label className="text-xs">Moneda de registro</Label>
+              <div className="inline-flex rounded-lg border p-1">
+                <button type="button" onClick={() => setCompraMoneda("BS")} className={`px-3 py-1 text-xs rounded-md ${!esCompraUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Bolívares (Bs)</button>
+                <button type="button" onClick={() => setCompraMoneda("USD")} className={`px-3 py-1 text-xs rounded-md ${esCompraUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Dólares (USD)</button>
+              </div>
+            </div>
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
               <Label className="text-xs">¿Factura con IVA 16%?</Label>
               <Switch checked={compraIvaAplica} onCheckedChange={setCompraIvaAplica} />
             </div>
             <div>
-              <Label className="text-xs">{compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"}</Label>
+              <Label className="text-xs">{esCompraUSD ? (compraIvaAplica ? "Monto total USD (IVA incluido)" : "Monto USD") : (compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
               <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
             </div>
             <div>
-              <Label className="text-xs">Costo a inventario (base)</Label>
+              <Label className="text-xs">Costo a inventario (base Bs)</Label>
               <Input value={fmtBs(compraBase)} disabled className="mono bg-muted/50" />
             </div>
             {compraIvaAplica && (
