@@ -1282,6 +1282,7 @@ function CierreForm() {
   const [compraTerceroId, setCompraTerceroId] = useState("");
   const [compraNumFactura, setCompraNumFactura] = useState("");
   const [compraMonto, setCompraMonto] = useState("");
+  const [compraMoneda, setCompraMoneda] = useState<"BS" | "USD">("BS");
   const [compraIvaAplica, setCompraIvaAplica] = useState(true);
   const [compraOffBalance, setCompraOffBalance] = useState(false);
   const [compraPagada, setCompraPagada] = useState(true);
@@ -1290,7 +1291,10 @@ function CierreForm() {
   const [compraNotas, setCompraNotas] = useState("");
   const [compraBusy, setCompraBusy] = useState(false);
 
-  const compraTotal = Number(compraMonto) || 0;
+  const esCompraUSD = compraMoneda === "USD";
+  const compraInput = Number(compraMonto) || 0;
+  const compraTasaN = Number(compraTasa) || 0;
+  const compraTotal = esCompraUSD ? compraInput * compraTasaN : compraInput;
   const compraBase = compraIvaAplica ? compraTotal / 1.16 : compraTotal;
   const compraIva = compraIvaAplica ? compraTotal - compraBase : 0;
 
