@@ -409,14 +409,14 @@ function ImportarVentasPage() {
     <div className="space-y-6 max-w-6xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Importar ventas (Xetux)</h1>
-        <p className="text-sm text-muted-foreground">Sube el reporte de ventas .xlsx exportado desde Xetux. Los montos se interpretan en USD y se convierten a Bs usando la tasa BCV de la fecha de cada factura.</p>
+        <p className="text-sm text-muted-foreground">Sube el reporte de ventas exportado desde Xetux (.xlsx o .xls de Excel 97–2003). Los montos se interpretan en USD y se convierten a Bs usando la tasa BCV de la fecha de cada factura.</p>
       </div>
 
       <Card>
         <CardHeader><CardTitle className="text-base">1. Archivo</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <Label>Reporte Xetux (.xlsx)</Label>
-          <Input type="file" accept=".xlsx" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
+          <Label>Reporte Xetux (.xlsx / .xls)</Label>
+          <Input type="file" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
           {fileName && <div className="text-xs text-muted-foreground mt-1">{fileName}</div>}
           <div className="text-xs text-muted-foreground space-y-1 mt-1">
             <div>El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt; 11000 → Bocú</span>, <span className="font-mono">≤ 11000 → YV</span>.</div>
