@@ -24,6 +24,7 @@ import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedOffBalanceRouteImport } from './routes/_authenticated/off-balance'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedImportarVentasRouteImport } from './routes/_authenticated/importar-ventas'
+import { Route as AuthenticatedImportarComprasRouteImport } from './routes/_authenticated/importar-compras'
 import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
 import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
 import { Route as AuthenticatedDiferencialCambiarioRouteImport } from './routes/_authenticated/diferencial-cambiario'
@@ -115,6 +116,12 @@ const AuthenticatedImportarVentasRoute =
     path: '/importar-ventas',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedImportarComprasRoute =
+  AuthenticatedImportarComprasRouteImport.update({
+    id: '/importar-compras',
+    path: '/importar-compras',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedGypRoute = AuthenticatedGypRouteImport.update({
   id: '/gyp',
   path: '/gyp',
@@ -180,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
+  '/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
@@ -206,6 +214,7 @@ export interface FileRoutesByTo {
   '/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
+  '/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
@@ -234,6 +243,7 @@ export interface FileRoutesById {
   '/_authenticated/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/_authenticated/fc': typeof AuthenticatedFcRoute
   '/_authenticated/gyp': typeof AuthenticatedGypRoute
+  '/_authenticated/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/_authenticated/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/off-balance': typeof AuthenticatedOffBalanceRoute
@@ -262,6 +272,7 @@ export interface FileRouteTypes {
     | '/diferencial-cambiario'
     | '/fc'
     | '/gyp'
+    | '/importar-compras'
     | '/importar-ventas'
     | '/inicio'
     | '/off-balance'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/diferencial-cambiario'
     | '/fc'
     | '/gyp'
+    | '/importar-compras'
     | '/importar-ventas'
     | '/inicio'
     | '/off-balance'
@@ -315,6 +327,7 @@ export interface FileRouteTypes {
     | '/_authenticated/diferencial-cambiario'
     | '/_authenticated/fc'
     | '/_authenticated/gyp'
+    | '/_authenticated/importar-compras'
     | '/_authenticated/importar-ventas'
     | '/_authenticated/inicio'
     | '/_authenticated/off-balance'
@@ -446,6 +459,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedImportarVentasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/importar-compras': {
+      id: '/_authenticated/importar-compras'
+      path: '/importar-compras'
+      fullPath: '/importar-compras'
+      preLoaderRoute: typeof AuthenticatedImportarComprasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/gyp': {
       id: '/_authenticated/gyp'
       path: '/gyp'
@@ -528,6 +548,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDiferencialCambiarioRoute: typeof AuthenticatedDiferencialCambiarioRoute
   AuthenticatedFcRoute: typeof AuthenticatedFcRoute
   AuthenticatedGypRoute: typeof AuthenticatedGypRoute
+  AuthenticatedImportarComprasRoute: typeof AuthenticatedImportarComprasRoute
   AuthenticatedImportarVentasRoute: typeof AuthenticatedImportarVentasRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedOffBalanceRoute: typeof AuthenticatedOffBalanceRoute
@@ -552,6 +573,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedDiferencialCambiarioRoute,
   AuthenticatedFcRoute: AuthenticatedFcRoute,
   AuthenticatedGypRoute: AuthenticatedGypRoute,
+  AuthenticatedImportarComprasRoute: AuthenticatedImportarComprasRoute,
   AuthenticatedImportarVentasRoute: AuthenticatedImportarVentasRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedOffBalanceRoute: AuthenticatedOffBalanceRoute,

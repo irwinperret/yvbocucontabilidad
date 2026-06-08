@@ -17,6 +17,7 @@ const registroDirectos = [
   { title: "Inicio", url: "/inicio", icon: Home },
   { title: "Registrar movimiento", url: "/registrar", icon: PlusCircle },
   { title: "Importar ventas (Xetux)", url: "/importar-ventas", icon: Upload },
+  { title: "Importar compras (Xetux)", url: "/importar-compras", icon: Upload },
 ];
 
 const registroGestion = [

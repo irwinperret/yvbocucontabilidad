@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import ExcelJS from "exceljs";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -13,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { METODOS, cuentaVenta, type Centro, type Metodo } from "@/lib/account-helpers";
 import { fmtUsd } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
+import { numFromCell, parseDateCell, readSheetAOA } from "@/lib/xetux-parse";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/importar-ventas")({
@@ -39,39 +39,6 @@ type ParsedRow = {
 };
 
 const norm = (s: any) => String(s ?? "").trim().toUpperCase();
-
-const MESES_ES: Record<string, string> = {
-  ene: "01", enero: "01",
-  feb: "02", febrero: "02",
-  mar: "03", marzo: "03",
-  abr: "04", abril: "04",
-  may: "05", mayo: "05",
-  jun: "06", junio: "06",
-  jul: "07", julio: "07",
-  ago: "08", agosto: "08",
-  sep: "09", sept: "09", septiembre: "09", set: "09",
-  oct: "10", octubre: "10",
-  nov: "11", noviembre: "11",
-  dic: "12", diciembre: "12",
-};
-
-function parseDateCell(v: any): string {
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
-  const s = String(v ?? "").trim();
-  if (!s) return "";
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const m = s.match(/^(\d{1,2})[\-\/\s]+([A-Za-zÁÉÍÓÚáéíóú\.]+)[\-\/\s]+(\d{2,4})/);
-  if (m) {
-    const dia = m[1].padStart(2, "0");
-    const mesRaw = m[2].toLowerCase().replace(/\./g, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const mes = MESES_ES[mesRaw];
-    let anio = m[3];
-    if (anio.length === 2) anio = "20" + anio;
-    if (mes) return `${anio}-${mes}-${dia}`;
-  }
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
-}
 
 function centroDeFactura(numero_factura: string): Centro {
   const n = parseInt(String(numero_factura).replace(/\D/g, ""), 10);
@@ -133,22 +100,21 @@ function ImportarVentasPage() {
   const onFile = async (file: File) => {
     setFileName(file.name);
     setRows([]);
-    const buf = await file.arrayBuffer();
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.worksheets[0];
-    if (!ws) return toast.error("El archivo no tiene hojas");
+    const aoa = await readSheetAOA(file);
+    if (!aoa.length) return toast.error("El archivo está vacío o no se pudo leer");
     const parsed: ParsedRow[] = [];
-    ws.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return;
-      const tipoRaw = String(row.getCell(2).value ?? "").trim(); // B
-      const numero_factura = String(row.getCell(3).value ?? "").trim(); // C
-      const numero_orden = String(row.getCell(6).value ?? "").trim();   // F
-      const totalRaw = Number(row.getCell(22).value ?? 0); // V "Total Venta"
-      const cliente = String(row.getCell(8).value ?? "").trim() || "Contado";
-      const iva = Number(row.getCell(18).value ?? 0); // R
-      const formaRaw = String(row.getCell(32).value ?? "").trim(); // AF
-      const fecha = parseDateCell(row.getCell(37).value); // AK
+    // Skip header row (index 0). Columns 0-indexed: B=1, C=2, F=5, H=7, R=17, V=21, AF=31, AK=36.
+    for (let i = 1; i < aoa.length; i++) {
+      const row = aoa[i] || [];
+      const rowNumber = i + 1;
+      const tipoRaw = String(row[1] ?? "").trim();
+      const numero_factura = String(row[2] ?? "").trim();
+      const numero_orden = String(row[5] ?? "").trim();
+      const totalRaw = numFromCell(row[21]); // V "Total Venta"
+      const cliente = String(row[7] ?? "").trim() || "Contado";
+      const iva = numFromCell(row[17]); // R
+      const formaRaw = String(row[31] ?? "").trim(); // AF
+      const fecha = parseDateCell(row[36]); // AK
       const formas = formaRaw.split("|").map((s) => s.trim()).filter(Boolean);
       const esMixto = formas.length > 1;
       const esCxC = formas.length === 1 && norm(formas[0]) === "CXC";
@@ -168,14 +134,14 @@ function ImportarVentasPage() {
           forma_pago_raw: formaRaw,
           formas, esMixto, esCxC,
         });
-        return;
+        continue;
       }
 
       // Caso B: sin factura pero con número de orden → clasificar por col B
       if (!numero_factura && numero_orden) {
         const clase = clasificarPorTipo(tipoRaw);
         const absTotal = Math.abs(totalRaw);
-        if (absTotal === 0 && clase !== "por_determinar") return;
+        if (absTotal === 0 && clase !== "por_determinar") continue;
         parsed.push({
           idx: rowNumber,
           numero_factura: "",
@@ -191,10 +157,11 @@ function ImportarVentasPage() {
         });
       }
       // En cualquier otro caso (sin factura y sin orden) se descarta.
-    });
+    }
     setRows(parsed);
     toast.success(`${parsed.length} filas detectadas`);
   };
+
 
   const defaultMetodoFor = (forma: string) => (norm(forma) === "MIXTO" ? "tarjeta" : "transferencia");
 
@@ -442,14 +409,14 @@ function ImportarVentasPage() {
     <div className="space-y-6 max-w-6xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Importar ventas (Xetux)</h1>
-        <p className="text-sm text-muted-foreground">Sube el reporte de ventas .xlsx exportado desde Xetux. Los montos se interpretan en USD y se convierten a Bs usando la tasa BCV de la fecha de cada factura.</p>
+        <p className="text-sm text-muted-foreground">Sube el reporte de ventas exportado desde Xetux (.xlsx o .xls de Excel 97–2003). Los montos se interpretan en USD y se convierten a Bs usando la tasa BCV de la fecha de cada factura.</p>
       </div>
 
       <Card>
         <CardHeader><CardTitle className="text-base">1. Archivo</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <Label>Reporte Xetux (.xlsx)</Label>
-          <Input type="file" accept=".xlsx" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
+          <Label>Reporte Xetux (.xlsx / .xls)</Label>
+          <Input type="file" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
           {fileName && <div className="text-xs text-muted-foreground mt-1">{fileName}</div>}
           <div className="text-xs text-muted-foreground space-y-1 mt-1">
             <div>El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt; 11000 → Bocú</span>, <span className="font-mono">≤ 11000 → YV</span>.</div>

@@ -1,0 +1,467 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { fmtUsd } from "@/lib/format";
+import { numFromCell, parseDateCell, readSheetAOA } from "@/lib/xetux-parse";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/_authenticated/importar-compras")({
+  component: ImportarComprasPage,
+});
+
+type Centro = "YV" | "Bocu" | "Compartido";
+
+type ParsedCompra = {
+  idx: number;
+  tipo_rif: "V" | "J" | "E" | "G" | "P";
+  rif: string;
+  proveedor: string;
+  numero_factura: string;     // No. de Documento
+  numero_control: string;
+  numero_orden: string;
+  tipo: string;               // FACTURA / NOTA DE ENTREGA / ...
+  neto_usd: number;
+  iva_usd: number;
+  total_usd: number;          // Total + Cargos Adicionales
+  fecha: string;              // F. Documento (YYYY-MM-DD)
+  include: boolean;
+};
+
+function splitRif(raw: string): { tipo_rif: ParsedCompra["tipo_rif"]; rif: string } | null {
+  const s = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+  const m = s.match(/^([VJEGP])-?(\d+)/);
+  if (!m) return null;
+  return { tipo_rif: m[1] as ParsedCompra["tipo_rif"], rif: m[2] };
+}
+
+function ImportarComprasPage() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [rows, setRows] = useState<ParsedCompra[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Opciones globales para la importación
+  const [centroDefault, setCentroDefault] = useState<Centro>("Compartido");
+  const [marcarPagadas, setMarcarPagadas] = useState(false);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("");
+  const [soloFacturas, setSoloFacturas] = useState(false);
+  const [offBalance, setOffBalance] = useState(false);
+
+  const { data: cuentasBancarias = [] } = useQuery({
+    queryKey: ["cuentas-bancarias-activas-importar-compras"],
+    queryFn: async () => {
+      const { data } = await supabase.from("cuentas_bancarias").select("*").eq("activa", true).order("nombre");
+      return data ?? [];
+    },
+  });
+
+  const { data: terceros = [] } = useQuery({
+    queryKey: ["terceros-todos-importar-compras"],
+    queryFn: async () => {
+      const { data } = await supabase.from("terceros").select("*");
+      return data ?? [];
+    },
+  });
+
+  const terceroByRif = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const t of terceros) m.set(`${t.tipo_rif}-${t.rif}`, t);
+    return m;
+  }, [terceros]);
+
+  const onFile = async (file: File) => {
+    setFileName(file.name);
+    setRows([]);
+    const aoa = await readSheetAOA(file);
+    if (!aoa.length) return toast.error("El archivo está vacío o no se pudo leer");
+
+    // Verificar cabecera (debe coincidir con "Lista de Facturas")
+    const header = (aoa[0] || []).map((c) => String(c ?? "").trim().toLowerCase());
+    if (!header.some((h) => h.includes("rif")) || !header.some((h) => h.includes("proveedor"))) {
+      return toast.error('Formato no reconocido. Sube el reporte "Lista de Facturas" de Xetux.');
+    }
+
+    // Columnas 0-indexadas según "Lista de Facturas":
+    // 0:# 1:RIF 2:Proveedor 3:CodRecepcion 4:NoOrden 5:NoDoc 6:Tipo 7:NumControl
+    // 8:Neto 9:DescArt 10:DescGlobal 11:Subtotal 12:Impuestos 13:ImpAdic 14:ImpRet
+    // 15:Total 16:CargosAdic 17:TotalConCargos 18:FRecepcion 19:FDocumento
+    const parsed: ParsedCompra[] = [];
+    for (let i = 1; i < aoa.length; i++) {
+      const row = aoa[i] || [];
+      const rifRaw = String(row[1] ?? "").trim();
+      const proveedor = String(row[2] ?? "").trim();
+      const numero_orden = String(row[4] ?? "").trim();
+      const numero_factura = String(row[5] ?? "").trim();
+      const tipo = String(row[6] ?? "").trim();
+      const numero_control = String(row[7] ?? "").trim();
+      const iva = numFromCell(row[12]);
+      const totalConCargos = numFromCell(row[17]);
+      const total = totalConCargos || numFromCell(row[15]);
+      const neto = numFromCell(row[8]) || Math.max(0, total - iva);
+      const fecha = parseDateCell(row[19]) || parseDateCell(row[18]);
+
+      if (!proveedor && !rifRaw) continue;
+      if (!numero_factura) continue;
+      if (total <= 0) continue;
+
+      const rifParts = splitRif(rifRaw) ?? { tipo_rif: "J" as const, rif: rifRaw.replace(/\D/g, "") };
+
+      parsed.push({
+        idx: i + 1,
+        tipo_rif: rifParts.tipo_rif,
+        rif: rifParts.rif,
+        proveedor: proveedor || rifRaw,
+        numero_factura,
+        numero_control,
+        numero_orden,
+        tipo,
+        neto_usd: neto,
+        iva_usd: iva,
+        total_usd: total,
+        fecha,
+        include: true,
+      });
+    }
+    setRows(parsed);
+    toast.success(`${parsed.length} facturas detectadas`);
+  };
+
+  const visibles = useMemo(
+    () => rows.filter((r) => !soloFacturas || r.tipo.toUpperCase().includes("FACTURA")),
+    [rows, soloFacturas]
+  );
+
+  const stats = useMemo(() => {
+    const sel = visibles.filter((r) => r.include);
+    const totalUsd = sel.reduce((s, r) => s + r.total_usd, 0);
+    const sinProveedor = sel.filter((r) => !terceroByRif.has(`${r.tipo_rif}-${r.rif}`)).length;
+    const sinFecha = sel.filter((r) => !r.fecha).length;
+    return { count: sel.length, totalUsd, sinProveedor, sinFecha };
+  }, [visibles, terceroByRif]);
+
+  const toggleRow = (idx: number, v: boolean) =>
+    setRows((all) => all.map((r) => (r.idx === idx ? { ...r, include: v } : r)));
+
+  const toggleAll = (v: boolean) => {
+    const vis = new Set(visibles.map((r) => r.idx));
+    setRows((all) => all.map((r) => (vis.has(r.idx) ? { ...r, include: v } : r)));
+  };
+
+  const fetchTasa = async (fecha: string): Promise<number> => {
+    const { data } = await supabase.from("tasas_bcv").select("tasa")
+      .lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+    return Number(data?.tasa ?? 0);
+  };
+
+  const ensureTercero = async (r: ParsedCompra): Promise<string | null> => {
+    const k = `${r.tipo_rif}-${r.rif}`;
+    const existing = terceroByRif.get(k);
+    if (existing) return existing.id;
+    const { data, error } = await supabase.from("terceros").insert({
+      tipo_rif: r.tipo_rif as any,
+      rif: r.rif,
+      razon_social: r.proveedor,
+      tipo: "proveedor" as any,
+    } as any).select().single();
+    if (error) {
+      // Carrera: si ya existe, busca y devuelve.
+      const { data: again } = await supabase.from("terceros").select("id")
+        .eq("tipo_rif", r.tipo_rif as any).eq("rif", r.rif).maybeSingle();
+      if (again?.id) {
+        terceroByRif.set(k, again);
+        return again.id;
+      }
+      toast.error(`No se pudo crear proveedor ${r.proveedor}: ${error.message}`);
+      return null;
+    }
+    terceroByRif.set(k, data);
+    return data.id;
+  };
+
+  const importar = async () => {
+    if (!user) return;
+    if (marcarPagadas && !offBalance && !cuentaBancariaId)
+      return toast.error("Selecciona la cuenta bancaria para las compras pagadas");
+
+    const elegibles = visibles.filter((r) => r.include);
+    if (!elegibles.length) return toast.error("No hay filas seleccionadas");
+
+    setBusy(true);
+    setProgress({ done: 0, total: elegibles.length });
+    const tasaCache = new Map<string, number>();
+    let ok = 0, dup = 0, fail = 0;
+
+    for (const r of elegibles) {
+      try {
+        if (!r.fecha) { fail++; toast.error(`Sin fecha: ${r.numero_factura}`); continue; }
+        let tasa = tasaCache.get(r.fecha);
+        if (tasa === undefined) {
+          tasa = await fetchTasa(r.fecha);
+          tasaCache.set(r.fecha, tasa);
+        }
+        if (!tasa) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura})`); continue; }
+
+        const terceroId = await ensureTercero(r);
+        if (!terceroId) { fail++; continue; }
+
+        // Dedup por (tercero, numero_factura)
+        const { data: existe } = await supabase.from("inventario_snapshots")
+          .select("id").eq("tipo", "compra")
+          .eq("tercero_id", terceroId).eq("numero_factura", r.numero_factura).limit(1);
+        if (existe && existe.length > 0) { dup++; continue; }
+
+        const totalBs = r.total_usd * tasa;
+        const ivaAplica = r.iva_usd > 0;
+        const baseBs = ivaAplica ? Math.max(0, (r.total_usd - r.iva_usd) * tasa) : totalBs;
+        const ivaBs = ivaAplica ? r.iva_usd * tasa : 0;
+        const periodo = r.fecha.slice(0, 7);
+
+        const offBal = offBalance;
+        const pagada = offBal ? true : marcarPagadas;
+
+        let cxpId: string | null = null;
+        if (!offBal && !pagada) {
+          const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
+            proveedor: r.proveedor,
+            numero_factura: r.numero_factura,
+            tercero_id: terceroId,
+            centro_costo: centroDefault as any,
+            monto_bs: totalBs, monto_usd: r.total_usd,
+            monto_pendiente_bs: totalBs,
+            estado: "pendiente",
+          } as any).select().single();
+          if (cxpErr) { fail++; toast.error(`${r.numero_factura}: ${cxpErr.message}`); continue; }
+          cxpId = cxp?.id ?? null;
+        }
+
+        const { error } = await supabase.from("inventario_snapshots").insert({
+          periodo, tipo: "compra",
+          monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
+          modo: offBal ? "off_balance" : "on_balance",
+          fecha: r.fecha, tasa_bcv: tasa,
+          tercero_id: terceroId, numero_factura: r.numero_factura,
+          pagada,
+          cuenta_bancaria_id: !offBal && pagada ? cuentaBancariaId : null,
+          cxp_id: cxpId,
+          notas: `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`,
+          registrado_por: user.id,
+        } as any);
+        if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
+        ok++;
+      } catch (e: any) {
+        fail++;
+        toast.error(`${r.numero_factura}: ${e?.message ?? "error"}`);
+      } finally {
+        setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
+      }
+    }
+
+    setBusy(false);
+    setProgress(null);
+    qc.invalidateQueries();
+    toast.success(`Nuevas: ${ok} · Duplicadas: ${dup} · Fallidas: ${fail}`);
+    if (ok > 0) {
+      const ids = new Set(elegibles.map((r) => r.idx));
+      setRows((all) => all.filter((r) => !ids.has(r.idx)));
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-6xl">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Importar compras (Xetux)</h1>
+        <p className="text-sm text-muted-foreground">
+          Sube el reporte <span className="font-semibold">"Lista de Facturas"</span> de Xetux (.xlsx o .xls de Excel 97–2003).
+          Cada factura se registra como una compra en COGS e Inventario, convirtiendo USD a Bs con la tasa BCV de la fecha del documento.
+          Los proveedores que no existan se crearán automáticamente a partir del RIF.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">1. Archivo</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Label>Reporte Xetux — Lista de Facturas (.xlsx / .xls)</Label>
+          <Input
+            type="file"
+            accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
+          />
+          {fileName && <div className="text-xs text-muted-foreground mt-1">{fileName}</div>}
+        </CardContent>
+      </Card>
+
+      {rows.length > 0 && (
+        <>
+          <Card>
+            <CardHeader><CardTitle className="text-base">2. Opciones</CardTitle></CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Centro de costo</Label>
+                <Select value={centroDefault} onValueChange={(v) => setCentroDefault(v as Centro)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Compartido">Compartido</SelectItem>
+                    <SelectItem value="YV">YV</SelectItem>
+                    <SelectItem value="Bocu">Bocú</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between border rounded p-2">
+                <div>
+                  <Label className="text-xs">Solo FACTURA (excluir notas de entrega)</Label>
+                  <p className="text-[10px] text-muted-foreground">Filtro de vista; no borra filas.</p>
+                </div>
+                <Switch checked={soloFacturas} onCheckedChange={setSoloFacturas} />
+              </div>
+
+              <div className="flex items-center justify-between border rounded p-2">
+                <div>
+                  <Label className="text-xs">Registrar como off-balance</Label>
+                  <p className="text-[10px] text-muted-foreground">No afecta saldos bancarios ni CxP.</p>
+                </div>
+                <Switch checked={offBalance} onCheckedChange={setOffBalance} />
+              </div>
+
+              {!offBalance && (
+                <div className="flex items-center justify-between border rounded p-2">
+                  <div>
+                    <Label className="text-xs">Marcar como pagadas</Label>
+                    <p className="text-[10px] text-muted-foreground">Si está apagado, se crea una CxP por cada compra.</p>
+                  </div>
+                  <Switch checked={marcarPagadas} onCheckedChange={setMarcarPagadas} />
+                </div>
+              )}
+
+              {!offBalance && marcarPagadas && (
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-xs">Cuenta bancaria (origen del pago)</Label>
+                  {cuentasBancarias.length === 0 ? (
+                    <div className="text-xs text-orange-700 border rounded p-2 bg-orange-50 border-orange-200">
+                      No hay cuentas bancarias. <Link to="/cuentas-bancarias" className="underline">Agregar</Link>
+                    </div>
+                  ) : (
+                    <Select value={cuentaBancariaId} onValueChange={setCuentaBancariaId}>
+                      <SelectTrigger><SelectValue placeholder="Selecciona cuenta" /></SelectTrigger>
+                      <SelectContent>
+                        {cuentasBancarias.map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>{c.nombre} — {c.banco} ****{(c.numero || "").slice(-4)} {c.moneda}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                3. Vista previa ({visibles.length} filas · {stats.count} seleccionadas · {fmtUsd(stats.totalUsd)})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-3 text-xs">
+                <Badge variant="default">Seleccionadas: {stats.count}</Badge>
+                {stats.sinProveedor > 0 && (
+                  <Badge variant="outline" className="border-amber-400 text-amber-700">
+                    Proveedores nuevos: {stats.sinProveedor} (se crearán)
+                  </Badge>
+                )}
+                {stats.sinFecha > 0 && (
+                  <Badge variant="destructive">Sin fecha: {stats.sinFecha}</Badge>
+                )}
+              </div>
+
+              <div className="border rounded overflow-x-auto max-h-[500px]">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted sticky top-0 z-10 shadow-sm">
+                    <tr className="text-left">
+                      <th className="p-2 bg-muted w-8">
+                        <Checkbox
+                          checked={visibles.length > 0 && visibles.every((r) => r.include)}
+                          onCheckedChange={(v) => toggleAll(Boolean(v))}
+                        />
+                      </th>
+                      <th className="p-2 bg-muted">Fecha</th>
+                      <th className="p-2 bg-muted">Proveedor</th>
+                      <th className="p-2 bg-muted">RIF</th>
+                      <th className="p-2 bg-muted">Tipo</th>
+                      <th className="p-2 bg-muted">N° Documento</th>
+                      <th className="p-2 bg-muted text-right">USD</th>
+                      <th className="p-2 bg-muted text-right">IVA USD</th>
+                      <th className="p-2 bg-muted">Prov.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibles.map((r) => {
+                      const existe = terceroByRif.has(`${r.tipo_rif}-${r.rif}`);
+                      return (
+                        <tr key={r.idx} className="border-t">
+                          <td className="p-2">
+                            <Checkbox checked={r.include} onCheckedChange={(v) => toggleRow(r.idx, Boolean(v))} />
+                          </td>
+                          <td className="p-2">{r.fecha || <span className="text-destructive">—</span>}</td>
+                          <td className="p-2 truncate max-w-[180px]">{r.proveedor}</td>
+                          <td className="p-2 font-mono text-[10px]">{r.tipo_rif}-{r.rif}</td>
+                          <td className="p-2"><Badge variant="outline" className="text-[10px]">{r.tipo}</Badge></td>
+                          <td className="p-2 font-mono">{r.numero_factura}</td>
+                          <td className="p-2 text-right mono">{fmtUsd(r.total_usd)}</td>
+                          <td className="p-2 text-right mono">{fmtUsd(r.iva_usd)}</td>
+                          <td className="p-2">
+                            {existe ? <Badge variant="outline" className="text-emerald-700 border-emerald-300 text-[10px]">existe</Badge>
+                                    : <Badge variant="outline" className="text-amber-700 border-amber-300 text-[10px]">nuevo</Badge>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {progress ? `Importando ${progress.done}/${progress.total}...` : `Se importarán ${stats.count} compras.`}
+                </div>
+                <Button onClick={importar} disabled={busy || stats.count === 0}>
+                  {busy ? "Importando..." : `Importar ${stats.count} compras`}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {progress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="bg-card border rounded-lg shadow-xl px-8 py-6 min-w-[320px] text-center space-y-3">
+            <div className="text-sm text-muted-foreground">Importando compras...</div>
+            <div className="text-3xl font-bold mono">
+              {progress.done} <span className="text-muted-foreground text-xl">/ {progress.total}</span>
+            </div>
+            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-150"
+                style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground">Por favor espera, no cierres esta página.</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

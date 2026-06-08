@@ -729,7 +729,7 @@ function GastosForm() {
       <CardHeader><CardTitle className="text-base">Gastos / Facturas</CardTitle></CardHeader>
       <CardContent>
         <div className="mb-3 rounded border border-destructive/40 bg-destructive/10 text-destructive text-xs p-2 font-medium">
-          ⚠ CUIDADO: No incluyas aquí COGS (insumos, mercancía o productos para revender). Esas compras se registran en la pestaña <span className="font-bold">"COGS e Inventario"</span> para evitar contarlas dos veces.
+          ⚠ CUIDADO: No incluyas aquí COGS (comida, mercancía o productos para revender). Esas compras se registran en la pestaña <span className="font-bold">"COGS e Inventario"</span> para evitar contarlas dos veces.
         </div>
         <p className="text-xs text-muted-foreground mb-3">
           Factura pendiente: el gasto entra al G&amp;P hoy; el pago saldrá del FC cuando lo registres en "Pagar CxP".
