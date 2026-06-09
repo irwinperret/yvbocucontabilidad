@@ -232,6 +232,32 @@ function ImportarComprasPage() {
         const offBal = offBalance;
         const pagada = offBal ? true : marcarPagadas;
 
+        const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
+
+        if (existe) {
+          // Duplicado: si el monto no cambió, saltar. Si cambió, actualizar con el más reciente.
+          const sameAmount = Math.abs(Number(existe.monto_bs || 0) - totalBs) < 0.01;
+          if (sameAmount) {
+            dup++;
+            toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
+            continue;
+          }
+          const { error: updErr } = await supabase.from("inventario_snapshots").update({
+            monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
+            tasa_bcv: tasa, fecha: r.fecha, periodo,
+            notas: notaBase + " · actualizada por reimportación",
+          } as any).eq("id", existe.id);
+          if (updErr) { fail++; toast.error(`${r.numero_factura}: ${updErr.message}`); continue; }
+          if (existe.cxp_id && !existe.pagada) {
+            await supabase.from("cuentas_por_pagar").update({
+              monto_bs: totalBs, monto_usd: r.total_usd, monto_pendiente_bs: totalBs,
+            } as any).eq("id", existe.cxp_id);
+          }
+          upd++;
+          toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
+          continue;
+        }
+
         let cxpId: string | null = null;
         if (!offBal && !pagada) {
           const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
@@ -256,7 +282,7 @@ function ImportarComprasPage() {
           pagada,
           cuenta_bancaria_id: !offBal && pagada ? cuentaBancariaId : null,
           cxp_id: cxpId,
-          notas: `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`,
+          notas: notaBase,
           registrado_por: user.id,
         } as any);
         if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
