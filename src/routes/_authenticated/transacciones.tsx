@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { DeleteButton } from "@/components/delete-button";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
-import { CENTROS, METODOS, type Centro } from "@/lib/account-helpers";
+import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { AdjuntoCell } from "@/components/adjunto-cell";
 
