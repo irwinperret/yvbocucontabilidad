@@ -461,6 +461,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       notas: notas || null,
       detalle: detalle || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
+      capex_categoria: tx.cuenta_codigo === "10.6" ? capexCategoria : tx.capex_categoria ?? null,
     };
     const { data: updated, error } = await supabase
       .from("transacciones")
