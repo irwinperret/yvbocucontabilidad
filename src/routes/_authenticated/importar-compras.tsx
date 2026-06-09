@@ -298,8 +298,8 @@ function ImportarComprasPage() {
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Nuevas: ${ok} · Duplicadas: ${dup} · Fallidas: ${fail}`);
-    if (ok > 0) {
+    toast.success(`Nuevas: ${ok} · Actualizadas: ${upd} · Duplicadas: ${dup} · Fallidas: ${fail}`);
+    if (ok > 0 || upd > 0) {
       const ids = new Set(elegibles.map((r) => r.idx));
       setRows((all) => all.filter((r) => !ids.has(r.idx)));
     }
