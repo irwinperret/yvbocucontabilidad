@@ -456,6 +456,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       numero_orden: numOrden || null,
       referencia: referencia || null,
       notas: notas || null,
+      detalle: detalle || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
     };
     const { data: updated, error } = await supabase
