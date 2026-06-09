@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { METODOS, cuentaVenta, type Centro, type Metodo } from "@/lib/account-helpers";
-import { fmtUsd } from "@/lib/format";
+import { fmtUsd } from "@/lib/format";h
 import { logAudit } from "@/lib/audit";
 import { numFromCell, parseDateCell, readSheetAOA } from "@/lib/xetux-parse";
 import { toast } from "sonner";
@@ -42,7 +42,7 @@ const norm = (s: any) => String(s ?? "").trim().toUpperCase();
 
 function centroDeFactura(numero_factura: string): Centro {
   const n = parseInt(String(numero_factura).replace(/\D/g, ""), 10);
-  return Number.isFinite(n) && n > 11000 ? "Bocu" : "YV";
+  return Number.isFinite(n) && n >= 11000 ? "YV" : "Bocu";
 }
 
 function clasificarPorTipo(tipoRaw: string): Clase {
@@ -419,7 +419,7 @@ function ImportarVentasPage() {
           <Input type="file" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
           {fileName && <div className="text-xs text-muted-foreground mt-1">{fileName}</div>}
           <div className="text-xs text-muted-foreground space-y-1 mt-1">
-            <div>El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt; 11000 → Bocú</span>, <span className="font-mono">≤ 11000 → YV</span>.</div>
+            <div>El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt; 11000 → Bocú</span>, <span className="font-mono">< 11000 → Bocú</span>.</div>
             <div>Las filas <span className="font-semibold">sin factura pero con N° de orden</span> se asignan a <span className="font-mono">Bocú</span> y se clasifican por la columna B: <span className="font-mono">"desc*" → Descuento (1.6)</span>, <span className="font-mono">"Nota de Crédito" → NC (1.7)</span>, resto → <span className="font-mono">POR DETERMINAR</span> (off-balance).</div>
           </div>
         </CardContent>
