@@ -422,6 +422,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [numOrden, setNumOrden] = useState<string>(tx.numero_orden ?? "");
   const [referencia, setReferencia] = useState<string>(tx.referencia ?? "");
   const [notas, setNotas] = useState<string>(tx.notas ?? "");
+  const [detalle, setDetalle] = useState<string>(tx.detalle ?? "");
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(tx.cuenta_bancaria_id ?? "");
   const [busy, setBusy] = useState(false);
 
