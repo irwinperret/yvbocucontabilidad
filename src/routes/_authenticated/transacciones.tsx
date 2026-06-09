@@ -527,6 +527,17 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
               <div className="md:col-span-2"><Label>{lbl ?? "Detalle"}</Label><Input value={detalle} onChange={(e) => setDetalle(e.target.value)} /></div>
             );
           })()}
+          {tx.cuenta_codigo === "10.6" && (
+            <div className="md:col-span-2">
+              <Label>Categoría CapEx</Label>
+              <Select value={capexCategoria} onValueChange={setCapexCategoria}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CAPEX_CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
