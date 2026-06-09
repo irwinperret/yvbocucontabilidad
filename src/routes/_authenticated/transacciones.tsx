@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { DeleteButton } from "@/components/delete-button";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
-import { CENTROS, METODOS, type Centro } from "@/lib/account-helpers";
+import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { AdjuntoCell } from "@/components/adjunto-cell";
 
@@ -426,6 +426,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [notas, setNotas] = useState<string>(tx.notas ?? "");
   const [detalle, setDetalle] = useState<string>(tx.detalle ?? "");
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(tx.cuenta_bancaria_id ?? "");
+  const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
   const [busy, setBusy] = useState(false);
 
   const total = Number(montoBs) || 0;
@@ -460,6 +461,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       notas: notas || null,
       detalle: detalle || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
+      capex_categoria: tx.cuenta_codigo === "10.6" ? capexCategoria : tx.capex_categoria ?? null,
     };
     const { data: updated, error } = await supabase
       .from("transacciones")
@@ -525,6 +527,17 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
               <div className="md:col-span-2"><Label>{lbl ?? "Detalle"}</Label><Input value={detalle} onChange={(e) => setDetalle(e.target.value)} /></div>
             );
           })()}
+          {tx.cuenta_codigo === "10.6" && (
+            <div className="md:col-span-2">
+              <Label>Categoría CapEx</Label>
+              <Select value={capexCategoria} onValueChange={setCapexCategoria}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CAPEX_CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>

@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { fmtBs, fmtUsd, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
-import { CENTROS, METODOS, cuentaVenta, cuentaNomina, FINANCIAMIENTO, type Centro } from "@/lib/account-helpers";
+import { CENTROS, METODOS, cuentaVenta, cuentaNomina, FINANCIAMIENTO, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { TerceroSelect } from "@/components/tercero-select";
 
@@ -1102,6 +1102,7 @@ function FinanciamientoForm() {
   const [detalle, setDetalle] = useState("");
   const [plazo, setPlazo] = useState("");
   const [vidaUtil, setVidaUtil] = useState("");
+  const [capexCategoria, setCapexCategoria] = useState<string>("Otros");
   const [notas, setNotas] = useState("");
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1137,6 +1138,7 @@ function FinanciamientoForm() {
     metodo_pago: "transferencia" as any, notas: notas || null, detalle: detalle || null,
     modo: "on_balance" as any,
     cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
+    capex_categoria: cuenta === "10.6" ? capexCategoria : null,
     created_by: user!.id,
   });
 
@@ -1242,7 +1244,18 @@ function FinanciamientoForm() {
                 <div><Label>Plazo meses</Label><Input type="number" value={plazo} onChange={(e) => setPlazo(e.target.value)} /></div>
               )}
               {tipo === "capex" && (
-                <div><Label>Vida útil (meses)</Label><Input type="number" value={vidaUtil} onChange={(e) => setVidaUtil(e.target.value)} /></div>
+                <>
+                  <div>
+                    <Label>Categoría CapEx</Label>
+                    <Select value={capexCategoria} onValueChange={setCapexCategoria}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CAPEX_CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Vida útil (meses)</Label><Input type="number" value={vidaUtil} onChange={(e) => setVidaUtil(e.target.value)} /></div>
+                </>
               )}
               <div><Label>Monto {sufijo}</Label><Input type="number" step="0.01" value={montoInput} onChange={(e) => setMontoInput(e.target.value)} required className="mono" /></div>
               <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>

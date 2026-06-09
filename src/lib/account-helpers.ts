@@ -38,3 +38,13 @@ export const FINANCIAMIENTO = {
 };
 
 export const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
+export const CAPEX_CATEGORIAS = [
+  "Remodelación/Obra Civil",
+  "Equipos de Cocina",
+  "Equipos de Sala",
+  "Mobiliario",
+  "Utilería",
+  "Otros",
+] as const;
+export type CapexCategoria = (typeof CAPEX_CATEGORIAS)[number];
