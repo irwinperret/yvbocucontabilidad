@@ -1244,7 +1244,18 @@ function FinanciamientoForm() {
                 <div><Label>Plazo meses</Label><Input type="number" value={plazo} onChange={(e) => setPlazo(e.target.value)} /></div>
               )}
               {tipo === "capex" && (
-                <div><Label>Vida útil (meses)</Label><Input type="number" value={vidaUtil} onChange={(e) => setVidaUtil(e.target.value)} /></div>
+                <>
+                  <div>
+                    <Label>Categoría CapEx</Label>
+                    <Select value={capexCategoria} onValueChange={setCapexCategoria}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CAPEX_CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Vida útil (meses)</Label><Input type="number" value={vidaUtil} onChange={(e) => setVidaUtil(e.target.value)} /></div>
+                </>
               )}
               <div><Label>Monto {sufijo}</Label><Input type="number" step="0.01" value={montoInput} onChange={(e) => setMontoInput(e.target.value)} required className="mono" /></div>
               <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
