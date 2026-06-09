@@ -201,7 +201,7 @@ function ImportarComprasPage() {
     setBusy(true);
     setProgress({ done: 0, total: elegibles.length });
     const tasaCache = new Map<string, number>();
-    let ok = 0, dup = 0, fail = 0;
+    let ok = 0, dup = 0, fail = 0, upd = 0;
 
     for (const r of elegibles) {
       try {
@@ -216,11 +216,12 @@ function ImportarComprasPage() {
         const terceroId = await ensureTercero(r);
         if (!terceroId) { fail++; continue; }
 
-        // Dedup por (tercero, numero_factura)
-        const { data: existe } = await supabase.from("inventario_snapshots")
-          .select("id").eq("tipo", "compra")
+        // Dedup por (tercero, numero_factura) — busca en TODOS los meses
+        const { data: existeArr } = await supabase.from("inventario_snapshots")
+          .select("id, monto_bs, monto_base_bs, iva_bs, fecha, periodo, cxp_id, pagada")
+          .eq("tipo", "compra")
           .eq("tercero_id", terceroId).eq("numero_factura", r.numero_factura).limit(1);
-        if (existe && existe.length > 0) { dup++; continue; }
+        const existe = existeArr && existeArr.length > 0 ? existeArr[0] : null;
 
         const totalBs = r.total_usd * tasa;
         const ivaAplica = r.iva_usd > 0;
@@ -230,6 +231,32 @@ function ImportarComprasPage() {
 
         const offBal = offBalance;
         const pagada = offBal ? true : marcarPagadas;
+
+        const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
+
+        if (existe) {
+          // Duplicado: si el monto no cambió, saltar. Si cambió, actualizar con el más reciente.
+          const sameAmount = Math.abs(Number(existe.monto_bs || 0) - totalBs) < 0.01;
+          if (sameAmount) {
+            dup++;
+            toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
+            continue;
+          }
+          const { error: updErr } = await supabase.from("inventario_snapshots").update({
+            monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
+            tasa_bcv: tasa, fecha: r.fecha, periodo,
+            notas: notaBase + " · actualizada por reimportación",
+          } as any).eq("id", existe.id);
+          if (updErr) { fail++; toast.error(`${r.numero_factura}: ${updErr.message}`); continue; }
+          if (existe.cxp_id && !existe.pagada) {
+            await supabase.from("cuentas_por_pagar").update({
+              monto_bs: totalBs, monto_usd: r.total_usd, monto_pendiente_bs: totalBs,
+            } as any).eq("id", existe.cxp_id);
+          }
+          upd++;
+          toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
+          continue;
+        }
 
         let cxpId: string | null = null;
         if (!offBal && !pagada) {
@@ -255,7 +282,7 @@ function ImportarComprasPage() {
           pagada,
           cuenta_bancaria_id: !offBal && pagada ? cuentaBancariaId : null,
           cxp_id: cxpId,
-          notas: `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`,
+          notas: notaBase,
           registrado_por: user.id,
         } as any);
         if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
@@ -271,8 +298,8 @@ function ImportarComprasPage() {
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Nuevas: ${ok} · Duplicadas: ${dup} · Fallidas: ${fail}`);
-    if (ok > 0) {
+    toast.success(`Nuevas: ${ok} · Actualizadas: ${upd} · Duplicadas: ${dup} · Fallidas: ${fail}`);
+    if (ok > 0 || upd > 0) {
       const ids = new Set(elegibles.map((r) => r.idx));
       setRows((all) => all.filter((r) => !ids.has(r.idx)));
     }

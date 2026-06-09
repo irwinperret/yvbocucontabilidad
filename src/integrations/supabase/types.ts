@@ -609,6 +609,7 @@ export type Database = {
           created_by: string
           cuenta_bancaria_id: string | null
           cuenta_codigo: string
+          detalle: string | null
           fecha: string
           id: string
           iva_aplica: boolean
@@ -636,6 +637,7 @@ export type Database = {
           created_by: string
           cuenta_bancaria_id?: string | null
           cuenta_codigo: string
+          detalle?: string | null
           fecha?: string
           id?: string
           iva_aplica?: boolean
@@ -663,6 +665,7 @@ export type Database = {
           created_by?: string
           cuenta_bancaria_id?: string | null
           cuenta_codigo?: string
+          detalle?: string | null
           fecha?: string
           id?: string
           iva_aplica?: boolean

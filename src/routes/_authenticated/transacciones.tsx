@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ExcelJS from "exceljs";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +29,7 @@ function TransaccionesPage() {
   const [desde, setDesde] = useState<string>("");
   const [hasta, setHasta] = useState(todayISO());
 
-  useQuery({
+  const { data: minFecha, isSuccess: minFechaReady } = useQuery({
     queryKey: ["transacciones-min-fecha"],
     queryFn: async () => {
       const { data } = await supabase
@@ -38,16 +38,18 @@ function TransaccionesPage() {
         .order("fecha", { ascending: true })
         .limit(1)
         .maybeSingle();
-      const f = (data as any)?.fecha ?? null;
-      if (f && !desde) setDesde(f);
-      else if (!desde) {
-        const d = new Date(); d.setDate(d.getDate() - 30);
-        setDesde(d.toISOString().slice(0, 10));
-      }
-      return f;
+      return (data as any)?.fecha ?? null;
     },
     staleTime: Infinity,
   });
+  useEffect(() => {
+    if (!minFechaReady || desde) return;
+    if (minFecha) setDesde(minFecha);
+    else {
+      const d = new Date(); d.setDate(d.getDate() - 30);
+      setDesde(d.toISOString().slice(0, 10));
+    }
+  }, [minFechaReady, minFecha, desde]);
   const [centro, setCentro] = useState<string>("todos");
   const [busca, setBusca] = useState("");
   const [editing, setEditing] = useState<any>(null);
@@ -422,6 +424,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [numOrden, setNumOrden] = useState<string>(tx.numero_orden ?? "");
   const [referencia, setReferencia] = useState<string>(tx.referencia ?? "");
   const [notas, setNotas] = useState<string>(tx.notas ?? "");
+  const [detalle, setDetalle] = useState<string>(tx.detalle ?? "");
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(tx.cuenta_bancaria_id ?? "");
   const [busy, setBusy] = useState(false);
 
@@ -455,6 +458,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       numero_orden: numOrden || null,
       referencia: referencia || null,
       notas: notas || null,
+      detalle: detalle || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
     };
     const { data: updated, error } = await supabase
@@ -510,6 +514,17 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
             <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
           </div>
           <div><Label>Referencia</Label><Input value={referencia} onChange={(e) => setReferencia(e.target.value)} /></div>
+          {(() => {
+            const labelByCode: Record<string, string> = {
+              "10.1": "Prestamista", "10.4": "Beneficiarios",
+              "10.5": "Aportante", "10.6": "Descripción activo",
+            };
+            const lbl = labelByCode[tx.cuenta_codigo];
+            if (!lbl && !detalle) return null;
+            return (
+              <div className="md:col-span-2"><Label>{lbl ?? "Detalle"}</Label><Input value={detalle} onChange={(e) => setDetalle(e.target.value)} /></div>
+            );
+          })()}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
