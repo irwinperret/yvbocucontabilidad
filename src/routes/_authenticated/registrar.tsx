@@ -1138,6 +1138,7 @@ function FinanciamientoForm() {
     metodo_pago: "transferencia" as any, notas: notas || null, detalle: detalle || null,
     modo: "on_balance" as any,
     cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
+    capex_categoria: cuenta === "10.6" ? capexCategoria : null,
     created_by: user!.id,
   });
 
