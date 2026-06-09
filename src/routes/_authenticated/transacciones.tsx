@@ -426,6 +426,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [notas, setNotas] = useState<string>(tx.notas ?? "");
   const [detalle, setDetalle] = useState<string>(tx.detalle ?? "");
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(tx.cuenta_bancaria_id ?? "");
+  const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
   const [busy, setBusy] = useState(false);
 
   const total = Number(montoBs) || 0;
