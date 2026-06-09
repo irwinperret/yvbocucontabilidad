@@ -201,7 +201,7 @@ function ImportarComprasPage() {
     setBusy(true);
     setProgress({ done: 0, total: elegibles.length });
     const tasaCache = new Map<string, number>();
-    let ok = 0, dup = 0, fail = 0;
+    let ok = 0, dup = 0, fail = 0, upd = 0;
 
     for (const r of elegibles) {
       try {
