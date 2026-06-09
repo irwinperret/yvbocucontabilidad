@@ -216,11 +216,12 @@ function ImportarComprasPage() {
         const terceroId = await ensureTercero(r);
         if (!terceroId) { fail++; continue; }
 
-        // Dedup por (tercero, numero_factura)
-        const { data: existe } = await supabase.from("inventario_snapshots")
-          .select("id").eq("tipo", "compra")
+        // Dedup por (tercero, numero_factura) — busca en TODOS los meses
+        const { data: existeArr } = await supabase.from("inventario_snapshots")
+          .select("id, monto_bs, monto_base_bs, iva_bs, fecha, periodo, cxp_id, pagada")
+          .eq("tipo", "compra")
           .eq("tercero_id", terceroId).eq("numero_factura", r.numero_factura).limit(1);
-        if (existe && existe.length > 0) { dup++; continue; }
+        const existe = existeArr && existeArr.length > 0 ? existeArr[0] : null;
 
         const totalBs = r.total_usd * tasa;
         const ivaAplica = r.iva_usd > 0;
