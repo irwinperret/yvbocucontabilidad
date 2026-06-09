@@ -419,7 +419,7 @@ function ImportarVentasPage() {
           <Input type="file" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
           {fileName && <div className="text-xs text-muted-foreground mt-1">{fileName}</div>}
           <div className="text-xs text-muted-foreground space-y-1 mt-1">
-            <div>El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt; 11000 → Bocú</span>, <span className="font-mono">< 11000 → Bocú</span>.</div>
+            <div>El centro de costo se asigna automáticamente por número de factura: <span className="font-mono">&gt;= 11000 → YV</span>, <span className="font-mono">&lt; 11000 → Bocú</span>.</div>
             <div>Las filas <span className="font-semibold">sin factura pero con N° de orden</span> se asignan a <span className="font-mono">Bocú</span> y se clasifican por la columna B: <span className="font-mono">"desc*" → Descuento (1.6)</span>, <span className="font-mono">"Nota de Crédito" → NC (1.7)</span>, resto → <span className="font-mono">POR DETERMINAR</span> (off-balance).</div>
           </div>
         </CardContent>
