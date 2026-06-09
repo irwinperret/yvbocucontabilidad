@@ -512,6 +512,17 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
             <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
           </div>
           <div><Label>Referencia</Label><Input value={referencia} onChange={(e) => setReferencia(e.target.value)} /></div>
+          {(() => {
+            const labelByCode: Record<string, string> = {
+              "10.1": "Prestamista", "10.4": "Beneficiarios",
+              "10.5": "Aportante", "10.6": "Descripción activo",
+            };
+            const lbl = labelByCode[tx.cuenta_codigo];
+            if (!lbl && !detalle) return null;
+            return (
+              <div className="md:col-span-2"><Label>{lbl ?? "Detalle"}</Label><Input value={detalle} onChange={(e) => setDetalle(e.target.value)} /></div>
+            );
+          })()}
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
