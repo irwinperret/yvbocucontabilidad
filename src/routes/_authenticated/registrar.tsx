@@ -1101,7 +1101,7 @@ function FinanciamientoForm() {
   const [tasa, setTasa] = useState("");
   const [detalle, setDetalle] = useState("");
   const [plazo, setPlazo] = useState("");
-  const [vidaUtil, setVidaUtil] = useState("");
+  // vida útil removida
   const [capexCategoria, setCapexCategoria] = useState<string>("Otros");
   const [notas, setNotas] = useState("");
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
