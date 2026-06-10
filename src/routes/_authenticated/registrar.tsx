@@ -1584,6 +1584,13 @@ function CierreForm() {
           </div>
         )}
 
+        {mostrarRecordatorioAnterior && (
+          <div className="rounded border border-amber-300 bg-amber-50 text-amber-800 text-xs p-3 font-medium">
+            🔔 Recordatorio: el mes anterior <strong>{periodoAnterior}</strong> aún no está cerrado. No es obligatorio, pero te conviene cerrarlo antes de seguir registrando compras en {periodo}.
+          </div>
+        )}
+
+
         <div>
           <Label className="text-sm">Período</Label>
           <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} required className="max-w-xs" />
