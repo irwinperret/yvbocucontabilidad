@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,18 +54,10 @@ function ImportarComprasPage() {
 
   // Opciones globales para la importación
   const [centroDefault, setCentroDefault] = useState<Centro>("Compartido");
-  const [marcarPagadas, setMarcarPagadas] = useState(false);
-  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("");
   const [soloFacturas, setSoloFacturas] = useState(false);
   const [offBalance, setOffBalance] = useState(false);
 
-  const { data: cuentasBancarias = [] } = useQuery({
-    queryKey: ["cuentas-bancarias-activas-importar-compras"],
-    queryFn: async () => {
-      const { data } = await supabase.from("cuentas_bancarias").select("*").eq("activa", true).order("nombre");
-      return data ?? [];
-    },
-  });
+
 
   const { data: terceros = [] } = useQuery({
     queryKey: ["terceros-todos-importar-compras"],
@@ -192,9 +184,6 @@ function ImportarComprasPage() {
 
   const importar = async () => {
     if (!user) return;
-    if (marcarPagadas && !offBalance && !cuentaBancariaId)
-      return toast.error("Selecciona la cuenta bancaria para las compras pagadas");
-
     const elegibles = visibles.filter((r) => r.include);
     if (!elegibles.length) return toast.error("No hay filas seleccionadas");
 
@@ -202,6 +191,7 @@ function ImportarComprasPage() {
     setProgress({ done: 0, total: elegibles.length });
     const tasaCache = new Map<string, number>();
     let ok = 0, dup = 0, fail = 0, upd = 0;
+
 
     for (const r of elegibles) {
       try {
@@ -230,7 +220,7 @@ function ImportarComprasPage() {
         const periodo = r.fecha.slice(0, 7);
 
         const offBal = offBalance;
-        const pagada = offBal ? true : marcarPagadas;
+        const pagada = true; // Xetux: siempre asumir pagada
 
         const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
 
@@ -245,32 +235,19 @@ function ImportarComprasPage() {
           const { error: updErr } = await supabase.from("inventario_snapshots").update({
             monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
             tasa_bcv: tasa, fecha: r.fecha, periodo,
+            pagada: true, cuenta_bancaria_id: null,
             notas: notaBase + " · actualizada por reimportación",
           } as any).eq("id", existe.id);
           if (updErr) { fail++; toast.error(`${r.numero_factura}: ${updErr.message}`); continue; }
-          if (existe.cxp_id && !existe.pagada) {
+          if (existe.cxp_id) {
             await supabase.from("cuentas_por_pagar").update({
-              monto_bs: totalBs, monto_usd: r.total_usd, monto_pendiente_bs: totalBs,
+              estado: "pagada", monto_pendiente_bs: 0,
+              monto_bs: totalBs, monto_usd: r.total_usd,
             } as any).eq("id", existe.cxp_id);
           }
           upd++;
           toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
           continue;
-        }
-
-        let cxpId: string | null = null;
-        if (!offBal && !pagada) {
-          const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
-            proveedor: r.proveedor,
-            numero_factura: r.numero_factura,
-            tercero_id: terceroId,
-            centro_costo: centroDefault as any,
-            monto_bs: totalBs, monto_usd: r.total_usd,
-            monto_pendiente_bs: totalBs,
-            estado: "pendiente",
-          } as any).select().single();
-          if (cxpErr) { fail++; toast.error(`${r.numero_factura}: ${cxpErr.message}`); continue; }
-          cxpId = cxp?.id ?? null;
         }
 
         const { error } = await supabase.from("inventario_snapshots").insert({
@@ -280,11 +257,12 @@ function ImportarComprasPage() {
           fecha: r.fecha, tasa_bcv: tasa,
           tercero_id: terceroId, numero_factura: r.numero_factura,
           pagada,
-          cuenta_bancaria_id: !offBal && pagada ? cuentaBancariaId : null,
-          cxp_id: cxpId,
+          cuenta_bancaria_id: null,
+          cxp_id: null,
           notas: notaBase,
           registrado_por: user.id,
         } as any);
+
         if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
         ok++;
       } catch (e: any) {
@@ -362,35 +340,10 @@ function ImportarComprasPage() {
                 <Switch checked={offBalance} onCheckedChange={setOffBalance} />
               </div>
 
-              {!offBalance && (
-                <div className="flex items-center justify-between border rounded p-2">
-                  <div>
-                    <Label className="text-xs">Marcar como pagadas</Label>
-                    <p className="text-[10px] text-muted-foreground">Si está apagado, se crea una CxP por cada compra.</p>
-                  </div>
-                  <Switch checked={marcarPagadas} onCheckedChange={setMarcarPagadas} />
-                </div>
-              )}
+              <div className="md:col-span-2 text-xs text-muted-foreground border rounded p-2 bg-muted/30">
+                Todas las compras importadas se registran como <strong>pagadas</strong> (sin cuenta bancaria asociada). No se crean cuentas por pagar.
+              </div>
 
-              {!offBalance && marcarPagadas && (
-                <div className="space-y-1 md:col-span-2">
-                  <Label className="text-xs">Cuenta bancaria (origen del pago)</Label>
-                  {cuentasBancarias.length === 0 ? (
-                    <div className="text-xs text-orange-700 border rounded p-2 bg-orange-50 border-orange-200">
-                      No hay cuentas bancarias. <Link to="/cuentas-bancarias" className="underline">Agregar</Link>
-                    </div>
-                  ) : (
-                    <Select value={cuentaBancariaId} onValueChange={setCuentaBancariaId}>
-                      <SelectTrigger><SelectValue placeholder="Selecciona cuenta" /></SelectTrigger>
-                      <SelectContent>
-                        {cuentasBancarias.map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>{c.nombre} — {c.banco} ****{(c.numero || "").slice(-4)} {c.moneda}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
 

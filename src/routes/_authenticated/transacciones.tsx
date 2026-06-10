@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import { Pencil, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
@@ -57,6 +59,11 @@ function TransaccionesPage() {
   const [wipePwd, setWipePwd] = useState("");
   const [wipeBusy, setWipeBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const PAGE_SIZE = 50;
+
+  useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, busca]);
 
   const { data, isLoading } = useQuery({
     enabled: !!desde,
@@ -64,18 +71,19 @@ function TransaccionesPage() {
     queryFn: async () => {
       let q = supabase
         .from("transacciones")
-        .select("*")
+        .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id")
         .gte("fecha", desde)
         .lte("fecha", hasta)
         .order("fecha", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(1000);
+        .limit(2000);
       if (centro !== "todos") q = q.eq("centro_costo", centro as any);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
     },
   });
+
 
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-all-list"],
@@ -106,10 +114,10 @@ function TransaccionesPage() {
   }, [profiles]);
 
 
-  const filtradas = (data ?? []).filter((t: any) => {
-    if (!busca) return true;
-    const s = busca.toLowerCase();
-    return (
+  const filtradas = useMemo(() => {
+    const s = busca.trim().toLowerCase();
+    if (!s) return (data ?? []) as any[];
+    return ((data ?? []) as any[]).filter((t: any) =>
       t.cuenta_codigo?.toLowerCase().includes(s) ||
       cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
       t.numero_factura?.toLowerCase().includes(s) ||
@@ -117,7 +125,44 @@ function TransaccionesPage() {
       t.referencia?.toLowerCase().includes(s) ||
       t.notas?.toLowerCase().includes(s)
     );
-  });
+  }, [data, busca, cuentaNombre]);
+
+  const totalPages = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
+  const paginadas = useMemo(
+    () => filtradas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [filtradas, page]
+  );
+
+  const toggleSel = (id: string) =>
+    setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelAllPage = (v: boolean) =>
+    setSelected((prev) => {
+      const n = new Set(prev);
+      paginadas.forEach((t: any) => { v ? n.add(t.id) : n.delete(t.id); });
+      return n;
+    });
+
+  const borrarSeleccionadas = async () => {
+    if (!selected.size) return;
+    if (!confirm(`¿Borrar ${selected.size} transacciones seleccionadas? Esta acción es irreversible.`)) return;
+    const ids = Array.from(selected);
+    const seleccionadas = filtradas.filter((t: any) => selected.has(t.id));
+    // Validar mes cerrado
+    for (const t of seleccionadas) {
+      if (await isPeriodClosed(t.fecha)) {
+        return toast.error(`No se puede borrar: hay transacciones en meses cerrados (ej. ${t.fecha}).`);
+      }
+    }
+    // Romper FKs de parejas off-balance
+    await supabase.from("transacciones").update({ pareja_off_balance_id: null } as any).in("id", ids);
+    const { error } = await supabase.from("transacciones").delete().in("id", ids);
+    if (error) return toast.error(error.message);
+    for (const id of ids) await logAudit("transacciones", "DELETE", id, null, null);
+    toast.success(`${ids.length} transacciones eliminadas`);
+    setSelected(new Set());
+    qc.invalidateQueries();
+  };
+
 
   const eliminar = async (t: any) => {
     if (await isPeriodClosed(t.fecha)) {
@@ -277,8 +322,15 @@ function TransaccionesPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">
               {isLoading ? "Cargando…" : `${filtradas.length} movimientos`}
+              {filtradas.length > PAGE_SIZE && <span className="text-xs text-muted-foreground font-normal ml-2">· página {page + 1} de {totalPages}</span>}
             </CardTitle>
             <div className="flex items-center gap-2">
+              {selected.size > 0 && (
+                <Button variant="destructive" size="sm" onClick={borrarSeleccionadas}>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Borrar {selected.size} seleccionadas
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={exportar} disabled={exporting || filtradas.length === 0}>
                 <Download className="h-4 w-4 mr-1.5" />
                 {exporting ? "Exportando…" : "Exportar a Excel"}
@@ -298,6 +350,12 @@ function TransaccionesPage() {
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground border-b">
                   <tr>
+                    <th className="py-2 px-2 w-8">
+                      <Checkbox
+                        checked={paginadas.length > 0 && paginadas.every((t: any) => selected.has(t.id))}
+                        onCheckedChange={(v) => toggleSelAllPage(Boolean(v))}
+                      />
+                    </th>
                     <th className="text-left py-2 px-2">Fecha</th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">Cuenta</th>
@@ -311,11 +369,13 @@ function TransaccionesPage() {
                     <th className="text-left py-2 px-2">Registrado por</th>
                     <th></th>
                   </tr>
-
                 </thead>
                 <tbody>
-                  {filtradas.map((t: any) => (
+                  {paginadas.map((t: any) => (
                     <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="py-2 px-2">
+                        <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggleSel(t.id)} />
+                      </td>
                       <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(t.fecha)}</td>
                       <td className="py-2 px-2">{t.centro_costo}</td>
                       <td className="py-2 px-2">
@@ -345,7 +405,6 @@ function TransaccionesPage() {
                       </td>
                       <td className="py-2 px-2 text-xs text-muted-foreground">{emailById[t.created_by] ?? "—"}</td>
                       <td className="py-2 px-2">
-
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             size="icon"
@@ -362,17 +421,31 @@ function TransaccionesPage() {
                             warnings={t.pareja_off_balance_id ? ["Esta transacción está enlazada a otro movimiento off-balance (venta ↔ bono). Si confirmas, se eliminarán las DOS transacciones."] : []}
                             onConfirm={() => eliminar(t)}
                           />
-
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-3 text-sm">
+                  <div className="text-xs text-muted-foreground">
+                    Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtradas.length)} de {filtradas.length}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setPage(0)} disabled={page === 0}>«</Button>
+                    <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>‹</Button>
+                    <span className="text-xs mx-2">Pág. {page + 1} / {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>›</Button>
+                    <Button variant="outline" size="sm" onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>»</Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
 
       {editing && (
         <EditDialog
@@ -417,7 +490,7 @@ function TransaccionesPage() {
 function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; onSaved: () => void }) {
   const [fecha, setFecha] = useState<string>(tx.fecha);
   const [centro, setCentro] = useState<Centro>(tx.centro_costo);
-  const [montoBs, setMontoBs] = useState<string>(String(tx.monto_bs ?? ""));
+  const [montoUsd, setMontoUsd] = useState<string>(String(tx.monto_usd ?? ""));
   const [tasa, setTasa] = useState<string>(String(tx.tasa_bcv ?? ""));
   const [metodo, setMetodo] = useState<string>(tx.metodo_pago ?? "transferencia");
   const [numFactura, setNumFactura] = useState<string>(tx.numero_factura ?? "");
@@ -429,14 +502,15 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
   const [busy, setBusy] = useState(false);
 
-  const total = Number(montoBs) || 0;
+  const usdN = Number(montoUsd) || 0;
   const tasaN = Number(tasa) || 0;
-  const base = tx.iva_aplica ? total / 1.16 : total;
-  const iva = tx.iva_aplica ? total - base : 0;
-  // USD se calcula al paralelo (si la transacción tenía tasa_paralela registrada), si no usa BCV.
+  // Bs se recalcula desde USD usando la tasa paralela registrada (o BCV como fallback).
   const tasaParalelaN = Number(tx.tasa_paralela) || 0;
   const tasaConvN = tasaParalelaN || tasaN;
-  const usd = tasaConvN ? base / tasaConvN : 0;
+  const baseUsd = tx.iva_aplica ? usdN / 1.16 : usdN;
+  const total = usdN * tasaConvN;            // monto Bs total (con IVA si aplica)
+  const base = baseUsd * tasaConvN;          // base Bs sin IVA
+  const iva = tx.iva_aplica ? total - base : 0;
 
 
   const save = async (e: React.FormEvent) => {
@@ -445,6 +519,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       return toast.error("Período cerrado — no se puede editar");
     }
     if (!tasaN) return toast.error("Falta tasa");
+    if (!usdN) return toast.error("Indica un monto en USD");
     setBusy(true);
     const patch = {
       fecha,
@@ -453,7 +528,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       monto_base_bs: base,
       iva_bs: iva,
       tasa_bcv: tasaN,
-      monto_usd: usd,
+      monto_usd: usdN,
       metodo_pago: metodo as any,
       numero_factura: numFactura || null,
       numero_orden: numOrden || null,
@@ -492,17 +567,18 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
             </Select>
           </div>
           <div>
-            <Label>Monto Bs {tx.iva_aplica ? "(IVA incluido)" : ""}</Label>
-            <Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" />
+            <Label>Monto USD {tx.iva_aplica ? "(IVA incluido)" : ""}</Label>
+            <Input type="number" step="0.01" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} required className="mono" />
           </div>
           <div>
             <Label>Tasa BCV</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
           <div className="md:col-span-2 rounded-md bg-muted p-2 text-sm flex justify-between">
-            <span className="text-muted-foreground">USD recalculado</span>
-            <span className="mono font-semibold">{fmtUsd(usd)}</span>
+            <span className="text-muted-foreground">Equivalente Bs {tasaParalelaN ? "(tasa paralela)" : "(tasa BCV)"}</span>
+            <span className="mono font-semibold">{fmtBs(total)}</span>
           </div>
+
           <div>
             <Label>Método</Label>
             <Select value={metodo} onValueChange={setMetodo}>

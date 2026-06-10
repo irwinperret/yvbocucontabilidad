@@ -1101,7 +1101,7 @@ function FinanciamientoForm() {
   const [tasa, setTasa] = useState("");
   const [detalle, setDetalle] = useState("");
   const [plazo, setPlazo] = useState("");
-  const [vidaUtil, setVidaUtil] = useState("");
+  // vida útil removida
   const [capexCategoria, setCapexCategoria] = useState<string>("Otros");
   const [notas, setNotas] = useState("");
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
@@ -1178,7 +1178,7 @@ function FinanciamientoForm() {
       }
       toast.success("Movimiento registrado");
       qc.invalidateQueries();
-      setMontoInput(""); setCapitalInput(""); setInteresesInput(""); setDetalle(""); setNotas(""); setPlazo(""); setVidaUtil("");
+      setMontoInput(""); setCapitalInput(""); setInteresesInput(""); setDetalle(""); setNotas(""); setPlazo("");
     } catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   };
@@ -1244,18 +1244,15 @@ function FinanciamientoForm() {
                 <div><Label>Plazo meses</Label><Input type="number" value={plazo} onChange={(e) => setPlazo(e.target.value)} /></div>
               )}
               {tipo === "capex" && (
-                <>
-                  <div>
-                    <Label>Categoría CapEx</Label>
-                    <Select value={capexCategoria} onValueChange={setCapexCategoria}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {CAPEX_CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Vida útil (meses)</Label><Input type="number" value={vidaUtil} onChange={(e) => setVidaUtil(e.target.value)} /></div>
-                </>
+                <div>
+                  <Label>Categoría CapEx</Label>
+                  <Select value={capexCategoria} onValueChange={setCapexCategoria}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CAPEX_CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
               <div><Label>Monto {sufijo}</Label><Input type="number" step="0.01" value={montoInput} onChange={(e) => setMontoInput(e.target.value)} required className="mono" /></div>
               <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
@@ -1263,7 +1260,7 @@ function FinanciamientoForm() {
                 <span className="text-sm text-muted-foreground">{moneda === "USD" ? "Equivalente Bs" : "Equivalente USD"}</span>
                 <span className="text-lg font-bold mono">{moneda === "USD" ? fmtBs(montoBsCalc) : fmtUsd(montoUsdCalc)}</span>
               </div>
-              {tipo === "capex" && <div className="md:col-span-2 text-xs text-muted-foreground">La depreciación se registra mensualmente por separado (10.7).</div>}
+
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
             </>
           )}
@@ -1341,14 +1338,40 @@ function CierreForm() {
     },
   });
 
+  // Período anterior — para recordatorio "cierra el mes pasado"
+  const periodoAnterior = useMemo(() => {
+    const d = new Date(`${periodo}-01T00:00:00`);
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().slice(0, 7);
+  }, [periodo]);
+  const { data: cierreAnterior } = useQuery({
+    queryKey: ["cierre-actual", periodoAnterior],
+    queryFn: async () => {
+      const { data } = await supabase.from("cierres_de_mes").select("id").eq("periodo", periodoAnterior).maybeSingle();
+      return data;
+    },
+  });
+  const { data: comprasAnteriorCount } = useQuery({
+    queryKey: ["compras-periodo-count", periodoAnterior],
+    queryFn: async () => {
+      const { count } = await supabase.from("inventario_snapshots").select("id", { count: "exact", head: true })
+        .eq("tipo", "compra").eq("periodo", periodoAnterior);
+      return count ?? 0;
+    },
+  });
+  const mostrarRecordatorioAnterior = !cierreAnterior && (comprasAnteriorCount ?? 0) > 0 && (compras?.length ?? 0) > 0;
+
   const reabrirMes = async () => {
     if (!cierreActual) return;
     if (!confirm(`¿Reabrir el mes ${periodo}? Se eliminará el cierre actual y podrás editar transacciones y volver a cerrarlo. Esta acción queda registrada en auditoría.`)) return;
     const { error } = await supabase.from("cierres_de_mes").delete().eq("id", cierreActual.id);
     if (error) return toast.error(error.message);
+    // Borrar la transacción COGS generada por el cierre
+    await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
     toast.success(`Mes ${periodo} reabierto`);
     qc.invalidateQueries();
   };
+
 
   // Tasa promedio del mes: promedio de tasas BCV registradas en el período
   const { data: tasasMes } = useQuery({
@@ -1507,8 +1530,30 @@ function CierreForm() {
       depreciacion_bs: 0,
       notas: notas || null, registrado_por: user.id, estado: "cerrado",
     } as any);
+    if (error) { setBusy(false); return toast.error(error.message); }
+
+    // Postear COGS como transacción para que se refleje en G&P y FC
+    // Fecha = último día del período. Cuenta 2.2 (Ajuste COGS por inventario, afecta G&P).
+    if (cogs && Math.abs(cogs) > 0.01) {
+      const finDate = new Date(`${periodo}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      finDate.setDate(0);
+      const fechaCierre = finDate.toISOString().slice(0, 10);
+      // Borrar cualquier transacción residual del cierre anterior para este período
+      await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
+      await supabase.from("transacciones").insert({
+        fecha: fechaCierre, cuenta_codigo: "2.2", centro_costo: "Compartido" as any,
+        monto_bs: cogs, monto_base_bs: cogs, iva_bs: 0,
+        tasa_bcv: tasaPromedio || tasaConv, tasa_paralela: paralelaPromedio || null,
+        monto_usd: cogsUsd,
+        metodo_pago: "transferencia" as any, modo: "on_balance" as any,
+        referencia: `CIERRE-${periodo}`,
+        notas: `COGS automático del cierre de ${periodo}`,
+        created_by: user.id,
+      } as any);
+    }
+
     setBusy(false);
-    if (error) return toast.error(error.message);
     toast.success("Mes cerrado");
     qc.invalidateQueries();
   };
@@ -1516,6 +1561,7 @@ function CierreForm() {
   const tercerosMap = useMemo(() => {
     const m: Record<string, any> = {};
     (terceros ?? []).forEach((t: any) => { m[t.id] = t; });
+
     return m;
   }, [terceros]);
 
@@ -1537,6 +1583,13 @@ function CierreForm() {
             ⚠ Una vez cerrado el mes, no se podrán modificar ni borrar transacciones de este período (un admin puede reabrirlo después si hay errores).
           </div>
         )}
+
+        {mostrarRecordatorioAnterior && (
+          <div className="rounded border border-amber-300 bg-amber-50 text-amber-800 text-xs p-3 font-medium">
+            🔔 Recordatorio: el mes anterior <strong>{periodoAnterior}</strong> aún no está cerrado. No es obligatorio, pero te conviene cerrarlo antes de seguir registrando compras en {periodo}.
+          </div>
+        )}
+
 
         <div>
           <Label className="text-sm">Período</Label>
