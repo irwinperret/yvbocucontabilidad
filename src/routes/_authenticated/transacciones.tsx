@@ -320,8 +320,15 @@ function TransaccionesPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">
               {isLoading ? "Cargando…" : `${filtradas.length} movimientos`}
+              {filtradas.length > PAGE_SIZE && <span className="text-xs text-muted-foreground font-normal ml-2">· página {page + 1} de {totalPages}</span>}
             </CardTitle>
             <div className="flex items-center gap-2">
+              {selected.size > 0 && (
+                <Button variant="destructive" size="sm" onClick={borrarSeleccionadas}>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Borrar {selected.size} seleccionadas
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={exportar} disabled={exporting || filtradas.length === 0}>
                 <Download className="h-4 w-4 mr-1.5" />
                 {exporting ? "Exportando…" : "Exportar a Excel"}
@@ -341,6 +348,12 @@ function TransaccionesPage() {
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground border-b">
                   <tr>
+                    <th className="py-2 px-2 w-8">
+                      <Checkbox
+                        checked={paginadas.length > 0 && paginadas.every((t: any) => selected.has(t.id))}
+                        onCheckedChange={(v) => toggleSelAllPage(Boolean(v))}
+                      />
+                    </th>
                     <th className="text-left py-2 px-2">Fecha</th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">Cuenta</th>
@@ -354,11 +367,13 @@ function TransaccionesPage() {
                     <th className="text-left py-2 px-2">Registrado por</th>
                     <th></th>
                   </tr>
-
                 </thead>
                 <tbody>
-                  {filtradas.map((t: any) => (
+                  {paginadas.map((t: any) => (
                     <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="py-2 px-2">
+                        <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggleSel(t.id)} />
+                      </td>
                       <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(t.fecha)}</td>
                       <td className="py-2 px-2">{t.centro_costo}</td>
                       <td className="py-2 px-2">
@@ -388,7 +403,6 @@ function TransaccionesPage() {
                       </td>
                       <td className="py-2 px-2 text-xs text-muted-foreground">{emailById[t.created_by] ?? "—"}</td>
                       <td className="py-2 px-2">
-
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             size="icon"
@@ -405,17 +419,31 @@ function TransaccionesPage() {
                             warnings={t.pareja_off_balance_id ? ["Esta transacción está enlazada a otro movimiento off-balance (venta ↔ bono). Si confirmas, se eliminarán las DOS transacciones."] : []}
                             onConfirm={() => eliminar(t)}
                           />
-
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-3 text-sm">
+                  <div className="text-xs text-muted-foreground">
+                    Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtradas.length)} de {filtradas.length}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setPage(0)} disabled={page === 0}>«</Button>
+                    <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>‹</Button>
+                    <span className="text-xs mx-2">Pág. {page + 1} / {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>›</Button>
+                    <Button variant="outline" size="sm" onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>»</Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
 
       {editing && (
         <EditDialog
