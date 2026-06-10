@@ -490,7 +490,7 @@ function TransaccionesPage() {
 function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; onSaved: () => void }) {
   const [fecha, setFecha] = useState<string>(tx.fecha);
   const [centro, setCentro] = useState<Centro>(tx.centro_costo);
-  const [montoBs, setMontoBs] = useState<string>(String(tx.monto_bs ?? ""));
+  const [montoUsd, setMontoUsd] = useState<string>(String(tx.monto_usd ?? ""));
   const [tasa, setTasa] = useState<string>(String(tx.tasa_bcv ?? ""));
   const [metodo, setMetodo] = useState<string>(tx.metodo_pago ?? "transferencia");
   const [numFactura, setNumFactura] = useState<string>(tx.numero_factura ?? "");
@@ -502,14 +502,15 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
   const [busy, setBusy] = useState(false);
 
-  const total = Number(montoBs) || 0;
+  const usdN = Number(montoUsd) || 0;
   const tasaN = Number(tasa) || 0;
-  const base = tx.iva_aplica ? total / 1.16 : total;
-  const iva = tx.iva_aplica ? total - base : 0;
-  // USD se calcula al paralelo (si la transacción tenía tasa_paralela registrada), si no usa BCV.
+  // Bs se recalcula desde USD usando la tasa paralela registrada (o BCV como fallback).
   const tasaParalelaN = Number(tx.tasa_paralela) || 0;
   const tasaConvN = tasaParalelaN || tasaN;
-  const usd = tasaConvN ? base / tasaConvN : 0;
+  const baseUsd = tx.iva_aplica ? usdN / 1.16 : usdN;
+  const total = usdN * tasaConvN;            // monto Bs total (con IVA si aplica)
+  const base = baseUsd * tasaConvN;          // base Bs sin IVA
+  const iva = tx.iva_aplica ? total - base : 0;
 
 
   const save = async (e: React.FormEvent) => {
@@ -518,6 +519,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       return toast.error("Período cerrado — no se puede editar");
     }
     if (!tasaN) return toast.error("Falta tasa");
+    if (!usdN) return toast.error("Indica un monto en USD");
     setBusy(true);
     const patch = {
       fecha,
@@ -526,7 +528,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       monto_base_bs: base,
       iva_bs: iva,
       tasa_bcv: tasaN,
-      monto_usd: usd,
+      monto_usd: usdN,
       metodo_pago: metodo as any,
       numero_factura: numFactura || null,
       numero_orden: numOrden || null,
@@ -565,17 +567,18 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
             </Select>
           </div>
           <div>
-            <Label>Monto Bs {tx.iva_aplica ? "(IVA incluido)" : ""}</Label>
-            <Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" />
+            <Label>Monto USD {tx.iva_aplica ? "(IVA incluido)" : ""}</Label>
+            <Input type="number" step="0.01" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} required className="mono" />
           </div>
           <div>
             <Label>Tasa BCV</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
           <div className="md:col-span-2 rounded-md bg-muted p-2 text-sm flex justify-between">
-            <span className="text-muted-foreground">USD recalculado</span>
-            <span className="mono font-semibold">{fmtUsd(usd)}</span>
+            <span className="text-muted-foreground">Equivalente Bs {tasaParalelaN ? "(tasa paralela)" : "(tasa BCV)"}</span>
+            <span className="mono font-semibold">{fmtBs(total)}</span>
           </div>
+
           <div>
             <Label>Método</Label>
             <Select value={metodo} onValueChange={setMetodo}>
