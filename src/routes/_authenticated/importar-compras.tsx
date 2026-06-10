@@ -340,35 +340,10 @@ function ImportarComprasPage() {
                 <Switch checked={offBalance} onCheckedChange={setOffBalance} />
               </div>
 
-              {!offBalance && (
-                <div className="flex items-center justify-between border rounded p-2">
-                  <div>
-                    <Label className="text-xs">Marcar como pagadas</Label>
-                    <p className="text-[10px] text-muted-foreground">Si está apagado, se crea una CxP por cada compra.</p>
-                  </div>
-                  <Switch checked={marcarPagadas} onCheckedChange={setMarcarPagadas} />
-                </div>
-              )}
+              <div className="md:col-span-2 text-xs text-muted-foreground border rounded p-2 bg-muted/30">
+                Todas las compras importadas se registran como <strong>pagadas</strong> (sin cuenta bancaria asociada). No se crean cuentas por pagar.
+              </div>
 
-              {!offBalance && marcarPagadas && (
-                <div className="space-y-1 md:col-span-2">
-                  <Label className="text-xs">Cuenta bancaria (origen del pago)</Label>
-                  {cuentasBancarias.length === 0 ? (
-                    <div className="text-xs text-orange-700 border rounded p-2 bg-orange-50 border-orange-200">
-                      No hay cuentas bancarias. <Link to="/cuentas-bancarias" className="underline">Agregar</Link>
-                    </div>
-                  ) : (
-                    <Select value={cuentaBancariaId} onValueChange={setCuentaBancariaId}>
-                      <SelectTrigger><SelectValue placeholder="Selecciona cuenta" /></SelectTrigger>
-                      <SelectContent>
-                        {cuentasBancarias.map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>{c.nombre} — {c.banco} ****{(c.numero || "").slice(-4)} {c.moneda}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
 
