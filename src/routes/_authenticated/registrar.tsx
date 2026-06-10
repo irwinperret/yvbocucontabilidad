@@ -1178,7 +1178,7 @@ function FinanciamientoForm() {
       }
       toast.success("Movimiento registrado");
       qc.invalidateQueries();
-      setMontoInput(""); setCapitalInput(""); setInteresesInput(""); setDetalle(""); setNotas(""); setPlazo(""); setVidaUtil("");
+      setMontoInput(""); setCapitalInput(""); setInteresesInput(""); setDetalle(""); setNotas(""); setPlazo("");
     } catch (err: any) { toast.error(err.message); }
     finally { setBusy(false); }
   };
