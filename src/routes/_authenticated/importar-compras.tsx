@@ -228,7 +228,7 @@ function ImportarComprasPage() {
         const periodo = r.fecha.slice(0, 7);
 
         const offBal = offBalance;
-        const pagada = offBal ? true : marcarPagadas;
+        const pagada = true; // Xetux: siempre asumir pagada
 
         const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
 
@@ -243,32 +243,19 @@ function ImportarComprasPage() {
           const { error: updErr } = await supabase.from("inventario_snapshots").update({
             monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
             tasa_bcv: tasa, fecha: r.fecha, periodo,
+            pagada: true, cuenta_bancaria_id: null,
             notas: notaBase + " · actualizada por reimportación",
           } as any).eq("id", existe.id);
           if (updErr) { fail++; toast.error(`${r.numero_factura}: ${updErr.message}`); continue; }
-          if (existe.cxp_id && !existe.pagada) {
+          if (existe.cxp_id) {
             await supabase.from("cuentas_por_pagar").update({
-              monto_bs: totalBs, monto_usd: r.total_usd, monto_pendiente_bs: totalBs,
+              estado: "pagada", monto_pendiente_bs: 0,
+              monto_bs: totalBs, monto_usd: r.total_usd,
             } as any).eq("id", existe.cxp_id);
           }
           upd++;
           toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
           continue;
-        }
-
-        let cxpId: string | null = null;
-        if (!offBal && !pagada) {
-          const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
-            proveedor: r.proveedor,
-            numero_factura: r.numero_factura,
-            tercero_id: terceroId,
-            centro_costo: centroDefault as any,
-            monto_bs: totalBs, monto_usd: r.total_usd,
-            monto_pendiente_bs: totalBs,
-            estado: "pendiente",
-          } as any).select().single();
-          if (cxpErr) { fail++; toast.error(`${r.numero_factura}: ${cxpErr.message}`); continue; }
-          cxpId = cxp?.id ?? null;
         }
 
         const { error } = await supabase.from("inventario_snapshots").insert({
@@ -278,11 +265,12 @@ function ImportarComprasPage() {
           fecha: r.fecha, tasa_bcv: tasa,
           tercero_id: terceroId, numero_factura: r.numero_factura,
           pagada,
-          cuenta_bancaria_id: !offBal && pagada ? cuentaBancariaId : null,
-          cxp_id: cxpId,
+          cuenta_bancaria_id: null,
+          cxp_id: null,
           notas: notaBase,
           registrado_por: user.id,
         } as any);
+
         if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
         ok++;
       } catch (e: any) {
