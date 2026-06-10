@@ -57,6 +57,11 @@ function TransaccionesPage() {
   const [wipePwd, setWipePwd] = useState("");
   const [wipeBusy, setWipeBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const PAGE_SIZE = 50;
+
+  useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, busca]);
 
   const { data, isLoading } = useQuery({
     enabled: !!desde,
@@ -64,18 +69,19 @@ function TransaccionesPage() {
     queryFn: async () => {
       let q = supabase
         .from("transacciones")
-        .select("*")
+        .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id")
         .gte("fecha", desde)
         .lte("fecha", hasta)
         .order("fecha", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(1000);
+        .limit(2000);
       if (centro !== "todos") q = q.eq("centro_costo", centro as any);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
     },
   });
+
 
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-all-list"],
