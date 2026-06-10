@@ -192,9 +192,6 @@ function ImportarComprasPage() {
 
   const importar = async () => {
     if (!user) return;
-    if (marcarPagadas && !offBalance && !cuentaBancariaId)
-      return toast.error("Selecciona la cuenta bancaria para las compras pagadas");
-
     const elegibles = visibles.filter((r) => r.include);
     if (!elegibles.length) return toast.error("No hay filas seleccionadas");
 
@@ -202,6 +199,7 @@ function ImportarComprasPage() {
     setProgress({ done: 0, total: elegibles.length });
     const tasaCache = new Map<string, number>();
     let ok = 0, dup = 0, fail = 0, upd = 0;
+
 
     for (const r of elegibles) {
       try {
