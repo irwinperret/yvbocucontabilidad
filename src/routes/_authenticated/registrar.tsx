@@ -1338,14 +1338,40 @@ function CierreForm() {
     },
   });
 
+  // Período anterior — para recordatorio "cierra el mes pasado"
+  const periodoAnterior = useMemo(() => {
+    const d = new Date(`${periodo}-01T00:00:00`);
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().slice(0, 7);
+  }, [periodo]);
+  const { data: cierreAnterior } = useQuery({
+    queryKey: ["cierre-actual", periodoAnterior],
+    queryFn: async () => {
+      const { data } = await supabase.from("cierres_de_mes").select("id").eq("periodo", periodoAnterior).maybeSingle();
+      return data;
+    },
+  });
+  const { data: comprasAnteriorCount } = useQuery({
+    queryKey: ["compras-periodo-count", periodoAnterior],
+    queryFn: async () => {
+      const { count } = await supabase.from("inventario_snapshots").select("id", { count: "exact", head: true })
+        .eq("tipo", "compra").eq("periodo", periodoAnterior);
+      return count ?? 0;
+    },
+  });
+  const mostrarRecordatorioAnterior = !cierreAnterior && (comprasAnteriorCount ?? 0) > 0 && (compras?.length ?? 0) > 0;
+
   const reabrirMes = async () => {
     if (!cierreActual) return;
     if (!confirm(`¿Reabrir el mes ${periodo}? Se eliminará el cierre actual y podrás editar transacciones y volver a cerrarlo. Esta acción queda registrada en auditoría.`)) return;
     const { error } = await supabase.from("cierres_de_mes").delete().eq("id", cierreActual.id);
     if (error) return toast.error(error.message);
+    // Borrar la transacción COGS generada por el cierre
+    await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
     toast.success(`Mes ${periodo} reabierto`);
     qc.invalidateQueries();
   };
+
 
   // Tasa promedio del mes: promedio de tasas BCV registradas en el período
   const { data: tasasMes } = useQuery({
