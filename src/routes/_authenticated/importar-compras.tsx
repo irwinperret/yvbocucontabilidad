@@ -54,18 +54,10 @@ function ImportarComprasPage() {
 
   // Opciones globales para la importación
   const [centroDefault, setCentroDefault] = useState<Centro>("Compartido");
-  const [marcarPagadas, setMarcarPagadas] = useState(false);
-  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("");
   const [soloFacturas, setSoloFacturas] = useState(false);
   const [offBalance, setOffBalance] = useState(false);
 
-  const { data: cuentasBancarias = [] } = useQuery({
-    queryKey: ["cuentas-bancarias-activas-importar-compras"],
-    queryFn: async () => {
-      const { data } = await supabase.from("cuentas_bancarias").select("*").eq("activa", true).order("nombre");
-      return data ?? [];
-    },
-  });
+
 
   const { data: terceros = [] } = useQuery({
     queryKey: ["terceros-todos-importar-compras"],
