@@ -1530,8 +1530,30 @@ function CierreForm() {
       depreciacion_bs: 0,
       notas: notas || null, registrado_por: user.id, estado: "cerrado",
     } as any);
+    if (error) { setBusy(false); return toast.error(error.message); }
+
+    // Postear COGS como transacción para que se refleje en G&P y FC
+    // Fecha = último día del período. Cuenta 2.2 (Ajuste COGS por inventario, afecta G&P).
+    if (cogs && Math.abs(cogs) > 0.01) {
+      const finDate = new Date(`${periodo}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      finDate.setDate(0);
+      const fechaCierre = finDate.toISOString().slice(0, 10);
+      // Borrar cualquier transacción residual del cierre anterior para este período
+      await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
+      await supabase.from("transacciones").insert({
+        fecha: fechaCierre, cuenta_codigo: "2.2", centro_costo: "Compartido" as any,
+        monto_bs: cogs, monto_base_bs: cogs, iva_bs: 0,
+        tasa_bcv: tasaPromedio || tasaConv, tasa_paralela: paralelaPromedio || null,
+        monto_usd: cogsUsd,
+        metodo_pago: "transferencia" as any, modo: "on_balance" as any,
+        referencia: `CIERRE-${periodo}`,
+        notas: `COGS automático del cierre de ${periodo}`,
+        created_by: user.id,
+      } as any);
+    }
+
     setBusy(false);
-    if (error) return toast.error(error.message);
     toast.success("Mes cerrado");
     qc.invalidateQueries();
   };
@@ -1539,6 +1561,7 @@ function CierreForm() {
   const tercerosMap = useMemo(() => {
     const m: Record<string, any> = {};
     (terceros ?? []).forEach((t: any) => { m[t.id] = t; });
+
     return m;
   }, [terceros]);
 
