@@ -112,10 +112,10 @@ function TransaccionesPage() {
   }, [profiles]);
 
 
-  const filtradas = (data ?? []).filter((t: any) => {
-    if (!busca) return true;
-    const s = busca.toLowerCase();
-    return (
+  const filtradas = useMemo(() => {
+    const s = busca.trim().toLowerCase();
+    if (!s) return (data ?? []) as any[];
+    return ((data ?? []) as any[]).filter((t: any) =>
       t.cuenta_codigo?.toLowerCase().includes(s) ||
       cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
       t.numero_factura?.toLowerCase().includes(s) ||
@@ -123,7 +123,44 @@ function TransaccionesPage() {
       t.referencia?.toLowerCase().includes(s) ||
       t.notas?.toLowerCase().includes(s)
     );
-  });
+  }, [data, busca, cuentaNombre]);
+
+  const totalPages = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
+  const paginadas = useMemo(
+    () => filtradas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [filtradas, page]
+  );
+
+  const toggleSel = (id: string) =>
+    setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelAllPage = (v: boolean) =>
+    setSelected((prev) => {
+      const n = new Set(prev);
+      paginadas.forEach((t: any) => { v ? n.add(t.id) : n.delete(t.id); });
+      return n;
+    });
+
+  const borrarSeleccionadas = async () => {
+    if (!selected.size) return;
+    if (!confirm(`¿Borrar ${selected.size} transacciones seleccionadas? Esta acción es irreversible.`)) return;
+    const ids = Array.from(selected);
+    const seleccionadas = filtradas.filter((t: any) => selected.has(t.id));
+    // Validar mes cerrado
+    for (const t of seleccionadas) {
+      if (await isPeriodClosed(t.fecha)) {
+        return toast.error(`No se puede borrar: hay transacciones en meses cerrados (ej. ${t.fecha}).`);
+      }
+    }
+    // Romper FKs de parejas off-balance
+    await supabase.from("transacciones").update({ pareja_off_balance_id: null } as any).in("id", ids);
+    const { error } = await supabase.from("transacciones").delete().in("id", ids);
+    if (error) return toast.error(error.message);
+    for (const id of ids) await logAudit("transacciones", "DELETE", id, null, null);
+    toast.success(`${ids.length} transacciones eliminadas`);
+    setSelected(new Set());
+    qc.invalidateQueries();
+  };
+
 
   const eliminar = async (t: any) => {
     if (await isPeriodClosed(t.fecha)) {
