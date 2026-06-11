@@ -228,11 +228,9 @@ function ImportarVentasPage() {
     let ok = 0, updated = 0, unchanged = 0, fail = 0;
     setProgress({ done: 0, total: elegibles.length });
 
-    const tasaCache = new Map<string, number>();
-    const approxEq = (a: number, b: number) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
-
     const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
     const approxEq = (a: number, b: number) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
+
 
     for (const r of elegibles) {
       try {
