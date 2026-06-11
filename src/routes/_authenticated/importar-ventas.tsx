@@ -231,19 +231,24 @@ function ImportarVentasPage() {
     const tasaCache = new Map<string, number>();
     const approxEq = (a: number, b: number) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
 
+    const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
+    const approxEq = (a: number, b: number) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
+
     for (const r of elegibles) {
       try {
         if (!r.fecha) { fail++; continue; }
-        let tasa = tasaCache.get(r.fecha);
-        if (tasa === undefined) {
-          tasa = await fetchTasa(r.fecha);
-          tasaCache.set(r.fecha, tasa);
+        let tasas = tasaCache.get(r.fecha);
+        if (!tasas) {
+          tasas = await fetchTasa(r.fecha);
+          tasaCache.set(r.fecha, tasas);
         }
-        if (!tasa) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura || r.numero_orden})`); continue; }
+        // USD es la fuente de verdad. Bs = USD × tasa paralela (fallback BCV solo si no hay paralela).
+        const tasaConv = tasas.paralela || tasas.bcv;
+        if (!tasaConv) { fail++; toast.error(`Sin tasa para ${r.fecha} (${r.numero_factura || r.numero_orden})`); continue; }
 
-        const totalBs = r.total_usd * tasa;
-        const baseBs = r.base_usd * tasa;
-        const ivaBs = r.iva_usd * tasa;
+        const totalBs = +(r.total_usd * tasaConv).toFixed(2);
+        const baseBs = +(r.base_usd * tasaConv).toFixed(2);
+        const ivaBs = +(r.iva_usd * tasaConv).toFixed(2);
 
         // Centro: factura → derivado del nº factura; resto (orden) → Bocu por regla.
         const centroRow: Centro = r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu";
@@ -291,7 +296,8 @@ function ImportarVentasPage() {
           iva_bs: ivaBs,
           iva_aplica: r.iva_usd > 0,
           tipo_iva: r.iva_usd > 0 ? "debito_fiscal" : null,
-          tasa_bcv: tasa,
+          tasa_bcv: tasas.bcv || tasaConv,
+          tasa_paralela: tasas.paralela || null,
           monto_usd: r.base_usd,
           metodo_pago: metodo as any,
           numero_factura: r.numero_factura || null,
