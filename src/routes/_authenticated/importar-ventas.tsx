@@ -31,7 +31,9 @@ type ParsedRow = {
   fecha: string; // YYYY-MM-DD
   total_usd: number;        // absoluto (para descuentos/NC)
   iva_usd: number;
-  base_usd: number;
+  base_usd: number;         // base = V - IVA (incluye servicio)
+  servicio_usd: number;     // columna T — bono de servicio 10%
+  propina_usd: number;      // columna W — propina (NO va a ingresos)
   forma_pago_raw: string;
   formas: string[];
   esCxC: boolean;
@@ -113,6 +115,8 @@ function ImportarVentasPage() {
       const totalRaw = numFromCell(row[21]); // V "Total Venta"
       const cliente = String(row[7] ?? "").trim() || "Contado";
       const iva = numFromCell(row[17]); // R
+      const servicio = numFromCell(row[19]); // T "Servicio"
+      const propina = numFromCell(row[22]); // W "Propina"
       const formaRaw = String(row[31] ?? "").trim(); // AF
       const fecha = parseDateCell(row[36]); // AK
       const formas = formaRaw.split("|").map((s) => s.trim()).filter(Boolean);
@@ -131,6 +135,8 @@ function ImportarVentasPage() {
           total_usd: totalRaw,
           iva_usd: iva,
           base_usd: Math.max(0, totalRaw - iva),
+          servicio_usd: Math.max(0, servicio),
+          propina_usd: Math.max(0, propina),
           forma_pago_raw: formaRaw,
           formas, esMixto, esCxC,
         });
@@ -152,6 +158,8 @@ function ImportarVentasPage() {
           total_usd: absTotal,
           iva_usd: Math.abs(iva),
           base_usd: Math.max(0, absTotal - Math.abs(iva)),
+          servicio_usd: Math.max(0, servicio),
+          propina_usd: Math.max(0, propina),
           forma_pago_raw: formaRaw,
           formas, esMixto, esCxC,
         });
@@ -201,9 +209,14 @@ function ImportarVentasPage() {
     return { importable, mixto, cxc, sinMapeo, descuento, notaCredito, porDeterminar, totalUsd };
   }, [rows, mapByForma]);
 
-  const fetchTasa = async (fecha: string): Promise<number> => {
-    const { data } = await supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
-    return Number(data?.tasa ?? 0);
+  const fetchTasa = async (fecha: string): Promise<{ paralela: number; bcv: number; esParalela: boolean }> => {
+    const [{ data: par }, { data: bcv }] = await Promise.all([
+      supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const paralela = Number(par?.tasa ?? 0);
+    const bcvN = Number(bcv?.tasa ?? 0);
+    return { paralela, bcv: bcvN, esParalela: paralela > 0 };
   };
 
   const importar = async () => {
@@ -215,22 +228,25 @@ function ImportarVentasPage() {
     let ok = 0, updated = 0, unchanged = 0, fail = 0;
     setProgress({ done: 0, total: elegibles.length });
 
-    const tasaCache = new Map<string, number>();
+    const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
     const approxEq = (a: number, b: number) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
+
 
     for (const r of elegibles) {
       try {
         if (!r.fecha) { fail++; continue; }
-        let tasa = tasaCache.get(r.fecha);
-        if (tasa === undefined) {
-          tasa = await fetchTasa(r.fecha);
-          tasaCache.set(r.fecha, tasa);
+        let tasas = tasaCache.get(r.fecha);
+        if (!tasas) {
+          tasas = await fetchTasa(r.fecha);
+          tasaCache.set(r.fecha, tasas);
         }
-        if (!tasa) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura || r.numero_orden})`); continue; }
+        // USD es la fuente de verdad. Bs = USD × tasa paralela (fallback BCV solo si no hay paralela).
+        const tasaConv = tasas.paralela || tasas.bcv;
+        if (!tasaConv) { fail++; toast.error(`Sin tasa para ${r.fecha} (${r.numero_factura || r.numero_orden})`); continue; }
 
-        const totalBs = r.total_usd * tasa;
-        const baseBs = r.base_usd * tasa;
-        const ivaBs = r.iva_usd * tasa;
+        const totalBs = +(r.total_usd * tasaConv).toFixed(2);
+        const baseBs = +(r.base_usd * tasaConv).toFixed(2);
+        const ivaBs = +(r.iva_usd * tasaConv).toFixed(2);
 
         // Centro: factura → derivado del nº factura; resto (orden) → Bocu por regla.
         const centroRow: Centro = r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu";
@@ -278,7 +294,8 @@ function ImportarVentasPage() {
           iva_bs: ivaBs,
           iva_aplica: r.iva_usd > 0,
           tipo_iva: r.iva_usd > 0 ? "debito_fiscal" : null,
-          tasa_bcv: tasa,
+          tasa_bcv: tasas.bcv || tasaConv,
+          tasa_paralela: tasas.paralela || null,
           monto_usd: r.base_usd,
           metodo_pago: metodo as any,
           numero_factura: r.numero_factura || null,
@@ -364,8 +381,10 @@ function ImportarVentasPage() {
           continue;
         }
 
+        const grupoId = crypto.randomUUID();
         const { data: tx, error } = await supabase.from("transacciones").insert({
           ...payload,
+          grupo_transaccion_id: grupoId,
           notas: notasBase,
           created_by: user.id,
         } as any).select().single();
@@ -385,6 +404,71 @@ function ImportarVentasPage() {
             estado: "vigente",
             numero_orden: r.numero_orden || null,
           } as any);
+        }
+
+        // ====== Bono de servicio (columna T) ======
+        // Solo para facturas con servicio > 0. Cuenta 3.5 (Bocu) o 3.10 (YV).
+        if (r.clase === "factura" && r.servicio_usd > 0 && tx && centroRow !== "Compartido") {
+          const cuentaBono = centroRow === "YV" ? "3.10" : "3.5";
+          const bonoBs = +(r.servicio_usd * tasaConv).toFixed(2);
+          // Dedup: ¿existe ya un bono enlazado a esta factura?
+          const { data: bonoExist } = await supabase.from("transacciones")
+            .select("id, monto_usd")
+            .eq("referencia", "xetux")
+            .eq("cuenta_codigo", cuentaBono)
+            .eq("numero_factura", r.numero_factura)
+            .limit(1).maybeSingle();
+          const bonoPayload: any = {
+            fecha: r.fecha,
+            cuenta_codigo: cuentaBono,
+            centro_costo: centroRow as any,
+            monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
+            iva_aplica: false, tipo_iva: null,
+            tasa_bcv: tasas.bcv || tasaConv,
+            tasa_paralela: tasas.paralela || null,
+            monto_usd: r.servicio_usd,
+            metodo_pago: "efectivo_usd",
+            numero_factura: r.numero_factura,
+            referencia: "xetux",
+            modo: "on_balance",
+            grupo_transaccion_id: grupoId,
+            notas: `Xetux · Bono 10% servicio · factura ${r.numero_factura} · ${r.cliente}`,
+            created_by: user.id,
+          };
+          if (bonoExist) {
+            await supabase.from("transacciones").update(bonoPayload).eq("id", bonoExist.id);
+          } else {
+            await supabase.from("transacciones").insert(bonoPayload);
+          }
+        }
+
+        // ====== Propina (columna W) ======
+        // NO va a ingresos/gastos/FC. Solo a tabla propinas.
+        if (r.propina_usd > 0 && tx) {
+          const propinaBs = +(r.propina_usd * tasaConv).toFixed(2);
+          // Dedup: por numero_factura o numero_orden
+          const dedupFilter = r.numero_factura
+            ? supabase.from("propinas").select("id").eq("numero_factura", r.numero_factura)
+            : supabase.from("propinas").select("id").eq("numero_orden", r.numero_orden);
+          const { data: propExist } = await dedupFilter.eq("referencia", "xetux").limit(1).maybeSingle();
+          const propPayload: any = {
+            transaccion_id: tx.id,
+            fecha: r.fecha,
+            monto_usd: r.propina_usd,
+            monto_bs: propinaBs,
+            tasa_paralela: tasas.paralela || tasaConv,
+            centro_costo: centroRow,
+            concepto: "Propina Xetux",
+            referencia: "xetux",
+            numero_factura: r.numero_factura || null,
+            numero_orden: r.numero_orden || null,
+            created_by: user.id,
+          };
+          if (propExist) {
+            await supabase.from("propinas").update(propPayload).eq("id", propExist.id);
+          } else {
+            await supabase.from("propinas").insert(propPayload);
+          }
         }
 
         ok++;

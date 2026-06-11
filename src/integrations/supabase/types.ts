@@ -341,15 +341,19 @@ export type Database = {
           id: string
           iva_aplica: boolean
           iva_bs: number
+          iva_usd: number
           modo: Database["public"]["Enums"]["modo_transaccion"]
           monto_base_bs: number
+          monto_base_usd: number | null
           monto_bs: number
+          monto_usd: number | null
           notas: string | null
           numero_factura: string | null
           pagada: boolean
           periodo: string
           registrado_por: string | null
           tasa_bcv: number | null
+          tasa_paralela: number | null
           tercero_id: string | null
           tipo: string
         }
@@ -362,15 +366,19 @@ export type Database = {
           id?: string
           iva_aplica?: boolean
           iva_bs?: number
+          iva_usd?: number
           modo?: Database["public"]["Enums"]["modo_transaccion"]
           monto_base_bs?: number
+          monto_base_usd?: number | null
           monto_bs: number
+          monto_usd?: number | null
           notas?: string | null
           numero_factura?: string | null
           pagada?: boolean
           periodo: string
           registrado_por?: string | null
           tasa_bcv?: number | null
+          tasa_paralela?: number | null
           tercero_id?: string | null
           tipo: string
         }
@@ -383,15 +391,19 @@ export type Database = {
           id?: string
           iva_aplica?: boolean
           iva_bs?: number
+          iva_usd?: number
           modo?: Database["public"]["Enums"]["modo_transaccion"]
           monto_base_bs?: number
+          monto_base_usd?: number | null
           monto_bs?: number
+          monto_usd?: number | null
           notas?: string | null
           numero_factura?: string | null
           pagada?: boolean
           periodo?: string
           registrado_por?: string | null
           tasa_bcv?: number | null
+          tasa_paralela?: number | null
           tercero_id?: string | null
           tipo?: string
         }
@@ -511,6 +523,72 @@ export type Database = {
         }
         Relationships: []
       }
+      propinas: {
+        Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          concepto: string | null
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          monto_bs: number | null
+          monto_usd: number
+          notas: string | null
+          numero_factura: string | null
+          numero_orden: string | null
+          referencia: string | null
+          tasa_paralela: number | null
+          transaccion_id: string | null
+        }
+        Insert: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
+          concepto?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha: string
+          id?: string
+          monto_bs?: number | null
+          monto_usd: number
+          notas?: string | null
+          numero_factura?: string | null
+          numero_orden?: string | null
+          referencia?: string | null
+          tasa_paralela?: number | null
+          transaccion_id?: string | null
+        }
+        Update: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
+          concepto?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          monto_bs?: number | null
+          monto_usd?: number
+          notas?: string | null
+          numero_factura?: string | null
+          numero_orden?: string | null
+          referencia?: string | null
+          tasa_paralela?: number | null
+          transaccion_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "propinas_transaccion_id_fkey"
+            columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "propinas_transaccion_id_fkey"
+            columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasas_bcv: {
         Row: {
           created_at: string
@@ -612,6 +690,7 @@ export type Database = {
           cuenta_codigo: string
           detalle: string | null
           fecha: string
+          grupo_transaccion_id: string | null
           id: string
           iva_aplica: boolean
           iva_bs: number
@@ -641,6 +720,7 @@ export type Database = {
           cuenta_codigo: string
           detalle?: string | null
           fecha?: string
+          grupo_transaccion_id?: string | null
           id?: string
           iva_aplica?: boolean
           iva_bs?: number
@@ -670,6 +750,7 @@ export type Database = {
           cuenta_codigo?: string
           detalle?: string | null
           fecha?: string
+          grupo_transaccion_id?: string | null
           id?: string
           iva_aplica?: boolean
           iva_bs?: number
