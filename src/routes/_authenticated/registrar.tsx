@@ -191,8 +191,11 @@ function VentasForm() {
   const montoOffUsdN = Number(montoOffUsd) || 0;
   const bonoUsdN = Number(bonoUsd) || 0;
   const bonoAuto = Number((montoOffUsdN * 0.1).toFixed(2));
-  // tasa para convertir el ajuste off-balance → tasa paralela del día de la factura origen
-  const tasaOffN = facturaTx ? (Number(facturaTx.tasa_paralela) || Number(facturaTx.tasa_bcv) || tasaParalelaN || tasaBcvN) : (tasaParalelaN || tasaBcvN);
+  // tasa para convertir el ajuste off-balance: SIEMPRE tasa paralela (nunca BCV).
+  // Prioridad: paralela de la factura origen → paralela de hoy → BCV solo si no hay paralela disponible.
+  const tasaOffParalela = facturaTx ? (Number(facturaTx.tasa_paralela) || tasaParalelaN) : tasaParalelaN;
+  const tasaOffN = tasaOffParalela || (facturaTx ? (Number(facturaTx.tasa_bcv) || tasaBcvN) : tasaBcvN);
+  const tasaOffEsParalela = !!tasaOffParalela;
   const cuentaBonoOff = centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14";
 
   // Autollenar bono = 10% del monto off si la persona no lo ha tocado
@@ -487,7 +490,7 @@ function VentasForm() {
                       className="mono"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Equivale a {fmtBs(montoOffUsdN * tasaOffN)} (tasa paralela {tasaOffN ? tasaOffN.toFixed(2) : "—"})
+                      Equivale a {fmtBs(montoOffUsdN * tasaOffN)} ({tasaOffEsParalela ? "tasa paralela" : "tasa BCV (sin paralela del día)"} {tasaOffN ? tasaOffN.toFixed(2) : "—"})
                     </p>
                   </div>
                   <div>
