@@ -193,34 +193,37 @@ function ImportarComprasPage() {
 
     setBusy(true);
     setProgress({ done: 0, total: elegibles.length });
-    const tasaCache = new Map<string, number>();
+    const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
     let ok = 0, dup = 0, fail = 0, upd = 0;
 
 
     for (const r of elegibles) {
       try {
         if (!r.fecha) { fail++; toast.error(`Sin fecha: ${r.numero_factura}`); continue; }
-        let tasa = tasaCache.get(r.fecha);
-        if (tasa === undefined) {
-          tasa = await fetchTasa(r.fecha);
-          tasaCache.set(r.fecha, tasa);
+        let tasas = tasaCache.get(r.fecha);
+        if (!tasas) {
+          tasas = await fetchTasa(r.fecha);
+          tasaCache.set(r.fecha, tasas);
         }
-        if (!tasa) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura})`); continue; }
+        // USD es la fuente de verdad. Convertimos a Bs con tasa paralela (con fallback a BCV solo si no hay paralela).
+        const tasaConv = tasas.paralela || tasas.bcv;
+        if (!tasaConv) { fail++; toast.error(`Sin tasa para ${r.fecha} (${r.numero_factura})`); continue; }
 
         const terceroId = await ensureTercero(r);
         if (!terceroId) { fail++; continue; }
 
         // Dedup por (tercero, numero_factura) — busca en TODOS los meses
         const { data: existeArr } = await supabase.from("inventario_snapshots")
-          .select("id, monto_bs, monto_base_bs, iva_bs, fecha, periodo, cxp_id, pagada")
+          .select("id, monto_bs, monto_usd, monto_base_bs, iva_bs, fecha, periodo, cxp_id, pagada")
           .eq("tipo", "compra")
           .eq("tercero_id", terceroId).eq("numero_factura", r.numero_factura).limit(1);
         const existe = existeArr && existeArr.length > 0 ? existeArr[0] : null;
 
-        const totalBs = r.total_usd * tasa;
         const ivaAplica = r.iva_usd > 0;
-        const baseBs = ivaAplica ? Math.max(0, (r.total_usd - r.iva_usd) * tasa) : totalBs;
-        const ivaBs = ivaAplica ? r.iva_usd * tasa : 0;
+        const baseUsd = ivaAplica ? Math.max(0, r.total_usd - r.iva_usd) : r.total_usd;
+        const totalBs = +(r.total_usd * tasaConv).toFixed(2);
+        const baseBs = +(baseUsd * tasaConv).toFixed(2);
+        const ivaBs = +(r.iva_usd * tasaConv).toFixed(2);
         const periodo = r.fecha.slice(0, 7);
 
         const offBal = offBalance;
@@ -229,8 +232,8 @@ function ImportarComprasPage() {
         const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
 
         if (existe) {
-          // Duplicado: si el monto no cambió, saltar. Si cambió, actualizar con el más reciente.
-          const sameAmount = Math.abs(Number(existe.monto_bs || 0) - totalBs) < 0.01;
+          // Duplicado: comparamos por USD (fuente de verdad). Si no cambió, saltar.
+          const sameAmount = Math.abs(Number(existe.monto_usd || 0) - r.total_usd) < 0.01;
           if (sameAmount) {
             dup++;
             toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
@@ -238,7 +241,9 @@ function ImportarComprasPage() {
           }
           const { error: updErr } = await supabase.from("inventario_snapshots").update({
             monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
-            tasa_bcv: tasa, fecha: r.fecha, periodo,
+            monto_usd: r.total_usd, monto_base_usd: baseUsd, iva_usd: r.iva_usd,
+            tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
+            fecha: r.fecha, periodo,
             pagada: true, cuenta_bancaria_id: null,
             notas: notaBase + " · actualizada por reimportación",
           } as any).eq("id", existe.id);
@@ -257,8 +262,9 @@ function ImportarComprasPage() {
         const { error } = await supabase.from("inventario_snapshots").insert({
           periodo, tipo: "compra",
           monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
+          monto_usd: r.total_usd, monto_base_usd: baseUsd, iva_usd: r.iva_usd,
           modo: offBal ? "off_balance" : "on_balance",
-          fecha: r.fecha, tasa_bcv: tasa,
+          fecha: r.fecha, tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
           tercero_id: terceroId, numero_factura: r.numero_factura,
           pagada,
           cuenta_bancaria_id: null,
