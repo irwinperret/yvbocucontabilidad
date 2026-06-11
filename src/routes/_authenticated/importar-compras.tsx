@@ -151,10 +151,14 @@ function ImportarComprasPage() {
     setRows((all) => all.map((r) => (vis.has(r.idx) ? { ...r, include: v } : r)));
   };
 
-  const fetchTasa = async (fecha: string): Promise<number> => {
-    const { data } = await supabase.from("tasas_bcv").select("tasa")
-      .lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
-    return Number(data?.tasa ?? 0);
+  const fetchTasa = async (fecha: string): Promise<{ paralela: number; bcv: number; esParalela: boolean }> => {
+    const [{ data: par }, { data: bcv }] = await Promise.all([
+      supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const paralela = Number(par?.tasa ?? 0);
+    const bcvN = Number(bcv?.tasa ?? 0);
+    return { paralela, bcv: bcvN, esParalela: paralela > 0 };
   };
 
   const ensureTercero = async (r: ParsedCompra): Promise<string | null> => {
