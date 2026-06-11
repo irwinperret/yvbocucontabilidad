@@ -31,7 +31,9 @@ type ParsedRow = {
   fecha: string; // YYYY-MM-DD
   total_usd: number;        // absoluto (para descuentos/NC)
   iva_usd: number;
-  base_usd: number;
+  base_usd: number;         // base = V - IVA (incluye servicio)
+  servicio_usd: number;     // columna T — bono de servicio 10%
+  propina_usd: number;      // columna W — propina (NO va a ingresos)
   forma_pago_raw: string;
   formas: string[];
   esCxC: boolean;
@@ -113,6 +115,8 @@ function ImportarVentasPage() {
       const totalRaw = numFromCell(row[21]); // V "Total Venta"
       const cliente = String(row[7] ?? "").trim() || "Contado";
       const iva = numFromCell(row[17]); // R
+      const servicio = numFromCell(row[19]); // T "Servicio"
+      const propina = numFromCell(row[22]); // W "Propina"
       const formaRaw = String(row[31] ?? "").trim(); // AF
       const fecha = parseDateCell(row[36]); // AK
       const formas = formaRaw.split("|").map((s) => s.trim()).filter(Boolean);
@@ -131,6 +135,8 @@ function ImportarVentasPage() {
           total_usd: totalRaw,
           iva_usd: iva,
           base_usd: Math.max(0, totalRaw - iva),
+          servicio_usd: Math.max(0, servicio),
+          propina_usd: Math.max(0, propina),
           forma_pago_raw: formaRaw,
           formas, esMixto, esCxC,
         });
@@ -152,6 +158,8 @@ function ImportarVentasPage() {
           total_usd: absTotal,
           iva_usd: Math.abs(iva),
           base_usd: Math.max(0, absTotal - Math.abs(iva)),
+          servicio_usd: Math.max(0, servicio),
+          propina_usd: Math.max(0, propina),
           forma_pago_raw: formaRaw,
           formas, esMixto, esCxC,
         });
