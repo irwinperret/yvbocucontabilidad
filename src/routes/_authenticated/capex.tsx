@@ -52,6 +52,20 @@ function CapExPage() {
     },
   });
 
+  const { data: opexTxs } = useQuery({
+    queryKey: ["opex-by-group", anio],
+    queryFn: async () => {
+      const desde = `${anio}-01-01`;
+      const hasta = `${anio}-12-31`;
+      const { data } = await supabase
+        .from("transacciones")
+        .select("fecha, cuenta_codigo, monto_usd")
+        .gte("fecha", desde).lte("fecha", hasta)
+        .eq("modo", "on_balance");
+      return data ?? [];
+    },
+  });
+
   const anios = useMemo(() => {
     const s = new Set<number>([anioActual]);
     (txs ?? []).forEach((t: any) => s.add(new Date(t.fecha).getUTCFullYear()));
