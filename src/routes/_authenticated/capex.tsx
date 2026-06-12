@@ -113,6 +113,22 @@ function CapExPage() {
   const totalUsd = filtered.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0);
   const totalBs = filtered.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0);
 
+  const opexChartData = useMemo(() => {
+    const buckets = MESES.map((m) => {
+      const row: any = { mes: m };
+      OPEX_GROUPS.forEach((g) => { row[g.label] = 0; });
+      return row;
+    });
+    (opexTxs ?? []).forEach((t: any) => {
+      const code = String(t.cuenta_codigo ?? "");
+      const g = OPEX_GROUPS.find((x) => code.startsWith(x.prefix));
+      if (!g) return;
+      const i = new Date(t.fecha).getUTCMonth();
+      buckets[i][g.label] += Number(t.monto_usd) || 0;
+    });
+    return buckets;
+  }, [opexTxs]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
