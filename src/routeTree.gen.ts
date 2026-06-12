@@ -33,6 +33,7 @@ import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cx
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
 import { Route as AuthenticatedCapexRouteImport } from './routes/_authenticated/capex'
+import { Route as AuthenticatedAumentoCapitalRouteImport } from './routes/_authenticated/aumento-capital'
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
@@ -164,6 +165,12 @@ const AuthenticatedCapexRoute = AuthenticatedCapexRouteImport.update({
   path: '/capex',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAumentoCapitalRoute =
+  AuthenticatedAumentoCapitalRouteImport.update({
+    id: '/aumento-capital',
+    path: '/aumento-capital',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicHooksSyncParalelaRoute =
   ApiPublicHooksSyncParalelaRouteImport.update({
     id: '/api/public/hooks/sync-paralela',
@@ -179,6 +186,7 @@ const ApiPublicHooksSyncBcvRoute = ApiPublicHooksSyncBcvRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/capex': typeof AuthenticatedCapexRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
@@ -206,6 +214,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/capex': typeof AuthenticatedCapexRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
@@ -235,6 +244,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/_authenticated/capex': typeof AuthenticatedCapexRoute
   '/_authenticated/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/_authenticated/cxc': typeof AuthenticatedCxcRoute
@@ -264,6 +274,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/aumento-capital'
     | '/capex'
     | '/cuentas-bancarias'
     | '/cxc'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/aumento-capital'
     | '/capex'
     | '/cuentas-bancarias'
     | '/cxc'
@@ -319,6 +331,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/aumento-capital'
     | '/_authenticated/capex'
     | '/_authenticated/cuentas-bancarias'
     | '/_authenticated/cxc'
@@ -522,6 +535,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCapexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/aumento-capital': {
+      id: '/_authenticated/aumento-capital'
+      path: '/aumento-capital'
+      fullPath: '/aumento-capital'
+      preLoaderRoute: typeof AuthenticatedAumentoCapitalRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/sync-paralela': {
       id: '/api/public/hooks/sync-paralela'
       path: '/api/public/hooks/sync-paralela'
@@ -540,6 +560,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAumentoCapitalRoute: typeof AuthenticatedAumentoCapitalRoute
   AuthenticatedCapexRoute: typeof AuthenticatedCapexRoute
   AuthenticatedCuentasBancariasRoute: typeof AuthenticatedCuentasBancariasRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRoute
@@ -564,6 +585,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAumentoCapitalRoute: AuthenticatedAumentoCapitalRoute,
   AuthenticatedCapexRoute: AuthenticatedCapexRoute,
   AuthenticatedCuentasBancariasRoute: AuthenticatedCuentasBancariasRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRoute,
@@ -602,13 +624,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
