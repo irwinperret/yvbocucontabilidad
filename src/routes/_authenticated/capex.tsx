@@ -186,25 +186,48 @@ function CapExPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">CapEx por mes ({anio})</CardTitle></CardHeader>
-        <CardContent>
-          <div style={{ width: "100%", height: 360 }}>
-            <ResponsiveContainer>
-              <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="mes" fontSize={12} />
-                <YAxis fontSize={12} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
-                <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
-                <Legend />
-                {CAPEX_CATEGORIAS.map((c) => (
-                  <Bar key={c} dataKey={c} stackId="a" fill={CAT_COLORS[c]} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="text-base">CapEx por mes ({anio})</CardTitle></CardHeader>
+          <CardContent>
+            <div style={{ width: "100%", height: 360 }}>
+              <ResponsiveContainer>
+                <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="mes" fontSize={12} />
+                  <YAxis fontSize={12} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+                  <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
+                  <Legend />
+                  {CAPEX_CATEGORIAS.map((c) => (
+                    <Bar key={c} dataKey={c} stackId="a" fill={CAT_COLORS[c]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Gastos operativos por mes ({anio})</CardTitle></CardHeader>
+          <CardContent>
+            <div style={{ width: "100%", height: 360 }}>
+              <ResponsiveContainer>
+                <BarChart data={opexChartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="mes" fontSize={12} />
+                  <YAxis fontSize={12} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+                  <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {OPEX_GROUPS.map((g) => (
+                    <Bar key={g.key} dataKey={g.label} stackId="a" fill={g.color} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Detalle</CardTitle></CardHeader>
