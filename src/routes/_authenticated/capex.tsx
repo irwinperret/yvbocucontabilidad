@@ -11,6 +11,18 @@ import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
+const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
+  { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
+  { key: "nomina", label: "Nómina (3.x)",          prefix: "3.",  color: "#534AB7" },
+  { key: "admin",  label: "Administrativos (4.x)", prefix: "4.",  color: "#3498DB" },
+  { key: "ops",    label: "Operativos (5.x)",      prefix: "5.",  color: "#0F6E56" },
+  { key: "mkt",    label: "Mercadeo (6.x)",        prefix: "6.",  color: "#E8A87C" },
+  { key: "fin",    label: "Financieros (7.x)",     prefix: "7.",  color: "#16A085" },
+  { key: "inv",    label: "Investigación (8.x)",   prefix: "8.",  color: "#9B59B6" },
+  { key: "gen",    label: "Generales (9.x)",       prefix: "9.",  color: "#41B3A3" },
+  { key: "imp",    label: "Impuestos (12.x)",      prefix: "12.", color: "#D35400" },
+];
+
 export const Route = createFileRoute("/_authenticated/capex")({ component: CapExPage });
 
 const CAT_COLORS: Record<string, string> = {
@@ -36,6 +48,20 @@ function CapExPage() {
         .select("id, fecha, centro_costo, monto_bs, monto_usd, notas, numero_factura, referencia, metodo_pago, modo, tercero_id, capex_categoria")
         .eq("cuenta_codigo", "10.6")
         .order("fecha", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const { data: opexTxs } = useQuery({
+    queryKey: ["opex-by-group", anio],
+    queryFn: async () => {
+      const desde = `${anio}-01-01`;
+      const hasta = `${anio}-12-31`;
+      const { data } = await supabase
+        .from("transacciones")
+        .select("fecha, cuenta_codigo, monto_usd")
+        .gte("fecha", desde).lte("fecha", hasta)
+        .eq("modo", "on_balance");
       return data ?? [];
     },
   });
@@ -86,6 +112,22 @@ function CapExPage() {
 
   const totalUsd = filtered.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0);
   const totalBs = filtered.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0);
+
+  const opexChartData = useMemo(() => {
+    const buckets = MESES.map((m) => {
+      const row: any = { mes: m };
+      OPEX_GROUPS.forEach((g) => { row[g.label] = 0; });
+      return row;
+    });
+    (opexTxs ?? []).forEach((t: any) => {
+      const code = String(t.cuenta_codigo ?? "");
+      const g = OPEX_GROUPS.find((x) => code.startsWith(x.prefix));
+      if (!g) return;
+      const i = new Date(t.fecha).getUTCMonth();
+      buckets[i][g.label] += Number(t.monto_usd) || 0;
+    });
+    return buckets;
+  }, [opexTxs]);
 
   return (
     <div className="space-y-6">
@@ -144,25 +186,48 @@ function CapExPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">CapEx por mes ({anio})</CardTitle></CardHeader>
-        <CardContent>
-          <div style={{ width: "100%", height: 360 }}>
-            <ResponsiveContainer>
-              <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="mes" fontSize={12} />
-                <YAxis fontSize={12} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
-                <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
-                <Legend />
-                {CAPEX_CATEGORIAS.map((c) => (
-                  <Bar key={c} dataKey={c} stackId="a" fill={CAT_COLORS[c]} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="text-base">CapEx por mes ({anio})</CardTitle></CardHeader>
+          <CardContent>
+            <div style={{ width: "100%", height: 360 }}>
+              <ResponsiveContainer>
+                <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="mes" fontSize={12} />
+                  <YAxis fontSize={12} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+                  <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
+                  <Legend />
+                  {CAPEX_CATEGORIAS.map((c) => (
+                    <Bar key={c} dataKey={c} stackId="a" fill={CAT_COLORS[c]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Gastos operativos por mes ({anio})</CardTitle></CardHeader>
+          <CardContent>
+            <div style={{ width: "100%", height: 360 }}>
+              <ResponsiveContainer>
+                <BarChart data={opexChartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="mes" fontSize={12} />
+                  <YAxis fontSize={12} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
+                  <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {OPEX_GROUPS.map((g) => (
+                    <Bar key={g.key} dataKey={g.label} stackId="a" fill={g.color} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Detalle</CardTitle></CardHeader>
