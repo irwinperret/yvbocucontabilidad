@@ -840,161 +840,233 @@ function GastosForm() {
 }
 
 /* ---------------- NÓMINA ---------------- */
-type EmpleadoLinea = { nombre: string; monto: string };
+type NominaSeccion = "BYV" | "BOCU" | "BYV-BOCU";
+type NominaCampos = { salario: string; alimentacion: string; compensatorio: string; parafiscales: string };
+const NOMINA_CAMPOS_INIT: NominaCampos = { salario: "", alimentacion: "", compensatorio: "", parafiscales: "" };
+const NOMINA_MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function lastDayOfMonth(year: number, monthIdx: number) {
+  return new Date(year, monthIdx + 1, 0).getDate();
+}
 
 function NominaForm() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
-  const [fecha, setFecha] = useState(todayISO());
-  const [tipo, setTipo] = useState("regular");
-  const [centro, setCentro] = useState<Centro>("Compartido");
-  const [tasa, setTasa] = useState("");
+  const today = new Date();
+  const [quincena, setQuincena] = useState<"Q1" | "Q2">(today.getDate() <= 15 ? "Q1" : "Q2");
+  const [mes, setMes] = useState<number>(today.getMonth());
+  const [anio, setAnio] = useState<number>(today.getFullYear());
+  const [openSec, setOpenSec] = useState<Record<NominaSeccion, boolean>>({ "BYV": true, "BOCU": true, "BYV-BOCU": false });
+  const [secciones, setSecciones] = useState<Record<NominaSeccion, NominaCampos>>({
+    "BYV": { ...NOMINA_CAMPOS_INIT },
+    "BOCU": { ...NOMINA_CAMPOS_INIT },
+    "BYV-BOCU": { ...NOMINA_CAMPOS_INIT },
+  });
   const [metodo, setMetodo] = useState("transferencia");
-  const [empleados, setEmpleados] = useState<EmpleadoLinea[]>([{ nombre: "", monto: "" }]);
-  const [notas, setNotas] = useState("");
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const esUSD = moneda === "USD";
-  const offBalance = esUSD; // USD siempre off-balance
-
+  const dia = quincena === "Q1" ? 15 : lastDayOfMonth(anio, mes);
+  const fecha = `${anio}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
+  const tasaBcvN = Number(tasaSugerida?.tasa) || 0;
+  const tasaParN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParN || tasaBcvN;
 
-  const tasaN = Number(tasa) || 0;
-  // Conversión Bs→USD a tasa paralela
-  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
-  const totalInput = empleados.reduce((s, e) => s + (Number(e.monto) || 0), 0);
-  const totalBs = esUSD ? totalInput * tasaConvN : totalInput;
-  const totalUsd = esUSD ? totalInput : (tasaConvN ? totalInput / tasaConvN : 0);
+  const setCampo = (sec: NominaSeccion, k: keyof NominaCampos, v: string) =>
+    setSecciones((s) => ({ ...s, [sec]: { ...s[sec], [k]: v } }));
 
-  const cuenta = cuentaNomina(tipo, centro);
-  const esProvision = tipo === "pasivos" && !esUSD; // provisión solo aplica a Bs on-balance
-
-  const updateLinea = (i: number, patch: Partial<EmpleadoLinea>) => {
-    setEmpleados((arr) => arr.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  const totalSec = (sec: NominaSeccion) => {
+    const c = secciones[sec];
+    return Number(c.salario || 0) + Number(c.alimentacion || 0) + Number(c.compensatorio || 0) + Number(c.parafiscales || 0);
   };
-  const addLinea = () => setEmpleados((arr) => [...arr, { nombre: "", monto: "" }]);
-  const delLinea = (i: number) => setEmpleados((arr) => arr.length === 1 ? arr : arr.filter((_, idx) => idx !== i));
+  const totalUsd = (["BYV","BOCU","BYV-BOCU"] as NominaSeccion[]).reduce((s, x) => s + totalSec(x), 0);
+  const totalBs = totalUsd * tasaConvN;
+
+  const tag = `Nómina ${quincena === "Q1" ? "Quincena 1" : "Quincena 2"} ${NOMINA_MESES[mes]} ${anio}`;
+
+  const buildLineas = () => {
+    type L = { cuenta: string; centro: Centro; usd: number; concepto: string };
+    const out: L[] = [];
+    const pushIf = (cuenta: string, centro: Centro, usd: number, concepto: string) => {
+      if (usd > 0.0001) out.push({ cuenta, centro, usd: +usd.toFixed(2), concepto });
+    };
+    // BYV → YV
+    {
+      const c = secciones["BYV"];
+      pushIf("3.9", "YV", Number(c.salario || 0), "Salario base");
+      pushIf("3.20", "YV", Number(c.alimentacion || 0), "Bono alimentación");
+      pushIf("3.14", "YV", Number(c.compensatorio || 0), "Bono compensatorio");
+      pushIf("3.15", "YV", Number(c.parafiscales || 0), "Parafiscales");
+    }
+    // BOCU → Bocu
+    {
+      const c = secciones["BOCU"];
+      pushIf("3.4", "Bocu", Number(c.salario || 0), "Salario base");
+      pushIf("3.20", "Bocu", Number(c.alimentacion || 0), "Bono alimentación");
+      pushIf("3.14", "Bocu", Number(c.compensatorio || 0), "Bono compensatorio");
+      pushIf("3.15", "Bocu", Number(c.parafiscales || 0), "Parafiscales");
+    }
+    // BYV-BOCU → split 33.33% YV / 66.67% Bocu
+    {
+      const c = secciones["BYV-BOCU"];
+      const split = (usd: number, cuentaYV: string, cuentaBocu: string, concepto: string) => {
+        if (usd <= 0) return;
+        const yv = usd * 0.3333;
+        const bocu = usd - yv;
+        pushIf(cuentaYV, "YV", yv, `${concepto} (compartido 33%)`);
+        pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 67%)`);
+      };
+      split(Number(c.salario || 0), "3.9", "3.4", "Salario base");
+      split(Number(c.alimentacion || 0), "3.20", "3.20", "Bono alimentación");
+      split(Number(c.compensatorio || 0), "3.14", "3.14", "Bono compensatorio");
+      split(Number(c.parafiscales || 0), "3.15", "3.15", "Parafiscales");
+    }
+    return out;
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !tasaN) return toast.error("Falta tasa");
-    const lineas = empleados.filter((l) => l.nombre.trim() && Number(l.monto) > 0);
-    if (!lineas.length) return toast.error("Agrega al menos un empleado con monto");
-    if (!esProvision && !esUSD && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
+    if (!user) return;
+    if (!tasaConvN) return toast.error("No hay tasa paralela ni BCV para esa fecha");
+    if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria de pago");
+    const lineas = buildLineas();
+    if (!lineas.length) return toast.error("Ingresa al menos un monto");
     setBusy(true);
-
+    const grupoId = (crypto as any).randomUUID();
+    let ok = 0;
     for (const l of lineas) {
-      const monto = Number(l.monto);
-      const lineaBs = esUSD ? monto * tasaConvN : monto;
-      const lineaUsd = esUSD ? monto : (tasaConvN ? monto / tasaConvN : 0);
-      const notaLinea = `Empleado: ${l.nombre.trim()}${notas ? ` · ${notas}` : ""}`;
+      const bs = +(l.usd * tasaConvN).toFixed(2);
       const { data: tx, error } = await supabase.from("transacciones").insert({
-        fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-        monto_bs: lineaBs, monto_base_bs: lineaBs, iva_bs: 0,
-        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: lineaUsd,
-        metodo_pago: esProvision ? "pendiente" : (esUSD ? "efectivo_usd" : metodo) as any,
-        notas: notaLinea,
-        modo: offBalance ? "off_balance" : "on_balance",
-        cuenta_bancaria_id: !esProvision && !esUSD && cuentaBancariaId ? cuentaBancariaId : null,
+        fecha, cuenta_codigo: l.cuenta, centro_costo: l.centro as any,
+        monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
+        tasa_bcv: tasaBcvN || null, tasa_paralela: tasaParN || null, monto_usd: l.usd,
+        metodo_pago: metodo as any,
+        notas: `${tag} · ${l.concepto}${notas ? ` · ${notas}` : ""}`,
+        modo: "on_balance",
+        cuenta_bancaria_id: cuentaBancariaId,
+        grupo_transaccion_id: grupoId,
         created_by: user.id,
       } as any).select().single();
-      if (error) { setBusy(false); return toast.error(error.message); }
-      if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+      if (error) { setBusy(false); return toast.error(`${l.cuenta} ${l.centro}: ${error.message}`); }
+      if (tx) { await logAudit("transacciones", "INSERT", tx.id, null, tx); ok++; }
     }
-
     setBusy(false);
-    toast.success(`Nómina registrada (${lineas.length} empleado${lineas.length > 1 ? "s" : ""})`);
+    toast.success(`${tag} registrada (${ok} líneas)`);
     qc.invalidateQueries();
-    setEmpleados([{ nombre: "", monto: "" }]); setNotas("");
+    setSecciones({ "BYV": { ...NOMINA_CAMPOS_INIT }, "BOCU": { ...NOMINA_CAMPOS_INIT }, "BYV-BOCU": { ...NOMINA_CAMPOS_INIT } });
+    setNotas("");
+  };
+
+  const Seccion = ({ sec, title }: { sec: NominaSeccion; title: string }) => {
+    const c = secciones[sec];
+    const open = openSec[sec];
+    const tot = totalSec(sec);
+    return (
+      <div className="border rounded-lg">
+        <button type="button"
+          onClick={() => setOpenSec((s) => ({ ...s, [sec]: !s[sec] }))}
+          className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/50">
+          <span className="font-semibold text-sm">{title}</span>
+          <span className="text-xs mono text-muted-foreground">{fmtUsd(tot)} {open ? "▾" : "▸"}</span>
+        </button>
+        {open && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border-t">
+            <div>
+              <Label className="text-xs">Salario base (USD)</Label>
+              <Input type="number" step="0.01" value={c.salario} onChange={(e) => setCampo(sec, "salario", e.target.value)} className="mono" />
+            </div>
+            <div>
+              <Label className="text-xs">Bono alimentación (USD)</Label>
+              <Input type="number" step="0.01" value={c.alimentacion} onChange={(e) => setCampo(sec, "alimentacion", e.target.value)} className="mono" />
+            </div>
+            <div>
+              <Label className="text-xs">Bono compensatorio (USD)</Label>
+              <Input type="number" step="0.01" value={c.compensatorio} onChange={(e) => setCampo(sec, "compensatorio", e.target.value)} className="mono" />
+            </div>
+            <div>
+              <Label className="text-xs">Parafiscales (USD)</Label>
+              <Input type="number" step="0.01" value={c.parafiscales} onChange={(e) => setCampo(sec, "parafiscales", e.target.value)} className="mono" />
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Nómina</CardTitle></CardHeader>
       <CardContent>
-        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2 inline-flex rounded-lg border p-1 w-fit">
-            <button type="button" onClick={() => setMoneda("BS")} className={`px-3 py-1.5 text-sm rounded-md ${!esUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Nómina en Bs (on-balance)</button>
-            <button type="button" onClick={() => setMoneda("USD")} className={`px-3 py-1.5 text-sm rounded-md ${esUSD ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Nómina en USD (off-balance)</button>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label>Quincena</Label>
+              <Select value={quincena} onValueChange={(v) => setQuincena(v as "Q1" | "Q2")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Q1">Quincena 1 (1–15)</SelectItem>
+                  <SelectItem value="Q2">Quincena 2 (16–fin de mes)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Mes</Label>
+              <Select value={String(mes)} onValueChange={(v) => setMes(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{NOMINA_MESES.map((m, i) => <SelectItem key={i} value={String(i)}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Año</Label>
+              <Input type="number" value={anio} onChange={(e) => setAnio(Number(e.target.value) || today.getFullYear())} className="mono" />
+            </div>
           </div>
-          <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+          <div className="text-xs text-muted-foreground">
+            Se registra con fecha <span className="font-semibold mono">{fecha}</span> · tasa paralela <span className="mono">{tasaParN ? tasaParN.toFixed(2) : "—"}</span>
+          </div>
+
+          <div className="space-y-2">
+            <Seccion sec="BYV" title="BYV (centro YV)" />
+            <Seccion sec="BOCU" title="BOCU (centro Bocu)" />
+            <Seccion sec="BYV-BOCU" title="BYV-BOCU (compartido 33/67)" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Método de pago</Label>
+              <Select value={metodo} onValueChange={setMetodo}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+          </div>
+
           <div>
-            <Label>Tipo</Label>
-            <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="regular">Nómina regular</SelectItem>
-                <SelectItem value="bono">Bono</SelectItem>
-                <SelectItem value="liquidacion">Liquidación</SelectItem>
-                {!esUSD && <SelectItem value="pasivos">Provisión pasivos laborales</SelectItem>}
-                <SelectItem value="parafiscales">Parafiscales</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Notas (opcional)</Label>
+            <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
           </div>
-          <div>
-            <Label>Centro de costo</Label>
-            <Select value={centro} onValueChange={(v) => setCentro(v as Centro)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-            </Select>
+
+          <div className="flex items-center justify-between border-t pt-3">
+            <div className="text-sm">
+              <div className="text-muted-foreground">Total nómina</div>
+              <div className="font-semibold mono">{fmtUsd(totalUsd)} · {fmtBs(totalBs)}</div>
+            </div>
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : `Registrar ${tag}`}</Button>
           </div>
-          <div className="text-xs self-end pb-2">Cuenta: <span className="font-semibold">{cuenta}</span></div>
-          {esProvision && (
-            <div className="md:col-span-2 bg-orange-50 border border-orange-200 text-orange-800 text-xs p-2 rounded">
-              Solo G&amp;P. FC se afecta al pagar la liquidación.
-            </div>
-          )}
-          {esUSD && (
-            <div className="md:col-span-2 bg-blue-50 border border-blue-200 text-blue-800 text-xs p-2 rounded">
-              Nómina en USD: pago directo en efectivo USD, registrado como off-balance.
-            </div>
-          )}
-          {!esProvision && !esUSD && (
-            <>
-              <div>
-                <Label>Método de pago</Label>
-                <Select value={metodo} onValueChange={setMetodo}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2">
-                <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
-              </div>
-            </>
-          )}
-          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-          <div className="md:col-span-2 border rounded-lg p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Empleados</Label>
-              <Button type="button" size="sm" variant="outline" onClick={addLinea}>+ Empleado</Button>
-            </div>
-            {empleados.map((l, i) => (
-              <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2 items-center">
-                <Input placeholder="Nombre del empleado" value={l.nombre} onChange={(e) => updateLinea(i, { nombre: e.target.value })} />
-                <Input type="number" step="0.01" placeholder={esUSD ? "Monto USD" : "Monto Bs"} value={l.monto} onChange={(e) => updateLinea(i, { monto: e.target.value })} className="mono" />
-                <Button type="button" variant="ghost" size="sm" disabled={empleados.length === 1} onClick={() => delLinea(i)} className="text-destructive">×</Button>
-              </div>
-            ))}
-            <div className="flex justify-between border-t pt-2 text-sm">
-              <span className="text-muted-foreground">Total ({empleados.filter((l) => l.nombre.trim() && Number(l.monto) > 0).length} empleado(s))</span>
-              <span className="font-semibold mono">{fmtBs(totalBs)} · {fmtUsd(totalUsd)}</span>
-            </div>
-          </div>
-          <div className="md:col-span-2"><Label>Notas (común a todos)</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
-          <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar nómina"}</Button>
-          </div>
+
+          <p className="text-[11px] text-muted-foreground">
+            No incluye: empleados individuales, saldo PMTO, redobles, ni bonos por 10% de servicio (se registran por separado).
+          </p>
         </form>
       </CardContent>
     </Card>
   );
 }
+
 
 /* ---------------- OPS IVA ---------------- */
 function OpsIvaForm() {
