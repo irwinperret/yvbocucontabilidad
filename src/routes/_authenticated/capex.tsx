@@ -11,6 +11,18 @@ import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
+const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
+  { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
+  { key: "nomina", label: "Nómina (3.x)",          prefix: "3.",  color: "#534AB7" },
+  { key: "admin",  label: "Administrativos (4.x)", prefix: "4.",  color: "#3498DB" },
+  { key: "ops",    label: "Operativos (5.x)",      prefix: "5.",  color: "#0F6E56" },
+  { key: "mkt",    label: "Mercadeo (6.x)",        prefix: "6.",  color: "#E8A87C" },
+  { key: "fin",    label: "Financieros (7.x)",     prefix: "7.",  color: "#16A085" },
+  { key: "inv",    label: "Investigación (8.x)",   prefix: "8.",  color: "#9B59B6" },
+  { key: "gen",    label: "Generales (9.x)",       prefix: "9.",  color: "#41B3A3" },
+  { key: "imp",    label: "Impuestos (12.x)",      prefix: "12.", color: "#D35400" },
+];
+
 export const Route = createFileRoute("/_authenticated/capex")({ component: CapExPage });
 
 const CAT_COLORS: Record<string, string> = {
