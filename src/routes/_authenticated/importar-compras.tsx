@@ -254,6 +254,23 @@ function ImportarComprasPage() {
               monto_bs: totalBs, monto_usd: r.total_usd,
             } as any).eq("id", existe.cxp_id);
           }
+          // Resync pierna IVA (2.3) — dedup por (referencia, numero_factura)
+          await supabase.from("transacciones").delete()
+            .eq("referencia", "xetux-iva").eq("numero_factura", r.numero_factura);
+          if (ivaAplica && r.iva_usd > 0) {
+            const { insertIvaLeg } = await import("@/lib/iva-helpers");
+            await insertIvaLeg({
+              fecha: r.fecha, centro_costo: "Compartido" as any,
+              modo: offBal ? "off_balance" : "on_balance",
+              monto_bs_iva: ivaBs, monto_usd_iva: r.iva_usd,
+              tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
+              tercero_id: terceroId, numero_factura: r.numero_factura,
+              referencia: "xetux-iva", notas: notaBase,
+              created_by: user.id,
+              grupo_transaccion_id: crypto.randomUUID(),
+              tipo: "credito",
+            });
+          }
           upd++;
           toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
           continue;
@@ -274,6 +291,22 @@ function ImportarComprasPage() {
         } as any);
 
         if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
+
+        // Pierna IVA crédito (2.3) para compras nuevas
+        if (ivaAplica && r.iva_usd > 0) {
+          const { insertIvaLeg } = await import("@/lib/iva-helpers");
+          await insertIvaLeg({
+            fecha: r.fecha, centro_costo: "Compartido" as any,
+            modo: offBal ? "off_balance" : "on_balance",
+            monto_bs_iva: ivaBs, monto_usd_iva: r.iva_usd,
+            tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
+            tercero_id: terceroId, numero_factura: r.numero_factura,
+            referencia: "xetux-iva", notas: notaBase,
+            created_by: user.id,
+            grupo_transaccion_id: crypto.randomUUID(),
+            tipo: "credito",
+          });
+        }
         ok++;
       } catch (e: any) {
         fail++;
