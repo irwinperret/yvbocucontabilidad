@@ -289,11 +289,11 @@ function ImportarVentasPage() {
           fecha: r.fecha,
           cuenta_codigo,
           centro_costo: centroRow as any,
-          monto_bs: totalBs,
+          monto_bs: baseBs,
           monto_base_bs: baseBs,
-          iva_bs: ivaBs,
-          iva_aplica: r.iva_usd > 0,
-          tipo_iva: r.iva_usd > 0 ? "debito_fiscal" : null,
+          iva_bs: 0,
+          iva_aplica: false,
+          tipo_iva: null,
           tasa_bcv: tasas.bcv || tasaConv,
           tasa_paralela: tasas.paralela || null,
           monto_usd: r.base_usd,
@@ -305,11 +305,12 @@ function ImportarVentasPage() {
           cuenta_bancaria_id,
         };
 
-        // Dedup: por número de factura O número de orden con ref=xetux
+        // Dedup: por número de factura O número de orden con ref=xetux, excluyendo la pierna IVA (1.9)
         let dupQuery = supabase
           .from("transacciones")
           .select("*")
-          .eq("referencia", "xetux");
+          .eq("referencia", "xetux")
+          .neq("cuenta_codigo", "1.9");
         if (r.numero_factura) {
           dupQuery = dupQuery.eq("numero_factura", r.numero_factura);
         } else {
