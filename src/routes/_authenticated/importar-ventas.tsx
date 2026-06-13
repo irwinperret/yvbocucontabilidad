@@ -378,6 +378,25 @@ function ImportarVentasPage() {
               } as any);
             }
           }
+          // Re-sincronizar pierna IVA (1.9) por grupo
+          if (tx) {
+            const { deleteIvaLegsByGrupo, insertIvaLeg } = await import("@/lib/iva-helpers");
+            const grupoExistente = (dup as any).grupo_transaccion_id ?? crypto.randomUUID();
+            if (!(dup as any).grupo_transaccion_id) {
+              await supabase.from("transacciones").update({ grupo_transaccion_id: grupoExistente } as any).eq("id", tx.id);
+            }
+            await deleteIvaLegsByGrupo(grupoExistente);
+            if (r.iva_usd > 0) {
+              await insertIvaLeg({
+                fecha: r.fecha, centro_costo: centroRow as any, modo: modo as any,
+                monto_bs_iva: ivaBs, monto_usd_iva: r.iva_usd,
+                tasa_bcv: tasas.bcv || tasaConv, tasa_paralela: tasas.paralela || null,
+                numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
+                referencia: "xetux", notas: notasBase, created_by: user.id,
+                grupo_transaccion_id: grupoExistente, tipo: "debito",
+              });
+            }
+          }
           updated++;
           continue;
         }
@@ -392,6 +411,19 @@ function ImportarVentasPage() {
 
         if (error) { fail++; toast.error(`${refIdent}: ${error.message}`); continue; }
         if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+
+        // Pierna IVA (1.9) para nuevas ventas
+        if (tx && r.iva_usd > 0) {
+          const { insertIvaLeg } = await import("@/lib/iva-helpers");
+          await insertIvaLeg({
+            fecha: r.fecha, centro_costo: centroRow as any, modo: modo as any,
+            monto_bs_iva: ivaBs, monto_usd_iva: r.iva_usd,
+            tasa_bcv: tasas.bcv || tasaConv, tasa_paralela: tasas.paralela || null,
+            numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
+            referencia: "xetux", notas: notasBase, created_by: user.id,
+            grupo_transaccion_id: grupoId, tipo: "debito",
+          });
+        }
 
         if (r.clase === "factura" && r.esCxC && tx) {
           await supabase.from("cuentas_por_cobrar").insert({
