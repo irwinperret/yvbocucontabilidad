@@ -712,19 +712,37 @@ function GastosForm() {
     if (!numFactura) return toast.error("N° factura obligatorio");
     if (!pendiente && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
+    const grupoIdGasto = crypto.randomUUID();
+    const ivaUsdGasto = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-      monto_bs: total, monto_base_bs: base, iva_bs: iva,
-      iva_aplica: ivaAplica, tipo_iva: ivaAplica ? "credito_fiscal" : null,
+      monto_bs: base, monto_base_bs: base, iva_bs: 0,
+      iva_aplica: false, tipo_iva: null,
       tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
       metodo_pago: pendiente ? "pendiente" : (metodo as any),
       tercero_id: terceroId || null, numero_factura: numFactura, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: !pendiente && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
+      grupo_transaccion_id: ivaAplica ? grupoIdGasto : null,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    if (ivaAplica && iva > 0 && tx) {
+      const { insertIvaLeg } = await import("@/lib/iva-helpers");
+      await insertIvaLeg({
+        fecha, centro_costo: centro as any,
+        modo: offBalance ? "off_balance" : "on_balance",
+        monto_bs_iva: iva, monto_usd_iva: ivaUsdGasto,
+        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
+        tercero_id: terceroId || null,
+        numero_factura: numFactura,
+        notas: notas || null,
+        created_by: user.id,
+        grupo_transaccion_id: grupoIdGasto,
+        tipo: "credito",
+      });
+    }
     if (pendiente && tx) {
       const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
       await supabase.from("cuentas_por_pagar").insert({
