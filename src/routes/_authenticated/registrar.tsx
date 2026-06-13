@@ -351,10 +351,12 @@ function VentasForm() {
     if (tipo === "cobro" && usdCobrado > pendienteUsdCxc + 0.01) return toast.error(`El cobro no puede exceder el saldo pendiente (${fmtUsd(pendienteUsdCxc)})`);
     if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
+    const grupoId = crypto.randomUUID();
+    const ivaUsd = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-      monto_bs: total, monto_base_bs: base, iva_bs: iva,
-      iva_aplica: ivaAplica, tipo_iva: ivaAplica ? "debito_fiscal" : null,
+      monto_bs: base, monto_base_bs: base, iva_bs: 0,
+      iva_aplica: false, tipo_iva: null,
       tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
       metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
       referencia: tipo === "credito" ? null : (ref || null),
@@ -363,9 +365,24 @@ function VentasForm() {
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
+      grupo_transaccion_id: ivaAplica ? grupoId : null,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    if (ivaAplica && iva > 0 && tx) {
+      const { insertIvaLeg } = await import("@/lib/iva-helpers");
+      await insertIvaLeg({
+        fecha, centro_costo: centro as any,
+        modo: offBalance ? "off_balance" : "on_balance",
+        monto_bs_iva: iva, monto_usd_iva: ivaUsd,
+        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
+        numero_orden: numOrden || null,
+        notas: notas || null,
+        created_by: user.id,
+        grupo_transaccion_id: grupoId,
+        tipo: "debito",
+      });
+    }
     if (tipo === "credito" && tx) {
       await supabase.from("cuentas_por_cobrar").insert({
         cliente, centro_costo: centro as any, monto_bs: total, monto_usd: baseUsd,
