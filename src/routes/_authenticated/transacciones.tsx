@@ -447,13 +447,19 @@ function TransaccionesPage() {
                         onCheckedChange={(v) => toggleSelAllPage(Boolean(v))}
                       />
                     </th>
-                    <th className="text-left py-2 px-2">Fecha</th>
+                    <th className="text-left py-2 px-2">
+                      <button type="button" onClick={() => toggleSort("fecha")} className="hover:text-foreground">Fecha{sortArrow("fecha")}</button>
+                    </th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">Cuenta</th>
                     <th className="text-left py-2 px-2">Factura</th>
                     <th className="text-left py-2 px-2">N° Orden</th>
-                    <th className="text-right py-2 px-2">Bs</th>
-                    <th className="text-right py-2 px-2">USD</th>
+                    <th className="text-right py-2 px-2">
+                      <button type="button" onClick={() => toggleSort("monto_bs")} className="hover:text-foreground">Bs{sortArrow("monto_bs")}</button>
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      <button type="button" onClick={() => toggleSort("monto_usd")} className="hover:text-foreground">USD{sortArrow("monto_usd")}</button>
+                    </th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-left py-2 px-2">Modo</th>
                     <th className="text-center py-2 px-2">Factura</th>
