@@ -53,7 +53,12 @@ function TransaccionesPage() {
     }
   }, [minFechaReady, minFecha, desde]);
   const [centro, setCentro] = useState<string>("todos");
+  const [cuentaFiltro, setCuentaFiltro] = useState<string>("todos");
+  const [metodoFiltro, setMetodoFiltro] = useState<string>("todos");
+  const [modoFiltro, setModoFiltro] = useState<string>("todos");
   const [busca, setBusca] = useState("");
+  const [sortKey, setSortKey] = useState<"fecha" | "monto_bs" | "monto_usd">("fecha");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [editing, setEditing] = useState<any>(null);
   const [wipeOpen, setWipeOpen] = useState(false);
   const [wipePwd, setWipePwd] = useState("");
@@ -63,7 +68,13 @@ function TransaccionesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const PAGE_SIZE = 50;
 
-  useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, busca]);
+  useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, cuentaFiltro, metodoFiltro, modoFiltro, busca, sortKey, sortDir]);
+
+  const toggleSort = (k: "fecha" | "monto_bs" | "monto_usd") => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir(k === "fecha" ? "desc" : "desc"); }
+  };
+  const sortArrow = (k: string) => sortKey === k ? (sortDir === "asc" ? " ↑" : " ↓") : "";
 
   const { data, isLoading } = useQuery({
     enabled: !!desde,
