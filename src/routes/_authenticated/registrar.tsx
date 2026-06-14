@@ -18,6 +18,7 @@ import { CENTROS, METODOS, cuentaVenta, cuentaNomina, FINANCIAMIENTO, CAPEX_CATE
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { TerceroSelect } from "@/components/tercero-select";
 import { useGastosSugerencias } from "@/lib/autocomplete-hooks";
+import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
