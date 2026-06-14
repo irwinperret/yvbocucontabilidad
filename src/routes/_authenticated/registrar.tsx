@@ -73,6 +73,7 @@ function RegistrarPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      <CierrePendienteBanner />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Registrar movimiento</h1>
         <p className="text-sm text-muted-foreground">Elige el tipo de transacción</p>
