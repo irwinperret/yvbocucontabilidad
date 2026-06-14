@@ -344,7 +344,7 @@ function TransaccionesPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             <div><Label>Desde</Label><Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></div>
             <div><Label>Hasta</Label><Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></div>
             <div>
@@ -357,11 +357,54 @@ function TransaccionesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="md:col-span-2">
+            <div>
+              <Label>Cuenta</Label>
+              <Select value={cuentaFiltro} onValueChange={setCuentaFiltro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas</SelectItem>
+                  {cuentasEnData.map((c) => (
+                    <SelectItem key={c} value={c}>{c} — {cuentaNombre[c] ?? ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Método</Label>
+              <Select value={metodoFiltro} onValueChange={setMetodoFiltro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {metodosEnData.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Modo</Label>
+              <Select value={modoFiltro} onValueChange={setModoFiltro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="on_balance">On-balance</SelectItem>
+                  <SelectItem value="off_balance">Off-balance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 md:col-span-6">
               <Label>Buscar</Label>
               <Input placeholder="cuenta, factura, referencia, notas…" value={busca} onChange={(e) => setBusca(e.target.value)} />
             </div>
           </div>
+          {(cuentaFiltro !== "todos" || metodoFiltro !== "todos" || modoFiltro !== "todos" || centro !== "todos") && (
+            <div className="mt-3 flex flex-wrap gap-3 text-sm rounded-md bg-muted/40 p-2 border">
+              <span className="text-xs text-muted-foreground self-center">Totales del filtro (sin IVA):</span>
+              <span className="mono font-semibold">{fmtBs(totales.bs)}</span>
+              <span className="mono font-semibold">{fmtUsd(totales.usd)}</span>
+              {totales.ivaBs > 0 && (
+                <span className="mono text-xs text-muted-foreground self-center">+ IVA legs {fmtBs(totales.ivaBs)}</span>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
