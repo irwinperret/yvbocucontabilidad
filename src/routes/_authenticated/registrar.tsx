@@ -17,6 +17,8 @@ import { logAudit } from "@/lib/audit";
 import { CENTROS, METODOS, cuentaVenta, cuentaNomina, FINANCIAMIENTO, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { TerceroSelect } from "@/components/tercero-select";
+import { useGastosSugerencias } from "@/lib/autocomplete-hooks";
+import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
@@ -71,6 +73,7 @@ function RegistrarPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      <CierrePendienteBanner />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Registrar movimiento</h1>
         <p className="text-sm text-muted-foreground">Elige el tipo de transacción</p>
@@ -667,6 +670,26 @@ function GastosForm() {
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
   useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
+  // Autocomplete por tercero: cuenta + método + notas recientes
+  const { data: sugerencias } = useGastosSugerencias(terceroId, centro);
+  const [autoAplicado, setAutoAplicado] = useState<string | null>(null);
+  useEffect(() => {
+    if (!terceroId || !sugerencias) return;
+    if (autoAplicado === terceroId) return;
+    let aplicado = false;
+    if (sugerencias.cuentaTop && !cuenta) {
+      const valida = (cuentas ?? []).find((c: any) => c.codigo === sugerencias.cuentaTop);
+      const permitida = !valida?.centros_permitidos || valida.centros_permitidos.includes(centro);
+      if (valida && permitida) { setCuenta(sugerencias.cuentaTop); aplicado = true; }
+    }
+    if (sugerencias.metodoTop && sugerencias.metodoTop !== "pendiente" && metodo === "transferencia") {
+      setMetodo(sugerencias.metodoTop);
+      aplicado = true;
+    }
+    if (aplicado) setAutoAplicado(terceroId);
+  }, [terceroId, sugerencias?.cuentaTop, sugerencias?.metodoTop]);
+  useEffect(() => { if (!terceroId) setAutoAplicado(null); }, [terceroId]);
+
   const esUSD = moneda === "USD";
   const totalInput = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
@@ -860,7 +883,18 @@ function GastosForm() {
             <span className="text-sm text-muted-foreground">Equivalente · Total {fmtBs(total)}</span>
             <span className="text-lg font-bold mono">G&P base: {fmtUsd(baseUsd)}</span>
           </div>
-          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+            {sugerencias?.notasRecientes && sugerencias.notasRecientes.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="text-xs text-muted-foreground self-center">Recientes:</span>
+                {sugerencias.notasRecientes.map((n, i) => (
+                  <button key={i} type="button" onClick={() => setNotas(n)}
+                    className="text-xs px-2 py-0.5 rounded border bg-muted/40 hover:bg-muted truncate max-w-[260px]"
+                    title={n}>{n}</button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>
             <Switch checked={offBalance} onCheckedChange={setOffBalance} />

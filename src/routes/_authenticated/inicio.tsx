@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent } from "@/components/ui/card";
+import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
 import logoYV from "@/assets/logo-yv.webp";
 import logoBocu from "@/assets/logo-bocu.png";
 
@@ -16,6 +17,7 @@ function InicioPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
+      <CierrePendienteBanner />
       {/* Hero · marcas */}
       <div className="relative overflow-hidden rounded-lg border bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-950">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />

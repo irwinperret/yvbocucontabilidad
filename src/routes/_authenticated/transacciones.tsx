@@ -53,7 +53,12 @@ function TransaccionesPage() {
     }
   }, [minFechaReady, minFecha, desde]);
   const [centro, setCentro] = useState<string>("todos");
+  const [cuentaFiltro, setCuentaFiltro] = useState<string>("todos");
+  const [metodoFiltro, setMetodoFiltro] = useState<string>("todos");
+  const [modoFiltro, setModoFiltro] = useState<string>("todos");
   const [busca, setBusca] = useState("");
+  const [sortKey, setSortKey] = useState<"fecha" | "monto_bs" | "monto_usd">("fecha");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [editing, setEditing] = useState<any>(null);
   const [wipeOpen, setWipeOpen] = useState(false);
   const [wipePwd, setWipePwd] = useState("");
@@ -63,7 +68,13 @@ function TransaccionesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const PAGE_SIZE = 50;
 
-  useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, busca]);
+  useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, cuentaFiltro, metodoFiltro, modoFiltro, busca, sortKey, sortDir]);
+
+  const toggleSort = (k: "fecha" | "monto_bs" | "monto_usd") => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir(k === "fecha" ? "desc" : "desc"); }
+  };
+  const sortArrow = (k: string) => sortKey === k ? (sortDir === "asc" ? " ↑" : " ↓") : "";
 
   const { data, isLoading } = useQuery({
     enabled: !!desde,
@@ -114,18 +125,55 @@ function TransaccionesPage() {
   }, [profiles]);
 
 
+  const cuentasEnData = useMemo(() => {
+    const set = new Set<string>();
+    (data ?? []).forEach((t: any) => t.cuenta_codigo && set.add(t.cuenta_codigo));
+    return Array.from(set).sort();
+  }, [data]);
+  const metodosEnData = useMemo(() => {
+    const set = new Set<string>();
+    (data ?? []).forEach((t: any) => t.metodo_pago && set.add(t.metodo_pago));
+    return Array.from(set).sort();
+  }, [data]);
+
   const filtradas = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    if (!s) return (data ?? []) as any[];
-    return ((data ?? []) as any[]).filter((t: any) =>
-      t.cuenta_codigo?.toLowerCase().includes(s) ||
-      cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
-      t.numero_factura?.toLowerCase().includes(s) ||
-      (t.numero_orden ?? "").toLowerCase().includes(s) ||
-      t.referencia?.toLowerCase().includes(s) ||
-      t.notas?.toLowerCase().includes(s)
-    );
-  }, [data, busca, cuentaNombre]);
+    let arr = ((data ?? []) as any[]).filter((t: any) => {
+      if (cuentaFiltro !== "todos" && t.cuenta_codigo !== cuentaFiltro) return false;
+      if (metodoFiltro !== "todos" && (t.metodo_pago ?? "") !== metodoFiltro) return false;
+      if (modoFiltro !== "todos" && t.modo !== modoFiltro) return false;
+      if (s) {
+        const hit =
+          t.cuenta_codigo?.toLowerCase().includes(s) ||
+          cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
+          t.numero_factura?.toLowerCase().includes(s) ||
+          (t.numero_orden ?? "").toLowerCase().includes(s) ||
+          t.referencia?.toLowerCase().includes(s) ||
+          t.notas?.toLowerCase().includes(s);
+        if (!hit) return false;
+      }
+      return true;
+    });
+    arr = [...arr].sort((a: any, b: any) => {
+      const av = sortKey === "fecha" ? a.fecha : Number(a[sortKey]) || 0;
+      const bv = sortKey === "fecha" ? b.fecha : Number(b[sortKey]) || 0;
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return arr;
+  }, [data, busca, cuentaNombre, cuentaFiltro, metodoFiltro, modoFiltro, sortKey, sortDir]);
+
+  const totales = useMemo(() => {
+    // Excluye legs IVA (1.9 y 2.3) para no doble-contar
+    const noIva = filtradas.filter((t: any) => t.cuenta_codigo !== "1.9" && t.cuenta_codigo !== "2.3");
+    return {
+      bs: noIva.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
+      usd: noIva.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0),
+      ivaBs: filtradas.filter((t: any) => t.cuenta_codigo === "1.9" || t.cuenta_codigo === "2.3")
+        .reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
+    };
+  }, [filtradas]);
 
   const totalPages = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
   const paginadas = useMemo(
@@ -296,7 +344,7 @@ function TransaccionesPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             <div><Label>Desde</Label><Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></div>
             <div><Label>Hasta</Label><Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></div>
             <div>
@@ -309,11 +357,54 @@ function TransaccionesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="md:col-span-2">
+            <div>
+              <Label>Cuenta</Label>
+              <Select value={cuentaFiltro} onValueChange={setCuentaFiltro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas</SelectItem>
+                  {cuentasEnData.map((c) => (
+                    <SelectItem key={c} value={c}>{c} — {cuentaNombre[c] ?? ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Método</Label>
+              <Select value={metodoFiltro} onValueChange={setMetodoFiltro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {metodosEnData.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Modo</Label>
+              <Select value={modoFiltro} onValueChange={setModoFiltro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="on_balance">On-balance</SelectItem>
+                  <SelectItem value="off_balance">Off-balance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 md:col-span-6">
               <Label>Buscar</Label>
               <Input placeholder="cuenta, factura, referencia, notas…" value={busca} onChange={(e) => setBusca(e.target.value)} />
             </div>
           </div>
+          {(cuentaFiltro !== "todos" || metodoFiltro !== "todos" || modoFiltro !== "todos" || centro !== "todos") && (
+            <div className="mt-3 flex flex-wrap gap-3 text-sm rounded-md bg-muted/40 p-2 border">
+              <span className="text-xs text-muted-foreground self-center">Totales del filtro (sin IVA):</span>
+              <span className="mono font-semibold">{fmtBs(totales.bs)}</span>
+              <span className="mono font-semibold">{fmtUsd(totales.usd)}</span>
+              {totales.ivaBs > 0 && (
+                <span className="mono text-xs text-muted-foreground self-center">+ IVA legs {fmtBs(totales.ivaBs)}</span>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -356,13 +447,19 @@ function TransaccionesPage() {
                         onCheckedChange={(v) => toggleSelAllPage(Boolean(v))}
                       />
                     </th>
-                    <th className="text-left py-2 px-2">Fecha</th>
+                    <th className="text-left py-2 px-2">
+                      <button type="button" onClick={() => toggleSort("fecha")} className="hover:text-foreground">Fecha{sortArrow("fecha")}</button>
+                    </th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">Cuenta</th>
                     <th className="text-left py-2 px-2">Factura</th>
                     <th className="text-left py-2 px-2">N° Orden</th>
-                    <th className="text-right py-2 px-2">Bs</th>
-                    <th className="text-right py-2 px-2">USD</th>
+                    <th className="text-right py-2 px-2">
+                      <button type="button" onClick={() => toggleSort("monto_bs")} className="hover:text-foreground">Bs{sortArrow("monto_bs")}</button>
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      <button type="button" onClick={() => toggleSort("monto_usd")} className="hover:text-foreground">USD{sortArrow("monto_usd")}</button>
+                    </th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-left py-2 px-2">Modo</th>
                     <th className="text-center py-2 px-2">Factura</th>
