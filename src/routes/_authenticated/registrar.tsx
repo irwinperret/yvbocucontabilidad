@@ -668,6 +668,26 @@ function GastosForm() {
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
   useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
+  // Autocomplete por tercero: cuenta + método + notas recientes
+  const { data: sugerencias } = useGastosSugerencias(terceroId, centro);
+  const [autoAplicado, setAutoAplicado] = useState<string | null>(null);
+  useEffect(() => {
+    if (!terceroId || !sugerencias) return;
+    if (autoAplicado === terceroId) return;
+    let aplicado = false;
+    if (sugerencias.cuentaTop && !cuenta) {
+      const valida = (cuentas ?? []).find((c: any) => c.codigo === sugerencias.cuentaTop);
+      const permitida = !valida?.centros_permitidos || valida.centros_permitidos.includes(centro);
+      if (valida && permitida) { setCuenta(sugerencias.cuentaTop); aplicado = true; }
+    }
+    if (sugerencias.metodoTop && sugerencias.metodoTop !== "pendiente" && metodo === "transferencia") {
+      setMetodo(sugerencias.metodoTop);
+      aplicado = true;
+    }
+    if (aplicado) setAutoAplicado(terceroId);
+  }, [terceroId, sugerencias?.cuentaTop, sugerencias?.metodoTop]);
+  useEffect(() => { if (!terceroId) setAutoAplicado(null); }, [terceroId]);
+
   const esUSD = moneda === "USD";
   const totalInput = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
