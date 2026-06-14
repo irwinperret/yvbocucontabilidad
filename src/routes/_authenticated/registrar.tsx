@@ -881,7 +881,18 @@ function GastosForm() {
             <span className="text-sm text-muted-foreground">Equivalente · Total {fmtBs(total)}</span>
             <span className="text-lg font-bold mono">G&P base: {fmtUsd(baseUsd)}</span>
           </div>
-          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+            {sugerencias?.notasRecientes && sugerencias.notasRecientes.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="text-xs text-muted-foreground self-center">Recientes:</span>
+                {sugerencias.notasRecientes.map((n, i) => (
+                  <button key={i} type="button" onClick={() => setNotas(n)}
+                    className="text-xs px-2 py-0.5 rounded border bg-muted/40 hover:bg-muted truncate max-w-[260px]"
+                    title={n}>{n}</button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Off-balance</Label>
             <Switch checked={offBalance} onCheckedChange={setOffBalance} />
