@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent } from "@/components/ui/card";
+import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
 import logoYV from "@/assets/logo-yv.webp";
 import logoBocu from "@/assets/logo-bocu.png";
 
