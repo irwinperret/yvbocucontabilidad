@@ -17,6 +17,7 @@ import { logAudit } from "@/lib/audit";
 import { CENTROS, METODOS, cuentaVenta, cuentaNomina, FINANCIAMIENTO, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { TerceroSelect } from "@/components/tercero-select";
+import { useGastosSugerencias } from "@/lib/autocomplete-hooks";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
