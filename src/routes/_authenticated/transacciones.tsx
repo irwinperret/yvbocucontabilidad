@@ -125,18 +125,55 @@ function TransaccionesPage() {
   }, [profiles]);
 
 
+  const cuentasEnData = useMemo(() => {
+    const set = new Set<string>();
+    (data ?? []).forEach((t: any) => t.cuenta_codigo && set.add(t.cuenta_codigo));
+    return Array.from(set).sort();
+  }, [data]);
+  const metodosEnData = useMemo(() => {
+    const set = new Set<string>();
+    (data ?? []).forEach((t: any) => t.metodo_pago && set.add(t.metodo_pago));
+    return Array.from(set).sort();
+  }, [data]);
+
   const filtradas = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    if (!s) return (data ?? []) as any[];
-    return ((data ?? []) as any[]).filter((t: any) =>
-      t.cuenta_codigo?.toLowerCase().includes(s) ||
-      cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
-      t.numero_factura?.toLowerCase().includes(s) ||
-      (t.numero_orden ?? "").toLowerCase().includes(s) ||
-      t.referencia?.toLowerCase().includes(s) ||
-      t.notas?.toLowerCase().includes(s)
-    );
-  }, [data, busca, cuentaNombre]);
+    let arr = ((data ?? []) as any[]).filter((t: any) => {
+      if (cuentaFiltro !== "todos" && t.cuenta_codigo !== cuentaFiltro) return false;
+      if (metodoFiltro !== "todos" && (t.metodo_pago ?? "") !== metodoFiltro) return false;
+      if (modoFiltro !== "todos" && t.modo !== modoFiltro) return false;
+      if (s) {
+        const hit =
+          t.cuenta_codigo?.toLowerCase().includes(s) ||
+          cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
+          t.numero_factura?.toLowerCase().includes(s) ||
+          (t.numero_orden ?? "").toLowerCase().includes(s) ||
+          t.referencia?.toLowerCase().includes(s) ||
+          t.notas?.toLowerCase().includes(s);
+        if (!hit) return false;
+      }
+      return true;
+    });
+    arr = [...arr].sort((a: any, b: any) => {
+      const av = sortKey === "fecha" ? a.fecha : Number(a[sortKey]) || 0;
+      const bv = sortKey === "fecha" ? b.fecha : Number(b[sortKey]) || 0;
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return arr;
+  }, [data, busca, cuentaNombre, cuentaFiltro, metodoFiltro, modoFiltro, sortKey, sortDir]);
+
+  const totales = useMemo(() => {
+    // Excluye legs IVA (1.9 y 2.3) para no doble-contar
+    const noIva = filtradas.filter((t: any) => t.cuenta_codigo !== "1.9" && t.cuenta_codigo !== "2.3");
+    return {
+      bs: noIva.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
+      usd: noIva.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0),
+      ivaBs: filtradas.filter((t: any) => t.cuenta_codigo === "1.9" || t.cuenta_codigo === "2.3")
+        .reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
+    };
+  }, [filtradas]);
 
   const totalPages = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
   const paginadas = useMemo(
