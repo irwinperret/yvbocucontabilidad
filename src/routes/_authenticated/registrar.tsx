@@ -352,12 +352,29 @@ function VentasForm() {
           await supabase.from("transacciones").update({ pareja_off_balance_id: txBono.id } as any).eq("id", txVenta.id);
         }
 
-        toast.success(bonoUsdN > 0
-          ? `Ajuste off-balance registrado · venta ${fmtUsd(montoOffUsdN)} + bono ${fmtUsd(bonoUsdN)}`
-          : `Ajuste off-balance registrado · venta ${fmtUsd(montoOffUsdN)}`);
+        // #9: CxC off-balance ("fiar" off-balance)
+        if (offFiar) {
+          const clienteCxC = (offClienteFiar.trim() || facturaCliente.trim() || "Cliente off-balance");
+          const { error: eCxc } = await supabase.from("cuentas_por_cobrar").insert({
+            cliente: clienteCxC,
+            centro_costo: centroOff as any,
+            monto_bs: montoOffBs, monto_usd: montoOffUsdN,
+            monto_pendiente_bs: montoOffBs, monto_pendiente_usd: montoOffUsdN,
+            fecha_vencimiento: offFechaVenc || null,
+            transaccion_id: txVenta.id, estado: "vigente",
+          } as any);
+          if (eCxc) toast.error("Ajuste OK, pero falló crear CxC off-balance: " + eCxc.message);
+        }
+
+        toast.success(
+          (offFiar ? "Ajuste off-balance a crédito registrado" : "Ajuste off-balance registrado") +
+          ` · venta ${fmtUsd(montoOffUsdN)}` +
+          (bonoUsdN > 0 ? ` + bono ${fmtUsd(bonoUsdN)}` : "")
+        );
         qc.invalidateQueries();
         setFacturaQuery(""); setFacturaTx(null); setFacturaCliente("");
         setMontoOffUsd(""); setBonoUsd(""); setBonoTouched(false); setNotas("");
+        setOffFiar(false); setOffClienteFiar(""); setOffFechaVenc("");
       } catch (err: any) {
         toast.error(err.message ?? "Error al registrar ajuste off-balance");
       } finally {
