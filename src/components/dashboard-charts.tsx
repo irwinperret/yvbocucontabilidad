@@ -29,8 +29,8 @@ export function DashboardCharts() {
   const { data: cuentas } = useQuery({
     queryKey: ["dash-cuentas"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo, afecta_gyp, afecta_fc");
-      return (data ?? []) as Cuenta[];
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo, nombre, grupo, afecta_gyp, afecta_fc");
+      return (data ?? []) as (Cuenta & { nombre: string; grupo: string })[];
     },
   });
 
