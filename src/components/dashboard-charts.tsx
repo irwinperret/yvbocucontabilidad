@@ -114,6 +114,27 @@ export function DashboardCharts() {
   const capexAcumActual = dataConAcumulado[idxHoy]?.capexAcum ?? 0;
   const utilidadAcumActual = dataConAcumulado[idxHoy]?.utilidadAcum ?? 0;
 
+  // Desglose de gastos operativos YTD por grupo del plan de cuentas
+  const gastosPorGrupo = useMemo(() => {
+    const acc = new Map<string, number>();
+    (rows ?? []).forEach((r) => {
+      if (esAnioActual && r.mes > mesHoy) return;
+      const c: any = mapCuentas.get(r.cuenta_codigo);
+      if (!c || !c.afecta_gyp) return;
+      if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo.startsWith("2.")) return;
+      const grp = c.grupo ?? "Otros";
+      acc.set(grp, (acc.get(grp) ?? 0) + Number(r.base_usd || 0));
+    });
+    return Array.from(acc.entries())
+      .map(([name, value]) => ({ name, value: Math.round(value) }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [rows, mapCuentas, esAnioActual, mesHoy]);
+  const totalGastosOp = gastosPorGrupo.reduce((s, d) => s + d.value, 0);
+  const COLORS_GRP = ["#ef4444","#f97316","#f59e0b","#eab308","#84cc16","#10b981","#06b6d4","#0ea5e9","#8b5cf6","#d946ef","#ec4899"];
+
+
+
 
   return (
     <div className="space-y-4">
