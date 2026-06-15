@@ -289,6 +289,7 @@ function VentasForm() {
       if (montoOffUsdN <= 0) return toast.error("Indica el monto off-balance a registrar ($)");
       if (bonoUsdN < 0) return toast.error("El bono no puede ser negativo");
       if (!tasaOffN) return toast.error("Falta la tasa para convertir el monto");
+      if (offFiar && !(offClienteFiar.trim() || facturaCliente.trim())) return toast.error("Indica el cliente para la CxC off-balance");
       setBusy(true);
       try {
         const fechaOff = facturaTx.fecha || fecha;
