@@ -198,6 +198,16 @@ function VentasForm() {
   // Para cobros: USD que se está cancelando con este pago
   const usdCobrado = tipo === "cobro" ? totalUsd : 0;
 
+  // #6: bono servicio 10% y propina (manual ventas contado/credito)
+  const bonoServAuto = Number((baseUsd * 0.1).toFixed(2));
+  const bonoServUsdN = Number(bonoServUsd) || 0;
+  const propinaUsdN = Number(propinaUsd) || 0;
+  useEffect(() => {
+    if (tipo !== "contado" && tipo !== "credito") return;
+    if (bonoServTouched) return;
+    setBonoServUsd(bonoServAuto > 0 ? bonoServAuto.toFixed(2) : "");
+  }, [tipo, bonoServAuto, bonoServTouched]);
+
   // ====== Ajuste off-balance: cálculos derivados ======
   const montoOffUsdN = Number(montoOffUsd) || 0;
   const bonoUsdN = Number(bonoUsd) || 0;
