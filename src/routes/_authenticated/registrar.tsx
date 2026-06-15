@@ -313,7 +313,7 @@ function VentasForm() {
           referencia: null,
           numero_factura: facturaTx.numero_factura || null,
           numero_orden: facturaTx.numero_orden || null,
-          notas: `Ajuste off-balance de factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}${notas ? ` · ${notas}` : ""}`,
+          notas: `${offFiar ? "Ajuste off-balance A CRÉDITO" : "Ajuste off-balance"} de factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}${notas ? ` · ${notas}` : ""}`,
           modo: "off_balance" as any,
           created_by: user.id,
         } as any).select().single();
