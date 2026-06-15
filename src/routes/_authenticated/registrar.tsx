@@ -113,6 +113,14 @@ function VentasForm() {
   const [montoOffUsd, setMontoOffUsd] = useState("");
   const [bonoUsd, setBonoUsd] = useState("");
   const [bonoTouched, setBonoTouched] = useState(false);
+  const [offFiar, setOffFiar] = useState(false);                 // #9: ajuste off-balance a crédito
+  const [offClienteFiar, setOffClienteFiar] = useState("");
+  const [offFechaVenc, setOffFechaVenc] = useState("");
+
+  // #6: desglose manual ventas (contado/credito)
+  const [bonoServUsd, setBonoServUsd] = useState("");
+  const [bonoServTouched, setBonoServTouched] = useState(false);
+  const [propinaUsd, setPropinaUsd] = useState("");
 
   const [cliente, setCliente] = useState("");
   const [fechaVenc, setFechaVenc] = useState("");
@@ -189,6 +197,16 @@ function VentasForm() {
   const cuenta = tipo === "ajuste_off" ? cuentaVenta(centro, "contado") : cuentaVenta(centro, tipo);
   // Para cobros: USD que se está cancelando con este pago
   const usdCobrado = tipo === "cobro" ? totalUsd : 0;
+
+  // #6: bono servicio 10% y propina (manual ventas contado/credito)
+  const bonoServAuto = Number((baseUsd * 0.1).toFixed(2));
+  const bonoServUsdN = Number(bonoServUsd) || 0;
+  const propinaUsdN = Number(propinaUsd) || 0;
+  useEffect(() => {
+    if (tipo !== "contado" && tipo !== "credito") return;
+    if (bonoServTouched) return;
+    setBonoServUsd(bonoServAuto > 0 ? bonoServAuto.toFixed(2) : "");
+  }, [tipo, bonoServAuto, bonoServTouched]);
 
   // ====== Ajuste off-balance: cálculos derivados ======
   const montoOffUsdN = Number(montoOffUsd) || 0;
@@ -271,6 +289,7 @@ function VentasForm() {
       if (montoOffUsdN <= 0) return toast.error("Indica el monto off-balance a registrar ($)");
       if (bonoUsdN < 0) return toast.error("El bono no puede ser negativo");
       if (!tasaOffN) return toast.error("Falta la tasa para convertir el monto");
+      if (offFiar && !(offClienteFiar.trim() || facturaCliente.trim())) return toast.error("Indica el cliente para la CxC off-balance");
       setBusy(true);
       try {
         const fechaOff = facturaTx.fecha || fecha;
@@ -290,11 +309,11 @@ function VentasForm() {
           tasa_bcv: Number(facturaTx.tasa_bcv) || tasaBcvN || tasaOffN,
           tasa_paralela: Number(facturaTx.tasa_paralela) || tasaParalelaN || tasaOffN,
           monto_usd: montoOffUsdN,
-          metodo_pago: "efectivo_usd" as any,
+          metodo_pago: (offFiar ? "pendiente" : "efectivo_usd") as any,
           referencia: null,
           numero_factura: facturaTx.numero_factura || null,
           numero_orden: facturaTx.numero_orden || null,
-          notas: `Ajuste off-balance de factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}${notas ? ` · ${notas}` : ""}`,
+          notas: `${offFiar ? "Ajuste off-balance A CRÉDITO" : "Ajuste off-balance"} de factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}${notas ? ` · ${notas}` : ""}`,
           modo: "off_balance" as any,
           created_by: user.id,
         } as any).select().single();
@@ -333,12 +352,29 @@ function VentasForm() {
           await supabase.from("transacciones").update({ pareja_off_balance_id: txBono.id } as any).eq("id", txVenta.id);
         }
 
-        toast.success(bonoUsdN > 0
-          ? `Ajuste off-balance registrado · venta ${fmtUsd(montoOffUsdN)} + bono ${fmtUsd(bonoUsdN)}`
-          : `Ajuste off-balance registrado · venta ${fmtUsd(montoOffUsdN)}`);
+        // #9: CxC off-balance ("fiar" off-balance)
+        if (offFiar) {
+          const clienteCxC = (offClienteFiar.trim() || facturaCliente.trim() || "Cliente off-balance");
+          const { error: eCxc } = await supabase.from("cuentas_por_cobrar").insert({
+            cliente: clienteCxC,
+            centro_costo: centroOff as any,
+            monto_bs: montoOffBs, monto_usd: montoOffUsdN,
+            monto_pendiente_bs: montoOffBs, monto_pendiente_usd: montoOffUsdN,
+            fecha_vencimiento: offFechaVenc || null,
+            transaccion_id: txVenta.id, estado: "vigente",
+          } as any);
+          if (eCxc) toast.error("Ajuste OK, pero falló crear CxC off-balance: " + eCxc.message);
+        }
+
+        toast.success(
+          (offFiar ? "Ajuste off-balance a crédito registrado" : "Ajuste off-balance registrado") +
+          ` · venta ${fmtUsd(montoOffUsdN)}` +
+          (bonoUsdN > 0 ? ` + bono ${fmtUsd(bonoUsdN)}` : "")
+        );
         qc.invalidateQueries();
         setFacturaQuery(""); setFacturaTx(null); setFacturaCliente("");
         setMontoOffUsd(""); setBonoUsd(""); setBonoTouched(false); setNotas("");
+        setOffFiar(false); setOffClienteFiar(""); setOffFechaVenc("");
       } catch (err: any) {
         toast.error(err.message ?? "Error al registrar ajuste off-balance");
       } finally {
@@ -430,6 +466,41 @@ function VentasForm() {
       }
 
     }
+
+    // #6: bono servicio 10% (costo) y propina (tabla propinas) — solo contado/credito
+    if ((tipo === "contado" || tipo === "credito") && tx) {
+      if (bonoServUsdN > 0) {
+        const cuentaBono = centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14";
+        const bonoBsLeg = bonoServUsdN * tasaConvN;
+        const { data: txBs, error: eBs } = await supabase.from("transacciones").insert({
+          fecha, cuenta_codigo: cuentaBono, centro_costo: centro as any,
+          monto_bs: bonoBsLeg, monto_base_bs: bonoBsLeg, iva_bs: 0,
+          iva_aplica: false, tipo_iva: null,
+          tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: bonoServUsdN,
+          metodo_pago: "pendiente" as any,
+          numero_orden: numOrden || null,
+          notas: `Bono servicio 10% por venta ${tipo === "credito" ? "a crédito" : "contado"}${cliente ? ` · ${cliente}` : ""}`,
+          modo: offBalance ? "off_balance" : "on_balance",
+          created_by: user.id,
+        } as any).select().single();
+        if (eBs) toast.error("Venta OK, pero falló registrar bono servicio: " + eBs.message);
+        else if (txBs) await logAudit("transacciones", "INSERT", txBs.id, null, txBs);
+      }
+      if (propinaUsdN > 0) {
+        const propinaBs = propinaUsdN * tasaConvN;
+        const { error: ePr } = await supabase.from("propinas").insert({
+          transaccion_id: tx.id, fecha, centro_costo: centro as any,
+          monto_usd: propinaUsdN, monto_bs: propinaBs,
+          tasa_paralela: paralelaSugerida?.tasa ?? null,
+          concepto: "Propina venta manual",
+          numero_orden: numOrden || null,
+          notas: notas || null,
+          created_by: user.id,
+        } as any);
+        if (ePr) toast.error("Venta OK, pero falló registrar propina: " + ePr.message);
+      }
+    }
+
     setBusy(false);
     const msg = tipo === "credito"
       ? "Venta a crédito registrada (CxC creada)"
@@ -439,6 +510,7 @@ function VentasForm() {
     toast.success(msg);
     qc.invalidateQueries();
     setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId(""); setNumOrden("");
+    setBonoServUsd(""); setBonoServTouched(false); setPropinaUsd("");
   };
 
 
@@ -533,6 +605,35 @@ function VentasForm() {
                 <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
               </div>
 
+              {/* #9: Off-balance a crédito */}
+              {facturaTx && (
+                <div className="rounded-md border bg-background p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Registrar como CxC off-balance (fiar)</Label>
+                    <Switch checked={offFiar} onCheckedChange={setOffFiar} />
+                  </div>
+                  {offFiar && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label>Cliente</Label>
+                        <Input
+                          value={offClienteFiar}
+                          onChange={(e) => setOffClienteFiar(e.target.value)}
+                          placeholder={facturaCliente || "Cliente off-balance"}
+                        />
+                      </div>
+                      <div>
+                        <Label>Fecha esperada cobro</Label>
+                        <Input type="date" value={offFechaVenc} onChange={(e) => setOffFechaVenc(e.target.value)} />
+                      </div>
+                      <p className="md:col-span-2 text-xs text-muted-foreground">
+                        Se creará una CxC en {fmtUsd(montoOffUsdN)} ligada a la venta off-balance. El bono 10% (si lo hay) sigue siendo costo off-balance inmediato.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="text-xs text-muted-foreground rounded border border-dashed p-2">
                 Al guardar se crean <span className="font-semibold">dos transacciones off-balance enlazadas</span>: la venta y el costo del bono. Si luego eliminas una, la otra también se eliminará (con confirmación).
               </div>
@@ -625,6 +726,37 @@ function VentasForm() {
                 <span className="text-sm text-muted-foreground">G&P: base USD</span>
                 <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
               </div>
+              {(tipo === "contado" || tipo === "credito") && (
+                <div className="md:col-span-2 rounded-md border bg-muted/30 p-3 space-y-3">
+                  <div className="text-sm font-medium">Desglose adicional (opcional)</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label>Bono servicio 10% ($)</Label>
+                      <Input
+                        type="number" step="0.01" min="0"
+                        value={bonoServUsd}
+                        onChange={(e) => { setBonoServUsd(e.target.value); setBonoServTouched(true); }}
+                        className="mono"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Sugerido: {fmtUsd(bonoServAuto)} (10% de base USD). Se contabiliza como costo en cuenta {centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14"}.
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Propina ($)</Label>
+                      <Input
+                        type="number" step="0.01" min="0"
+                        value={propinaUsd}
+                        onChange={(e) => setPropinaUsd(e.target.value)}
+                        className="mono"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Va a la tabla de propinas. No afecta G&amp;P ni FC.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
               <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
               <div className="md:col-span-2 flex items-center justify-between border-t pt-3">

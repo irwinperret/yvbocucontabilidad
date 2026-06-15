@@ -10,6 +10,7 @@ import { CENTROS, MESES } from "@/lib/account-helpers";
 import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
   Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  PieChart, Pie,
 } from "recharts";
 
 type Row = {
@@ -28,8 +29,8 @@ export function DashboardCharts() {
   const { data: cuentas } = useQuery({
     queryKey: ["dash-cuentas"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo, afecta_gyp, afecta_fc");
-      return (data ?? []) as Cuenta[];
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo, nombre, grupo, afecta_gyp, afecta_fc");
+      return (data ?? []) as (Cuenta & { nombre: string; grupo: string })[];
     },
   });
 
@@ -112,6 +113,27 @@ export function DashboardCharts() {
   const ytdCapex = dataConAcumulado.filter((d) => !esAnioActual || d.mesNum <= mesHoy).reduce((s, d) => s + d.capex, 0);
   const capexAcumActual = dataConAcumulado[idxHoy]?.capexAcum ?? 0;
   const utilidadAcumActual = dataConAcumulado[idxHoy]?.utilidadAcum ?? 0;
+
+  // Desglose de gastos operativos YTD por grupo del plan de cuentas
+  const gastosPorGrupo = useMemo(() => {
+    const acc = new Map<string, number>();
+    (rows ?? []).forEach((r) => {
+      if (esAnioActual && r.mes > mesHoy) return;
+      const c: any = mapCuentas.get(r.cuenta_codigo);
+      if (!c || !c.afecta_gyp) return;
+      if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo.startsWith("2.")) return;
+      const grp = c.grupo ?? "Otros";
+      acc.set(grp, (acc.get(grp) ?? 0) + Number(r.base_usd || 0));
+    });
+    return Array.from(acc.entries())
+      .map(([name, value]) => ({ name, value: Math.round(value) }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [rows, mapCuentas, esAnioActual, mesHoy]);
+  const totalGastosOp = gastosPorGrupo.reduce((s, d) => s + d.value, 0);
+  const COLORS_GRP = ["#ef4444","#f97316","#f59e0b","#eab308","#84cc16","#10b981","#06b6d4","#0ea5e9","#8b5cf6","#d946ef","#ec4899"];
+
+
 
 
   return (
@@ -235,6 +257,46 @@ export function DashboardCharts() {
               <Line type="monotone" dataKey="utilidadAcum" name="Utilidad acumulada" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Gastos operativos YTD por grupo */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Gastos operativos YTD por grupo</CardTitle>
+          <div className="flex gap-6 text-xs mt-1">
+            <span className="text-muted-foreground">Total YTD</span>
+            <span className="mono font-semibold text-red-600">{fmtUsd(totalGastosOp)}</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {gastosPorGrupo.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-12 text-center">Sin gastos operativos en el período.</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 items-center">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={gastosPorGrupo} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={50} paddingAngle={2}>
+                    {gastosPorGrupo.map((_, i) => <Cell key={i} fill={COLORS_GRP[i % COLORS_GRP.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 text-sm">
+                {gastosPorGrupo.map((g, i) => {
+                  const pct = totalGastosOp > 0 ? (g.value / totalGastosOp) * 100 : 0;
+                  return (
+                    <div key={g.name} className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-sm shrink-0" style={{ background: COLORS_GRP[i % COLORS_GRP.length] }} />
+                      <span className="flex-1 truncate">{g.name}</span>
+                      <span className="text-xs text-muted-foreground mono w-12 text-right">{pct.toFixed(1)}%</span>
+                      <span className="mono font-medium w-24 text-right">{fmtUsd(g.value)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
