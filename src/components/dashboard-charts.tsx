@@ -259,6 +259,46 @@ export function DashboardCharts() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Gastos operativos YTD por grupo */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Gastos operativos YTD por grupo</CardTitle>
+          <div className="flex gap-6 text-xs mt-1">
+            <span className="text-muted-foreground">Total YTD</span>
+            <span className="mono font-semibold text-red-600">{fmtUsd(totalGastosOp)}</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {gastosPorGrupo.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-12 text-center">Sin gastos operativos en el período.</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 items-center">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={gastosPorGrupo} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={50} paddingAngle={2}>
+                    {gastosPorGrupo.map((_, i) => <Cell key={i} fill={COLORS_GRP[i % COLORS_GRP.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 text-sm">
+                {gastosPorGrupo.map((g, i) => {
+                  const pct = totalGastosOp > 0 ? (g.value / totalGastosOp) * 100 : 0;
+                  return (
+                    <div key={g.name} className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-sm shrink-0" style={{ background: COLORS_GRP[i % COLORS_GRP.length] }} />
+                      <span className="flex-1 truncate">{g.name}</span>
+                      <span className="text-xs text-muted-foreground mono w-12 text-right">{pct.toFixed(1)}%</span>
+                      <span className="mono font-medium w-24 text-right">{fmtUsd(g.value)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
