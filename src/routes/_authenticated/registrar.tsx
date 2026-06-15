@@ -466,6 +466,41 @@ function VentasForm() {
       }
 
     }
+
+    // #6: bono servicio 10% (costo) y propina (tabla propinas) — solo contado/credito
+    if ((tipo === "contado" || tipo === "credito") && tx) {
+      if (bonoServUsdN > 0) {
+        const cuentaBono = centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14";
+        const bonoBsLeg = bonoServUsdN * tasaConvN;
+        const { data: txBs, error: eBs } = await supabase.from("transacciones").insert({
+          fecha, cuenta_codigo: cuentaBono, centro_costo: centro as any,
+          monto_bs: bonoBsLeg, monto_base_bs: bonoBsLeg, iva_bs: 0,
+          iva_aplica: false, tipo_iva: null,
+          tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: bonoServUsdN,
+          metodo_pago: "pendiente" as any,
+          numero_orden: numOrden || null,
+          notas: `Bono servicio 10% por venta ${tipo === "credito" ? "a crédito" : "contado"}${cliente ? ` · ${cliente}` : ""}`,
+          modo: offBalance ? "off_balance" : "on_balance",
+          created_by: user.id,
+        } as any).select().single();
+        if (eBs) toast.error("Venta OK, pero falló registrar bono servicio: " + eBs.message);
+        else if (txBs) await logAudit("transacciones", "INSERT", txBs.id, null, txBs);
+      }
+      if (propinaUsdN > 0) {
+        const propinaBs = propinaUsdN * tasaConvN;
+        const { error: ePr } = await supabase.from("propinas").insert({
+          transaccion_id: tx.id, fecha, centro_costo: centro as any,
+          monto_usd: propinaUsdN, monto_bs: propinaBs,
+          tasa_paralela: paralelaSugerida?.tasa ?? null,
+          concepto: "Propina venta manual",
+          numero_orden: numOrden || null,
+          notas: notas || null,
+          created_by: user.id,
+        } as any);
+        if (ePr) toast.error("Venta OK, pero falló registrar propina: " + ePr.message);
+      }
+    }
+
     setBusy(false);
     const msg = tipo === "credito"
       ? "Venta a crédito registrada (CxC creada)"
