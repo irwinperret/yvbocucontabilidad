@@ -726,6 +726,37 @@ function VentasForm() {
                 <span className="text-sm text-muted-foreground">G&P: base USD</span>
                 <span className="text-lg font-bold mono">{fmtUsd(baseUsd)}</span>
               </div>
+              {(tipo === "contado" || tipo === "credito") && (
+                <div className="md:col-span-2 rounded-md border bg-muted/30 p-3 space-y-3">
+                  <div className="text-sm font-medium">Desglose adicional (opcional)</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label>Bono servicio 10% ($)</Label>
+                      <Input
+                        type="number" step="0.01" min="0"
+                        value={bonoServUsd}
+                        onChange={(e) => { setBonoServUsd(e.target.value); setBonoServTouched(true); }}
+                        className="mono"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Sugerido: {fmtUsd(bonoServAuto)} (10% de base USD). Se contabiliza como costo en cuenta {centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14"}.
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Propina ($)</Label>
+                      <Input
+                        type="number" step="0.01" min="0"
+                        value={propinaUsd}
+                        onChange={(e) => setPropinaUsd(e.target.value)}
+                        className="mono"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Va a la tabla de propinas. No afecta G&amp;P ni FC.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div><Label>N° de orden (opcional)</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} placeholder="Si aplica" /></div>
               <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
               <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
