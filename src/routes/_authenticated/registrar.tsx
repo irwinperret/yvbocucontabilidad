@@ -113,6 +113,14 @@ function VentasForm() {
   const [montoOffUsd, setMontoOffUsd] = useState("");
   const [bonoUsd, setBonoUsd] = useState("");
   const [bonoTouched, setBonoTouched] = useState(false);
+  const [offFiar, setOffFiar] = useState(false);                 // #9: ajuste off-balance a crédito
+  const [offClienteFiar, setOffClienteFiar] = useState("");
+  const [offFechaVenc, setOffFechaVenc] = useState("");
+
+  // #6: desglose manual ventas (contado/credito)
+  const [bonoServUsd, setBonoServUsd] = useState("");
+  const [bonoServTouched, setBonoServTouched] = useState(false);
+  const [propinaUsd, setPropinaUsd] = useState("");
 
   const [cliente, setCliente] = useState("");
   const [fechaVenc, setFechaVenc] = useState("");
