@@ -605,6 +605,35 @@ function VentasForm() {
                 <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
               </div>
 
+              {/* #9: Off-balance a crédito */}
+              {facturaTx && (
+                <div className="rounded-md border bg-background p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Registrar como CxC off-balance (fiar)</Label>
+                    <Switch checked={offFiar} onCheckedChange={setOffFiar} />
+                  </div>
+                  {offFiar && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label>Cliente</Label>
+                        <Input
+                          value={offClienteFiar}
+                          onChange={(e) => setOffClienteFiar(e.target.value)}
+                          placeholder={facturaCliente || "Cliente off-balance"}
+                        />
+                      </div>
+                      <div>
+                        <Label>Fecha esperada cobro</Label>
+                        <Input type="date" value={offFechaVenc} onChange={(e) => setOffFechaVenc(e.target.value)} />
+                      </div>
+                      <p className="md:col-span-2 text-xs text-muted-foreground">
+                        Se creará una CxC en {fmtUsd(montoOffUsdN)} ligada a la venta off-balance. El bono 10% (si lo hay) sigue siendo costo off-balance inmediato.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="text-xs text-muted-foreground rounded border border-dashed p-2">
                 Al guardar se crean <span className="font-semibold">dos transacciones off-balance enlazadas</span>: la venta y el costo del bono. Si luego eliminas una, la otra también se eliminará (con confirmación).
               </div>
