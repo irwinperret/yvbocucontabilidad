@@ -122,15 +122,17 @@ function buildGroups(cuentas: any[], filter: (codigo: string) => boolean, rows: 
 
 function ReporteMes({ rows, cuentas, mes }: { rows: Row[]; cuentas: any[]; mes: number }) {
   const ingGrupos = buildGroups(cuentas, (c) => c.startsWith("1."), rows, (r) => r.mes === mes);
-  const gastoGrupos = buildGroups(cuentas, (c) => !c.startsWith("1."), rows, (r) => r.mes === mes);
   const cogsGrupos = buildGroups(cuentas, (c) => c.startsWith("2."), rows, (r) => r.mes === mes);
-  const opGrupos = buildGroups(cuentas, (c) => /^[3-9]\./.test(c), rows, (r) => r.mes === mes);
+  const opGrupos = buildGroups(cuentas, (c) => /^[3-9]\./.test(c) && !c.startsWith("12."), rows, (r) => r.mes === mes);
+  const impGrupos = buildGroups(cuentas, (c) => c.startsWith("12."), rows, (r) => r.mes === mes);
 
   const totalIng = Object.values(ingGrupos).flat().reduce((s, i) => s + i.total, 0);
   const totalCogs = Object.values(cogsGrupos).flat().reduce((s, i) => s + i.total, 0);
   const totalOp = Object.values(opGrupos).flat().reduce((s, i) => s + i.total, 0);
+  const totalImp = Object.values(impGrupos).flat().reduce((s, i) => s + i.total, 0);
   const margenBruto = totalIng - totalCogs;
-  const utilidad = margenBruto - totalOp;
+  const utilOp = margenBruto - totalOp;
+  const utilidad = utilOp - totalImp;
 
   return (
     <Card>
@@ -142,6 +144,13 @@ function ReporteMes({ rows, cuentas, mes }: { rows: Row[]; cuentas: any[]; mes: 
         <Total label={`MARGEN BRUTO · ${totalIng ? ((margenBruto/totalIng)*100).toFixed(1) : "0"}%`} value={margenBruto} bold />
         <Seccion titulo="Gastos operativos" grupos={opGrupos} negativo />
         <Total label="TOTAL GASTOS OPERATIVOS" value={-totalOp} />
+        <Total label={`UTILIDAD OPERATIVA · ${totalIng ? ((utilOp/totalIng)*100).toFixed(1) : "0"}%`} value={utilOp} bold />
+        {Object.keys(impGrupos).length > 0 && (
+          <>
+            <Seccion titulo="Impuestos" grupos={impGrupos} negativo />
+            <Total label="TOTAL IMPUESTOS" value={-totalImp} />
+          </>
+        )}
         <Total label={`UTILIDAD / PÉRDIDA NETA · ${totalIng ? ((utilidad/totalIng)*100).toFixed(1) : "0"}%`} value={utilidad} bold big />
       </CardContent>
     </Card>
@@ -152,12 +161,15 @@ function ReporteYTD({ rows, cuentas, hastaMes }: { rows: Row[]; cuentas: any[]; 
   const filtro = (r: Row) => r.mes <= hastaMes;
   const ing = buildGroups(cuentas, (c) => c.startsWith("1."), rows, filtro);
   const cogs = buildGroups(cuentas, (c) => c.startsWith("2."), rows, filtro);
-  const op = buildGroups(cuentas, (c) => /^[3-9]\./.test(c), rows, filtro);
+  const op = buildGroups(cuentas, (c) => /^[3-9]\./.test(c) && !c.startsWith("12."), rows, filtro);
+  const imp = buildGroups(cuentas, (c) => c.startsWith("12."), rows, filtro);
   const totalIng = Object.values(ing).flat().reduce((s, i) => s + i.total, 0);
   const totalCogs = Object.values(cogs).flat().reduce((s, i) => s + i.total, 0);
   const totalOp = Object.values(op).flat().reduce((s, i) => s + i.total, 0);
+  const totalImp = Object.values(imp).flat().reduce((s, i) => s + i.total, 0);
   const mb = totalIng - totalCogs;
-  const ut = mb - totalOp;
+  const uo = mb - totalOp;
+  const ut = uo - totalImp;
   return (
     <Card>
       <CardContent className="pt-4">
@@ -166,6 +178,13 @@ function ReporteYTD({ rows, cuentas, hastaMes }: { rows: Row[]; cuentas: any[]; 
         <Seccion titulo="COGS" grupos={cogs} negativo />
         <Total label={`MARGEN BRUTO · ${totalIng ? ((mb/totalIng)*100).toFixed(1) : "0"}%`} value={mb} bold />
         <Seccion titulo="Gastos operativos" grupos={op} negativo />
+        <Total label={`UTILIDAD OPERATIVA · ${totalIng ? ((uo/totalIng)*100).toFixed(1) : "0"}%`} value={uo} bold />
+        {Object.keys(imp).length > 0 && (
+          <>
+            <Seccion titulo="Impuestos" grupos={imp} negativo />
+            <Total label="TOTAL IMPUESTOS" value={-totalImp} />
+          </>
+        )}
         <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
