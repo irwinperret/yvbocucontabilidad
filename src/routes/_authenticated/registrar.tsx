@@ -510,6 +510,7 @@ function VentasForm() {
     toast.success(msg);
     qc.invalidateQueries();
     setMontoTotal(""); setRef(""); setNotas(""); setCliente(""); setCxcId(""); setNumOrden("");
+    setBonoServUsd(""); setBonoServTouched(false); setPropinaUsd("");
   };
 
 
