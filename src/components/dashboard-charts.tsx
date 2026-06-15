@@ -10,6 +10,7 @@ import { CENTROS, MESES } from "@/lib/account-helpers";
 import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
   Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  PieChart, Pie,
 } from "recharts";
 
 type Row = {
