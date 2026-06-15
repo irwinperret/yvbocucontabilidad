@@ -309,7 +309,7 @@ function VentasForm() {
           tasa_bcv: Number(facturaTx.tasa_bcv) || tasaBcvN || tasaOffN,
           tasa_paralela: Number(facturaTx.tasa_paralela) || tasaParalelaN || tasaOffN,
           monto_usd: montoOffUsdN,
-          metodo_pago: "efectivo_usd" as any,
+          metodo_pago: (offFiar ? "pendiente" : "efectivo_usd") as any,
           referencia: null,
           numero_factura: facturaTx.numero_factura || null,
           numero_orden: facturaTx.numero_orden || null,
