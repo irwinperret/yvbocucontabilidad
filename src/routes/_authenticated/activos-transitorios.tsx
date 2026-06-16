@@ -358,3 +358,267 @@ function EditDialog({ row, onClose, onSaved }: { row: any; onClose: () => void; 
     </Dialog>
   );
 }
+
+/* ================== ANTICIPOS A PROVEEDORES (14.2) ================== */
+
+function ProveedoresTabBody() {
+  const qc = useQueryClient();
+  const anio = new Date().getFullYear();
+  const [provFiltro, setProvFiltro] = useState("");
+  const [estadoFiltro, setEstadoFiltro] = useState<string>("todos");
+  const [desde, setDesde] = useState<string>(`${anio}-01-01`);
+  const [hasta, setHasta] = useState<string>(`${anio}-12-31`);
+  const [sortKey, setSortKey] = useState<string>("fecha");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [deleting, setDeleting] = useState<any | null>(null);
+  const [editing, setEditing] = useState<any | null>(null);
+
+  const { data: rows } = useQuery({
+    queryKey: ["anticipos-proveedor", desde, hasta],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd, grupo_transaccion_id")
+        .eq("cuenta_codigo", "14.2")
+        .gte("fecha", desde)
+        .lte("fecha", hasta)
+        .gt("monto_usd", 0) // sólo registros de anticipo (excluye reversos)
+        .order("fecha", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const { data: terceros } = useQuery({
+    queryKey: ["terceros-list-min"],
+    queryFn: async () => {
+      const { data } = await supabase.from("terceros").select("id, razon_social, rif");
+      return data ?? [];
+    },
+  });
+  const tercerosMap = useMemo(() => {
+    const m: Record<string, any> = {};
+    (terceros ?? []).forEach((t: any) => { m[t.id] = t; });
+    return m;
+  }, [terceros]);
+
+  const { data: bancos } = useCuentasBancarias();
+  const bancoName = (id: string | null) => {
+    if (!id) return "—";
+    const b = (bancos ?? []).find((x: any) => x.id === id);
+    if (!b) return "—";
+    return `${b.nombre} ****${(b.numero || "").slice(-4)}`;
+  };
+
+  const enriched = useMemo(() => (rows ?? []).map((r: any) => {
+    const total = Number(r.monto_usd || 0);
+    const aplicado = Number(r.anticipo_aplicado_usd || 0);
+    const saldo = +(total - aplicado).toFixed(2);
+    const ageDays = Math.floor((Date.now() - new Date(r.fecha).getTime()) / 86400000);
+    return {
+      ...r,
+      proveedor: tercerosMap[r.tercero_id]?.razon_social ?? "—",
+      banco: bancoName(r.cuenta_bancaria_id),
+      total, aplicado, saldo, ageDays,
+      estado: r.anticipo_estado ?? "abierto",
+    };
+  }), [rows, tercerosMap, bancos]);
+
+  const filtered = useMemo(() => enriched.filter((r) => {
+    if (provFiltro && !r.proveedor.toLowerCase().includes(provFiltro.toLowerCase())) return false;
+    if (estadoFiltro !== "todos" && r.estado !== estadoFiltro) return false;
+    return true;
+  }), [enriched, provFiltro, estadoFiltro]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a: any, b: any) => {
+      const av = a[sortKey] ?? ""; const bv = b[sortKey] ?? "";
+      let cmp = 0;
+      if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
+      else cmp = String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
+
+  const totalAnticipado = enriched.reduce((s, r) => s + r.total, 0);
+  const totalAplicado = enriched.reduce((s, r) => s + r.aplicado, 0);
+  const saldoPendiente = +(totalAnticipado - totalAplicado).toFixed(2);
+  const algunVencido = enriched.some((r) => r.saldo > 0.01 && r.ageDays > 30);
+
+  const toggleSort = (k: string) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("asc"); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    if (deleting.estado !== "abierto") return toast.error("Sólo se pueden borrar anticipos en estado 'abierto'");
+    const { error } = await supabase.from("transacciones").delete().eq("id", deleting.id);
+    if (error) return toast.error(error.message);
+    await logAudit("transacciones", "DELETE", deleting.id, deleting, null);
+    toast.success("Anticipo eliminado");
+    setDeleting(null);
+    qc.invalidateQueries();
+  };
+
+  const estadoBadge = (e: string) => {
+    if (e === "aplicado") return <Badge variant="outline" className="text-green-700 border-green-400 bg-green-50">aplicado</Badge>;
+    if (e === "parcialmente_aplicado") return <Badge variant="outline" className="text-blue-700 border-blue-400 bg-blue-50">parcial</Badge>;
+    return <Badge variant="outline" className="text-orange-700 border-orange-400 bg-orange-50">abierto</Badge>;
+  };
+
+  return (
+    <div className="space-y-6 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total anticipado (USD)</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold mono">{fmtUsd(totalAnticipado)}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total aplicado (USD)</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold mono">{fmtUsd(totalAplicado)}</div></CardContent></Card>
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs text-muted-foreground">Saldo pendiente (USD)</CardTitle>
+            {algunVencido && <Badge variant="outline" className="text-orange-700 border-orange-400 bg-orange-50">&gt; 30 días</Badge>}
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold mono">{fmtUsd(saldoPendiente)}</div></CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div><Label>Proveedor</Label><Input value={provFiltro} onChange={(e) => setProvFiltro(e.target.value)} placeholder="Buscar…" /></div>
+          <div>
+            <Label>Estado</Label>
+            <Select value={estadoFiltro} onValueChange={setEstadoFiltro}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="abierto">Abierto</SelectItem>
+                <SelectItem value="parcialmente_aplicado">Parcial</SelectItem>
+                <SelectItem value="aplicado">Aplicado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div><Label>Desde</Label><Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></div>
+          <div><Label>Hasta</Label><Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Anticipos a proveedores ({sorted.length})</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-muted-foreground">
+                {([
+                  ["fecha", "Fecha"], ["proveedor", "Proveedor"],
+                  ["monto_bs", "Monto Bs"], ["tasa_paralela", "Tasa par."],
+                  ["total", "Monto USD"], ["aplicado", "Aplicado"], ["saldo", "Saldo"],
+                  ["estado", "Estado"],
+                ] as [string, string][]).map(([k, l]) => (
+                  <th key={k} className="py-2 px-2 cursor-pointer select-none" onClick={() => toggleSort(k)}>
+                    {l} {sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                ))}
+                <th className="py-2 px-2">Notas</th>
+                <th className="py-2 px-2 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.length === 0 && <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">Sin anticipos</td></tr>}
+              {sorted.map((r: any) => {
+                const flag = r.saldo > 0.01 && r.ageDays > 30;
+                return (
+                  <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="py-1.5 px-2 mono">{fmtDate(r.fecha)}</td>
+                    <td className="py-1.5 px-2">{r.proveedor}</td>
+                    <td className="py-1.5 px-2 mono text-right">{fmtBs(Number(r.monto_bs))}</td>
+                    <td className="py-1.5 px-2 mono text-right">{Number(r.tasa_paralela ?? r.tasa_bcv ?? 0).toFixed(4)}</td>
+                    <td className="py-1.5 px-2 mono text-right font-semibold">{fmtUsd(r.total)}</td>
+                    <td className="py-1.5 px-2 mono text-right">{fmtUsd(r.aplicado)}</td>
+                    <td className="py-1.5 px-2 mono text-right">{fmtUsd(r.saldo)}</td>
+                    <td className="py-1.5 px-2">
+                      {estadoBadge(r.estado)}
+                      {flag && <span className="ml-1"><Badge variant="outline" className="text-orange-700 border-orange-400 bg-orange-50">+{r.ageDays}d</Badge></span>}
+                    </td>
+                    <td className="py-1.5 px-2 text-xs text-muted-foreground max-w-[260px] truncate" title={r.notas}>{r.notas}</td>
+                    <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                      <Button size="sm" variant="ghost" disabled={r.estado !== "abierto"} onClick={() => setEditing(r)}>Editar</Button>
+                      <Button size="sm" variant="ghost" disabled={r.estado !== "abierto"} className="text-destructive disabled:text-muted-foreground" onClick={() => setDeleting(r)}>Borrar</Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {editing && <EditAnticipoProveedorDialog row={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); qc.invalidateQueries(); }} />}
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar anticipo?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer. Sólo se pueden borrar anticipos en estado 'abierto'.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function EditAnticipoProveedorDialog({ row, onClose, onSaved }: { row: any; onClose: () => void; onSaved: () => void }) {
+  const [fecha, setFecha] = useState<string>(row.fecha);
+  const [montoBs, setMontoBs] = useState<string>(String(Number(row.monto_bs || 0)));
+  const [tasa, setTasa] = useState<string>(String(row.tasa_paralela ?? row.tasa_bcv ?? ""));
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(row.cuenta_bancaria_id ?? "");
+  const [notas, setNotas] = useState<string>(row.notas ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const montoBsN = Number(montoBs) || 0;
+  const tasaN = Number(tasa) || 0;
+  const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+
+  const save = async () => {
+    if (!montoBsN || !tasaN) return toast.error("Completa los campos");
+    setBusy(true);
+    const update = {
+      fecha,
+      monto_bs: montoBsN, monto_base_bs: montoBsN,
+      tasa_paralela: tasaN,
+      monto_usd: +montoUsd.toFixed(2),
+      cuenta_bancaria_id: cuentaBancariaId || null,
+      notas,
+    };
+    const { error, data } = await supabase.from("transacciones").update(update as any).eq("id", row.id).select().single();
+    if (error) { setBusy(false); return toast.error(error.message); }
+    if (data) await logAudit("transacciones", "UPDATE", row.id, row, data);
+    setBusy(false);
+    toast.success("Anticipo actualizado");
+    onSaved();
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader><DialogTitle>Editar anticipo a proveedor</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
+          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} className="mono" /></div>
+          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
+          <div><Label>Monto USD</Label><Input readOnly value={fmtUsd(montoUsd)} className="mono bg-muted" /></div>
+          <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} /></div>
+          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={save} disabled={busy}>{busy ? "Guardando…" : "Guardar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
