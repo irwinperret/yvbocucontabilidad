@@ -1196,11 +1196,12 @@ function NominaRegularForm() {
       const c = secciones["BYV-BOCU"];
       const split = (bs: number, cuentaYV: string, cuentaBocu: string, concepto: string) => {
         if (bs <= 0) return;
-        const yv = bs * 0.3333;
+        const yv = bs * 0.20;
         const bocu = bs - yv;
-        pushIf(cuentaYV, "YV", yv, `${concepto} (compartido 33%)`);
-        pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 67%)`);
+        pushIf(cuentaYV, "YV", yv, `${concepto} (compartido 20%)`);
+        pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 80%)`);
       };
+
       split(Number(c.salario || 0), "3.9", "3.4", "Salario base");
       split(Number(c.alimentacion || 0), "3.20", "3.20", "Bono alimentación");
       split(Number(c.compensatorio || 0), "3.14", "3.14", "Bono compensatorio");
