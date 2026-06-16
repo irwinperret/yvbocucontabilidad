@@ -129,10 +129,11 @@ function SaldosBancariosPage() {
         if (c.saldo_inicial_fecha && (t as any).fecha < c.saldo_inicial_fecha) continue;
         const info = planMap[(t as any).cuenta_codigo];
         if (!info || !info.afecta_fc) continue;
-        const monto = c.moneda === "USD" ? Number((t as any).monto_usd) : Number((t as any).monto_bs);
-        if (!monto) continue;
-        if (esIngreso(info.grupo, (t as any).cuenta_codigo)) ingresos += monto;
-        else egresos += monto;
+        const montoRaw = c.moneda === "USD" ? Number((t as any).monto_usd) : Number((t as any).monto_bs);
+        if (!montoRaw) continue;
+        const absM = Math.abs(montoRaw);
+        if (esIngreso(info.grupo, (t as any).cuenta_codigo, montoRaw)) ingresos += absM;
+        else egresos += absM;
       }
       let ajusteTotal = 0;
       for (const a of ajustes ?? []) {
