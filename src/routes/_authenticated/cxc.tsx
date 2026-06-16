@@ -18,8 +18,10 @@ function CxCPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["cxc"],
     queryFn: async () => {
-      const { data } = await supabase.from("cuentas_por_cobrar").select("*").order("fecha_vencimiento", { ascending: true });
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase.from("cuentas_por_cobrar").select("*").order("fecha_vencimiento", { ascending: true }).range(from, to),
+      );
     },
   });
 
