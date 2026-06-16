@@ -35,11 +35,13 @@ function GyPPage() {
   const { data: rows } = useQuery({
     queryKey: ["gyp-rows", anio, centro, incluirOff],
     queryFn: async () => {
-      let q = supabase.from("v_transacciones_mensual").select("*").eq("anio", anio);
-      if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
-      if (!incluirOff) q = q.eq("modo", "on_balance");
-      const { data } = await q;
-      return (data ?? []) as Row[];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows<Row>(async (from, to) => {
+        let q = supabase.from("v_transacciones_mensual").select("*").eq("anio", anio).range(from, to);
+        if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
+        if (!incluirOff) q = q.eq("modo", "on_balance");
+        return await q;
+      });
     },
   });
 

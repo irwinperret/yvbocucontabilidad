@@ -84,15 +84,16 @@ function SaldosBancariosPage() {
   const { data: transacciones } = useQuery({
     queryKey: ["saldos-bancarios-trx", hasta],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transacciones")
-        .select("cuenta_bancaria_id,cuenta_codigo,monto_bs,monto_usd,fecha,modo")
-        .eq("modo", "on_balance")
-        .not("cuenta_bancaria_id", "is", null)
-        .lte("fecha", hasta)
-        .limit(10000);
-      if (error) throw error;
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) => {
+        return await supabase
+          .from("transacciones")
+          .select("cuenta_bancaria_id,cuenta_codigo,monto_bs,monto_usd,fecha,modo")
+          .eq("modo", "on_balance")
+          .not("cuenta_bancaria_id", "is", null)
+          .lte("fecha", hasta)
+          .range(from, to);
+      });
     },
   });
 

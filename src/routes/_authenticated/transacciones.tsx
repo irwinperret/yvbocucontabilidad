@@ -21,6 +21,7 @@ import { logAudit, isPeriodClosed } from "@/lib/audit";
 import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { AdjuntoCell } from "@/components/adjunto-cell";
+import { fetchAllRows } from "@/lib/fetch-all";
 
 export const Route = createFileRoute("/_authenticated/transacciones")({
   component: TransaccionesPage,
