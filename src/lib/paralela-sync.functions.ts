@@ -15,7 +15,7 @@ export const syncTasaParalela = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (existente) {
-      return { tasa, fecha, fuente, status: "existe" as const, anterior: Number(existente.tasa) };
+      return { tasa, fecha, fuente, status: "existe" as const, anterior: Number(existente.tasa), recalculadas: 0 };
     }
 
     const { error } = await supabase
@@ -23,5 +23,20 @@ export const syncTasaParalela = createServerFn({ method: "POST" })
       .insert({ fecha, tasa, registrado_por: userId });
     if (error) throw new Error(error.message);
 
-    return { tasa, fecha, fuente, status: "insertada" as const, anterior: null };
+    // Recalcular transacciones de esa fecha con la nueva tasa
+    let recalculadas = 0;
+    const { data: txs } = await supabase
+      .from("transacciones")
+      .select("id, monto_bs")
+      .eq("fecha", fecha);
+    for (const tx of txs ?? []) {
+      const usd = +(Number(tx.monto_bs || 0) / tasa).toFixed(2);
+      const { error: ue } = await supabase
+        .from("transacciones")
+        .update({ tasa_paralela: tasa, monto_usd: usd })
+        .eq("id", tx.id);
+      if (!ue) recalculadas++;
+    }
+
+    return { tasa, fecha, fuente, status: "insertada" as const, anterior: null, recalculadas };
   });
