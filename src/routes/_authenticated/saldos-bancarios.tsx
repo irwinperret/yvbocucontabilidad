@@ -47,8 +47,10 @@ const TIPO_LABEL: Record<Ajuste["tipo"], string> = {
 };
 
 // Cuentas de ingreso a banco (Ingresos del plan + préstamo recibido + aumento de capital).
+// Para 13.1 (propinas en tránsito): el signo del monto define si es entrada o salida.
 // Todo lo demás con afecta_fc=true es salida.
-function esIngreso(grupo: string, codigo: string): boolean {
+function esIngreso(grupo: string, codigo: string, monto: number): boolean {
+  if (codigo === "13.1") return monto >= 0;
   if (grupo === "Ingresos") return true;
   if (codigo === "10.1" || codigo === "10.5") return true;
   return false;
