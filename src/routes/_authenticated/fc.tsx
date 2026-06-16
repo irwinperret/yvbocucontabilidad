@@ -39,16 +39,19 @@ function FCPage() {
   const { data: rows } = useQuery({
     queryKey: ["fc-rows", anio, centro, incluirOff, cuentaBancariaId],
     queryFn: async () => {
+      const { fetchAllRows } = await import("@/lib/fetch-all");
       if (cuentaBancariaId !== "todas") {
-        // Query transacciones directly when filtering by bank account
-        let q = supabase.from("transacciones").select("fecha, cuenta_codigo, centro_costo, modo, monto_usd")
-          .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`)
-          .eq("cuenta_bancaria_id" as any, cuentaBancariaId);
-        if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
-        if (!incluirOff) q = q.eq("modo", "on_balance");
-        const { data } = await q;
+        const data = await fetchAllRows<any>(async (from, to) => {
+          let q = supabase.from("transacciones").select("fecha, cuenta_codigo, centro_costo, modo, monto_usd")
+            .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`)
+            .eq("cuenta_bancaria_id" as any, cuentaBancariaId)
+            .range(from, to);
+          if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
+          if (!incluirOff) q = q.eq("modo", "on_balance");
+          return await q;
+        });
         const map = new Map<string, Row>();
-        for (const t of (data ?? []) as any[]) {
+        for (const t of data) {
           const d = new Date(t.fecha);
           const k = `${d.getFullYear()}-${d.getMonth()+1}-${t.cuenta_codigo}-${t.centro_costo}-${t.modo}`;
           const existing = map.get(k);
@@ -57,11 +60,13 @@ function FCPage() {
         }
         return Array.from(map.values());
       }
-      let q = supabase.from("v_transacciones_mensual").select("*").eq("anio", anio);
-      if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
-      if (!incluirOff) q = q.eq("modo", "on_balance");
-      const { data } = await q;
-      return (data ?? []) as Row[];
+      const rows = await fetchAllRows<Row>(async (from, to) => {
+        let q = supabase.from("v_transacciones_mensual").select("*").eq("anio", anio).range(from, to);
+        if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
+        if (!incluirOff) q = q.eq("modo", "on_balance");
+        return await q;
+      });
+      return rows;
     },
   });
 
