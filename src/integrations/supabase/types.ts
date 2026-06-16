@@ -639,6 +639,7 @@ export type Database = {
           id: string
           registrado_por: string | null
           tasa: number
+          tasa_paralela: number | null
         }
         Insert: {
           created_at?: string
@@ -646,6 +647,7 @@ export type Database = {
           id?: string
           registrado_por?: string | null
           tasa: number
+          tasa_paralela?: number | null
         }
         Update: {
           created_at?: string
@@ -653,6 +655,7 @@ export type Database = {
           id?: string
           registrado_por?: string | null
           tasa?: number
+          tasa_paralela?: number | null
         }
         Relationships: []
       }

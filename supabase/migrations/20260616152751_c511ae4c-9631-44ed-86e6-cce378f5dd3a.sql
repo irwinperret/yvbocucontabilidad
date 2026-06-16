@@ -1,0 +1,1 @@
+ALTER TABLE public.tasas_bcv ADD COLUMN IF NOT EXISTS tasa_paralela numeric(12,4);
