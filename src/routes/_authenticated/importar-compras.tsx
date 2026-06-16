@@ -254,7 +254,7 @@ function ImportarComprasPage() {
               monto_bs: totalBs, monto_usd: r.total_usd,
             } as any).eq("id", existe.cxp_id);
           }
-          // Resync pierna IVA (2.3) — dedup por (referencia, numero_factura)
+          // Resync pierna IVA (12.5) — dedup por (referencia, numero_factura)
           await supabase.from("transacciones").delete()
             .eq("referencia", "xetux-iva").eq("numero_factura", r.numero_factura);
           if (ivaAplica && r.iva_usd > 0) {
@@ -292,7 +292,7 @@ function ImportarComprasPage() {
 
         if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
 
-        // Pierna IVA crédito (2.3) para compras nuevas
+        // Pierna IVA crédito (12.5) para compras nuevas
         if (ivaAplica && r.iva_usd > 0) {
           const { insertIvaLeg } = await import("@/lib/iva-helpers");
           await insertIvaLeg({

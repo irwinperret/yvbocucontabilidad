@@ -51,15 +51,14 @@ function CxCPage() {
     if (error) return toast.error(error.message);
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
 
-    // Diferencia cambiaria: solo si hay delta material (≥ 0.01 USD)
-    if (Math.abs(fxDeltaUsd) >= 0.01) {
-      const esGanancia = fxDeltaUsd > 0;
-      const cuentaFx = esGanancia ? "11.1" : "11.2";
-      const absUsd = Math.abs(fxDeltaUsd);
+    // Diferencia cambiaria: solo se registra GANANCIA (cuenta 11.1).
+    // La cuenta 11.2 (pérdida) fue eliminada; las pérdidas se ignoran y solo quedan en nota.
+    if (fxDeltaUsd >= 0.01) {
+      const absUsd = fxDeltaUsd;
       const absBs = Math.abs(fxBs);
       const { data: txFx, error: errFx } = await supabase.from("transacciones").insert({
         fecha: todayISO(),
-        cuenta_codigo: cuentaFx,
+        cuenta_codigo: "11.1",
         centro_costo: c.centro_costo,
         monto_bs: absBs, monto_base_bs: absBs, iva_bs: 0,
         tasa_bcv: tasaHoy, monto_usd: absUsd,
@@ -69,6 +68,8 @@ function CxCPage() {
       } as any).select().single();
       if (errFx) toast.error("Cobro OK, pero falló el ajuste cambiario: " + errFx.message);
       else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
+    } else if (fxDeltaUsd <= -0.01) {
+      toast.info(`Pérdida cambiaria de ${Math.abs(fxDeltaUsd).toFixed(2)} USD no se contabiliza (cuenta 11.2 fue eliminada)`);
     }
 
     await supabase.from("cuentas_por_cobrar").update({
