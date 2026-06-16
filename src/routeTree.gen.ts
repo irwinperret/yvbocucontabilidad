@@ -19,6 +19,7 @@ import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/t
 import { Route as AuthenticatedSaldosBancariosRouteImport } from './routes/_authenticated/saldos-bancarios'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
 import { Route as AuthenticatedProveedoresRouteImport } from './routes/_authenticated/proveedores'
+import { Route as AuthenticatedPropinasRouteImport } from './routes/_authenticated/propinas'
 import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenticated/plan-cuentas'
 import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticated/pagar-cxp'
 import { Route as AuthenticatedOffBalanceRouteImport } from './routes/_authenticated/off-balance'
@@ -90,6 +91,11 @@ const AuthenticatedProveedoresRoute =
     path: '/proveedores',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedPropinasRoute = AuthenticatedPropinasRouteImport.update({
+  id: '/propinas',
+  path: '/propinas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedPlanCuentasRoute =
   AuthenticatedPlanCuentasRouteImport.update({
     id: '/plan-cuentas',
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/off-balance': typeof AuthenticatedOffBalanceRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
+  '/propinas': typeof AuthenticatedPropinasRoute
   '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
@@ -229,6 +236,7 @@ export interface FileRoutesByTo {
   '/off-balance': typeof AuthenticatedOffBalanceRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
+  '/propinas': typeof AuthenticatedPropinasRoute
   '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
@@ -259,6 +267,7 @@ export interface FileRoutesById {
   '/_authenticated/off-balance': typeof AuthenticatedOffBalanceRoute
   '/_authenticated/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/_authenticated/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
+  '/_authenticated/propinas': typeof AuthenticatedPropinasRoute
   '/_authenticated/proveedores': typeof AuthenticatedProveedoresRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
@@ -289,6 +298,7 @@ export interface FileRouteTypes {
     | '/off-balance'
     | '/pagar-cxp'
     | '/plan-cuentas'
+    | '/propinas'
     | '/proveedores'
     | '/registrar'
     | '/saldos-bancarios'
@@ -317,6 +327,7 @@ export interface FileRouteTypes {
     | '/off-balance'
     | '/pagar-cxp'
     | '/plan-cuentas'
+    | '/propinas'
     | '/proveedores'
     | '/registrar'
     | '/saldos-bancarios'
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
     | '/_authenticated/off-balance'
     | '/_authenticated/pagar-cxp'
     | '/_authenticated/plan-cuentas'
+    | '/_authenticated/propinas'
     | '/_authenticated/proveedores'
     | '/_authenticated/registrar'
     | '/_authenticated/saldos-bancarios'
@@ -435,6 +447,13 @@ declare module '@tanstack/react-router' {
       path: '/proveedores'
       fullPath: '/proveedores'
       preLoaderRoute: typeof AuthenticatedProveedoresRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/propinas': {
+      id: '/_authenticated/propinas'
+      path: '/propinas'
+      fullPath: '/propinas'
+      preLoaderRoute: typeof AuthenticatedPropinasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/plan-cuentas': {
@@ -575,6 +594,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOffBalanceRoute: typeof AuthenticatedOffBalanceRoute
   AuthenticatedPagarCxpRoute: typeof AuthenticatedPagarCxpRoute
   AuthenticatedPlanCuentasRoute: typeof AuthenticatedPlanCuentasRoute
+  AuthenticatedPropinasRoute: typeof AuthenticatedPropinasRoute
   AuthenticatedProveedoresRoute: typeof AuthenticatedProveedoresRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
   AuthenticatedSaldosBancariosRoute: typeof AuthenticatedSaldosBancariosRoute
@@ -601,6 +621,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOffBalanceRoute: AuthenticatedOffBalanceRoute,
   AuthenticatedPagarCxpRoute: AuthenticatedPagarCxpRoute,
   AuthenticatedPlanCuentasRoute: AuthenticatedPlanCuentasRoute,
+  AuthenticatedPropinasRoute: AuthenticatedPropinasRoute,
   AuthenticatedProveedoresRoute: AuthenticatedProveedoresRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
   AuthenticatedSaldosBancariosRoute: AuthenticatedSaldosBancariosRoute,

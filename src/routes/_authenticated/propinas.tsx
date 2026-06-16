@@ -53,8 +53,8 @@ function PropinasPage() {
   const { data: ventasMensual } = useQuery({
     queryKey: ["ventas-netas-mensual", anio],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("v_transacciones_mensual" as any)
+      const { data } = await (supabase as any)
+        .from("v_transacciones_mensual")
         .select("mes,cuenta_codigo,base_usd")
         .eq("anio", anio)
         .eq("modo", "on_balance")
