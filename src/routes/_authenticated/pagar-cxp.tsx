@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,10 +150,9 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
   // Cuando cambia lo aplicado por anticipos, ajustamos el monto cash al saldo restante
   // (solo si el usuario no lo ha tocado manualmente fuera de ese valor)
   const [touchedMonto, setTouchedMonto] = useState(false);
-  if (!touchedMonto && Number(montoBs) !== saldoTrasAplicar) {
-    // setear sin provocar loop
-    queueMicrotask(() => setMontoBs(String(saldoTrasAplicar)));
-  }
+  useEffect(() => {
+    if (!touchedMonto) setMontoBs(String(saldoTrasAplicar));
+  }, [saldoTrasAplicar, touchedMonto]);
 
   useQuery({
     queryKey: ["tasa-pago", fecha],
