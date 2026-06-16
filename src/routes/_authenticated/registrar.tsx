@@ -1931,6 +1931,9 @@ function FinanciamientoForm() {
                 <SelectItem value="aumento_capital">Aumento de capital (10.5)</SelectItem>
                 <SelectItem value="capex">CapEx — Activo fijo (10.6)</SelectItem>
                 <SelectItem value="depreciacion">Depreciación mensual (10.7)</SelectItem>
+                <SelectItem value="prestamo_personal">Préstamo al personal (14.1)</SelectItem>
+                <SelectItem value="anticipo_nomina">Anticipo de nómina (14.3)</SelectItem>
+                <SelectItem value="anticipo_prestaciones">Anticipo de prestaciones (3.22)</SelectItem>
               </SelectContent>
             </Select>
             {cfg && <p className="text-xs text-muted-foreground mt-1">Afecta: <span className="font-semibold">{cfg.afecta}</span></p>}
