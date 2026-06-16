@@ -19,6 +19,8 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { TerceroSelect } from "@/components/tercero-select";
 import { useGastosSugerencias } from "@/lib/autocomplete-hooks";
 import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
+import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
+import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
