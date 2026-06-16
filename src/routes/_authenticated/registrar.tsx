@@ -1050,7 +1050,68 @@ function lastDayOfMonth(year: number, monthIdx: number) {
   return new Date(year, monthIdx + 1, 0).getDate();
 }
 
+// Subcomponente extraído fuera del padre — antes estaba inline y perdía foco en cada keystroke.
+function NominaSeccionBlock({
+  title, campos, open, onToggle, onChange, totalLabel, moneda,
+}: {
+  title: string;
+  campos: NominaCampos;
+  open: boolean;
+  onToggle: () => void;
+  onChange: (k: keyof NominaCampos, v: string) => void;
+  totalLabel: string;
+  moneda: "Bs" | "USD";
+}) {
+  return (
+    <div className="border rounded-lg">
+      <button type="button" onClick={onToggle}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/50">
+        <span className="font-semibold text-sm">{title}</span>
+        <span className="text-xs mono text-muted-foreground">{totalLabel} {open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border-t">
+          <div>
+            <Label className="text-xs">Salario base ({moneda})</Label>
+            <Input type="number" step="0.01" value={campos.salario} onChange={(e) => onChange("salario", e.target.value)} className="mono" />
+          </div>
+          <div>
+            <Label className="text-xs">Bono alimentación ({moneda})</Label>
+            <Input type="number" step="0.01" value={campos.alimentacion} onChange={(e) => onChange("alimentacion", e.target.value)} className="mono" />
+          </div>
+          <div>
+            <Label className="text-xs">Bono compensatorio ({moneda})</Label>
+            <Input type="number" step="0.01" value={campos.compensatorio} onChange={(e) => onChange("compensatorio", e.target.value)} className="mono" />
+          </div>
+          <div>
+            <Label className="text-xs">Parafiscales ({moneda})</Label>
+            <Input type="number" step="0.01" value={campos.parafiscales} onChange={(e) => onChange("parafiscales", e.target.value)} className="mono" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NominaForm() {
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Nómina</CardTitle></CardHeader>
+      <CardContent>
+        <Tabs defaultValue="regular">
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="regular">Nómina regular (Bs)</TabsTrigger>
+            <TabsTrigger value="chef">Chef Ejecutivo (USD)</TabsTrigger>
+          </TabsList>
+          <TabsContent value="regular"><NominaRegularForm /></TabsContent>
+          <TabsContent value="chef"><NominaChefForm /></TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NominaRegularForm() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const today = new Date();
@@ -1079,22 +1140,21 @@ function NominaForm() {
   const setCampo = (sec: NominaSeccion, k: keyof NominaCampos, v: string) =>
     setSecciones((s) => ({ ...s, [sec]: { ...s[sec], [k]: v } }));
 
-  const totalSec = (sec: NominaSeccion) => {
+  const totalSecBs = (sec: NominaSeccion) => {
     const c = secciones[sec];
     return Number(c.salario || 0) + Number(c.alimentacion || 0) + Number(c.compensatorio || 0) + Number(c.parafiscales || 0);
   };
-  const totalUsd = (["BYV","BOCU","BYV-BOCU"] as NominaSeccion[]).reduce((s, x) => s + totalSec(x), 0);
-  const totalBs = totalUsd * tasaConvN;
+  const totalBs = (["BYV","BOCU","BYV-BOCU"] as NominaSeccion[]).reduce((s, x) => s + totalSecBs(x), 0);
+  const totalUsd = tasaConvN ? totalBs / tasaConvN : 0;
 
   const tag = `Nómina ${quincena === "Q1" ? "Quincena 1" : "Quincena 2"} ${NOMINA_MESES[mes]} ${anio}`;
 
   const buildLineas = () => {
-    type L = { cuenta: string; centro: Centro; usd: number; concepto: string };
+    type L = { cuenta: string; centro: Centro; bs: number; concepto: string };
     const out: L[] = [];
-    const pushIf = (cuenta: string, centro: Centro, usd: number, concepto: string) => {
-      if (usd > 0.0001) out.push({ cuenta, centro, usd: +usd.toFixed(2), concepto });
+    const pushIf = (cuenta: string, centro: Centro, bs: number, concepto: string) => {
+      if (bs > 0.01) out.push({ cuenta, centro, bs: +bs.toFixed(2), concepto });
     };
-    // BYV → YV
     {
       const c = secciones["BYV"];
       pushIf("3.9", "YV", Number(c.salario || 0), "Salario base");
@@ -1102,7 +1162,6 @@ function NominaForm() {
       pushIf("3.14", "YV", Number(c.compensatorio || 0), "Bono compensatorio");
       pushIf("3.15", "YV", Number(c.parafiscales || 0), "Parafiscales");
     }
-    // BOCU → Bocu
     {
       const c = secciones["BOCU"];
       pushIf("3.4", "Bocu", Number(c.salario || 0), "Salario base");
@@ -1110,13 +1169,12 @@ function NominaForm() {
       pushIf("3.14", "Bocu", Number(c.compensatorio || 0), "Bono compensatorio");
       pushIf("3.15", "Bocu", Number(c.parafiscales || 0), "Parafiscales");
     }
-    // BYV-BOCU → split 33.33% YV / 66.67% Bocu
     {
       const c = secciones["BYV-BOCU"];
-      const split = (usd: number, cuentaYV: string, cuentaBocu: string, concepto: string) => {
-        if (usd <= 0) return;
-        const yv = usd * 0.3333;
-        const bocu = usd - yv;
+      const split = (bs: number, cuentaYV: string, cuentaBocu: string, concepto: string) => {
+        if (bs <= 0) return;
+        const yv = bs * 0.3333;
+        const bocu = bs - yv;
         pushIf(cuentaYV, "YV", yv, `${concepto} (compartido 33%)`);
         pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 67%)`);
       };
@@ -1124,6 +1182,177 @@ function NominaForm() {
       split(Number(c.alimentacion || 0), "3.20", "3.20", "Bono alimentación");
       split(Number(c.compensatorio || 0), "3.14", "3.14", "Bono compensatorio");
       split(Number(c.parafiscales || 0), "3.15", "3.15", "Parafiscales");
+    }
+    return out;
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!tasaConvN) return toast.error("No hay tasa paralela ni BCV para esa fecha");
+    if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria de pago");
+    const lineas = buildLineas();
+    if (!lineas.length) return toast.error("Ingresa al menos un monto");
+    setBusy(true);
+    const grupoId = (crypto as any).randomUUID();
+    let ok = 0;
+    for (const l of lineas) {
+      const usd = +(l.bs / tasaConvN).toFixed(2);
+      const { data: tx, error } = await supabase.from("transacciones").insert({
+        fecha, cuenta_codigo: l.cuenta, centro_costo: l.centro as any,
+        monto_bs: l.bs, monto_base_bs: l.bs, iva_bs: 0,
+        tasa_bcv: tasaBcvN || null, tasa_paralela: tasaParN || null, monto_usd: usd,
+        metodo_pago: metodo as any,
+        notas: `${tag} · ${l.concepto}${notas ? ` · ${notas}` : ""}`,
+        modo: "on_balance",
+        cuenta_bancaria_id: cuentaBancariaId,
+        grupo_transaccion_id: grupoId,
+        created_by: user.id,
+      } as any).select().single();
+      if (error) { setBusy(false); return toast.error(`${l.cuenta} ${l.centro}: ${error.message}`); }
+      if (tx) { await logAudit("transacciones", "INSERT", tx.id, null, tx); ok++; }
+    }
+    setBusy(false);
+    toast.success(`${tag} registrada (${ok} líneas)`);
+    qc.invalidateQueries();
+    setSecciones({ "BYV": { ...NOMINA_CAMPOS_INIT }, "BOCU": { ...NOMINA_CAMPOS_INIT }, "BYV-BOCU": { ...NOMINA_CAMPOS_INIT } });
+    setNotas("");
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4 pt-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <Label>Quincena</Label>
+          <Select value={quincena} onValueChange={(v) => setQuincena(v as "Q1" | "Q2")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Q1">Quincena 1 (1–15)</SelectItem>
+              <SelectItem value="Q2">Quincena 2 (16–fin de mes)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Mes</Label>
+          <Select value={String(mes)} onValueChange={(v) => setMes(Number(v))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{NOMINA_MESES.map((m, i) => <SelectItem key={i} value={String(i)}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Año</Label>
+          <Input type="number" value={anio} onChange={(e) => setAnio(Number(e.target.value) || new Date().getFullYear())} className="mono" />
+        </div>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Se registra con fecha <span className="font-semibold mono">{fecha}</span> · tasa paralela <span className="mono">{tasaParN ? tasaParN.toFixed(2) : "—"}</span>
+      </div>
+
+      <div className="space-y-2">
+        {(["BYV","BOCU","BYV-BOCU"] as NominaSeccion[]).map((sec) => {
+          const titles: Record<NominaSeccion, string> = {
+            "BYV": "BYV (centro YV)",
+            "BOCU": "BOCU (centro Bocu)",
+            "BYV-BOCU": "BYV-BOCU (compartido 33/67)",
+          };
+          const tot = totalSecBs(sec);
+          return (
+            <NominaSeccionBlock
+              key={sec}
+              title={titles[sec]}
+              campos={secciones[sec]}
+              open={openSec[sec]}
+              onToggle={() => setOpenSec((s) => ({ ...s, [sec]: !s[sec] }))}
+              onChange={(k, v) => setCampo(sec, k, v)}
+              totalLabel={fmtBs(tot)}
+              moneda="Bs"
+            />
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label>Método de pago</Label>
+          <Select value={metodo} onValueChange={setMetodo}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+      </div>
+
+      <div>
+        <Label>Notas (opcional)</Label>
+        <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+      </div>
+
+      <div className="flex items-center justify-between border-t pt-3">
+        <div className="text-sm">
+          <div className="text-muted-foreground">Total nómina</div>
+          <div className="font-semibold mono">{fmtBs(totalBs)} · {fmtUsd(totalUsd)}</div>
+        </div>
+        <Button type="submit" disabled={busy}>{busy ? "Guardando…" : `Registrar ${tag}`}</Button>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        No incluye: empleados individuales, saldo PMTO, redobles, ni bonos por 10% de servicio (se registran por separado).
+      </p>
+    </form>
+  );
+}
+
+function NominaChefForm() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const today = new Date();
+  const [quincena, setQuincena] = useState<"Q1" | "Q2">(today.getDate() <= 15 ? "Q1" : "Q2");
+  const [mes, setMes] = useState<number>(today.getMonth());
+  const [anio, setAnio] = useState<number>(today.getFullYear());
+  const [centro, setCentro] = useState<"YV" | "Bocu" | "COMPARTIDO">("COMPARTIDO");
+  const [campos, setCampos] = useState<NominaCampos>({ ...NOMINA_CAMPOS_INIT });
+  const [metodo, setMetodo] = useState("transferencia");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [notas, setNotas] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const dia = quincena === "Q1" ? 15 : lastDayOfMonth(anio, mes);
+  const fecha = `${anio}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  const { data: tasaSugerida } = useTasaForDate(fecha);
+  const { data: paralelaSugerida } = useParalelaForDate(fecha);
+  const tasaBcvN = Number(tasaSugerida?.tasa) || 0;
+  const tasaParN = Number(paralelaSugerida?.tasa) || 0;
+  const tasaConvN = tasaParN || tasaBcvN;
+
+  const setCampo = (k: keyof NominaCampos, v: string) => setCampos((c) => ({ ...c, [k]: v }));
+
+  const totalUsd = Number(campos.salario || 0) + Number(campos.alimentacion || 0) + Number(campos.compensatorio || 0) + Number(campos.parafiscales || 0);
+  const totalBs = totalUsd * tasaConvN;
+
+  const tag = `Nómina Chef Ejecutivo ${quincena === "Q1" ? "Q1" : "Q2"} ${NOMINA_MESES[mes]} ${anio}`;
+
+  const buildLineas = () => {
+    type L = { cuenta: string; centro: Centro; usd: number; concepto: string };
+    const out: L[] = [];
+    const pushIf = (cuenta: string, centro: Centro, usd: number, concepto: string) => {
+      if (usd > 0.0001) out.push({ cuenta, centro, usd: +usd.toFixed(2), concepto });
+    };
+    const fields: { key: keyof NominaCampos; cuentaYV: string; cuentaBocu: string; concepto: string }[] = [
+      { key: "salario", cuentaYV: "3.9", cuentaBocu: "3.4", concepto: "Salario base Chef" },
+      { key: "alimentacion", cuentaYV: "3.20", cuentaBocu: "3.20", concepto: "Bono alimentación Chef" },
+      { key: "compensatorio", cuentaYV: "3.14", cuentaBocu: "3.14", concepto: "Bono compensatorio Chef" },
+      { key: "parafiscales", cuentaYV: "3.15", cuentaBocu: "3.15", concepto: "Parafiscales Chef" },
+    ];
+    for (const f of fields) {
+      const usd = Number(campos[f.key] || 0);
+      if (usd <= 0) continue;
+      if (centro === "YV") pushIf(f.cuentaYV, "YV", usd, f.concepto);
+      else if (centro === "Bocu") pushIf(f.cuentaBocu, "Bocu", usd, f.concepto);
+      else {
+        const yv = usd * 0.3333;
+        pushIf(f.cuentaYV, "YV", yv, `${f.concepto} (compartido 33%)`);
+        pushIf(f.cuentaBocu, "Bocu", usd - yv, `${f.concepto} (compartido 67%)`);
+      }
     }
     return out;
   };
@@ -1157,114 +1386,90 @@ function NominaForm() {
     setBusy(false);
     toast.success(`${tag} registrada (${ok} líneas)`);
     qc.invalidateQueries();
-    setSecciones({ "BYV": { ...NOMINA_CAMPOS_INIT }, "BOCU": { ...NOMINA_CAMPOS_INIT }, "BYV-BOCU": { ...NOMINA_CAMPOS_INIT } });
+    setCampos({ ...NOMINA_CAMPOS_INIT });
     setNotas("");
   };
 
-  const Seccion = ({ sec, title }: { sec: NominaSeccion; title: string }) => {
-    const c = secciones[sec];
-    const open = openSec[sec];
-    const tot = totalSec(sec);
-    return (
-      <div className="border rounded-lg">
-        <button type="button"
-          onClick={() => setOpenSec((s) => ({ ...s, [sec]: !s[sec] }))}
-          className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/50">
-          <span className="font-semibold text-sm">{title}</span>
-          <span className="text-xs mono text-muted-foreground">{fmtUsd(tot)} {open ? "▾" : "▸"}</span>
-        </button>
-        {open && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border-t">
-            <div>
-              <Label className="text-xs">Salario base (USD)</Label>
-              <Input type="number" step="0.01" value={c.salario} onChange={(e) => setCampo(sec, "salario", e.target.value)} className="mono" />
-            </div>
-            <div>
-              <Label className="text-xs">Bono alimentación (USD)</Label>
-              <Input type="number" step="0.01" value={c.alimentacion} onChange={(e) => setCampo(sec, "alimentacion", e.target.value)} className="mono" />
-            </div>
-            <div>
-              <Label className="text-xs">Bono compensatorio (USD)</Label>
-              <Input type="number" step="0.01" value={c.compensatorio} onChange={(e) => setCampo(sec, "compensatorio", e.target.value)} className="mono" />
-            </div>
-            <div>
-              <Label className="text-xs">Parafiscales (USD)</Label>
-              <Input type="number" step="0.01" value={c.parafiscales} onChange={(e) => setCampo(sec, "parafiscales", e.target.value)} className="mono" />
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
-    <Card>
-      <CardHeader><CardTitle className="text-base">Nómina</CardTitle></CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <Label>Quincena</Label>
-              <Select value={quincena} onValueChange={(v) => setQuincena(v as "Q1" | "Q2")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Q1">Quincena 1 (1–15)</SelectItem>
-                  <SelectItem value="Q2">Quincena 2 (16–fin de mes)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Mes</Label>
-              <Select value={String(mes)} onValueChange={(v) => setMes(Number(v))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{NOMINA_MESES.map((m, i) => <SelectItem key={i} value={String(i)}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Año</Label>
-              <Input type="number" value={anio} onChange={(e) => setAnio(Number(e.target.value) || today.getFullYear())} className="mono" />
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Se registra con fecha <span className="font-semibold mono">{fecha}</span> · tasa paralela <span className="mono">{tasaParN ? tasaParN.toFixed(2) : "—"}</span>
-          </div>
+    <form onSubmit={submit} className="space-y-4 pt-4">
+      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+        <strong>Solo Chef Ejecutivo.</strong> Esta pestaña registra nómina en USD (convertida a Bs a tasa paralela). En principio aplica solo al Chef Ejecutivo; acuerdos futuros podrían sumar más casos.
+      </div>
 
-          <div className="space-y-2">
-            <Seccion sec="BYV" title="BYV (centro YV)" />
-            <Seccion sec="BOCU" title="BOCU (centro Bocu)" />
-            <Seccion sec="BYV-BOCU" title="BYV-BOCU (compartido 33/67)" />
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <Label>Quincena</Label>
+          <Select value={quincena} onValueChange={(v) => setQuincena(v as "Q1" | "Q2")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Q1">Quincena 1 (1–15)</SelectItem>
+              <SelectItem value="Q2">Quincena 2 (16–fin de mes)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Mes</Label>
+          <Select value={String(mes)} onValueChange={(v) => setMes(Number(v))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{NOMINA_MESES.map((m, i) => <SelectItem key={i} value={String(i)}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Año</Label>
+          <Input type="number" value={anio} onChange={(e) => setAnio(Number(e.target.value) || new Date().getFullYear())} className="mono" />
+        </div>
+      </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label>Método de pago</Label>
-              <Select value={metodo} onValueChange={setMetodo}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
-          </div>
+      <div>
+        <Label>Centro de costo</Label>
+        <Select value={centro} onValueChange={(v) => setCentro(v as any)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="YV">YV</SelectItem>
+            <SelectItem value="Bocu">Bocu</SelectItem>
+            <SelectItem value="COMPARTIDO">Compartido (33% YV / 67% Bocu)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-          <div>
-            <Label>Notas (opcional)</Label>
-            <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
-          </div>
+      <div className="text-xs text-muted-foreground">
+        Fecha <span className="font-semibold mono">{fecha}</span> · tasa paralela <span className="mono">{tasaParN ? tasaParN.toFixed(2) : "—"}</span>
+      </div>
 
-          <div className="flex items-center justify-between border-t pt-3">
-            <div className="text-sm">
-              <div className="text-muted-foreground">Total nómina</div>
-              <div className="font-semibold mono">{fmtUsd(totalUsd)} · {fmtBs(totalBs)}</div>
-            </div>
-            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : `Registrar ${tag}`}</Button>
-          </div>
+      <NominaSeccionBlock
+        title="Chef Ejecutivo"
+        campos={campos}
+        open={true}
+        onToggle={() => {}}
+        onChange={setCampo}
+        totalLabel={fmtUsd(totalUsd)}
+        moneda="USD"
+      />
 
-          <p className="text-[11px] text-muted-foreground">
-            No incluye: empleados individuales, saldo PMTO, redobles, ni bonos por 10% de servicio (se registran por separado).
-          </p>
-        </form>
-      </CardContent>
-    </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label>Método de pago</Label>
+          <Select value={metodo} onValueChange={setMetodo}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+      </div>
+
+      <div>
+        <Label>Notas (opcional)</Label>
+        <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+      </div>
+
+      <div className="flex items-center justify-between border-t pt-3">
+        <div className="text-sm">
+          <div className="text-muted-foreground">Total Chef</div>
+          <div className="font-semibold mono">{fmtUsd(totalUsd)} · {fmtBs(totalBs)}</div>
+        </div>
+        <Button type="submit" disabled={busy}>{busy ? "Guardando…" : `Registrar ${tag}`}</Button>
+      </div>
+    </form>
   );
 }
 
