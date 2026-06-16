@@ -294,7 +294,8 @@ function TransaccionesPage() {
         { header: "Base Bs", key: "base", width: 16 },
         { header: "IVA Bs", key: "iva", width: 14 },
         { header: "Tasa BCV", key: "tasa", width: 12 },
-        { header: "Monto USD", key: "usd", width: 14 },
+        { header: "Tasa Paralela", key: "tasaPar", width: 14 },
+        { header: "Monto USD Paralelo", key: "usd", width: 18 },
         { header: "Método", key: "metodo", width: 14 },
         { header: "Modo", key: "modo", width: 12 },
         { header: "Notas", key: "notas", width: 40 },
@@ -316,6 +317,7 @@ function TransaccionesPage() {
           base: Number(t.monto_base_bs) || 0,
           iva: Number(t.iva_bs) || 0,
           tasa: Number(t.tasa_bcv) || 0,
+          tasaPar: Number(t.tasa_paralela) || 0,
           usd: Number(t.monto_usd) || 0,
           metodo: t.metodo_pago ?? "",
           modo: t.modo,
@@ -323,6 +325,7 @@ function TransaccionesPage() {
         });
         ["bs", "base", "iva"].forEach((k) => { r.getCell(k as any).numFmt = '#,##0.00'; });
         r.getCell("tasa" as any).numFmt = '#,##0.0000';
+        r.getCell("tasaPar" as any).numFmt = '#,##0.0000';
         r.getCell("usd" as any).numFmt = '"$"#,##0.00';
       }
 
