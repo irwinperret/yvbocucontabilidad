@@ -2170,7 +2170,6 @@ function CierreForm() {
                     <th>N° fact.</th>
                     <th className="text-right">Monto Bs</th>
                     <th className="text-right">USD (paralela)</th>
-                    <th className="text-right">Tasa</th>
                     <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
@@ -2188,7 +2187,6 @@ function CierreForm() {
                         <td>{c.numero_factura ?? "—"}</td>
                         <td className="text-right mono">{fmtBs(Number(c.monto_bs))}</td>
                         <td className="text-right mono">{usdPar != null ? fmtUsd(usdPar) : "—"}</td>
-                        <td className="text-right mono">{c.tasa_bcv ? Number(c.tasa_bcv).toFixed(2) : "—"}</td>
                         <td className="text-center">{c.pagada ? <span className="text-green-700">Pagada</span> : <span className="text-orange-700">CxP</span>}</td>
                         <td>
                           <Button type="button" variant="ghost" size="sm" onClick={() => delCompra(c)} className="text-destructive h-7">×</Button>
@@ -2202,7 +2200,7 @@ function CierreForm() {
                     <td colSpan={3} className="py-2">Total compras del período</td>
                     <td className="text-right mono">{fmtBs(totalCompras)}</td>
                     <td className="text-right mono">{fmtUsd(totalComprasUsdParalela)}</td>
-                    <td colSpan={3}></td>
+                    <td colSpan={2}></td>
                   </tr>
                 </tfoot>
               </table>
