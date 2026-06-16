@@ -11,7 +11,7 @@ import { Info, ArrowUpDown } from "lucide-react";
 import { fmtUsd, fmtDate } from "@/lib/format";
 import { MESES } from "@/lib/account-helpers";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
+  Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
 } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/propinas")({ component: PropinasPage });
@@ -132,10 +132,10 @@ function PropinasPage() {
         <p className="text-sm text-muted-foreground">Control interno de propinas · separado del G&P y Flujo de Caja</p>
       </div>
 
-      <Alert>
+      <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
         <Info className="h-4 w-4" />
-        <AlertDescription>
-          Las propinas no forman parte de los ingresos del restaurante ni del Flujo de Caja.
+        <AlertDescription className="font-bold text-sm">
+          Estas propinas son ADICIONALES al 10% cobrado por el servicio y NO se reflejan ni en Flujo de Caja ni en G&P.
           Se registran por separado para control interno y distribución al personal.
         </AlertDescription>
       </Alert>
@@ -197,25 +197,7 @@ function PropinasPage() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Propinas mensuales · {anio}</CardTitle></CardHeader>
-        <CardContent style={{ height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="mesLabel" />
-              <YAxis tickFormatter={(v) => `$${v}`} />
-              <Tooltip formatter={(v: number) => fmtUsd(v)} />
-              <Legend />
-              <Bar dataKey="YV" stackId="a" fill="#0F6E56" />
-              <Bar dataKey="Bocu" stackId="a" fill="#534AB7" name="Bocú" />
-              <Bar dataKey="Otros" stackId="a" fill="#9CA3AF" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle className="text-base">Propinas vs % sobre ventas netas · {anio}</CardTitle></CardHeader>
-        <CardContent style={{ height: 320 }}>
+        <CardContent style={{ height: 340 }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -224,8 +206,10 @@ function PropinasPage() {
               <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} />
               <Tooltip formatter={(v: number, name) => name === "% sobre ventas" ? `${v}%` : fmtUsd(v)} />
               <Legend />
-              <Bar yAxisId="left" dataKey="total" fill="#0F6E56" name="Total propinas" />
-              <Line yAxisId="right" type="monotone" dataKey="pctVentas" stroke="#E11D48" strokeWidth={2} name="% sobre ventas" />
+              <Bar yAxisId="left" dataKey="YV" stackId="a" fill="#0F6E56" />
+              <Bar yAxisId="left" dataKey="Bocu" stackId="a" fill="#534AB7" name="Bocú" />
+              <Bar yAxisId="left" dataKey="Otros" stackId="a" fill="#9CA3AF" />
+              <Line yAxisId="right" type="monotone" dataKey="pctVentas" stroke="#E11D48" strokeWidth={2} name="% sobre ventas" dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
