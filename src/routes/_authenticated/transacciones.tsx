@@ -239,10 +239,37 @@ function TransaccionesPage() {
         await supabase.from("transacciones").update({ pareja_off_balance_id: null } as any).in("id", ids);
       }
     }
+    // Si es transacción de propina (13.1) con grupo, eliminar también su pareja y la propina vinculada
+    let propinasEliminadas = 0;
+    if (t.cuenta_codigo === "13.1" && t.grupo_transaccion_id) {
+      const { data: hermanos } = await supabase
+        .from("transacciones")
+        .select("id, fecha")
+        .eq("grupo_transaccion_id", t.grupo_transaccion_id)
+        .eq("cuenta_codigo", "13.1");
+      for (const h of (hermanos ?? [])) {
+        if (h.id === t.id) continue;
+        if (await isPeriodClosed((h as any).fecha)) {
+          toast.error("La transacción de propina enlazada está en un mes cerrado — no se puede eliminar el par.");
+          throw new Error("blocked");
+        }
+        ids.push(h.id);
+      }
+      // Borrar también el registro en la tabla propinas
+      const { count } = await supabase
+        .from("propinas")
+        .delete({ count: "exact" })
+        .or(`transaccion_entrada_id.in.(${ids.join(",")}),transaccion_salida_id.in.(${ids.join(",")})`);
+      propinasEliminadas = count ?? 0;
+    }
     const { error } = await supabase.from("transacciones").delete().in("id", ids);
     if (error) { toast.error(error.message); throw error; }
     for (const id of ids) await logAudit("transacciones", "DELETE", id, id === t.id ? t : null, null);
-    toast.success(ids.length > 1 ? "Par off-balance eliminado (2 movimientos)" : "Movimiento eliminado");
+    toast.success(
+      t.cuenta_codigo === "13.1"
+        ? `Propina eliminada (${ids.length} mov. en 13.1${propinasEliminadas ? ` + ${propinasEliminadas} registro propinas` : ""})`
+        : ids.length > 1 ? "Par off-balance eliminado (2 movimientos)" : "Movimiento eliminado"
+    );
     qc.invalidateQueries();
   };
 
