@@ -44,6 +44,7 @@ const analisisDetalles = [
   { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
+  { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
