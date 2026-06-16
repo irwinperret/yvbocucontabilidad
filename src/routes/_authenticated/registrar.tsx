@@ -997,6 +997,10 @@ function GastosFacturaForm() {
     setBusy(true);
     const grupoIdGasto = crypto.randomUUID();
     const ivaUsdGasto = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
+    const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
+    const aplicadoBsFactura = +(aplicadoUsdFactura * tasaConvN).toFixed(2);
+    const cxpSaldoBs = Math.max(0, +(total - aplicadoBsFactura).toFixed(2));
+    const cxpSaldoUsd = Math.max(0, +(totalUsd - aplicadoUsdFactura).toFixed(2));
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: base, monto_base_bs: base, iva_bs: 0,
@@ -1026,19 +1030,6 @@ function GastosFacturaForm() {
         tipo: "credito",
       });
     }
-    if (pendiente && tx) {
-      const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
-      await supabase.from("cuentas_por_pagar").insert({
-        proveedor: prov?.razon_social ?? "Proveedor",
-        numero_factura: numFactura,
-        tercero_id: terceroId || null,
-        centro_costo: centro as any,
-        monto_bs: total, monto_usd: baseUsd,
-        monto_pendiente_bs: total,
-        fecha_vencimiento: fechaVenc || null,
-        transaccion_id: tx.id, estado: "pendiente",
-      } as any);
-    }
     // Aplicar anticipos a proveedor seleccionados
     if (aplicaciones.length > 0 && tx) {
       const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
@@ -1051,11 +1042,24 @@ function GastosFacturaForm() {
         created_by: user.id,
         centro,
       });
-      if (!res.ok) toast.error(`Anticipo: ${res.error}`);
+      if (!res.ok) { setBusy(false); return toast.error(`Anticipo: ${res.error}`); }
       // Asegurar que la factura quede vinculada al grupo
       if (!tx.grupo_transaccion_id) {
         await supabase.from("transacciones").update({ grupo_transaccion_id: grupoIdGasto } as any).eq("id", tx.id);
       }
+    }
+    if (pendiente && tx && cxpSaldoBs > 0.01) {
+      const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
+      await supabase.from("cuentas_por_pagar").insert({
+        proveedor: prov?.razon_social ?? "Proveedor",
+        numero_factura: numFactura,
+        tercero_id: terceroId || null,
+        centro_costo: centro as any,
+        monto_bs: cxpSaldoBs, monto_usd: cxpSaldoUsd,
+        monto_pendiente_bs: cxpSaldoBs,
+        fecha_vencimiento: fechaVenc || null,
+        transaccion_id: tx.id, estado: "pendiente",
+      } as any);
     }
     setBusy(false);
     toast.success(pendiente ? "Factura registrada (CxP creada)" : "Gasto registrado");
