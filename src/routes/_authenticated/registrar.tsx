@@ -2353,6 +2353,7 @@ function CierreForm() {
       cxpId = cxp?.id ?? null;
     }
 
+    const grupoId = compraAplicaciones.length > 0 ? crypto.randomUUID() : null;
     const { error } = await supabase.from("inventario_snapshots").insert({
       periodo, tipo: "compra", monto_bs: montoBs,
       monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
@@ -2365,14 +2366,34 @@ function CierreForm() {
       cxp_id: cxpId,
       notas: compraNotas || null,
       registrado_por: user.id,
+      grupo_transaccion_id: grupoId,
     } as any);
+    if (error) { setCompraBusy(false); return toast.error(error.message); }
+
+    // Aplicar anticipos contra esta compra (sin afectar G&P; sólo reverso FC del 14.2)
+    if (compraAplicaciones.length > 0 && grupoId) {
+      const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
+      const res = await aplicarAnticiposContraFactura({
+        aplicaciones: compraAplicaciones,
+        grupoId,
+        facturaFecha: compraFecha,
+        facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
+        facturaNumero: compraNumFactura,
+        created_by: user.id,
+        centro: "Compartido",
+      });
+      if (!res.ok) toast.error(`Anticipo: ${res.error}`);
+    }
+
     setCompraBusy(false);
-    if (error) return toast.error(error.message);
     toast.success("Compra registrada");
     setCompraMonto(""); setCompraNumFactura(""); setCompraNotas(""); setCompraVenc("");
     setCompraIvaAplica(false); setCompraOffBalance(false);
+    setCompraAplicaciones([]);
     qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
     qc.invalidateQueries({ queryKey: ["cxp"] });
+    qc.invalidateQueries({ queryKey: ["anticipos-abiertos"] });
+    qc.invalidateQueries({ queryKey: ["anticipos-proveedor"] });
   };
 
   const delCompra = async (c: any) => {
