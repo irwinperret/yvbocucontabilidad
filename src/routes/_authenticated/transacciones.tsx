@@ -305,6 +305,9 @@ function TransaccionesPage() {
       header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } };
 
       for (const t of filtradas as any[]) {
+        const tasaParRaw = t.tasa_paralela == null ? null : Number(t.tasa_paralela);
+        const tieneParalela = tasaParRaw != null && tasaParRaw > 0;
+        const montoBs = Number(t.monto_bs) || 0;
         const r = ws.addRow({
           fecha: t.fecha,
           centro: t.centro_costo,
@@ -313,20 +316,22 @@ function TransaccionesPage() {
           factura: t.numero_factura ?? "",
           orden: t.numero_orden ?? "",
           referencia: t.referencia ?? "",
-          bs: Number(t.monto_bs) || 0,
+          bs: montoBs,
           base: Number(t.monto_base_bs) || 0,
           iva: Number(t.iva_bs) || 0,
           tasa: Number(t.tasa_bcv) || 0,
-          tasaPar: Number(t.tasa_paralela) || 0,
-          usd: Number(t.monto_usd) || 0,
+          tasaPar: tieneParalela ? tasaParRaw : "N/A",
+          usd: tieneParalela ? montoBs / tasaParRaw! : "N/A",
           metodo: t.metodo_pago ?? "",
           modo: t.modo,
           notas: t.notas ?? "",
         });
         ["bs", "base", "iva"].forEach((k) => { r.getCell(k as any).numFmt = '#,##0.00'; });
         r.getCell("tasa" as any).numFmt = '#,##0.0000';
-        r.getCell("tasaPar" as any).numFmt = '#,##0.0000';
-        r.getCell("usd" as any).numFmt = '"$"#,##0.00';
+        if (tieneParalela) {
+          r.getCell("tasaPar" as any).numFmt = '#,##0.0000';
+          r.getCell("usd" as any).numFmt = '"$"#,##0.00';
+        }
       }
 
       const buf = await wb.xlsx.writeBuffer();
