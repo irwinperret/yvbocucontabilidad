@@ -21,6 +21,7 @@ function TasaPage() {
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [tasa, setTasa] = useState("");
+  const [tasaPar, setTasaPar] = useState("");
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const sync = useServerFn(syncTasaBcv);
@@ -39,13 +40,17 @@ function TasaPage() {
     if (!user) return;
     setBusy(true);
     const { error } = await supabase.from("tasas_bcv").insert({
-      fecha, tasa: Number(tasa), registrado_por: user.id,
+      fecha,
+      tasa: Number(tasa),
+      tasa_paralela: tasaPar ? Number(tasaPar) : null,
+      registrado_por: user.id,
     });
     setBusy(false);
     if (error) toast.error(error.message);
     else {
       toast.success("Tasa registrada");
       setTasa("");
+      setTasaPar("");
       qc.invalidateQueries({ queryKey: ["tasas-list"] });
       qc.invalidateQueries({ queryKey: ["tasa"] });
     }
