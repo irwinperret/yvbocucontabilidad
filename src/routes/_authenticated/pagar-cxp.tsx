@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,8 @@ import { logAudit } from "@/lib/audit";
 import { DeleteButton } from "@/components/delete-button";
 import { METODOS } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
+import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
+import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 
 export const Route = createFileRoute("/_authenticated/pagar-cxp")({ component: PagarCxPPage });
 
@@ -117,15 +119,42 @@ function PagarCxPPage() {
 
 function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string; onClose: () => void; onDone: () => void }) {
   const [fecha, setFecha] = useState(todayISO());
-  const [montoBs, setMontoBs] = useState(String(cxp.monto_pendiente_bs ?? cxp.monto_bs));
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
   const [ref, setRef] = useState("");
   const [notas, setNotas] = useState("");
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [aplicaciones, setAplicaciones] = useState<AplicacionSel[]>([]);
 
-  const { data: tasaSug } = useQuery({
+  const pendiente = Number(cxp.monto_pendiente_bs ?? cxp.monto_bs);
+  const pendienteUsd = Number(cxp.monto_usd) *
+    (Number(cxp.monto_pendiente_bs ?? cxp.monto_bs) / Number(cxp.monto_bs || 1));
+
+  // Bs equivalente del anticipo aplicado, usando la tasa paralela del propio anticipo
+  const aplicadoUsd = useMemo(
+    () => aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0),
+    [aplicaciones],
+  );
+  const aplicadoBs = useMemo(
+    () => aplicaciones.reduce(
+      (s, a) => s + a.aplicarUsd * Number(a.anticipo.tasa_paralela || a.anticipo.tasa_bcv || 0),
+      0,
+    ),
+    [aplicaciones],
+  );
+
+  const saldoTrasAplicar = Math.max(0, +(pendiente - aplicadoBs).toFixed(2));
+  const [montoBs, setMontoBs] = useState(String(pendiente));
+
+  // Cuando cambia lo aplicado por anticipos, ajustamos el monto cash al saldo restante
+  // (solo si el usuario no lo ha tocado manualmente fuera de ese valor)
+  const [touchedMonto, setTouchedMonto] = useState(false);
+  useEffect(() => {
+    if (!touchedMonto) setMontoBs(String(saldoTrasAplicar));
+  }, [saldoTrasAplicar, touchedMonto]);
+
+  useQuery({
     queryKey: ["tasa-pago", fecha],
     queryFn: async () => {
       const { data } = await supabase.from("tasas_bcv").select("*").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
@@ -148,71 +177,139 @@ function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string;
   const tasaConvN = tasaParalelaN || tasaN;
   const usd = tasaConvN ? total / tasaConvN : 0;
 
-  const pendiente = Number(cxp.monto_pendiente_bs ?? cxp.monto_bs);
-  const esTotal = total >= pendiente;
+  const cubreTodo = +(aplicadoBs + total).toFixed(2) >= +pendiente.toFixed(2) - 0.01;
 
   const confirmar = async () => {
-    if (!tasaN) return toast.error("Falta tasa");
-    if (total <= 0) return toast.error("Monto inválido");
-    if (total > pendiente) return toast.error("Excede el saldo pendiente");
-    setBusy(true);
-    // Crear transacción del pago — cuenta 8.1 genérica o usar la misma cuenta original? Usamos la cuenta original para FC
-    const { data: txOrig } = await supabase.from("transacciones").select("cuenta_codigo, centro_costo").eq("id", cxp.transaccion_id).maybeSingle();
-    const { data: tx, error } = await supabase.from("transacciones").insert({
-      fecha,
-      cuenta_codigo: txOrig?.cuenta_codigo ?? "9.1",
-      centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
-      monto_bs: total, monto_base_bs: total, iva_bs: 0,
-      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usd,
-      metodo_pago: metodo as any,
-      referencia: ref || null,
-      notas: `Pago CxP — ${cxp.proveedor} · Fact ${cxp.numero_factura}${notas ? " · " + notas : ""}`,
-      modo: "on_balance" as any,
-      cuenta_bancaria_id: cuentaBancariaId || null,
-      created_by: userId,
-    } as any).select().single();
-    if (error) { setBusy(false); return toast.error(error.message); }
-    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
-
-    if (esTotal) {
-      await supabase.from("cuentas_por_pagar").update({ estado: "pagada", pagada_at: new Date().toISOString(), monto_pendiente_bs: 0 }).eq("id", cxp.id);
-    } else {
-      await supabase.from("cuentas_por_pagar").update({ monto_pendiente_bs: pendiente - total }).eq("id", cxp.id);
+    if (total > 0 && !tasaN) return toast.error("Falta tasa");
+    if (total > 0 && !cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
+    if (total < 0) return toast.error("Monto inválido");
+    if (+(aplicadoBs + total).toFixed(2) > +pendiente.toFixed(2) + 0.01) {
+      return toast.error("Anticipo + pago exceden el saldo pendiente");
     }
+    if (aplicaciones.length === 0 && total <= 0) return toast.error("Indica un monto a pagar o aplica un anticipo");
+    setBusy(true);
+
+    const { data: txOrig } = await supabase
+      .from("transacciones")
+      .select("cuenta_codigo, centro_costo, grupo_transaccion_id")
+      .eq("id", cxp.transaccion_id).maybeSingle();
+    const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
+
+    // 1) Aplicar anticipos (si hay)
+    if (aplicaciones.length > 0) {
+      const res = await aplicarAnticiposContraFactura({
+        aplicaciones,
+        grupoId,
+        facturaFecha: fecha,
+        facturaProveedorNombre: cxp.proveedor ?? "Proveedor",
+        facturaNumero: cxp.numero_factura ?? null,
+        created_by: userId,
+        centro: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as string,
+      });
+      if (!res.ok) { setBusy(false); return toast.error(`Anticipo: ${res.error}`); }
+      // Asegurar vinculación
+      if (cxp.transaccion_id && !txOrig?.grupo_transaccion_id) {
+        await supabase.from("transacciones").update({ grupo_transaccion_id: grupoId } as any).eq("id", cxp.transaccion_id);
+      }
+    }
+
+    // 2) Pago en efectivo / transferencia por el remanente
+    if (total > 0) {
+      const { data: tx, error } = await supabase.from("transacciones").insert({
+        fecha,
+        cuenta_codigo: txOrig?.cuenta_codigo ?? "9.1",
+        centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
+        monto_bs: total, monto_base_bs: total, iva_bs: 0,
+        tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usd,
+        metodo_pago: metodo as any,
+        referencia: ref || null,
+        notas: `Pago CxP — ${cxp.proveedor} · Fact ${cxp.numero_factura}${notas ? " · " + notas : ""}`,
+        modo: "on_balance" as any,
+        cuenta_bancaria_id: cuentaBancariaId || null,
+        tercero_id: cxp.tercero_id ?? null,
+        grupo_transaccion_id: grupoId,
+        created_by: userId,
+      } as any).select().single();
+      if (error) { setBusy(false); return toast.error(error.message); }
+      if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    }
+
+    // 3) Actualizar CxP
+    if (cubreTodo) {
+      await supabase.from("cuentas_por_pagar").update({
+        estado: "pagada",
+        pagada_at: new Date().toISOString(),
+        monto_pendiente_bs: 0,
+      }).eq("id", cxp.id);
+    } else {
+      await supabase.from("cuentas_por_pagar").update({
+        monto_pendiente_bs: +(pendiente - aplicadoBs - total).toFixed(2),
+      }).eq("id", cxp.id);
+    }
+
     setBusy(false);
-    toast.success(esTotal ? "Pago total registrado" : "Pago parcial registrado");
+    toast.success(cubreTodo ? "Pago total registrado" : "Pago parcial registrado");
     onDone();
   };
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Registrar pago — {cxp.proveedor}</DialogTitle></DialogHeader>
         <div className="text-sm text-muted-foreground mb-2">
           Saldo pendiente: <span className="mono font-semibold">{fmtBs(pendiente)}</span>
+          {" · "}<span className="mono">{fmtUsd(pendienteUsd)}</span>
         </div>
+
+        {cxp.tercero_id && (
+          <div className="mb-3">
+            <AnticipoProveedorBanner
+              terceroId={cxp.tercero_id}
+              facturaTotalUsd={pendienteUsd}
+              onAplicacionesChange={(sel) => { setAplicaciones(sel); setTouchedMonto(false); }}
+            />
+            {aplicaciones.length > 0 && (
+              <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2 flex justify-between">
+                <span>Anticipo a aplicar: <strong className="mono">{fmtUsd(aplicadoUsd)}</strong> (~{fmtBs(aplicadoBs)})</span>
+                <span>Diferencia a pagar: <strong className="mono">{fmtBs(saldoTrasAplicar)}</strong></span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="space-y-3">
           <div><Label>Fecha del pago</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} className="mono" /></div>
+            <div>
+              <Label>Monto Bs {aplicaciones.length > 0 ? "(remanente)" : ""}</Label>
+              <Input
+                type="number" step="0.01" value={montoBs}
+                onChange={(e) => { setTouchedMonto(true); setMontoBs(e.target.value); }}
+                className="mono"
+              />
+            </div>
             <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
           </div>
           <div className="rounded-md bg-muted p-2 flex justify-between text-sm">
-            <span>USD</span><span className="mono font-semibold">{fmtUsd(usd)}</span>
+            <span>USD (pago cash)</span><span className="mono font-semibold">{fmtUsd(usd)}</span>
           </div>
-          <div>
-            <Label>Método</Label>
-            <Select value={metodo} onValueChange={setMetodo}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
-          <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+          {total > 0 && (
+            <>
+              <div>
+                <Label>Método</Label>
+                <Select value={metodo} onValueChange={setMetodo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{METODOS.filter((m) => m !== "pendiente").map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
+            </>
+          )}
           <div><Label>Notas</Label><Input value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
-          {!esTotal && total > 0 && (
+          {!cubreTodo && (aplicadoBs + total) > 0 && (
             <div className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
-              Pago parcial — quedará un saldo de {fmtBs(pendiente - total)}
+              Pago parcial — quedará un saldo de {fmtBs(pendiente - aplicadoBs - total)}
             </div>
           )}
           <div className="flex justify-end gap-2">
