@@ -19,6 +19,8 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { TerceroSelect } from "@/components/tercero-select";
 import { useGastosSugerencias } from "@/lib/autocomplete-hooks";
 import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
+import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
+import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
@@ -802,6 +804,106 @@ function VentasForm() {
 
 /* ---------------- GASTOS ---------------- */
 function GastosForm() {
+  const [modo, setModo] = useState<"factura" | "anticipo">("factura");
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between rounded border p-2 text-xs bg-muted/30">
+        <span className="font-medium">¿Es un anticipo a proveedor (sin factura aún)?</span>
+        <Switch checked={modo === "anticipo"} onCheckedChange={(v) => setModo(v ? "anticipo" : "factura")} />
+      </div>
+      {modo === "factura" ? <GastosFacturaForm /> : <AnticipoProveedorRegisterForm onDone={() => setModo("factura")} />}
+    </div>
+  );
+}
+
+function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const { data: terceros } = useTerceros();
+  const [fecha, setFecha] = useState(todayISO());
+  const [terceroId, setTerceroId] = useState("");
+  const [centro, setCentro] = useState<Centro>("YV");
+  const [montoBs, setMontoBs] = useState("");
+  const [tasa, setTasa] = useState("");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [notas, setNotas] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const { data: paralelaSug } = useParalelaForDate(fecha);
+  const { data: bcvSug } = useTasaForDate(fecha);
+  useEffect(() => { if (paralelaSug?.tasa) setTasa(String(paralelaSug.tasa)); }, [paralelaSug?.tasa]);
+
+  const montoBsN = Number(montoBs) || 0;
+  const tasaN = Number(tasa) || 0;
+  const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!terceroId) return toast.error("Selecciona proveedor");
+    if (!montoBsN) return toast.error("Falta monto Bs");
+    if (!tasaN) return toast.error("Falta tasa paralela");
+    if (!cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
+    setBusy(true);
+    const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
+    const nota = `Anticipo a ${prov?.razon_social ?? "proveedor"} — ${fecha}${notas ? ` · ${notas}` : ""}`;
+    const { data: tx, error } = await supabase.from("transacciones").insert({
+      fecha, cuenta_codigo: "14.2", centro_costo: centro as any,
+      monto_bs: montoBsN, monto_base_bs: montoBsN, iva_bs: 0, iva_aplica: false,
+      tasa_bcv: Number(bcvSug?.tasa) || tasaN, tasa_paralela: tasaN,
+      monto_usd: +montoUsd.toFixed(2),
+      metodo_pago: "transferencia" as any,
+      tercero_id: terceroId,
+      cuenta_bancaria_id: cuentaBancariaId,
+      notas: nota,
+      anticipo_estado: "abierto",
+      anticipo_aplicado_usd: 0,
+      created_by: user.id,
+    } as any).select().single();
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    toast.success("Anticipo registrado");
+    qc.invalidateQueries();
+    setMontoBs(""); setNotas("");
+    onDone();
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Registrar anticipo a proveedor (14.2)</CardTitle></CardHeader>
+      <CardContent>
+        <p className="text-xs text-muted-foreground mb-3">Salida de FC al activo transitorio 14.2. Sin impacto en G&P. Se podrá aplicar más tarde cuando llegue la factura.</p>
+        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+          <div>
+            <Label>Centro de costo</Label>
+            <Select value={centro} onValueChange={(v) => setCentro(v as Centro)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <TerceroSelect value={terceroId} onChange={setTerceroId} terceros={(terceros ?? []) as any} />
+          </div>
+          <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
+          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
+            <span className="text-sm text-muted-foreground">Equivalente</span>
+            <span className="text-lg font-bold mono">{fmtUsd(montoUsd)}</span>
+          </div>
+          <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
+          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar anticipo"}</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GastosFacturaForm() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const { data: cuentas } = useCuentas();
@@ -822,6 +924,7 @@ function GastosForm() {
   const [offBalance, setOffBalance] = useState(false);
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [aplicaciones, setAplicaciones] = useState<AplicacionSel[]>([]);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
@@ -936,10 +1039,29 @@ function GastosForm() {
         transaccion_id: tx.id, estado: "pendiente",
       } as any);
     }
+    // Aplicar anticipos a proveedor seleccionados
+    if (aplicaciones.length > 0 && tx) {
+      const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
+      const res = await aplicarAnticiposContraFactura({
+        aplicaciones,
+        grupoId: tx.grupo_transaccion_id ?? grupoIdGasto,
+        facturaFecha: fecha,
+        facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
+        facturaNumero: numFactura,
+        created_by: user.id,
+        centro,
+      });
+      if (!res.ok) toast.error(`Anticipo: ${res.error}`);
+      // Asegurar que la factura quede vinculada al grupo
+      if (!tx.grupo_transaccion_id) {
+        await supabase.from("transacciones").update({ grupo_transaccion_id: grupoIdGasto } as any).eq("id", tx.id);
+      }
+    }
     setBusy(false);
     toast.success(pendiente ? "Factura registrada (CxP creada)" : "Gasto registrado");
     qc.invalidateQueries();
     setMontoTotal(""); setNumFactura(""); setNotas("");
+    setAplicaciones([]);
   };
 
   return (
@@ -964,6 +1086,21 @@ function GastosForm() {
           <div className="md:col-span-2">
             <TerceroSelect value={terceroId} onChange={setTerceroId} terceros={(terceros ?? []) as any} />
           </div>
+          {terceroId && (
+            <div className="md:col-span-2">
+              <AnticipoProveedorBanner
+                terceroId={terceroId}
+                facturaTotalUsd={baseUsd}
+                onAplicacionesChange={setAplicaciones}
+              />
+              {aplicaciones.length > 0 && (
+                <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2 flex justify-between">
+                  <span>Anticipo a aplicar: <strong className="mono">{fmtUsd(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0))}</strong></span>
+                  <span>Diferencia a pagar: <strong className="mono">{fmtUsd(Math.max(0, baseUsd - aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)))}</strong></span>
+                </div>
+              )}
+            </div>
+          )}
           <div className="md:col-span-2">
             <Label>Cuenta contable</Label>
             <Select value={cuenta} onValueChange={setCuenta}>
@@ -2034,6 +2171,7 @@ function CierreForm() {
   const [compraVenc, setCompraVenc] = useState("");
   const [compraNotas, setCompraNotas] = useState("");
   const [compraBusy, setCompraBusy] = useState(false);
+  const [compraAplicaciones, setCompraAplicaciones] = useState<AplicacionSel[]>([]);
 
   const esCompraUSD = compraMoneda === "USD";
   const compraInput = Number(compraMonto) || 0;
@@ -2215,6 +2353,7 @@ function CierreForm() {
       cxpId = cxp?.id ?? null;
     }
 
+    const grupoId = compraAplicaciones.length > 0 ? crypto.randomUUID() : null;
     const { error } = await supabase.from("inventario_snapshots").insert({
       periodo, tipo: "compra", monto_bs: montoBs,
       monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
@@ -2227,14 +2366,34 @@ function CierreForm() {
       cxp_id: cxpId,
       notas: compraNotas || null,
       registrado_por: user.id,
+      grupo_transaccion_id: grupoId,
     } as any);
+    if (error) { setCompraBusy(false); return toast.error(error.message); }
+
+    // Aplicar anticipos contra esta compra (sin afectar G&P; sólo reverso FC del 14.2)
+    if (compraAplicaciones.length > 0 && grupoId) {
+      const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
+      const res = await aplicarAnticiposContraFactura({
+        aplicaciones: compraAplicaciones,
+        grupoId,
+        facturaFecha: compraFecha,
+        facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
+        facturaNumero: compraNumFactura,
+        created_by: user.id,
+        centro: "Compartido",
+      });
+      if (!res.ok) toast.error(`Anticipo: ${res.error}`);
+    }
+
     setCompraBusy(false);
-    if (error) return toast.error(error.message);
     toast.success("Compra registrada");
     setCompraMonto(""); setCompraNumFactura(""); setCompraNotas(""); setCompraVenc("");
     setCompraIvaAplica(false); setCompraOffBalance(false);
+    setCompraAplicaciones([]);
     qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
     qc.invalidateQueries({ queryKey: ["cxp"] });
+    qc.invalidateQueries({ queryKey: ["anticipos-abiertos"] });
+    qc.invalidateQueries({ queryKey: ["anticipos-proveedor"] });
   };
 
   const delCompra = async (c: any) => {
@@ -2349,6 +2508,20 @@ function CierreForm() {
             <div className="md:col-span-2">
               <TerceroSelect value={compraTerceroId} onChange={setCompraTerceroId} terceros={(terceros ?? []) as any} />
             </div>
+            {compraTerceroId && (
+              <div className="md:col-span-2">
+                <AnticipoProveedorBanner
+                  terceroId={compraTerceroId}
+                  facturaTotalUsd={Number(esCompraUSD ? compraInput : (compraTasaN ? compraInput / compraTasaN : 0)) || 0}
+                  onAplicacionesChange={setCompraAplicaciones}
+                />
+                {compraAplicaciones.length > 0 && (
+                  <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2">
+                    Aplicando anticipo: <strong className="mono">{fmtUsd(compraAplicaciones.reduce((s, a) => s + a.aplicarUsd, 0))}</strong>
+                  </div>
+                )}
+              </div>
+            )}
             <div>
               <Label className="text-xs">N° factura</Label>
               <Input value={compraNumFactura} onChange={(e) => setCompraNumFactura(e.target.value)} required />
