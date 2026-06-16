@@ -924,6 +924,7 @@ function GastosFacturaForm() {
   const [offBalance, setOffBalance] = useState(false);
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [aplicaciones, setAplicaciones] = useState<AplicacionSel[]>([]);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
