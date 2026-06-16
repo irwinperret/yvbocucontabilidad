@@ -1595,12 +1595,236 @@ function OpsIvaForm() {
   );
 }
 
+/* ---------------- ACTIVOS TRANSITORIOS — Personal ---------------- */
+const ACT_TRANS = {
+  prestamo_personal:      { cuenta: "14.1", label: "Préstamo al personal",      tasaTipo: "paralela" as const, hasEntrada: true,  entradaLabel: "Registrar recuperación", salidaLabel: "Registrar préstamo" },
+  anticipo_nomina:        { cuenta: "14.3", label: "Anticipo de nómina",        tasaTipo: "paralela" as const, hasEntrada: true,  entradaLabel: "Aplicar contra nómina",   salidaLabel: "Registrar anticipo" },
+  anticipo_prestaciones:  { cuenta: "3.22", label: "Anticipo de prestaciones",  tasaTipo: "bcv" as const,      hasEntrada: false, entradaLabel: "",                        salidaLabel: "Registrar anticipo de prestaciones" },
+};
+type ActTipo = keyof typeof ACT_TRANS;
+const CCO_AT = [
+  { key: "YV",             centro: "YV" as Centro },
+  { key: "Bocú",           centro: "Bocu" as Centro },
+  { key: "Administración", centro: "Compartido" as Centro },
+  { key: "Cocina",         centro: "Compartido" as Centro },
+] as const;
+type CcoKey = (typeof CCO_AT)[number]["key"];
+
+function ActivosTransitoriosForm({ tipo, setTipo }: { tipo: ActTipo; setTipo: (v: any) => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const cfg = ACT_TRANS[tipo];
+  const [movimiento, setMovimiento] = useState<"salida" | "entrada">("salida");
+  useEffect(() => { if (!cfg.hasEntrada) setMovimiento("salida"); }, [tipo]);
+
+  const [fecha, setFecha] = useState(todayISO());
+  const [empleado, setEmpleado] = useState("");
+  const [cco, setCco] = useState<CcoKey>("Bocú");
+  const [montoBs, setMontoBs] = useState("");
+  const [tasa, setTasa] = useState("");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [periodoQ, setPeriodoQ] = useState<"Q1" | "Q2">("Q1");
+  const [periodoMes, setPeriodoMes] = useState(new Date().toISOString().slice(0, 7));
+  const [notas, setNotas] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const { data: tasaBcvRow } = useTasaForDate(fecha);
+  const { data: paralelaRow } = useParalelaForDate(fecha);
+  const tasaParalela = Number((paralelaRow as any)?.tasa) || 0;
+  const tasaBcv = Number((tasaBcvRow as any)?.tasa) || 0;
+  const tasaPrep = movimiento === "entrada" ? tasaBcv : (cfg.tasaTipo === "paralela" ? tasaParalela : tasaBcv);
+  useEffect(() => { if (tasaPrep) setTasa(String(tasaPrep)); }, [tasaPrep]);
+
+  const montoBsN = Number(montoBs) || 0;
+  const tasaN = Number(tasa) || 0;
+  const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+  const requiereBanco = movimiento === "salida";
+
+  const { data: empleadosAbiertos } = useQuery({
+    queryKey: ["act-trans-abiertos", cfg.cuenta],
+    enabled: cfg.hasEntrada,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("detalle, monto_usd")
+        .eq("cuenta_codigo", cfg.cuenta);
+      const m = new Map<string, number>();
+      (data ?? []).forEach((r: any) => {
+        const emp = (String(r.detalle || "").split("·")[1] || "").trim();
+        if (!emp) return;
+        m.set(emp, (m.get(emp) || 0) + Number(r.monto_usd || 0));
+      });
+      return Array.from(m.entries()).filter(([, v]) => v > 0.01).map(([k, v]) => ({ empleado: k, saldo: v }));
+    },
+  });
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!empleado.trim()) return toast.error("Falta nombre del empleado");
+    if (!montoBsN) return toast.error("Falta monto en Bs");
+    if (!tasaN) return toast.error("Falta tasa");
+    if (requiereBanco && !cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
+    setBusy(true);
+    const ccoDef = CCO_AT.find((c) => c.key === cco)!;
+    const signo = movimiento === "entrada" ? -1 : 1;
+    const accion = movimiento === "entrada"
+      ? (tipo === "prestamo_personal" ? "Recuperación préstamo" : "Aplicación anticipo nómina")
+      : (tipo === "prestamo_personal" ? "Préstamo a" : tipo === "anticipo_nomina" ? "Anticipo nómina" : "Anticipo prestaciones");
+    const periodoStr = tipo === "anticipo_nomina" && movimiento === "entrada" ? ` — ${periodoQ} ${periodoMes}` : ` — ${fecha}`;
+    const notaCompleta = `${accion} ${empleado.trim()}${periodoStr}${notas ? ` · ${notas}` : ""}`;
+    const detalle = `${cco} · ${empleado.trim()}`;
+
+    const { data: tx, error } = await supabase.from("transacciones").insert({
+      fecha,
+      cuenta_codigo: cfg.cuenta,
+      centro_costo: ccoDef.centro as any,
+      monto_bs: signo * montoBsN,
+      monto_base_bs: signo * montoBsN,
+      iva_bs: 0,
+      iva_aplica: false,
+      tasa_bcv: tasaBcv || tasaN,
+      tasa_paralela: tasaParalela || null,
+      monto_usd: +(signo * montoUsd).toFixed(2),
+      metodo_pago: "transferencia" as any,
+      cuenta_bancaria_id: requiereBanco ? cuentaBancariaId : null,
+      detalle,
+      notas: notaCompleta,
+      modo: "on_balance",
+      created_by: user.id,
+    } as any).select().single();
+    if (error) { setBusy(false); return toast.error(error.message); }
+    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    setBusy(false);
+    toast.success("Movimiento registrado");
+    qc.invalidateQueries();
+    setMontoBs(""); setNotas(""); if (movimiento === "salida") setEmpleado("");
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Financiamiento — {cfg.label}</CardTitle></CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label>Tipo</Label>
+            <Select value={tipo} onValueChange={(v: any) => setTipo(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="prestamo_recibido">Préstamo recibido (10.1)</SelectItem>
+                <SelectItem value="pago_cuota">Pago de cuota préstamo (10.2 + 10.3)</SelectItem>
+                <SelectItem value="dividendos">Pago de dividendos (10.4)</SelectItem>
+                <SelectItem value="aumento_capital">Aumento de capital (10.5)</SelectItem>
+                <SelectItem value="capex">CapEx — Activo fijo (10.6)</SelectItem>
+                <SelectItem value="depreciacion">Depreciación mensual (10.7)</SelectItem>
+                <SelectItem value="prestamo_personal">Préstamo al personal (14.1)</SelectItem>
+                <SelectItem value="anticipo_nomina">Anticipo de nómina (14.3)</SelectItem>
+                <SelectItem value="anticipo_prestaciones">Anticipo de prestaciones (3.22)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">Afecta: <span className="font-semibold">FC</span></p>
+          </div>
+
+          {cfg.hasEntrada && (
+            <div>
+              <Label>Movimiento</Label>
+              <Select value={movimiento} onValueChange={(v: any) => setMovimiento(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="salida">{cfg.salidaLabel} (salida)</SelectItem>
+                  <SelectItem value="entrada">{cfg.entradaLabel} (entrada)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+          <div>
+            <Label>Centro de costo</Label>
+            <Select value={cco} onValueChange={(v) => setCco(v as CcoKey)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CCO_AT.map((c) => <SelectItem key={c.key} value={c.key}>{c.key}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Nombre del empleado</Label>
+            <Input list="empleados-abiertos-list" value={empleado} onChange={(e) => setEmpleado(e.target.value)} required />
+            {cfg.hasEntrada && movimiento === "entrada" && (
+              <>
+                <datalist id="empleados-abiertos-list">
+                  {(empleadosAbiertos ?? []).map((e) => <option key={e.empleado} value={e.empleado}>{`saldo $${e.saldo.toFixed(2)}`}</option>)}
+                </datalist>
+                <p className="text-[11px] text-muted-foreground mt-1">{(empleadosAbiertos ?? []).length} empleado(s) con saldo abierto</p>
+              </>
+            )}
+          </div>
+
+          {tipo === "anticipo_nomina" && movimiento === "entrada" && (
+            <>
+              <div>
+                <Label>Quincena</Label>
+                <Select value={periodoQ} onValueChange={(v: any) => setPeriodoQ(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Q1">Q1 (1ra quincena)</SelectItem>
+                    <SelectItem value="Q2">Q2 (2da quincena)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Mes de nómina</Label><Input type="month" value={periodoMes} onChange={(e) => setPeriodoMes(e.target.value)} required /></div>
+            </>
+          )}
+
+          <div>
+            <Label>{movimiento === "entrada" ? "Monto recuperado Bs" : "Monto Bs"}</Label>
+            <Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" />
+          </div>
+          <div>
+            <Label>{movimiento === "entrada" ? "Tasa BCV del día" : (cfg.tasaTipo === "paralela" ? "Tasa paralela" : "Tasa BCV del día")}</Label>
+            <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+          </div>
+          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
+            <span className="text-sm text-muted-foreground">Equivale a</span>
+            <span className="text-lg font-bold mono">{fmtUsd(montoUsd)} {movimiento === "entrada" ? `(tasa BCV ${tasaN.toFixed(4)})` : ""}</span>
+          </div>
+
+          {tipo === "anticipo_prestaciones" && (
+            <div className="md:col-span-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+              Este pago reduce el saldo de pasivos laborales acumulados del empleado.
+            </div>
+          )}
+
+          {requiereBanco && (
+            <div className="md:col-span-2">
+              <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+            </div>
+          )}
+          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar movimiento"}</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ---------------- FINANCIAMIENTO ---------------- */
 function FinanciamientoForm() {
+  const [tipo, setTipo] = useState<keyof typeof FINANCIAMIENTO | "pago_cuota" | ActTipo>("prestamo_recibido");
+  if (tipo === "prestamo_personal" || tipo === "anticipo_nomina" || tipo === "anticipo_prestaciones") {
+    return <ActivosTransitoriosForm tipo={tipo} setTipo={setTipo} />;
+  }
+  return <FinanciamientoBaseForm tipo={tipo} setTipo={setTipo} />;
+}
+
+function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIAMIENTO | "pago_cuota"; setTipo: (v: any) => void }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
-  const [tipo, setTipo] = useState<keyof typeof FINANCIAMIENTO | "pago_cuota">("prestamo_recibido");
   const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
   const [montoInput, setMontoInput] = useState("");
   const [capitalInput, setCapitalInput] = useState("");
@@ -1711,6 +1935,9 @@ function FinanciamientoForm() {
                 <SelectItem value="aumento_capital">Aumento de capital (10.5)</SelectItem>
                 <SelectItem value="capex">CapEx — Activo fijo (10.6)</SelectItem>
                 <SelectItem value="depreciacion">Depreciación mensual (10.7)</SelectItem>
+                <SelectItem value="prestamo_personal">Préstamo al personal (14.1)</SelectItem>
+                <SelectItem value="anticipo_nomina">Anticipo de nómina (14.3)</SelectItem>
+                <SelectItem value="anticipo_prestaciones">Anticipo de prestaciones (3.22)</SelectItem>
               </SelectContent>
             </Select>
             {cfg && <p className="text-xs text-muted-foreground mt-1">Afecta: <span className="font-semibold">{cfg.afecta}</span></p>}
