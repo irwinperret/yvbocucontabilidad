@@ -2156,6 +2156,7 @@ function CierreForm() {
   const [invFinUsd, setInvFinUsd] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
+  const [modoCompra, setModoCompra] = useState<"factura" | "anticipo">("factura");
 
   // Compras individuales del período
   const [compraFecha, setCompraFecha] = useState(todayISO());
@@ -2495,6 +2496,13 @@ function CierreForm() {
             <h3 className="font-semibold text-sm">Compras de inventario / insumos del período</h3>
             <p className="text-xs text-muted-foreground">Cada compra forma parte del COGS y NO debe registrarse también en Gastos/Facturas.</p>
           </div>
+          <div className="flex items-center justify-between rounded border p-2 text-xs bg-muted/30">
+            <span className="font-medium">¿Es un anticipo a proveedor de inventario (sin factura aún)?</span>
+            <Switch checked={modoCompra === "anticipo"} onCheckedChange={(v) => setModoCompra(v ? "anticipo" : "factura")} />
+          </div>
+          {modoCompra === "anticipo" ? (
+            <AnticipoProveedorRegisterForm onDone={() => setModoCompra("factura")} />
+          ) : (<>
           <form onSubmit={addCompra} className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Fecha</Label>
@@ -2632,6 +2640,7 @@ function CierreForm() {
 
             </div>
           )}
+          </>)}
         </div>
 
         {/* Cierre */}
