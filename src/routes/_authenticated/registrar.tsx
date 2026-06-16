@@ -1373,9 +1373,9 @@ function NominaChefForm() {
       if (centro === "YV") pushIf(f.cuentaYV, "YV", usd, f.concepto);
       else if (centro === "Bocu") pushIf(f.cuentaBocu, "Bocu", usd, f.concepto);
       else {
-        const yv = usd * 0.3333;
-        pushIf(f.cuentaYV, "YV", yv, `${f.concepto} (compartido 33%)`);
-        pushIf(f.cuentaBocu, "Bocu", usd - yv, `${f.concepto} (compartido 67%)`);
+        const yv = usd * 0.20;
+        pushIf(f.cuentaYV, "YV", yv, `${f.concepto} (compartido 20%)`);
+        pushIf(f.cuentaBocu, "Bocu", usd - yv, `${f.concepto} (compartido 80%)`);
       }
     }
     return out;
