@@ -80,18 +80,18 @@ function TransaccionesPage() {
     enabled: !!desde,
     queryKey: ["transacciones-list", desde, hasta, centro],
     queryFn: async () => {
-      let q = supabase
-        .from("transacciones")
-        .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id")
-        .gte("fecha", desde)
-        .lte("fecha", hasta)
-        .order("fecha", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(2000);
-      if (centro !== "todos") q = q.eq("centro_costo", centro as any);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      return await fetchAllRows<any>(async (from, to) => {
+        let q = supabase
+          .from("transacciones")
+          .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id")
+          .gte("fecha", desde)
+          .lte("fecha", hasta)
+          .order("fecha", { ascending: false })
+          .order("created_at", { ascending: false })
+          .range(from, to);
+        if (centro !== "todos") q = q.eq("centro_costo", centro as any);
+        return await q;
+      });
     },
   });
 
