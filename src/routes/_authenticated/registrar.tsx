@@ -1814,13 +1814,17 @@ function ActivosTransitoriosForm({ tipo, setTipo }: { tipo: ActTipo; setTipo: (v
 
 /* ---------------- FINANCIAMIENTO ---------------- */
 function FinanciamientoForm() {
-  const { user } = useAuth();
-  const qc = useQueryClient();
-  const [fecha, setFecha] = useState(todayISO());
   const [tipo, setTipo] = useState<keyof typeof FINANCIAMIENTO | "pago_cuota" | ActTipo>("prestamo_recibido");
   if (tipo === "prestamo_personal" || tipo === "anticipo_nomina" || tipo === "anticipo_prestaciones") {
     return <ActivosTransitoriosForm tipo={tipo} setTipo={setTipo} />;
   }
+  return <FinanciamientoBaseForm tipo={tipo} setTipo={setTipo} />;
+}
+
+function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIAMIENTO | "pago_cuota"; setTipo: (v: any) => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [fecha, setFecha] = useState(todayISO());
   const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
   const [montoInput, setMontoInput] = useState("");
   const [capitalInput, setCapitalInput] = useState("");
