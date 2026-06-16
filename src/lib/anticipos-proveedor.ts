@@ -73,45 +73,16 @@ export async function aplicarAnticiposContraFactura(opts: {
     const aplicar = Math.min(a.aplicarUsd, saldoAnticipo(a.anticipo));
     if (aplicar <= 0) continue;
 
-    const tasaParalela = Number(a.anticipo.tasa_paralela || a.anticipo.tasa_bcv);
-    const reversoBs = +(aplicar * tasaParalela).toFixed(2);
-
-    // Inserta reverso del anticipo (FC negativo en 14.2)
-    const { error: errRev } = await supabase.from("transacciones").insert({
-      fecha: opts.facturaFecha,
-      cuenta_codigo: "14.2",
-      centro_costo: opts.centro as any,
-      monto_bs: -reversoBs,
-      monto_base_bs: -reversoBs,
-      iva_bs: 0,
-      iva_aplica: false,
-      tasa_bcv: a.anticipo.tasa_bcv,
-      tasa_paralela: a.anticipo.tasa_paralela,
-      monto_usd: -aplicar,
-      metodo_pago: "transferencia" as any,
-      tercero_id: a.anticipo.tercero_id,
-      cuenta_bancaria_id: a.anticipo.cuenta_bancaria_id,
-      notas: `Aplicación de anticipo a factura ${opts.facturaNumero ?? ""} — ${opts.facturaProveedorNombre}`.trim(),
-      grupo_transaccion_id: opts.grupoId,
-      created_by: opts.created_by,
-    } as any);
-    if (errRev) return { ok: false, error: errRev.message };
-
-    // Actualiza el anticipo original
-    const nuevoAplicado = +(Number(a.anticipo.anticipo_aplicado_usd || 0) + aplicar).toFixed(2);
-    const totalUsd = Number(a.anticipo.monto_usd);
-    const nuevoEstado =
-      nuevoAplicado >= totalUsd - 0.005 ? "aplicado" :
-      nuevoAplicado > 0.005 ? "parcialmente_aplicado" : "abierto";
-
-    const { error: errUpd } = await supabase
-      .from("transacciones")
-      .update({
-        anticipo_aplicado_usd: nuevoAplicado,
-        anticipo_estado: nuevoEstado,
-      } as any)
-      .eq("id", a.anticipo.id);
-    if (errUpd) return { ok: false, error: errUpd.message };
+    const { error } = await (supabase as any).rpc("aplicar_anticipo_a_factura", {
+      anticipo_id: a.anticipo.id,
+      aplicar_usd: aplicar,
+      grupo_id: opts.grupoId,
+      factura_fecha: opts.facturaFecha,
+      factura_proveedor: opts.facturaProveedorNombre,
+      factura_numero: opts.facturaNumero,
+      centro: opts.centro,
+    });
+    if (error) return { ok: false, error: error.message };
   }
   return { ok: true };
 }

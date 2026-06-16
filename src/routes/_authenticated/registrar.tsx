@@ -997,6 +997,11 @@ function GastosFacturaForm() {
     setBusy(true);
     const grupoIdGasto = crypto.randomUUID();
     const ivaUsdGasto = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
+    const grupoTransaccionGasto = aplicaciones.length > 0 || ivaAplica ? grupoIdGasto : null;
+    const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
+    const aplicadoBsFactura = +(aplicadoUsdFactura * tasaConvN).toFixed(2);
+    const cxpSaldoBs = Math.max(0, +(total - aplicadoBsFactura).toFixed(2));
+    const cxpSaldoUsd = Math.max(0, +(totalUsd - aplicadoUsdFactura).toFixed(2));
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: base, monto_base_bs: base, iva_bs: 0,
@@ -1007,7 +1012,7 @@ function GastosFacturaForm() {
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: !pendiente && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
-      grupo_transaccion_id: ivaAplica ? grupoIdGasto : null,
+      grupo_transaccion_id: grupoTransaccionGasto,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
@@ -1026,36 +1031,32 @@ function GastosFacturaForm() {
         tipo: "credito",
       });
     }
-    if (pendiente && tx) {
-      const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
-      await supabase.from("cuentas_por_pagar").insert({
-        proveedor: prov?.razon_social ?? "Proveedor",
-        numero_factura: numFactura,
-        tercero_id: terceroId || null,
-        centro_costo: centro as any,
-        monto_bs: total, monto_usd: baseUsd,
-        monto_pendiente_bs: total,
-        fecha_vencimiento: fechaVenc || null,
-        transaccion_id: tx.id, estado: "pendiente",
-      } as any);
-    }
     // Aplicar anticipos a proveedor seleccionados
     if (aplicaciones.length > 0 && tx) {
       const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
       const res = await aplicarAnticiposContraFactura({
         aplicaciones,
-        grupoId: tx.grupo_transaccion_id ?? grupoIdGasto,
+        grupoId: grupoIdGasto,
         facturaFecha: fecha,
         facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
         facturaNumero: numFactura,
         created_by: user.id,
         centro,
       });
-      if (!res.ok) toast.error(`Anticipo: ${res.error}`);
-      // Asegurar que la factura quede vinculada al grupo
-      if (!tx.grupo_transaccion_id) {
-        await supabase.from("transacciones").update({ grupo_transaccion_id: grupoIdGasto } as any).eq("id", tx.id);
-      }
+      if (!res.ok) { setBusy(false); return toast.error(`Anticipo: ${res.error}`); }
+    }
+    if (pendiente && tx && cxpSaldoBs > 0.01) {
+      const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
+      await supabase.from("cuentas_por_pagar").insert({
+        proveedor: prov?.razon_social ?? "Proveedor",
+        numero_factura: numFactura,
+        tercero_id: terceroId || null,
+        centro_costo: centro as any,
+        monto_bs: cxpSaldoBs, monto_usd: cxpSaldoUsd,
+        monto_pendiente_bs: cxpSaldoBs,
+        fecha_vencimiento: fechaVenc || null,
+        transaccion_id: tx.id, estado: "pendiente",
+      } as any);
     }
     setBusy(false);
     toast.success(pendiente ? "Factura registrada (CxP creada)" : "Gasto registrado");
@@ -2321,6 +2322,11 @@ function CierreForm() {
 
     const montoBs = esCompraUSD ? input * tasaN : input;
     const montoUsd = esCompraUSD ? input : (tasaN ? input / tasaN : 0);
+    const aplicadoUsdCompra = +(compraAplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
+    const aplicadoBsCompra = +(aplicadoUsdCompra * tasaN).toFixed(2);
+    const cxpSaldoBsCompra = Math.max(0, +(montoBs - aplicadoBsCompra).toFixed(2));
+    const cxpSaldoUsdCompra = Math.max(0, +(montoUsd - aplicadoUsdCompra).toFixed(2));
+    const compraQuedaPagada = compraOffBalance ? true : (compraPagada || cxpSaldoBsCompra <= 0.01);
 
     // Evitar facturas duplicadas (mismo proveedor + mismo N° factura), incluso en otros meses
     const { data: dup } = await supabase
@@ -2338,15 +2344,15 @@ function CierreForm() {
 
 
     let cxpId: string | null = null;
-    if (!compraOffBalance && !compraPagada) {
+    if (!compraOffBalance && !compraPagada && cxpSaldoBsCompra > 0.01) {
       const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
       const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
         numero_factura: compraNumFactura,
         tercero_id: compraTerceroId,
         centro_costo: "Compartido" as any,
-        monto_bs: montoBs, monto_usd: montoUsd,
-        monto_pendiente_bs: montoBs,
+        monto_bs: cxpSaldoBsCompra, monto_usd: cxpSaldoUsdCompra,
+        monto_pendiente_bs: cxpSaldoBsCompra,
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
       } as any).select().single();
@@ -2361,9 +2367,9 @@ function CierreForm() {
       modo: compraOffBalance ? "off_balance" : "on_balance",
       fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
       tercero_id: compraTerceroId, numero_factura: compraNumFactura,
-      pagada: compraOffBalance ? true : compraPagada,
+      pagada: compraQuedaPagada,
       cuenta_bancaria_id: !compraOffBalance && compraPagada ? compraCuentaBanco : null,
-      fecha_vencimiento: !compraOffBalance && !compraPagada ? (compraVenc || null) : null,
+      fecha_vencimiento: !compraOffBalance && !compraQuedaPagada ? (compraVenc || null) : null,
       cxp_id: cxpId,
       notas: compraNotas || null,
       registrado_por: user.id,
@@ -2383,7 +2389,7 @@ function CierreForm() {
         created_by: user.id,
         centro: "Compartido",
       });
-      if (!res.ok) toast.error(`Anticipo: ${res.error}`);
+      if (!res.ok) { setCompraBusy(false); return toast.error(`Anticipo: ${res.error}`); }
     }
 
     setCompraBusy(false);
