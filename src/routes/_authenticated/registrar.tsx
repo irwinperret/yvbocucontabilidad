@@ -2508,6 +2508,20 @@ function CierreForm() {
             <div className="md:col-span-2">
               <TerceroSelect value={compraTerceroId} onChange={setCompraTerceroId} terceros={(terceros ?? []) as any} />
             </div>
+            {compraTerceroId && (
+              <div className="md:col-span-2">
+                <AnticipoProveedorBanner
+                  terceroId={compraTerceroId}
+                  facturaTotalUsd={Number(esCompraUSD ? compraInput : (compraTasaN ? compraInput / compraTasaN : 0)) || 0}
+                  onAplicacionesChange={setCompraAplicaciones}
+                />
+                {compraAplicaciones.length > 0 && (
+                  <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2">
+                    Aplicando anticipo: <strong className="mono">{fmtUsd(compraAplicaciones.reduce((s, a) => s + a.aplicarUsd, 0))}</strong>
+                  </div>
+                )}
+              </div>
+            )}
             <div>
               <Label className="text-xs">N° factura</Label>
               <Input value={compraNumFactura} onChange={(e) => setCompraNumFactura(e.target.value)} required />
