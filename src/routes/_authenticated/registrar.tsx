@@ -1039,10 +1039,29 @@ function GastosFacturaForm() {
         transaccion_id: tx.id, estado: "pendiente",
       } as any);
     }
+    // Aplicar anticipos a proveedor seleccionados
+    if (aplicaciones.length > 0 && tx) {
+      const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
+      const res = await aplicarAnticiposContraFactura({
+        aplicaciones,
+        grupoId: tx.grupo_transaccion_id ?? grupoIdGasto,
+        facturaFecha: fecha,
+        facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
+        facturaNumero: numFactura,
+        created_by: user.id,
+        centro,
+      });
+      if (!res.ok) toast.error(`Anticipo: ${res.error}`);
+      // Asegurar que la factura quede vinculada al grupo
+      if (!tx.grupo_transaccion_id) {
+        await supabase.from("transacciones").update({ grupo_transaccion_id: grupoIdGasto } as any).eq("id", tx.id);
+      }
+    }
     setBusy(false);
     toast.success(pendiente ? "Factura registrada (CxP creada)" : "Gasto registrado");
     qc.invalidateQueries();
     setMontoTotal(""); setNumFactura(""); setNotas("");
+    setAplicaciones([]);
   };
 
   return (
