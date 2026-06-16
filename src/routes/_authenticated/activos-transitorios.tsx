@@ -48,14 +48,16 @@ function ActivosTransitoriosPage() {
         <p className="text-sm text-muted-foreground">Préstamos y anticipos al personal</p>
       </div>
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-        <TabsList className="grid grid-cols-1 sm:grid-cols-3 w-full h-auto gap-1 p-1">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full h-auto gap-1 p-1">
           <TabsTrigger value="prestamos" className="text-xs sm:text-sm">Préstamos al personal</TabsTrigger>
           <TabsTrigger value="anticipos_nomina" className="text-xs sm:text-sm">Anticipos de nómina</TabsTrigger>
           <TabsTrigger value="prestaciones" className="text-xs sm:text-sm">Anticipos de prestaciones</TabsTrigger>
+          <TabsTrigger value="anticipos_proveedores" className="text-xs sm:text-sm">Anticipos a proveedores</TabsTrigger>
         </TabsList>
         <TabsContent value="prestamos"><TabBody tabKey="prestamos" /></TabsContent>
         <TabsContent value="anticipos_nomina"><TabBody tabKey="anticipos_nomina" /></TabsContent>
         <TabsContent value="prestaciones"><TabBody tabKey="prestaciones" /></TabsContent>
+        <TabsContent value="anticipos_proveedores"><ProveedoresTabBody /></TabsContent>
       </Tabs>
     </div>
   );
