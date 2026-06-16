@@ -1,64 +1,64 @@
-## Cambios al modelo
+## Diagnóstico
 
-### 1. Plan de cuentas
-Crear cuenta **13.1 — Propinas por pagar al personal** (grupo `Pasivos transitorios`):
-- `afecta_gyp = false`, `afecta_fc = true`
-- `centros_permitidos = {YV, Bocu}`
+Encontré **dos bugs** en el flujo de aplicar anticipos contra factura (afecta tanto COGS como Gastos):
 
-> Nota técnica: el sistema actual no tiene una columna `es_ingreso` en `transacciones`. El signo (entrada vs salida) lo determina el código de cuenta. Para 13.1 introduciremos una convención local: en `transacciones.notas` el prefijo indica el sentido; además guardaremos `grupo_transaccion_id` que apareja las dos transacciones para que sumadas den cero. En el reporte FC clasificaremos 13.1 como movimiento "transitorio" cuyo neto siempre es 0 en el período una vez distribuido.
+### Bug 1 — el saldo del anticipo NO se reduce (causa raíz)
 
-### 2. Tabla `propinas`
-Añadir columnas:
-- `transaccion_entrada_id uuid` (reemplaza el actual `transaccion_id`, migrado)
-- `transaccion_salida_id uuid` (null = pendiente de distribuir)
-- `fecha_distribucion date`
-- `monto_distribuido_usd numeric`
-- `notas_distribucion text`
+La política RLS de UPDATE sobre `transacciones` es:
 
-Un registro de propina queda **"Pendiente"** si `transaccion_salida_id IS NULL`, **"Distribuida"** si está poblado.
-
-### 3. Doble transacción
-Al registrar una propina:
-- **Entrada**: `cuenta_codigo='13.1'`, `monto_usd=+X`, `notas="Propina recibida — fecha — centro"`, `grupo_transaccion_id=G`, `modo='on_balance'`.
-- **Salida** (cuando se distribuye): mismo cuenta, mismo `grupo_transaccion_id=G`, `notas="Propina distribuida al personal — fecha — centro"`, importe negativo conceptualmente pero almacenado como positivo con marca de salida (usaremos la notación en `notas` + el segundo registro en tabla `propinas`).
-
-Para que el FC trate la salida como negativa en 13.1, agregaremos en el cliente una regla: filas con `cuenta_codigo='13.1'` cuyo `notas` empieza con `"Propina distribuida"` se restan en lugar de sumar. Alternativamente, podemos almacenar la salida con `monto_usd` negativo (PostgreSQL lo permite; revisaremos constraints).
-
-> Si prefieres una solución más limpia, podemos añadir una columna `es_ingreso boolean` real a `transacciones`. Indícamelo y la incluyo en la migración.
-
-Al eliminar cualquiera de las dos transacciones del mismo `grupo_transaccion_id`, el cliente avisa y borra ambas (más el registro `propinas`).
-
-### 4. Página Propinas
-- Disclaimer reemplazado por el texto que diste (en negrita, ámbar).
-- Formulario en dos pasos / dos secciones:
-  - **Recibida**: fecha, centro de costo, monto USD, método de pago, notas → crea entrada.
-  - **Distribuida**: fecha de distribución, monto USD (default = recibido), notas → crea salida y vincula.
-- Cada fila de la tabla muestra badge:
-  - 🟧 `Pendiente de distribuir` (sólo entrada)
-  - 🟩 `Distribuida` (ambas)
-  - Botón "Marcar como distribuida" en filas pendientes.
-- KPI extra: **Propinas pendientes de distribuir** = suma de recibidas sin salida. En naranja si > 0.
-
-### 5. Flujo de Caja
-- Cuenta 13.1 aparece en el comparativo (ya lista todas las `afecta_fc=true`).
-- En `ReporteFC` añadimos una sección **"Movimientos transitorios"** que muestra entradas y salidas de 13.1 por separado y neto = 0 (o saldo pendiente del período).
-- Exportación FC incluye la sección.
-
-### 6. Saldos bancarios
-- Las transacciones 13.1 ya aparecerán al filtrar por cuenta bancaria (porque tienen `cuenta_bancaria_id`).
-- Cada fila con `cuenta_codigo='13.1'` se renderiza con un badge **`Propina`** y un color distinto (lila/morado) para distinguirla de operativas.
-
-## Archivos a tocar
-
-```text
-supabase/migrations/<ts>_propinas_doble_tx.sql     (nuevo)
-src/routes/_authenticated/propinas.tsx              (form 2 pasos, KPI pendiente, disclaimer, badges)
-src/routes/_authenticated/fc.tsx                    (sección transitorios)
-src/routes/_authenticated/saldos-bancarios.tsx      (badge "Propina")
-src/lib/excel-export.ts                             (incluir transitorios en FC export)
+```
+has_role(admin) OR modo = 'off_balance'
 ```
 
-## Preguntas antes de empezar
+Cuando `aplicarAnticiposContraFactura` intenta actualizar `anticipo_aplicado_usd` y `anticipo_estado` del anticipo original (que es `on_balance`), y el usuario **no** es admin, el UPDATE **no afecta ninguna fila pero supabase-js no devuelve error** (sólo cuenta de filas = 0). Por eso el reverso se inserta, pero el saldo queda intacto y el banner sigue mostrando el anticipo completo.
 
-1. **Signo en `transacciones`** para distinguir entrada vs salida de 13.1: ¿prefieres (a) almacenar la salida con `monto_usd` negativo, (b) añadir una columna `es_ingreso boolean`, o (c) inferirlo del texto en `notas`? Recomiendo **(b)** por claridad y consistencia futura.
-2. **Migración de datos existentes** en `propinas`: los registros actuales no tienen transacción de entrada en 13.1 (la cuenta no existía). ¿Genero la transacción de entrada retroactivamente para cada propina existente, marcándolas todas como "Pendientes de distribuir"? ¿O los dejo en estado legacy sin transacciones vinculadas?
+### Bug 2 — la CxP se crea por el monto total de la factura, no el neto
+
+En el flujo de COGS (y también en Gastos), cuando la factura no está pagada se crea una `cuentas_por_pagar` por el **monto total** de la factura, ignorando lo que se aplicó del anticipo. La CxP debería ser `total − anticipo aplicado`.
+
+### No, no espera al cierre de mes
+
+La aplicación es inmediata al guardar la factura. El cierre de mes no toca anticipos.
+
+## Plan de arreglo
+
+### 1. RPC `SECURITY DEFINER` para aplicar el anticipo atómicamente
+
+Crear `public.aplicar_anticipo_a_factura(anticipo_id uuid, aplicar_usd numeric, grupo_id uuid, factura_fecha date, factura_proveedor text, factura_numero text, centro centro_costo)` que:
+
+- Lee el anticipo original (estado, aplicado, montos, tasas, tercero, banco).
+- Valida: `aplicar_usd > 0`, `aplicar_usd ≤ saldo`, anticipo no cerrado.
+- Inserta el reverso negativo en `transacciones` cuenta 14.2 (mismas tasas del anticipo, `created_by = auth.uid()`, `grupo_transaccion_id = grupo_id`).
+- Actualiza `anticipo_aplicado_usd` y `anticipo_estado` (`parcialmente_aplicado` / `aplicado`).
+- Todo en una transacción; bypassa RLS porque es SECURITY DEFINER.
+- Devuelve `{ reverso_id, nuevo_aplicado_usd, nuevo_estado }`.
+
+`GRANT EXECUTE ... TO authenticated`.
+
+### 2. Reemplazar `aplicarAnticiposContraFactura` para usar el RPC
+
+En `src/lib/anticipos-proveedor.ts`, sustituir el insert + update por una llamada `supabase.rpc('aplicar_anticipo_a_factura', {...})` por cada aplicación. Cualquier error sí se propaga al toast.
+
+### 3. CxP neta del anticipo aplicado
+
+En `src/routes/_authenticated/registrar.tsx`:
+
+- **COGS** (`addCompra`, ~línea 2341): calcular `aplicadoUsd = Σ compraAplicaciones.aplicarUsd`, `aplicadoBs = aplicadoUsd * compraTasaN`, y crear la CxP con `monto_pendiente_bs = montoBs − aplicadoBs`. Si `aplicadoBs ≥ montoBs`, marcar la compra como `pagada = true` y **no** crear CxP.
+- **Gastos factura** (flujo equivalente alrededor de línea 1043): mismo ajuste sobre la CxP de gasto.
+
+### 4. Verificación
+
+Después de aplicar la migración + cambios:
+
+- Registrar anticipo de $100 a un proveedor.
+- Registrar factura de $150 al mismo proveedor aplicando $100.
+- Confirmar en `Activos transitorios → Anticipos a proveedores`: saldo del anticipo = $0, estado `aplicado`.
+- Confirmar en `Cuentas por pagar`: CxP por $50, no $150.
+
+### Archivos afectados
+
+- Migración nueva: función `aplicar_anticipo_a_factura` (SECURITY DEFINER).
+- `src/lib/anticipos-proveedor.ts` — cambia `aplicarAnticiposContraFactura` para llamar el RPC.
+- `src/routes/_authenticated/registrar.tsx` — ajusta creación de CxP en COGS y en Gastos factura.
+
+No requiere cambios en el banner ni en `activos-transitorios.tsx`.
