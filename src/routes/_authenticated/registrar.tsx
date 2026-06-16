@@ -2260,3 +2260,131 @@ function CierreForm() {
     </Card>
   );
 }
+
+/* ---------------- LIQUIDACIONES ---------------- */
+const LIQ_SECCIONES = [
+  { key: "Cocina",         cuenta: "3.3",  centro: "Compartido" as Centro },
+  { key: "Bocú",           cuenta: "3.7",  centro: "Bocu" as Centro },
+  { key: "YV",             cuenta: "3.12", centro: "YV" as Centro },
+  { key: "Administración", cuenta: "3.18", centro: "Compartido" as Centro },
+] as const;
+
+function LiquidacionesForm() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [fecha, setFecha] = useState(todayISO());
+  const [empleado, setEmpleado] = useState("");
+  const [seccion, setSeccion] = useState<typeof LIQ_SECCIONES[number]["key"]>("Bocú");
+  const [montoBs, setMontoBs] = useState("");
+  const [tasa, setTasa] = useState("");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [notas, setNotas] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Pull paralela directly from tasas_bcv.tasa_paralela (fallback to tasas_paralela)
+  const { data: bcvRow } = useQuery({
+    queryKey: ["tasa-bcv-paralela-for", fecha],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasas_bcv")
+        .select("fecha, tasa_bs_usd, tasa_paralela")
+        .lte("fecha", fecha)
+        .order("fecha", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+  });
+  const { data: paralelaAlt } = useParalelaForDate(fecha);
+  useEffect(() => {
+    const t = (bcvRow as any)?.tasa_paralela ?? (paralelaAlt as any)?.tasa ?? null;
+    if (t != null) setTasa(String(t));
+  }, [(bcvRow as any)?.tasa_paralela, (paralelaAlt as any)?.tasa]);
+
+  const seccionDef = LIQ_SECCIONES.find((s) => s.key === seccion)!;
+  const montoBsN = Number(montoBs) || 0;
+  const tasaN = Number(tasa) || 0;
+  const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!empleado.trim()) return toast.error("Falta nombre del empleado");
+    if (!montoBsN) return toast.error("Falta monto en Bs");
+    if (!tasaN) return toast.error("Falta tasa paralela");
+    if (!cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
+    setBusy(true);
+    const detalle = `${seccionDef.key} · ${empleado.trim()}`;
+    const notaCompleta = `Liquidación — ${empleado.trim()} — ${fecha}${notas ? ` · ${notas}` : ""}`;
+    const { data: tx, error } = await supabase.from("transacciones").insert({
+      fecha,
+      cuenta_codigo: seccionDef.cuenta,
+      centro_costo: seccionDef.centro as any,
+      monto_bs: montoBsN,
+      monto_base_bs: montoBsN,
+      iva_bs: 0,
+      iva_aplica: false,
+      tasa_bcv: tasaN,
+      tasa_paralela: tasaN,
+      monto_usd: +montoUsd.toFixed(2),
+      metodo_pago: "transferencia" as any,
+      cuenta_bancaria_id: cuentaBancariaId,
+      detalle,
+      notas: notaCompleta,
+      modo: "on_balance",
+      created_by: user.id,
+    } as any).select().single();
+    if (error) { setBusy(false); return toast.error(error.message); }
+    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    setBusy(false);
+    toast.success("Liquidación registrada");
+    qc.invalidateQueries();
+    setEmpleado(""); setMontoBs(""); setNotas("");
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Liquidaciones</CardTitle></CardHeader>
+      <CardContent>
+        <p className="text-xs text-muted-foreground mb-3">
+          Las liquidaciones se registran siempre en bolívares y se convierten a USD con la tasa paralela del día. No afectan G&amp;P (solo Flujo de Caja).
+        </p>
+        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><Label>Fecha de liquidación</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+          <div>
+            <Label>Centro de costo</Label>
+            <Select value={seccion} onValueChange={(v) => setSeccion(v as any)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {LIQ_SECCIONES.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>{s.key} (cuenta {s.cuenta})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2"><Label>Nombre del empleado</Label><Input value={empleado} onChange={(e) => setEmpleado(e.target.value)} required /></div>
+          <div><Label>Monto total Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
+          <div>
+            <Label>Tasa paralela del día</Label>
+            <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+          </div>
+          <div className="md:col-span-2">
+            <Label>Monto USD (calculado)</Label>
+            <Input value={fmtUsd(montoUsd)} readOnly className="mono bg-muted" />
+          </div>
+          <div className="md:col-span-2">
+            <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+          </div>
+          <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
+            <span className="text-sm text-muted-foreground">Cuenta: <span className="font-semibold mono">{seccionDef.cuenta}</span></span>
+            <span className="text-lg font-bold mono">{fmtBs(montoBsN)} · {fmtUsd(montoUsd)}</span>
+          </div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar liquidación"}</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
