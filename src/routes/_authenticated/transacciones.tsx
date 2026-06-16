@@ -137,24 +137,32 @@ function TransaccionesPage() {
     return Array.from(set).sort();
   }, [data]);
 
+  const norm = (v: any) =>
+    (v ?? "")
+      .toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
   const filtradas = useMemo(() => {
-    const s = busca.trim().toLowerCase();
+    const s = norm(busca.trim());
     let arr = ((data ?? []) as any[]).filter((t: any) => {
       if (cuentaFiltro !== "todos" && t.cuenta_codigo !== cuentaFiltro) return false;
       if (metodoFiltro !== "todos" && (t.metodo_pago ?? "") !== metodoFiltro) return false;
       if (modoFiltro !== "todos" && t.modo !== modoFiltro) return false;
       if (s) {
         const hit =
-          t.cuenta_codigo?.toLowerCase().includes(s) ||
-          cuentaNombre[t.cuenta_codigo]?.toLowerCase().includes(s) ||
-          t.numero_factura?.toLowerCase().includes(s) ||
-          (t.numero_orden ?? "").toLowerCase().includes(s) ||
-          t.referencia?.toLowerCase().includes(s) ||
-          t.notas?.toLowerCase().includes(s);
+          norm(t.cuenta_codigo).includes(s) ||
+          norm(cuentaNombre[t.cuenta_codigo]).includes(s) ||
+          norm(t.numero_factura).includes(s) ||
+          norm(t.numero_orden).includes(s) ||
+          norm(t.referencia).includes(s) ||
+          norm(t.notas).includes(s);
         if (!hit) return false;
       }
       return true;
     });
+
     arr = [...arr].sort((a: any, b: any) => {
       const av = sortKey === "fecha" ? a.fecha : Number(a[sortKey]) || 0;
       const bv = sortKey === "fecha" ? b.fecha : Number(b[sortKey]) || 0;
