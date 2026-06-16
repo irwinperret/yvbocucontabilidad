@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { syncTasaParalela } from "@/lib/paralela-sync.functions";
 import { backfillTasaParalela } from "@/lib/paralela-backfill.functions";
+import { recalcParalelaPorFecha } from "@/lib/recalc-paralela.functions";
 import { RefreshCw, History } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tasa-paralela")({ component: TasaParalelaPage });
@@ -27,6 +28,7 @@ function TasaParalelaPage() {
   const [backfilling, setBackfilling] = useState(false);
   const sync = useServerFn(syncTasaParalela);
   const backfill = useServerFn(backfillTasaParalela);
+  const recalc = useServerFn(recalcParalelaPorFecha);
 
   const { data: tasas } = useQuery({
     queryKey: ["tasas-paralela-list"],
@@ -34,8 +36,7 @@ function TasaParalelaPage() {
       const { data } = await supabase
         .from("tasas_paralela")
         .select("*")
-        .order("fecha", { ascending: false })
-        .limit(30);
+        .order("fecha", { ascending: false });
       return data ?? [];
     },
   });
@@ -45,7 +46,7 @@ function TasaParalelaPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("tasas_bcv").select("*")
-        .order("fecha", { ascending: false }).limit(30);
+        .order("fecha", { ascending: false });
       return data ?? [];
     },
   });
@@ -54,17 +55,21 @@ function TasaParalelaPage() {
     e.preventDefault();
     if (!user) return;
     setBusy(true);
-    const { error } = await supabase.from("tasas_paralela").insert({
+    const { error } = await supabase.from("tasas_paralela").upsert({
       fecha, tasa: Number(tasa), registrado_por: user.id,
-    });
-    setBusy(false);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Tasa paralela registrada");
-      setTasa("");
-      qc.invalidateQueries({ queryKey: ["tasas-paralela-list"] });
-      qc.invalidateQueries({ queryKey: ["paralela-for"] });
+    }, { onConflict: "fecha" });
+    if (error) { setBusy(false); return toast.error(error.message); }
+    try {
+      const r = await recalc({ data: { fecha } });
+      toast.success(`Tasa registrada · ${r.actualizadas} transacciones recalculadas`);
+    } catch (e: any) {
+      toast.warning(`Tasa registrada, pero recálculo falló: ${e?.message ?? "error"}`);
     }
+    setTasa("");
+    setBusy(false);
+    qc.invalidateQueries({ queryKey: ["tasas-paralela-list"] });
+    qc.invalidateQueries({ queryKey: ["paralela-for"] });
+    qc.invalidateQueries();
   };
 
   const handleSync = async () => {
@@ -132,41 +137,43 @@ function TasaParalelaPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Últimas 30 tasas paralelas</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Todas las tasas paralelas ({tasas?.length ?? 0})</CardTitle></CardHeader>
         <CardContent>
-          <table className="w-full text-sm">
-            <thead className="text-xs text-muted-foreground border-b">
-              <tr>
-                <th className="text-left py-2">Fecha</th>
-                <th className="text-right py-2">Paralela</th>
-                <th className="text-right py-2">BCV</th>
-                <th className="text-right py-2">Diferencial</th>
-                <th className="text-left py-2 pl-4">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasas?.map((t: any) => {
-                const bcv = bcvByFecha.get(t.fecha);
-                const diff = bcv ? Number(t.tasa) - bcv : null;
-                const pct = bcv ? (diff! / bcv) * 100 : null;
-                return (
-                  <tr key={t.id} className="border-b last:border-0">
-                    <td className="py-2 mono">{fmtDate(t.fecha)}</td>
-                    <td className="py-2 text-right mono">{Number(t.tasa).toFixed(4)}</td>
-                    <td className="py-2 text-right mono text-muted-foreground">{bcv ? bcv.toFixed(4) : "—"}</td>
-                    <td className="py-2 text-right mono">
-                      {diff !== null
-                        ? <span className={diff >= 0 ? "text-orange-600" : "text-green-700"}>{diff >= 0 ? "+" : ""}{diff.toFixed(4)} ({pct!.toFixed(1)}%)</span>
-                        : "—"}
-                    </td>
-                    <td className="py-2 pl-4">
-                      {t.fecha === todayISO() ? <Badge className="bg-green-600">Vigente</Badge> : <Badge variant="outline">Histórica</Badge>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="max-h-[600px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground border-b sticky top-0 bg-background">
+                <tr>
+                  <th className="text-left py-2">Fecha</th>
+                  <th className="text-right py-2">Paralela</th>
+                  <th className="text-right py-2">BCV</th>
+                  <th className="text-right py-2">Diferencial</th>
+                  <th className="text-left py-2 pl-4">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasas?.map((t: any) => {
+                  const bcv = bcvByFecha.get(t.fecha);
+                  const diff = bcv ? Number(t.tasa) - bcv : null;
+                  const pct = bcv ? (diff! / bcv) * 100 : null;
+                  return (
+                    <tr key={t.id} className="border-b last:border-0">
+                      <td className="py-2 mono">{fmtDate(t.fecha)}</td>
+                      <td className="py-2 text-right mono">{Number(t.tasa).toFixed(4)}</td>
+                      <td className="py-2 text-right mono text-muted-foreground">{bcv ? bcv.toFixed(4) : "—"}</td>
+                      <td className="py-2 text-right mono">
+                        {diff !== null
+                          ? <span className={diff >= 0 ? "text-orange-600" : "text-green-700"}>{diff >= 0 ? "+" : ""}{diff.toFixed(4)} ({pct!.toFixed(1)}%)</span>
+                          : "—"}
+                      </td>
+                      <td className="py-2 pl-4">
+                        {t.fecha === todayISO() ? <Badge className="bg-green-600">Vigente</Badge> : <Badge variant="outline">Histórica</Badge>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>

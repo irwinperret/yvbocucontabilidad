@@ -40,11 +40,29 @@ export const backfillTasaParalela = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
 
+    // Recalcular monto_usd para transacciones de las fechas nuevas
+    let recalculadas = 0;
+    for (const f of nuevas) {
+      const { data: txs } = await supabase
+        .from("transacciones")
+        .select("id, monto_bs")
+        .eq("fecha", f.fecha);
+      for (const tx of txs ?? []) {
+        const usd = +(Number(tx.monto_bs || 0) / f.tasa).toFixed(2);
+        const { error: ue } = await supabase
+          .from("transacciones")
+          .update({ tasa_paralela: f.tasa, monto_usd: usd })
+          .eq("id", tx.id);
+        if (!ue) recalculadas++;
+      }
+    }
+
     const fechas = filas.map((f) => f.fecha).sort();
     return {
       total: filas.length,
       insertadas: nuevas.length,
       existentes: filas.length - nuevas.length,
+      recalculadas,
       minFecha: fechas[0],
       maxFecha: fechas[fechas.length - 1],
     };

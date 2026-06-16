@@ -29,7 +29,7 @@ function TasaPage() {
   const { data: tasas } = useQuery({
     queryKey: ["tasas-list"],
     queryFn: async () => {
-      const { data } = await supabase.from("tasas_bcv").select("*").order("fecha", { ascending: false }).limit(30);
+      const { data } = await supabase.from("tasas_bcv").select("*").order("fecha", { ascending: false });
       return data ?? [];
     },
   });
@@ -92,24 +92,26 @@ function TasaPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Últimas 30 tasas</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Todas las tasas registradas ({tasas?.length ?? 0})</CardTitle></CardHeader>
         <CardContent>
-          <table className="w-full text-sm">
-            <thead className="text-xs text-muted-foreground border-b">
-              <tr><th className="text-left py-2">Fecha</th><th className="text-right py-2">Tasa</th><th className="text-left py-2 pl-4">Estado</th></tr>
-            </thead>
-            <tbody>
-              {tasas?.map((t: any) => (
-                <tr key={t.id} className="border-b last:border-0">
-                  <td className="py-2 mono">{fmtDate(t.fecha)}</td>
-                  <td className="py-2 text-right mono">{Number(t.tasa).toFixed(4)}</td>
-                  <td className="py-2 pl-4">
-                    {t.fecha === todayISO() ? <Badge className="bg-green-600">Vigente</Badge> : <Badge variant="outline">Histórica</Badge>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="max-h-[600px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground border-b sticky top-0 bg-background">
+                <tr><th className="text-left py-2">Fecha</th><th className="text-right py-2">Tasa</th><th className="text-left py-2 pl-4">Estado</th></tr>
+              </thead>
+              <tbody>
+                {tasas?.map((t: any) => (
+                  <tr key={t.id} className="border-b last:border-0">
+                    <td className="py-2 mono">{fmtDate(t.fecha)}</td>
+                    <td className="py-2 text-right mono">{Number(t.tasa).toFixed(4)}</td>
+                    <td className="py-2 pl-4">
+                      {t.fecha === todayISO() ? <Badge className="bg-green-600">Vigente</Badge> : <Badge variant="outline">Histórica</Badge>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>
