@@ -132,10 +132,10 @@ function PropinasPage() {
         <p className="text-sm text-muted-foreground">Control interno de propinas · separado del G&P y Flujo de Caja</p>
       </div>
 
-      <Alert>
+      <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
         <Info className="h-4 w-4" />
-        <AlertDescription>
-          Las propinas no forman parte de los ingresos del restaurante ni del Flujo de Caja.
+        <AlertDescription className="font-bold text-sm">
+          Estas propinas son ADICIONALES al 10% cobrado por el servicio y NO se reflejan ni en Flujo de Caja ni en G&P.
           Se registran por separado para control interno y distribución al personal.
         </AlertDescription>
       </Alert>
