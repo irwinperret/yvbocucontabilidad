@@ -305,12 +305,12 @@ function ImportarVentasPage() {
           cuenta_bancaria_id,
         };
 
-        // Dedup: por número de factura O número de orden con ref=xetux, excluyendo la pierna IVA (1.9)
+        // Dedup: por número de factura O número de orden con ref=xetux, excluyendo la pierna IVA (12.4)
         let dupQuery = supabase
           .from("transacciones")
           .select("*")
           .eq("referencia", "xetux")
-          .neq("cuenta_codigo", "1.9");
+          .neq("cuenta_codigo", "12.4");
         if (r.numero_factura) {
           dupQuery = dupQuery.eq("numero_factura", r.numero_factura);
         } else {
@@ -378,7 +378,7 @@ function ImportarVentasPage() {
               } as any);
             }
           }
-          // Re-sincronizar pierna IVA (1.9) por grupo
+          // Re-sincronizar pierna IVA (12.4) por grupo
           if (tx) {
             const { deleteIvaLegsByGrupo, insertIvaLeg } = await import("@/lib/iva-helpers");
             const grupoExistente = (dup as any).grupo_transaccion_id ?? crypto.randomUUID();
@@ -412,7 +412,7 @@ function ImportarVentasPage() {
         if (error) { fail++; toast.error(`${refIdent}: ${error.message}`); continue; }
         if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
 
-        // Pierna IVA (1.9) para nuevas ventas
+        // Pierna IVA (12.4) para nuevas ventas
         if (tx && r.iva_usd > 0) {
           const { insertIvaLeg } = await import("@/lib/iva-helpers");
           await insertIvaLeg({

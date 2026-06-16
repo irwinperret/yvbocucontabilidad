@@ -441,18 +441,17 @@ function VentasForm() {
         transaccion_cobro_id: completaCobrada ? tx.id : cxcSel.transaccion_cobro_id ?? null,
       } as any).eq("id", cxcId);
 
-      // Diferencia cambiaria sobre la porción cobrada: USD cobrado × (paralela_hoy - paralela_orig)
+      // Diferencia cambiaria sobre la porción cobrada: solo GANANCIA (cuenta 11.1).
+      // La cuenta 11.2 (pérdida) fue eliminada; las pérdidas se ignoran.
       if (tasaOrigCxc > 0 && tasaConvN > 0) {
         const fxBs = usdCobrado * (tasaConvN - tasaOrigCxc);
         const fxUsd = tasaConvN > 0 ? fxBs / tasaConvN : 0;
-        if (Math.abs(fxUsd) >= 0.01) {
-          const esGanancia = fxUsd > 0;
-          const cuentaFx = esGanancia ? "11.1" : "11.2";
-          const absUsd = Math.abs(fxUsd);
+        if (fxUsd >= 0.01) {
+          const absUsd = fxUsd;
           const absBs = Math.abs(fxBs);
           const { data: txFx, error: errFx } = await supabase.from("transacciones").insert({
             fecha,
-            cuenta_codigo: cuentaFx,
+            cuenta_codigo: "11.1",
             centro_costo: centro as any,
             monto_bs: absBs, monto_base_bs: absBs, iva_bs: 0,
             tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: absUsd,
@@ -462,6 +461,8 @@ function VentasForm() {
           } as any).select().single();
           if (errFx) toast.error("Cobro OK, pero falló el ajuste cambiario: " + errFx.message);
           else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
+        } else if (fxUsd <= -0.01) {
+          toast.info(`Pérdida cambiaria de ${Math.abs(fxUsd).toFixed(2)} USD no se contabiliza (cuenta 11.2 fue eliminada)`);
         }
       }
 

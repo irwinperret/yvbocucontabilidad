@@ -17,7 +17,7 @@ export function useGastosSugerencias(terceroId: string, centro?: string) {
         .from("transacciones")
         .select("cuenta_codigo, metodo_pago, notas, centro_costo, fecha")
         .eq("tercero_id", terceroId)
-        .not("cuenta_codigo", "in", "(1.9,2.3)")
+        .not("cuenta_codigo", "in", "(12.4,12.5)")
         .order("fecha", { ascending: false })
         .limit(50);
       const { data } = await q;

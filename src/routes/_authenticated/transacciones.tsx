@@ -165,12 +165,12 @@ function TransaccionesPage() {
   }, [data, busca, cuentaNombre, cuentaFiltro, metodoFiltro, modoFiltro, sortKey, sortDir]);
 
   const totales = useMemo(() => {
-    // Excluye legs IVA (1.9 y 2.3) para no doble-contar
-    const noIva = filtradas.filter((t: any) => t.cuenta_codigo !== "1.9" && t.cuenta_codigo !== "2.3");
+    // Excluye legs IVA (12.4 y 12.5) para no doble-contar
+    const noIva = filtradas.filter((t: any) => t.cuenta_codigo !== "12.4" && t.cuenta_codigo !== "12.5");
     return {
       bs: noIva.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
       usd: noIva.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0),
-      ivaBs: filtradas.filter((t: any) => t.cuenta_codigo === "1.9" || t.cuenta_codigo === "2.3")
+      ivaBs: filtradas.filter((t: any) => t.cuenta_codigo === "12.4" || t.cuenta_codigo === "12.5")
         .reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
     };
   }, [filtradas]);

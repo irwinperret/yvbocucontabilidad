@@ -7,10 +7,10 @@ import { logAudit } from "@/lib/audit";
  *
  * Modelo: cada transacción con IVA se divide en 2 filas:
  *  - principal: monto_bs = base, iva_bs = 0, iva_aplica = false
- *  - leg IVA: cuenta_codigo = "1.9" (débito, ventas) ó "2.3" (crédito, compras),
+ *  - leg IVA: cuenta_codigo = "12.4" (débito, ventas) ó "12.5" (crédito, compras),
  *             monto_bs = iva_bs, iva_bs = 0
  *
- * Las cuentas 1.9 / 2.3 no afectan G&P ni FC (son cuentas de balance frente al fisco).
+ * Las cuentas 12.4 / 12.5 viven en el grupo Impuestos. Solo afectan FC (no G&P).
  */
 export type IvaLegInput = {
   fecha: string;
@@ -28,12 +28,12 @@ export type IvaLegInput = {
   notas?: string | null;
   created_by: string;
   grupo_transaccion_id: string;
-  tipo: "debito" | "credito"; // débito = venta (1.9), crédito = compra (2.3)
+  tipo: "debito" | "credito"; // débito = venta (12.4), crédito = compra (12.5)
 };
 
 export async function insertIvaLeg(input: IvaLegInput) {
   if (input.monto_bs_iva <= 0) return null;
-  const cuenta = input.tipo === "debito" ? "1.9" : "2.3";
+  const cuenta = input.tipo === "debito" ? "12.4" : "12.5";
   const notasBase = input.tipo === "debito" ? "IVA débito" : "IVA crédito";
   const { data, error } = await supabase.from("transacciones").insert({
     fecha: input.fecha,
@@ -67,7 +67,7 @@ export async function insertIvaLeg(input: IvaLegInput) {
 
 /**
  * Borra cualquier leg IVA previamente asociado a una transacción principal
- * (mismo grupo_transaccion_id, cuenta 1.9/2.3). Útil para re-importaciones.
+ * (mismo grupo_transaccion_id, cuenta 12.4/12.5). Útil para re-importaciones.
  */
 export async function deleteIvaLegsByGrupo(grupoId: string | null | undefined) {
   if (!grupoId) return;
@@ -75,5 +75,6 @@ export async function deleteIvaLegsByGrupo(grupoId: string | null | undefined) {
     .from("transacciones")
     .delete()
     .eq("grupo_transaccion_id", grupoId)
-    .in("cuenta_codigo", ["1.9", "2.3"]);
+    .in("cuenta_codigo", ["12.4", "12.5"]);
 }
+
