@@ -137,41 +137,43 @@ function TasaParalelaPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Últimas 30 tasas paralelas</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Todas las tasas paralelas ({tasas?.length ?? 0})</CardTitle></CardHeader>
         <CardContent>
-          <table className="w-full text-sm">
-            <thead className="text-xs text-muted-foreground border-b">
-              <tr>
-                <th className="text-left py-2">Fecha</th>
-                <th className="text-right py-2">Paralela</th>
-                <th className="text-right py-2">BCV</th>
-                <th className="text-right py-2">Diferencial</th>
-                <th className="text-left py-2 pl-4">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasas?.map((t: any) => {
-                const bcv = bcvByFecha.get(t.fecha);
-                const diff = bcv ? Number(t.tasa) - bcv : null;
-                const pct = bcv ? (diff! / bcv) * 100 : null;
-                return (
-                  <tr key={t.id} className="border-b last:border-0">
-                    <td className="py-2 mono">{fmtDate(t.fecha)}</td>
-                    <td className="py-2 text-right mono">{Number(t.tasa).toFixed(4)}</td>
-                    <td className="py-2 text-right mono text-muted-foreground">{bcv ? bcv.toFixed(4) : "—"}</td>
-                    <td className="py-2 text-right mono">
-                      {diff !== null
-                        ? <span className={diff >= 0 ? "text-orange-600" : "text-green-700"}>{diff >= 0 ? "+" : ""}{diff.toFixed(4)} ({pct!.toFixed(1)}%)</span>
-                        : "—"}
-                    </td>
-                    <td className="py-2 pl-4">
-                      {t.fecha === todayISO() ? <Badge className="bg-green-600">Vigente</Badge> : <Badge variant="outline">Histórica</Badge>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="max-h-[600px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground border-b sticky top-0 bg-background">
+                <tr>
+                  <th className="text-left py-2">Fecha</th>
+                  <th className="text-right py-2">Paralela</th>
+                  <th className="text-right py-2">BCV</th>
+                  <th className="text-right py-2">Diferencial</th>
+                  <th className="text-left py-2 pl-4">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasas?.map((t: any) => {
+                  const bcv = bcvByFecha.get(t.fecha);
+                  const diff = bcv ? Number(t.tasa) - bcv : null;
+                  const pct = bcv ? (diff! / bcv) * 100 : null;
+                  return (
+                    <tr key={t.id} className="border-b last:border-0">
+                      <td className="py-2 mono">{fmtDate(t.fecha)}</td>
+                      <td className="py-2 text-right mono">{Number(t.tasa).toFixed(4)}</td>
+                      <td className="py-2 text-right mono text-muted-foreground">{bcv ? bcv.toFixed(4) : "—"}</td>
+                      <td className="py-2 text-right mono">
+                        {diff !== null
+                          ? <span className={diff >= 0 ? "text-orange-600" : "text-green-700"}>{diff >= 0 ? "+" : ""}{diff.toFixed(4)} ({pct!.toFixed(1)}%)</span>
+                          : "—"}
+                      </td>
+                      <td className="py-2 pl-4">
+                        {t.fecha === todayISO() ? <Badge className="bg-green-600">Vigente</Badge> : <Badge variant="outline">Histórica</Badge>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>
