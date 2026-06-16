@@ -530,15 +530,20 @@ export type Database = {
           created_at: string
           created_by: string | null
           fecha: string
+          fecha_distribucion: string | null
           id: string
           monto_bs: number | null
+          monto_distribuido_usd: number | null
           monto_usd: number
           notas: string | null
+          notas_distribucion: string | null
           numero_factura: string | null
           numero_orden: string | null
           referencia: string | null
           tasa_paralela: number | null
+          transaccion_entrada_id: string | null
           transaccion_id: string | null
+          transaccion_salida_id: string | null
         }
         Insert: {
           centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
@@ -546,15 +551,20 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           fecha: string
+          fecha_distribucion?: string | null
           id?: string
           monto_bs?: number | null
+          monto_distribuido_usd?: number | null
           monto_usd: number
           notas?: string | null
+          notas_distribucion?: string | null
           numero_factura?: string | null
           numero_orden?: string | null
           referencia?: string | null
           tasa_paralela?: number | null
+          transaccion_entrada_id?: string | null
           transaccion_id?: string | null
+          transaccion_salida_id?: string | null
         }
         Update: {
           centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
@@ -562,17 +572,36 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           fecha?: string
+          fecha_distribucion?: string | null
           id?: string
           monto_bs?: number | null
+          monto_distribuido_usd?: number | null
           monto_usd?: number
           notas?: string | null
+          notas_distribucion?: string | null
           numero_factura?: string | null
           numero_orden?: string | null
           referencia?: string | null
           tasa_paralela?: number | null
+          transaccion_entrada_id?: string | null
           transaccion_id?: string | null
+          transaccion_salida_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "propinas_transaccion_entrada_id_fkey"
+            columns: ["transaccion_entrada_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "propinas_transaccion_entrada_id_fkey"
+            columns: ["transaccion_entrada_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "propinas_transaccion_id_fkey"
             columns: ["transaccion_id"]
@@ -583,6 +612,20 @@ export type Database = {
           {
             foreignKeyName: "propinas_transaccion_id_fkey"
             columns: ["transaccion_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "propinas_transaccion_salida_id_fkey"
+            columns: ["transaccion_salida_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "propinas_transaccion_salida_id_fkey"
+            columns: ["transaccion_salida_id"]
             isOneToOne: false
             referencedRelation: "v_off_balance_pendientes"
             referencedColumns: ["id"]
