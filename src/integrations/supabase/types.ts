@@ -1078,6 +1078,18 @@ export type Database = {
       }
     }
     Functions: {
+      aplicar_anticipo_a_factura: {
+        Args: {
+          anticipo_id: string
+          aplicar_usd: number
+          centro: Database["public"]["Enums"]["centro_costo"]
+          factura_fecha: string
+          factura_numero: string
+          factura_proveedor: string
+          grupo_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
