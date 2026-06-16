@@ -489,6 +489,27 @@ function VentasForm() {
       }
       if (propinaUsdN > 0) {
         const propinaBs = propinaUsdN * tasaConvN;
+        // 1) 13.1 entry transaction (propina recibida) — afecta FC, no G&P
+        const grupoPropina = crypto.randomUUID();
+        let entradaId: string | null = null;
+        const { data: txProp, error: eTxProp } = await supabase.from("transacciones").insert({
+          fecha, cuenta_codigo: "13.1", centro_costo: centro as any,
+          monto_bs: propinaBs, monto_base_bs: propinaBs, iva_bs: 0,
+          iva_aplica: false, tipo_iva: null,
+          tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
+          monto_usd: propinaUsdN,
+          metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
+          cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
+          numero_orden: numOrden || null,
+          notas: `Propina recibida — ${fecha} — ${centro}`,
+          modo: "on_balance" as any,
+          grupo_transaccion_id: grupoPropina,
+          created_by: user.id,
+        } as any).select().single();
+        if (eTxProp) toast.error("Venta OK, pero falló registrar entrada de propina (13.1): " + eTxProp.message);
+        else if (txProp) { entradaId = txProp.id; await logAudit("transacciones", "INSERT", txProp.id, null, txProp); }
+
+        // 2) Propina row linked to entry tx
         const { error: ePr } = await supabase.from("propinas").insert({
           transaccion_id: tx.id, fecha, centro_costo: centro as any,
           monto_usd: propinaUsdN, monto_bs: propinaBs,
@@ -496,6 +517,7 @@ function VentasForm() {
           concepto: "Propina venta manual",
           numero_orden: numOrden || null,
           notas: notas || null,
+          transaccion_entrada_id: entradaId,
           created_by: user.id,
         } as any);
         if (ePr) toast.error("Venta OK, pero falló registrar propina: " + ePr.message);
