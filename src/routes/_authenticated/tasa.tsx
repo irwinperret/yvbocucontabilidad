@@ -88,9 +88,10 @@ function TasaPage() {
         <CardHeader><CardTitle>Nueva tasa (manual)</CardTitle></CardHeader>
 
         <CardContent>
-          <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
-            <div><Label>Tasa (Bs por 1 USD)</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required /></div>
+            <div><Label>Tasa BCV (Bs/USD)</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required /></div>
+            <div><Label>Tasa paralela (Bs/USD)</Label><Input type="number" step="0.0001" value={tasaPar} onChange={(e) => setTasaPar(e.target.value)} placeholder="opcional" /></div>
             <Button type="submit" disabled={busy}>{busy ? "..." : "Registrar"}</Button>
           </form>
         </CardContent>
@@ -102,13 +103,19 @@ function TasaPage() {
           <div className="max-h-[600px] overflow-auto">
             <table className="w-full text-sm">
               <thead className="text-xs text-muted-foreground border-b sticky top-0 bg-background">
-                <tr><th className="text-left py-2">Fecha</th><th className="text-right py-2">Tasa</th><th className="text-left py-2 pl-4">Estado</th></tr>
+                <tr>
+                  <th className="text-left py-2">Fecha</th>
+                  <th className="text-right py-2">Tasa BCV</th>
+                  <th className="text-right py-2 pl-4">Tasa paralela</th>
+                  <th className="text-left py-2 pl-4">Estado</th>
+                </tr>
               </thead>
               <tbody>
                 {tasas?.map((t: any) => (
                   <tr key={t.id} className="border-b last:border-0">
                     <td className="py-2 mono">{fmtDate(t.fecha)}</td>
                     <td className="py-2 text-right mono">{Number(t.tasa).toFixed(4)}</td>
+                    <td className="py-2 pl-4 text-right mono">{t.tasa_paralela != null ? Number(t.tasa_paralela).toFixed(4) : <span className="text-muted-foreground">—</span>}</td>
                     <td className="py-2 pl-4">
                       {t.fecha === todayISO() ? <Badge className="bg-green-600">Vigente</Badge> : <Badge variant="outline">Histórica</Badge>}
                     </td>
