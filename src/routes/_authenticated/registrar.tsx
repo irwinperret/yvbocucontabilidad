@@ -2171,6 +2171,7 @@ function CierreForm() {
   const [compraVenc, setCompraVenc] = useState("");
   const [compraNotas, setCompraNotas] = useState("");
   const [compraBusy, setCompraBusy] = useState(false);
+  const [compraAplicaciones, setCompraAplicaciones] = useState<AplicacionSel[]>([]);
 
   const esCompraUSD = compraMoneda === "USD";
   const compraInput = Number(compraMonto) || 0;
