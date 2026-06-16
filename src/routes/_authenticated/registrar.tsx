@@ -1277,7 +1277,7 @@ function NominaRegularForm() {
           const titles: Record<NominaSeccion, string> = {
             "BYV": "BYV (centro YV)",
             "BOCU": "BOCU (centro Bocu)",
-            "BYV-BOCU": "BYV-BOCU (compartido 33/67)",
+            "BYV-BOCU": "BYV-BOCU (compartido 20/80)",
           };
           const tot = totalSecBs(sec);
           return (
