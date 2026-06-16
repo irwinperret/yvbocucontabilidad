@@ -1451,7 +1451,7 @@ function NominaChefForm() {
           <SelectContent>
             <SelectItem value="YV">YV</SelectItem>
             <SelectItem value="Bocu">Bocu</SelectItem>
-            <SelectItem value="COMPARTIDO">Compartido (33% YV / 67% Bocu)</SelectItem>
+            <SelectItem value="COMPARTIDO">Compartido (20% YV / 80% Bocu)</SelectItem>
           </SelectContent>
         </Select>
       </div>
