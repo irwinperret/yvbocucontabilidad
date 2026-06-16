@@ -84,7 +84,7 @@ function TransaccionesPage() {
       return await fetchAllRows<any>(async (from, to) => {
         let q = supabase
           .from("transacciones")
-          .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id")
+          .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id,grupo_transaccion_id")
           .gte("fecha", desde)
           .lte("fecha", hasta)
           .order("fecha", { ascending: false })
