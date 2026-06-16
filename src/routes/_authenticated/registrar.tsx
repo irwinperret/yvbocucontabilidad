@@ -1196,11 +1196,12 @@ function NominaRegularForm() {
       const c = secciones["BYV-BOCU"];
       const split = (bs: number, cuentaYV: string, cuentaBocu: string, concepto: string) => {
         if (bs <= 0) return;
-        const yv = bs * 0.3333;
+        const yv = bs * 0.20;
         const bocu = bs - yv;
-        pushIf(cuentaYV, "YV", yv, `${concepto} (compartido 33%)`);
-        pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 67%)`);
+        pushIf(cuentaYV, "YV", yv, `${concepto} (compartido 20%)`);
+        pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 80%)`);
       };
+
       split(Number(c.salario || 0), "3.9", "3.4", "Salario base");
       split(Number(c.alimentacion || 0), "3.20", "3.20", "Bono alimentación");
       split(Number(c.compensatorio || 0), "3.14", "3.14", "Bono compensatorio");
@@ -1276,7 +1277,7 @@ function NominaRegularForm() {
           const titles: Record<NominaSeccion, string> = {
             "BYV": "BYV (centro YV)",
             "BOCU": "BOCU (centro Bocu)",
-            "BYV-BOCU": "BYV-BOCU (compartido 33/67)",
+            "BYV-BOCU": "BYV-BOCU (compartido 20/80)",
           };
           const tot = totalSecBs(sec);
           return (
@@ -1372,9 +1373,9 @@ function NominaChefForm() {
       if (centro === "YV") pushIf(f.cuentaYV, "YV", usd, f.concepto);
       else if (centro === "Bocu") pushIf(f.cuentaBocu, "Bocu", usd, f.concepto);
       else {
-        const yv = usd * 0.3333;
-        pushIf(f.cuentaYV, "YV", yv, `${f.concepto} (compartido 33%)`);
-        pushIf(f.cuentaBocu, "Bocu", usd - yv, `${f.concepto} (compartido 67%)`);
+        const yv = usd * 0.20;
+        pushIf(f.cuentaYV, "YV", yv, `${f.concepto} (compartido 20%)`);
+        pushIf(f.cuentaBocu, "Bocu", usd - yv, `${f.concepto} (compartido 80%)`);
       }
     }
     return out;
@@ -1450,7 +1451,7 @@ function NominaChefForm() {
           <SelectContent>
             <SelectItem value="YV">YV</SelectItem>
             <SelectItem value="Bocu">Bocu</SelectItem>
-            <SelectItem value="COMPARTIDO">Compartido (33% YV / 67% Bocu)</SelectItem>
+            <SelectItem value="COMPARTIDO">Compartido (20% YV / 80% Bocu)</SelectItem>
           </SelectContent>
         </Select>
       </div>
