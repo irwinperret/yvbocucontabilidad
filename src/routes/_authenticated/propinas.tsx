@@ -11,7 +11,7 @@ import { Info, ArrowUpDown } from "lucide-react";
 import { fmtUsd, fmtDate } from "@/lib/format";
 import { MESES } from "@/lib/account-helpers";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
+  Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
 } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/propinas")({ component: PropinasPage });
