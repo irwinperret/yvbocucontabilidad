@@ -2502,8 +2502,7 @@ function CierreForm() {
           </div>
           {modoCompra === "anticipo" ? (
             <AnticipoProveedorRegisterForm onDone={() => setModoCompra("factura")} />
-          ) : (<></>)}
-          {modoCompra === "factura" && (<></>)}
+          ) : (
           <form onSubmit={addCompra} className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Fecha</Label>
