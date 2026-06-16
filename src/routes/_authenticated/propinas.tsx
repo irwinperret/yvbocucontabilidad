@@ -1,15 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info, ArrowUpDown } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Info, ArrowUpDown, Plus, Send } from "lucide-react";
 import { fmtUsd, fmtDate } from "@/lib/format";
 import { MESES } from "@/lib/account-helpers";
+import { toast } from "sonner";
+import { useAuth } from "@/lib/auth-context";
+import { logAudit } from "@/lib/audit";
+import { useCuentasBancarias } from "@/components/bank-account-select";
 import {
   Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
 } from "recharts";
@@ -20,12 +28,19 @@ type Propina = {
   id: string;
   fecha: string;
   monto_usd: number;
+  monto_bs: number | null;
+  tasa_paralela: number | null;
   centro_costo: string | null;
   concepto: string | null;
   notas: string | null;
+  transaccion_entrada_id: string | null;
+  transaccion_salida_id: string | null;
+  fecha_distribucion: string | null;
+  monto_distribuido_usd: number | null;
+  notas_distribucion: string | null;
 };
 
-type SortKey = "fecha" | "centro_costo" | "monto_usd" | "concepto" | "notas";
+type SortKey = "fecha" | "centro_costo" | "monto_usd" | "concepto" | "estado";
 
 function PropinasPage() {
   const now = new Date();
@@ -34,6 +49,8 @@ function PropinasPage() {
   const [centroFiltro, setCentroFiltro] = useState<string>("Consolidado");
   const [sortKey, setSortKey] = useState<SortKey>("fecha");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [registrando, setRegistrando] = useState(false);
+  const [distribuyendo, setDistribuyendo] = useState<Propina | null>(null);
 
   const { data: propinas } = useQuery({
     queryKey: ["propinas", anio],
@@ -42,7 +59,7 @@ function PropinasPage() {
       const fin = `${anio}-12-31`;
       const { data } = await supabase
         .from("propinas")
-        .select("id,fecha,monto_usd,centro_costo,concepto,notas")
+        .select("id,fecha,monto_usd,monto_bs,tasa_paralela,centro_costo,concepto,notas,transaccion_entrada_id,transaccion_salida_id,fecha_distribucion,monto_distribuido_usd,notas_distribucion")
         .gte("fecha", ini)
         .lte("fecha", fin)
         .order("fecha", { ascending: false });
@@ -63,7 +80,6 @@ function PropinasPage() {
     },
   });
 
-  // Filter by month + centro for KPIs / table
   const filtered = useMemo(() => {
     return (propinas ?? []).filter((p) => {
       const m = Number(p.fecha.slice(5, 7));
@@ -76,10 +92,16 @@ function PropinasPage() {
   const sorted = useMemo(() => {
     const arr = [...filtered];
     arr.sort((a, b) => {
-      const av = (a as any)[sortKey] ?? "";
-      const bv = (b as any)[sortKey] ?? "";
+      let av: any; let bv: any;
+      if (sortKey === "estado") {
+        av = a.transaccion_salida_id ? 1 : 0;
+        bv = b.transaccion_salida_id ? 1 : 0;
+      } else {
+        av = (a as any)[sortKey] ?? "";
+        bv = (b as any)[sortKey] ?? "";
+      }
       let cmp = 0;
-      if (sortKey === "monto_usd") cmp = Number(av) - Number(bv);
+      if (sortKey === "monto_usd" || sortKey === "estado") cmp = Number(av) - Number(bv);
       else cmp = String(av).localeCompare(String(bv));
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -92,7 +114,12 @@ function PropinasPage() {
   const dias = new Set(filtered.map((p) => p.fecha)).size;
   const promedio = dias > 0 ? total / dias : 0;
 
-  // Monthly aggregation (full year, no centro filter for charts so comparison works)
+  // Pendientes de distribuir = todas las del año (no del filtro) sin transacción de salida
+  const pendientesUsd = (propinas ?? [])
+    .filter((p) => !p.transaccion_salida_id)
+    .reduce((s, p) => s + Number(p.monto_usd ?? 0), 0);
+  const pendientesCount = (propinas ?? []).filter((p) => !p.transaccion_salida_id).length;
+
   const chartData = useMemo(() => {
     const out: Record<number, { mes: number; mesLabel: string; YV: number; Bocu: number; Otros: number; total: number }> = {};
     for (let m = 1; m <= 12; m++) {
@@ -105,14 +132,11 @@ function PropinasPage() {
       out[m][c] += amt;
       out[m].total += amt;
     });
-
-    // ventas netas por mes
     const ventasPorMes: Record<number, number> = {};
     (ventasMensual ?? []).forEach((v) => {
       const signo = v.cuenta_codigo === "1.6" || v.cuenta_codigo === "1.7" ? -1 : 1;
       ventasPorMes[v.mes] = (ventasPorMes[v.mes] ?? 0) + signo * Number(v.base_usd ?? 0);
     });
-
     return Object.values(out).map((r) => {
       const ventas = ventasPorMes[r.mes] ?? 0;
       const pct = ventas > 0 ? (r.total / ventas) * 100 : 0;
@@ -127,16 +151,22 @@ function PropinasPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Propinas</h1>
-        <p className="text-sm text-muted-foreground">Control interno de propinas · separado del G&P y Flujo de Caja</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Propinas</h1>
+          <p className="text-sm text-muted-foreground">Control de propinas adicionales · entrada y distribución al personal</p>
+        </div>
+        <Button onClick={() => setRegistrando(true)}>
+          <Plus className="h-4 w-4 mr-2" /> Registrar propina
+        </Button>
       </div>
 
       <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
         <Info className="h-4 w-4" />
-        <AlertDescription className="font-bold text-sm">
-          Estas propinas son ADICIONALES al 10% cobrado por el servicio y NO se reflejan ni en Flujo de Caja ni en G&P.
-          Se registran por separado para control interno y distribución al personal.
+        <AlertDescription className="font-bold text-sm leading-relaxed">
+          Las propinas adicionales al 10% de servicio no forman parte de los ingresos del restaurante ni afectan el G&P.
+          Sin embargo, como el dinero entra y sale de la cuenta bancaria, sí se registran en el Flujo de Caja como movimiento
+          transitorio: una entrada cuando se recibe y una salida cuando se distribuye al personal. El efecto neto en caja es cero.
         </AlertDescription>
       </Alert>
 
@@ -174,9 +204,9 @@ function PropinasPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total propinas del período</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total del período</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold">{fmtUsd(total)}</div></CardContent>
         </Card>
         <Card>
@@ -191,6 +221,17 @@ function PropinasPage() {
           <CardContent>
             <div className="text-2xl font-bold">{fmtUsd(promedio)}</div>
             <div className="text-xs text-muted-foreground mt-1">{dias} día{dias === 1 ? "" : "s"} con propinas</div>
+          </CardContent>
+        </Card>
+        <Card className={pendientesUsd > 0.01 ? "border-orange-400 bg-orange-50/60 dark:bg-orange-950/20" : ""}>
+          <CardHeader className="pb-2">
+            <CardTitle className={`text-xs uppercase ${pendientesUsd > 0.01 ? "text-orange-700 dark:text-orange-300" : "text-muted-foreground"}`}>
+              Pendientes de distribuir
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${pendientesUsd > 0.01 ? "text-orange-700 dark:text-orange-300" : ""}`}>{fmtUsd(pendientesUsd)}</div>
+            <div className="text-xs text-muted-foreground mt-1">{pendientesCount} registro{pendientesCount === 1 ? "" : "s"} sin distribuir (todo el año)</div>
           </CardContent>
         </Card>
       </div>
@@ -227,32 +268,320 @@ function PropinasPage() {
                     ["centro_costo", "Centro"],
                     ["monto_usd", "Monto USD"],
                     ["concepto", "Método/Concepto"],
-                    ["notas", "Notas"],
+                    ["estado", "Estado"],
                   ] as [SortKey, string][]).map(([k, lbl]) => (
                     <th key={k} className="text-left py-2 px-2 cursor-pointer select-none" onClick={() => toggleSort(k)}>
                       <span className="inline-flex items-center gap-1">{lbl} <ArrowUpDown className="h-3 w-3 opacity-50" />{sortKey === k && <span className="text-[10px]">{sortDir}</span>}</span>
                     </th>
                   ))}
+                  <th className="text-left py-2 px-2">Notas</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((p) => (
-                  <tr key={p.id} className="border-b last:border-0">
-                    <td className="py-1.5 px-2 mono">{fmtDate(p.fecha)}</td>
-                    <td className="py-1.5 px-2">{p.centro_costo ?? "—"}</td>
-                    <td className="py-1.5 px-2 mono">{fmtUsd(p.monto_usd)}</td>
-                    <td className="py-1.5 px-2">{p.concepto ?? "—"}</td>
-                    <td className="py-1.5 px-2 text-muted-foreground">{p.notas ?? "—"}</td>
-                  </tr>
-                ))}
+                {sorted.map((p) => {
+                  const distribuida = !!p.transaccion_salida_id;
+                  return (
+                    <tr key={p.id} className="border-b last:border-0">
+                      <td className="py-1.5 px-2 mono">{fmtDate(p.fecha)}</td>
+                      <td className="py-1.5 px-2">{p.centro_costo ?? "—"}</td>
+                      <td className="py-1.5 px-2 mono">{fmtUsd(p.monto_usd)}</td>
+                      <td className="py-1.5 px-2">{p.concepto ?? "—"}</td>
+                      <td className="py-1.5 px-2">
+                        {distribuida ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-300">
+                            Distribuida {p.fecha_distribucion ? `· ${fmtDate(p.fecha_distribucion)}` : ""}
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 border-orange-300">
+                            Pendiente de distribuir
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-2 text-muted-foreground text-xs">{p.notas ?? "—"}</td>
+                      <td className="py-1.5 px-2 text-right">
+                        {!distribuida && (
+                          <Button size="sm" variant="outline" onClick={() => setDistribuyendo(p)}>
+                            <Send className="h-3 w-3 mr-1" /> Marcar distribuida
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {sorted.length === 0 && (
-                  <tr><td colSpan={5} className="py-6 text-center text-muted-foreground">Sin propinas registradas en este período</td></tr>
+                  <tr><td colSpan={7} className="py-6 text-center text-muted-foreground">Sin propinas registradas en este período</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
+
+      {registrando && <RegistrarPropinaDialog onClose={() => setRegistrando(false)} />}
+      {distribuyendo && <DistribuirPropinaDialog propina={distribuyendo} onClose={() => setDistribuyendo(null)} />}
     </div>
+  );
+}
+
+// ──────────────────────────── Registrar propina (Step 1: recibida) ────────────────────────────
+function RegistrarPropinaDialog({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const { data: bancos } = useCuentasBancarias();
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [centro, setCentro] = useState<"YV" | "Bocu">("YV");
+  const [montoUsd, setMontoUsd] = useState("");
+  const [metodo, setMetodo] = useState<string>("transferencia");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("");
+  const [notas, setNotas] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = Number(montoUsd);
+    if (!n || n <= 0) return toast.error("Monto inválido");
+    if (!user) return toast.error("Sin sesión");
+    if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria donde se recibió la propina");
+    setBusy(true);
+
+    // tasas del día
+    const [{ data: rateBcv }, { data: rateP }] = await Promise.all([
+      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const tBcv = Number((rateBcv as any)?.tasa) || 0;
+    const tPar = Number((rateP as any)?.tasa) || tBcv;
+    const montoBs = n * (tPar || tBcv || 0);
+
+    const grupoPropina = crypto.randomUUID();
+
+    // 1) Transacción 13.1 entrada
+    const { data: txEntrada, error: e1 } = await supabase.from("transacciones").insert({
+      fecha, cuenta_codigo: "13.1", centro_costo: centro as any,
+      monto_bs: montoBs, monto_base_bs: montoBs, iva_bs: 0,
+      iva_aplica: false, tipo_iva: null,
+      tasa_bcv: tBcv || tPar, tasa_paralela: tPar,
+      monto_usd: n,
+      metodo_pago: metodo as any,
+      cuenta_bancaria_id: cuentaBancariaId,
+      notas: `Propina recibida — ${fecha} — ${centro}`,
+      modo: "on_balance" as any,
+      grupo_transaccion_id: grupoPropina,
+      created_by: user.id,
+    } as any).select().single();
+
+    if (e1 || !txEntrada) { setBusy(false); return toast.error(e1?.message ?? "Falló crear transacción de entrada"); }
+    await logAudit("transacciones", "INSERT", txEntrada.id, null, txEntrada);
+
+    // 2) Registro propinas
+    const { error: e2 } = await supabase.from("propinas").insert({
+      fecha, centro_costo: centro as any,
+      monto_usd: n, monto_bs: montoBs,
+      tasa_paralela: tPar,
+      concepto: `Propina ${metodo}`,
+      notas: notas || null,
+      transaccion_entrada_id: txEntrada.id,
+      created_by: user.id,
+    } as any);
+
+    setBusy(false);
+    if (e2) return toast.error("Transacción creada pero falló registrar propina: " + e2.message);
+    toast.success("Propina registrada · pendiente de distribuir");
+    qc.invalidateQueries();
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Registrar propina recibida</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Paso 1 · Crea una transacción de entrada en la cuenta <b>13.1 Propinas por pagar al personal</b>.
+            Luego, en el detalle, puedes marcarla como distribuida.
+          </p>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+            <div>
+              <Label>Centro de costo</Label>
+              <Select value={centro} onValueChange={(v) => setCentro(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="YV">YV</SelectItem>
+                  <SelectItem value="Bocu">Bocú</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>Monto USD</Label>
+              <Input type="number" step="0.01" min="0" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} required className="mono" />
+            </div>
+            <div>
+              <Label>Método de pago</Label>
+              <Select value={metodo} onValueChange={setMetodo}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="transferencia">Transferencia</SelectItem>
+                  <SelectItem value="pago_movil">Pago móvil</SelectItem>
+                  <SelectItem value="zelle">Zelle</SelectItem>
+                  <SelectItem value="efectivo_usd">Efectivo USD</SelectItem>
+                  <SelectItem value="efectivo_bs">Efectivo Bs</SelectItem>
+                  <SelectItem value="tarjeta">Tarjeta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Cuenta bancaria de destino</Label>
+            <Select value={cuentaBancariaId} onValueChange={setCuentaBancariaId}>
+              <SelectTrigger><SelectValue placeholder="Selecciona…" /></SelectTrigger>
+              <SelectContent>
+                {(bancos ?? []).map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.nombre} — {b.banco} ({b.moneda})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Notas</Label>
+            <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional…" />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar entrada"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ──────────────────────────── Distribuir propina (Step 2: salida) ────────────────────────────
+function DistribuirPropinaDialog({ propina, onClose }: { propina: Propina; onClose: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const { data: bancos } = useCuentasBancarias();
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [montoUsd, setMontoUsd] = useState(String(propina.monto_usd ?? ""));
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("");
+  const [notas, setNotas] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Recuperar cuenta_bancaria_id y grupo de la entrada para reusarlos
+  const { data: entrada } = useQuery({
+    queryKey: ["propina-entrada", propina.transaccion_entrada_id],
+    enabled: !!propina.transaccion_entrada_id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("id, cuenta_bancaria_id, grupo_transaccion_id, tasa_bcv, tasa_paralela")
+        .eq("id", propina.transaccion_entrada_id!)
+        .maybeSingle();
+      return data as any;
+    },
+  });
+
+  // Default bancaria al de la entrada cuando llegue
+  useMemo(() => {
+    if (entrada?.cuenta_bancaria_id && !cuentaBancariaId) setCuentaBancariaId(entrada.cuenta_bancaria_id);
+  }, [entrada]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = Number(montoUsd);
+    if (!n || n <= 0) return toast.error("Monto inválido");
+    if (!user) return toast.error("Sin sesión");
+    if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria desde la que se paga");
+    setBusy(true);
+
+    const [{ data: rateBcv }, { data: rateP }] = await Promise.all([
+      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const tBcv = Number((rateBcv as any)?.tasa) || Number(entrada?.tasa_bcv) || 0;
+    const tPar = Number((rateP as any)?.tasa) || Number(entrada?.tasa_paralela) || tBcv;
+    const montoBs = n * (tPar || tBcv || 0);
+    const grupo = entrada?.grupo_transaccion_id ?? crypto.randomUUID();
+
+    // Salida 13.1 con monto NEGATIVO (resta en FC / saldos bancarios)
+    const { data: txSalida, error: e1 } = await supabase.from("transacciones").insert({
+      fecha, cuenta_codigo: "13.1", centro_costo: (propina.centro_costo ?? "YV") as any,
+      monto_bs: -montoBs, monto_base_bs: -montoBs, iva_bs: 0,
+      iva_aplica: false, tipo_iva: null,
+      tasa_bcv: tBcv || tPar, tasa_paralela: tPar,
+      monto_usd: -n,
+      metodo_pago: "transferencia" as any,
+      cuenta_bancaria_id: cuentaBancariaId,
+      notas: `Propina distribuida al personal — ${fecha} — ${propina.centro_costo ?? ""}`,
+      modo: "on_balance" as any,
+      grupo_transaccion_id: grupo,
+      created_by: user.id,
+    } as any).select().single();
+
+    if (e1 || !txSalida) { setBusy(false); return toast.error(e1?.message ?? "Falló crear transacción de salida"); }
+    await logAudit("transacciones", "INSERT", txSalida.id, null, txSalida);
+
+    const { error: e2 } = await supabase.from("propinas").update({
+      transaccion_salida_id: txSalida.id,
+      fecha_distribucion: fecha,
+      monto_distribuido_usd: n,
+      notas_distribucion: notas || null,
+    } as any).eq("id", propina.id);
+
+    setBusy(false);
+    if (e2) return toast.error("Transacción creada pero falló actualizar propina: " + e2.message);
+    toast.success("Propina marcada como distribuida");
+    qc.invalidateQueries();
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Marcar propina como distribuida</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Paso 2 · Crea la transacción de salida en <b>13.1 Propinas por pagar al personal</b>.
+            La salida se almacena con monto negativo para que el FC neto sea cero.
+          </p>
+        </DialogHeader>
+        <div className="text-sm bg-muted/40 p-2 rounded">
+          <div><span className="text-muted-foreground">Recibida:</span> {fmtDate(propina.fecha)} · {propina.centro_costo} · <b>{fmtUsd(propina.monto_usd)}</b></div>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label>Fecha de distribución</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+            <div>
+              <Label>Monto USD distribuido</Label>
+              <Input type="number" step="0.01" min="0" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} required className="mono" />
+            </div>
+          </div>
+          <div>
+            <Label>Cuenta bancaria de salida</Label>
+            <Select value={cuentaBancariaId} onValueChange={setCuentaBancariaId}>
+              <SelectTrigger><SelectValue placeholder="Selecciona…" /></SelectTrigger>
+              <SelectContent>
+                {(bancos ?? []).map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.nombre} — {b.banco} ({b.moneda})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Notas de distribución</Label>
+            <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional…" />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Registrar distribución"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

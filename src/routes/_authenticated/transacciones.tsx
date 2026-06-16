@@ -84,7 +84,7 @@ function TransaccionesPage() {
       return await fetchAllRows<any>(async (from, to) => {
         let q = supabase
           .from("transacciones")
-          .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id")
+          .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id,grupo_transaccion_id")
           .gte("fecha", desde)
           .lte("fecha", hasta)
           .order("fecha", { ascending: false })
@@ -239,10 +239,37 @@ function TransaccionesPage() {
         await supabase.from("transacciones").update({ pareja_off_balance_id: null } as any).in("id", ids);
       }
     }
+    // Si es transacción de propina (13.1) con grupo, eliminar también su pareja y la propina vinculada
+    let propinasEliminadas = 0;
+    if (t.cuenta_codigo === "13.1" && t.grupo_transaccion_id) {
+      const { data: hermanos } = await supabase
+        .from("transacciones")
+        .select("id, fecha")
+        .eq("grupo_transaccion_id", t.grupo_transaccion_id)
+        .eq("cuenta_codigo", "13.1");
+      for (const h of (hermanos ?? [])) {
+        if (h.id === t.id) continue;
+        if (await isPeriodClosed((h as any).fecha)) {
+          toast.error("La transacción de propina enlazada está en un mes cerrado — no se puede eliminar el par.");
+          throw new Error("blocked");
+        }
+        ids.push(h.id);
+      }
+      // Borrar también el registro en la tabla propinas
+      const { count } = await supabase
+        .from("propinas")
+        .delete({ count: "exact" })
+        .or(`transaccion_entrada_id.in.(${ids.join(",")}),transaccion_salida_id.in.(${ids.join(",")})`);
+      propinasEliminadas = count ?? 0;
+    }
     const { error } = await supabase.from("transacciones").delete().in("id", ids);
     if (error) { toast.error(error.message); throw error; }
     for (const id of ids) await logAudit("transacciones", "DELETE", id, id === t.id ? t : null, null);
-    toast.success(ids.length > 1 ? "Par off-balance eliminado (2 movimientos)" : "Movimiento eliminado");
+    toast.success(
+      t.cuenta_codigo === "13.1"
+        ? `Propina eliminada (${ids.length} mov. en 13.1${propinasEliminadas ? ` + ${propinasEliminadas} registro propinas` : ""})`
+        : ids.length > 1 ? "Par off-balance eliminado (2 movimientos)" : "Movimiento eliminado"
+    );
     qc.invalidateQueries();
   };
 
@@ -477,7 +504,12 @@ function TransaccionesPage() {
                       <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(t.fecha)}</td>
                       <td className="py-2 px-2">{t.centro_costo}</td>
                       <td className="py-2 px-2">
-                        <div className="mono text-xs">{t.cuenta_codigo}</div>
+                        <div className="mono text-xs flex items-center gap-1.5">
+                          {t.cuenta_codigo}
+                          {t.cuenta_codigo === "13.1" && (
+                            <Badge className="text-[9px] bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-300">Propina</Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
                       </td>
                       <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
@@ -516,7 +548,10 @@ function TransaccionesPage() {
                           <DeleteButton
                             fecha={t.fecha}
                             detail={`${fmtDate(t.fecha)} · ${t.cuenta_codigo} · ${fmtBs(t.monto_bs)}`}
-                            warnings={t.pareja_off_balance_id ? ["Esta transacción está enlazada a otro movimiento off-balance (venta ↔ bono). Si confirmas, se eliminarán las DOS transacciones."] : []}
+                            warnings={[
+                              ...(t.pareja_off_balance_id ? ["Esta transacción está enlazada a otro movimiento off-balance (venta ↔ bono). Si confirmas, se eliminarán las DOS transacciones."] : []),
+                              ...(t.cuenta_codigo === "13.1" && t.grupo_transaccion_id ? ["Esta es una transacción de propina. Si confirmas, se eliminarán también la transacción pareja (entrada/salida) y el registro vinculado en la tabla de propinas."] : []),
+                            ]}
                             onConfirm={() => eliminar(t)}
                           />
                         </div>

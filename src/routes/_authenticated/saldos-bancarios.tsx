@@ -47,8 +47,10 @@ const TIPO_LABEL: Record<Ajuste["tipo"], string> = {
 };
 
 // Cuentas de ingreso a banco (Ingresos del plan + préstamo recibido + aumento de capital).
+// Para 13.1 (propinas en tránsito): el signo del monto define si es entrada o salida.
 // Todo lo demás con afecta_fc=true es salida.
-function esIngreso(grupo: string, codigo: string): boolean {
+function esIngreso(grupo: string, codigo: string, monto: number): boolean {
+  if (codigo === "13.1") return monto >= 0;
   if (grupo === "Ingresos") return true;
   if (codigo === "10.1" || codigo === "10.5") return true;
   return false;
@@ -127,10 +129,11 @@ function SaldosBancariosPage() {
         if (c.saldo_inicial_fecha && (t as any).fecha < c.saldo_inicial_fecha) continue;
         const info = planMap[(t as any).cuenta_codigo];
         if (!info || !info.afecta_fc) continue;
-        const monto = c.moneda === "USD" ? Number((t as any).monto_usd) : Number((t as any).monto_bs);
-        if (!monto) continue;
-        if (esIngreso(info.grupo, (t as any).cuenta_codigo)) ingresos += monto;
-        else egresos += monto;
+        const montoRaw = c.moneda === "USD" ? Number((t as any).monto_usd) : Number((t as any).monto_bs);
+        if (!montoRaw) continue;
+        const absM = Math.abs(montoRaw);
+        if (esIngreso(info.grupo, (t as any).cuenta_codigo, montoRaw)) ingresos += absM;
+        else egresos += absM;
       }
       let ajusteTotal = 0;
       for (const a of ajustes ?? []) {
