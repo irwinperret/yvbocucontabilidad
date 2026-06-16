@@ -338,6 +338,7 @@ export type Database = {
           cxp_id: string | null
           fecha: string | null
           fecha_vencimiento: string | null
+          grupo_transaccion_id: string | null
           id: string
           iva_aplica: boolean
           iva_bs: number
@@ -363,6 +364,7 @@ export type Database = {
           cxp_id?: string | null
           fecha?: string | null
           fecha_vencimiento?: string | null
+          grupo_transaccion_id?: string | null
           id?: string
           iva_aplica?: boolean
           iva_bs?: number
@@ -388,6 +390,7 @@ export type Database = {
           cxp_id?: string | null
           fecha?: string | null
           fecha_vencimiento?: string | null
+          grupo_transaccion_id?: string | null
           id?: string
           iva_aplica?: boolean
           iva_bs?: number
@@ -728,6 +731,8 @@ export type Database = {
       transacciones: {
         Row: {
           adjunto_url: string | null
+          anticipo_aplicado_usd: number
+          anticipo_estado: string | null
           capex_categoria: string | null
           centro_costo: Database["public"]["Enums"]["centro_costo"]
           created_at: string
@@ -758,6 +763,8 @@ export type Database = {
         }
         Insert: {
           adjunto_url?: string | null
+          anticipo_aplicado_usd?: number
+          anticipo_estado?: string | null
           capex_categoria?: string | null
           centro_costo: Database["public"]["Enums"]["centro_costo"]
           created_at?: string
@@ -788,6 +795,8 @@ export type Database = {
         }
         Update: {
           adjunto_url?: string | null
+          anticipo_aplicado_usd?: number
+          anticipo_estado?: string | null
           capex_categoria?: string | null
           centro_costo?: Database["public"]["Enums"]["centro_costo"]
           created_at?: string
