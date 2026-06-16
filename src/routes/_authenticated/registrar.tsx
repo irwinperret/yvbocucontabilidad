@@ -997,6 +997,7 @@ function GastosFacturaForm() {
     setBusy(true);
     const grupoIdGasto = crypto.randomUUID();
     const ivaUsdGasto = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
+    const grupoTransaccionGasto = aplicaciones.length > 0 || ivaAplica ? grupoIdGasto : null;
     const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
     const aplicadoBsFactura = +(aplicadoUsdFactura * tasaConvN).toFixed(2);
     const cxpSaldoBs = Math.max(0, +(total - aplicadoBsFactura).toFixed(2));
@@ -1011,7 +1012,7 @@ function GastosFacturaForm() {
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: !pendiente && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
-      grupo_transaccion_id: ivaAplica ? grupoIdGasto : null,
+      grupo_transaccion_id: grupoTransaccionGasto,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
@@ -1035,7 +1036,7 @@ function GastosFacturaForm() {
       const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
       const res = await aplicarAnticiposContraFactura({
         aplicaciones,
-        grupoId: tx.grupo_transaccion_id ?? grupoIdGasto,
+        grupoId: grupoIdGasto,
         facturaFecha: fecha,
         facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
         facturaNumero: numFactura,
@@ -1043,10 +1044,6 @@ function GastosFacturaForm() {
         centro,
       });
       if (!res.ok) { setBusy(false); return toast.error(`Anticipo: ${res.error}`); }
-      // Asegurar que la factura quede vinculada al grupo
-      if (!tx.grupo_transaccion_id) {
-        await supabase.from("transacciones").update({ grupo_transaccion_id: grupoIdGasto } as any).eq("id", tx.id);
-      }
     }
     if (pendiente && tx && cxpSaldoBs > 0.01) {
       const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
