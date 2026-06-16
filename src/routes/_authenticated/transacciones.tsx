@@ -477,7 +477,12 @@ function TransaccionesPage() {
                       <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(t.fecha)}</td>
                       <td className="py-2 px-2">{t.centro_costo}</td>
                       <td className="py-2 px-2">
-                        <div className="mono text-xs">{t.cuenta_codigo}</div>
+                        <div className="mono text-xs flex items-center gap-1.5">
+                          {t.cuenta_codigo}
+                          {t.cuenta_codigo === "13.1" && (
+                            <Badge className="text-[9px] bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-300">Propina</Badge>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
                       </td>
                       <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
