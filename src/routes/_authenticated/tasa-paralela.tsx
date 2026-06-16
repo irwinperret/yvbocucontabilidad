@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { syncTasaParalela } from "@/lib/paralela-sync.functions";
 import { backfillTasaParalela } from "@/lib/paralela-backfill.functions";
+import { recalcParalelaPorFecha } from "@/lib/recalc-paralela.functions";
 import { RefreshCw, History } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tasa-paralela")({ component: TasaParalelaPage });
@@ -27,6 +28,7 @@ function TasaParalelaPage() {
   const [backfilling, setBackfilling] = useState(false);
   const sync = useServerFn(syncTasaParalela);
   const backfill = useServerFn(backfillTasaParalela);
+  const recalc = useServerFn(recalcParalelaPorFecha);
 
   const { data: tasas } = useQuery({
     queryKey: ["tasas-paralela-list"],
@@ -34,8 +36,7 @@ function TasaParalelaPage() {
       const { data } = await supabase
         .from("tasas_paralela")
         .select("*")
-        .order("fecha", { ascending: false })
-        .limit(30);
+        .order("fecha", { ascending: false });
       return data ?? [];
     },
   });
@@ -45,7 +46,7 @@ function TasaParalelaPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("tasas_bcv").select("*")
-        .order("fecha", { ascending: false }).limit(30);
+        .order("fecha", { ascending: false });
       return data ?? [];
     },
   });
@@ -54,17 +55,21 @@ function TasaParalelaPage() {
     e.preventDefault();
     if (!user) return;
     setBusy(true);
-    const { error } = await supabase.from("tasas_paralela").insert({
+    const { error } = await supabase.from("tasas_paralela").upsert({
       fecha, tasa: Number(tasa), registrado_por: user.id,
-    });
-    setBusy(false);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Tasa paralela registrada");
-      setTasa("");
-      qc.invalidateQueries({ queryKey: ["tasas-paralela-list"] });
-      qc.invalidateQueries({ queryKey: ["paralela-for"] });
+    }, { onConflict: "fecha" });
+    if (error) { setBusy(false); return toast.error(error.message); }
+    try {
+      const r = await recalc({ data: { fecha } });
+      toast.success(`Tasa registrada · ${r.actualizadas} transacciones recalculadas`);
+    } catch (e: any) {
+      toast.warning(`Tasa registrada, pero recálculo falló: ${e?.message ?? "error"}`);
     }
+    setTasa("");
+    setBusy(false);
+    qc.invalidateQueries({ queryKey: ["tasas-paralela-list"] });
+    qc.invalidateQueries({ queryKey: ["paralela-for"] });
+    qc.invalidateQueries();
   };
 
   const handleSync = async () => {
