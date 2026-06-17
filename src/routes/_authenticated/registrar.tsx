@@ -2508,13 +2508,17 @@ function CierreForm() {
             <h3 className="font-semibold text-sm">Compras de inventario / insumos del período</h3>
             <p className="text-xs text-muted-foreground">Cada compra forma parte del COGS y NO debe registrarse también en Gastos/Facturas.</p>
           </div>
-          <div className="flex items-center justify-between rounded border p-2 text-xs bg-muted/30">
-            <span className="font-medium">¿Es un anticipo a proveedor de inventario (sin factura aún)?</span>
-            <Switch checked={modoCompra === "anticipo"} onCheckedChange={(v) => setModoCompra(v ? "anticipo" : "factura")} />
+          <div className="flex flex-wrap gap-1 rounded border p-1 bg-muted/30 text-xs">
+            <button type="button" onClick={() => setModoCompra("factura")} className={`px-3 py-1.5 rounded flex-1 ${modoCompra === "factura" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>Nueva compra</button>
+            <button type="button" onClick={() => setModoCompra("anticipo")} className={`px-3 py-1.5 rounded flex-1 ${modoCompra === "anticipo" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>Anticipo a proveedor</button>
+            <button type="button" onClick={() => setModoCompra("pagar")} className={`px-3 py-1.5 rounded flex-1 ${modoCompra === "pagar" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>Pagar factura pendiente (CxP)</button>
           </div>
           {modoCompra === "anticipo" ? (
             <AnticipoProveedorRegisterForm onDone={() => setModoCompra("factura")} />
+          ) : modoCompra === "pagar" ? (
+            <PagarCxPInline grupo="cogs" terceros={(terceros ?? []) as any} />
           ) : (<>
+
           <form onSubmit={addCompra} className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Fecha</Label>
