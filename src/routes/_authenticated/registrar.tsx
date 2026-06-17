@@ -2163,7 +2163,7 @@ function CierreForm() {
   const [invFinUsd, setInvFinUsd] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
-  const [modoCompra, setModoCompra] = useState<"factura" | "anticipo">("factura");
+  const [modoCompra, setModoCompra] = useState<"factura" | "anticipo" | "pagar">("factura");
 
   // Compras individuales del período
   const [compraFecha, setCompraFecha] = useState(todayISO());
