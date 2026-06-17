@@ -21,6 +21,7 @@ import { useGastosSugerencias } from "@/lib/autocomplete-hooks";
 import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
 import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
+import { PagarCxPInline } from "@/components/pagar-cxp-inline";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
