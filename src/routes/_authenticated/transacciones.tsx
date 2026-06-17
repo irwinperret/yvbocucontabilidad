@@ -525,6 +525,9 @@ function TransaccionesPage() {
                           {t.cuenta_codigo === "13.1" && (
                             <Badge className="text-[9px] bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-300">Propina</Badge>
                           )}
+                          {typeof t.notas === "string" && t.notas.startsWith("Pago CxP") && (
+                            <Badge className="text-[9px] bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-300">Pago CxP</Badge>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
                       </td>

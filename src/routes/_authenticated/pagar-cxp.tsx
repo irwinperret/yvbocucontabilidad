@@ -117,7 +117,7 @@ function PagarCxPPage() {
   );
 }
 
-function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string; onClose: () => void; onDone: () => void }) {
+export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: string; onClose: () => void; onDone: () => void }) {
   const [fecha, setFecha] = useState(todayISO());
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
