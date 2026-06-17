@@ -804,17 +804,22 @@ function VentasForm() {
 
 /* ---------------- GASTOS ---------------- */
 function GastosForm() {
-  const [modo, setModo] = useState<"factura" | "anticipo">("factura");
+  const [modo, setModo] = useState<"factura" | "anticipo" | "pagar">("factura");
+  const { data: terceros = [] } = useTerceros();
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between rounded border p-2 text-xs bg-muted/30">
-        <span className="font-medium">¿Es un anticipo a proveedor (sin factura aún)?</span>
-        <Switch checked={modo === "anticipo"} onCheckedChange={(v) => setModo(v ? "anticipo" : "factura")} />
+      <div className="flex flex-wrap gap-1 rounded border p-1 bg-muted/30 text-xs">
+        <button type="button" onClick={() => setModo("factura")} className={`px-3 py-1.5 rounded flex-1 ${modo === "factura" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>Nueva factura</button>
+        <button type="button" onClick={() => setModo("anticipo")} className={`px-3 py-1.5 rounded flex-1 ${modo === "anticipo" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>Anticipo a proveedor</button>
+        <button type="button" onClick={() => setModo("pagar")} className={`px-3 py-1.5 rounded flex-1 ${modo === "pagar" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}>Pagar factura pendiente (CxP)</button>
       </div>
-      {modo === "factura" ? <GastosFacturaForm /> : <AnticipoProveedorRegisterForm onDone={() => setModo("factura")} />}
+      {modo === "factura" && <GastosFacturaForm />}
+      {modo === "anticipo" && <AnticipoProveedorRegisterForm onDone={() => setModo("factura")} />}
+      {modo === "pagar" && <PagarCxPInline grupo="gastos" terceros={terceros as any} />}
     </div>
   );
 }
+
 
 function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
   const { user } = useAuth();
