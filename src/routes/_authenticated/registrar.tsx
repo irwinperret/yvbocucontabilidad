@@ -894,7 +894,7 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
             <TerceroSelect value={terceroId} onChange={setTerceroId} terceros={(terceros ?? []) as any} />
           </div>
           <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
-          <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
           <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
             <span className="text-sm text-muted-foreground">Equivalente</span>
             <span className="text-lg font-bold mono">{fmtUsd(montoUsd)}</span>
