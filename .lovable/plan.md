@@ -1,33 +1,50 @@
-## Diagnóstico
+## Problema real
 
-El problema viene de dos puntos del flujo actual:
+El flujo sigue frágil porque la aplicación del anticipo está dividida entre varias escrituras del navegador:
 
-1. Al registrar un anticipo, la pantalla todavía usa la tasa paralela como tasa principal y guarda `monto_usd` con esa tasa, aunque el flujo de egresos debe usar BCV.
-2. Al aplicar anticipos contra facturas, el descuento se está calculando en USD y luego convirtiendo de forma inconsistente; en la práctica puede no descontar correctamente el saldo Bs que queda pendiente/CxP.
+- La factura/CxP se crea en una llamada.
+- El anticipo se aplica en otra llamada.
+- El pago del remanente se hace en otra llamada.
+- Si una parte falla, quedan datos parciales y parece que el anticipo “no descontó”.
+- Además, la función actual `aplicar_anticipo_a_factura` solo crea el reverso en `14.2` y cierra el anticipo; no es dueña de crear/ajustar la CxP ni de registrar toda la factura atómicamente.
 
 ## Plan de corrección
 
-1. **Corregir registro de anticipos a proveedor**
-   - Cambiar el formulario de anticipo para autollenar y validar **tasa BCV**.
-   - Calcular `monto_usd = monto_bs / tasa_bcv`.
-   - Guardar `tasa_bcv` como tasa principal y dejar `tasa_paralela` solo como referencia si existe.
-   - Actualizar etiquetas visibles de “Tasa paralela” a “Tasa BCV”.
+1. **Mover el flujo crítico a funciones de base de datos atómicas**
+   - Crear una función para registrar **Gastos/Facturas con anticipo** en una sola transacción interna.
+   - Crear una función para registrar **COGS/Compra con anticipo** en una sola transacción interna.
+   - Cada función hará todo o nada: si falla una parte, no queda factura, CxP, snapshot o anticipo a medio aplicar.
 
-2. **Aplicar anticipos por monto Bs equivalente a BCV**
-   - En Gastos/Facturas y COGS, calcular el monto aplicado en Bs usando `aplicarUsd * tasa_bcv de la factura`.
-   - Crear CxP solo por el saldo real después del anticipo.
-   - Si el anticipo cubre toda la factura, no crear CxP y marcar la compra/factura como pagada cuando aplique.
+2. **Gastos/Facturas**
+   - Registrar la factura por el monto completo correspondiente.
+   - Aplicar el anticipo seleccionado contra la factura.
+   - Insertar el reverso negativo en `14.2`.
+   - Actualizar `anticipo_aplicado_usd` y `anticipo_estado` a `aplicado` o `parcialmente_aplicado`.
+   - Crear CxP solo por el saldo pendiente real.
+   - Si la factura fue marcada como pagada, registrar solo el pago del remanente, no el total.
 
-3. **Reforzar la función de base de datos**
-   - Ajustar `aplicar_anticipo_a_factura` para que cierre/actualice el anticipo correctamente y deje el reverso en `14.2` vinculado al grupo de la factura.
-   - Mantener diferencial cambiario en `11.1/11.2` solo cuando supere $0.01.
-   - Asegurar permisos de ejecución para usuarios autenticados.
+3. **COGS/Compras**
+   - Registrar el `inventario_snapshots` por el monto completo de la compra.
+   - Aplicar el anticipo dentro de la misma operación.
+   - Crear CxP solo por el remanente real.
+   - Si la compra fue marcada como pagada, pagar solo el remanente.
+   - Vincular correctamente `cxp_id` y `grupo_transaccion_id`.
 
-4. **Backfill del histórico roto**
-   - Detectar anticipos registrados recientemente con `cuenta_codigo = '14.2'` y `anticipo_estado IS NULL` o montos USD calculados con paralela.
-   - Recalcularlos a BCV cuando tengan `tasa_bcv` válida.
-   - Normalizar `anticipo_estado = 'abierto'` para anticipos reales positivos sin estado.
+4. **Ajustar el frontend**
+   - Cambiar `registrar.tsx` para que, cuando haya anticipos seleccionados, llame a la función atómica en vez de ejecutar escrituras separadas desde el navegador.
+   - Mantener el flujo normal sin anticipo como está, salvo ajustes mínimos necesarios.
+   - Mostrar errores claros si el anticipo ya fue usado, no tiene saldo, o excede la factura.
 
-5. **Verificación funcional**
-   - Revisar una factura de prueba con anticipo abierto: después de guardar, debe verse el reverso en `14.2`, el anticipo debe quedar aplicado/parcial, y la CxP debe existir solo por el remanente.
-   - Confirmar que las vistas de Anticipos y CxP reflejen el saldo pendiente correcto.
+5. **Backfill de datos actuales**
+   - Revisar anticipos abiertos que ya fueron intentados aplicar.
+   - Corregir anticipos con reversos existentes pero estado abierto.
+   - Normalizar saldos para que la vista de anticipos, CxP y transacciones refleje lo mismo.
+
+6. **Verificación**
+   - Probar con el anticipo abierto actual de AGROSNACKS.
+   - Confirmar después de registrar una factura que existan:
+     - Factura registrada.
+     - Reverso negativo en `14.2`.
+     - Anticipo original cerrado/parcial.
+     - CxP solo por el remanente.
+     - Ningún pago duplicado del monto completo.
