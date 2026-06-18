@@ -36,6 +36,7 @@ import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cx
 import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
 import { Route as AuthenticatedCapexRouteImport } from './routes/_authenticated/capex'
 import { Route as AuthenticatedAumentoCapitalRouteImport } from './routes/_authenticated/aumento-capital'
+import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/_authenticated/anticipos-proveedores'
 import { Route as AuthenticatedActivosTransitoriosRouteImport } from './routes/_authenticated/activos-transitorios'
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
@@ -185,6 +186,12 @@ const AuthenticatedAumentoCapitalRoute =
     path: '/aumento-capital',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAnticiposProveedoresRoute =
+  AuthenticatedAnticiposProveedoresRouteImport.update({
+    id: '/anticipos-proveedores',
+    path: '/anticipos-proveedores',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedActivosTransitoriosRoute =
   AuthenticatedActivosTransitoriosRouteImport.update({
     id: '/activos-transitorios',
@@ -207,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/capex': typeof AuthenticatedCapexRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
@@ -238,6 +246,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/capex': typeof AuthenticatedCapexRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
@@ -271,6 +280,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/_authenticated/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/_authenticated/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/_authenticated/capex': typeof AuthenticatedCapexRoute
   '/_authenticated/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
@@ -304,6 +314,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/activos-transitorios'
+    | '/anticipos-proveedores'
     | '/aumento-capital'
     | '/capex'
     | '/cuentas-bancarias'
@@ -335,6 +346,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/activos-transitorios'
+    | '/anticipos-proveedores'
     | '/aumento-capital'
     | '/capex'
     | '/cuentas-bancarias'
@@ -367,6 +379,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/activos-transitorios'
+    | '/_authenticated/anticipos-proveedores'
     | '/_authenticated/aumento-capital'
     | '/_authenticated/capex'
     | '/_authenticated/cuentas-bancarias'
@@ -594,6 +607,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAumentoCapitalRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/anticipos-proveedores': {
+      id: '/_authenticated/anticipos-proveedores'
+      path: '/anticipos-proveedores'
+      fullPath: '/anticipos-proveedores'
+      preLoaderRoute: typeof AuthenticatedAnticiposProveedoresRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/activos-transitorios': {
       id: '/_authenticated/activos-transitorios'
       path: '/activos-transitorios'
@@ -620,6 +640,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedActivosTransitoriosRoute: typeof AuthenticatedActivosTransitoriosRoute
+  AuthenticatedAnticiposProveedoresRoute: typeof AuthenticatedAnticiposProveedoresRoute
   AuthenticatedAumentoCapitalRoute: typeof AuthenticatedAumentoCapitalRoute
   AuthenticatedCapexRoute: typeof AuthenticatedCapexRoute
   AuthenticatedCuentasBancariasRoute: typeof AuthenticatedCuentasBancariasRoute
@@ -648,6 +669,8 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedActivosTransitoriosRoute: AuthenticatedActivosTransitoriosRoute,
+  AuthenticatedAnticiposProveedoresRoute:
+    AuthenticatedAnticiposProveedoresRoute,
   AuthenticatedAumentoCapitalRoute: AuthenticatedAumentoCapitalRoute,
   AuthenticatedCapexRoute: AuthenticatedCapexRoute,
   AuthenticatedCuentasBancariasRoute: AuthenticatedCuentasBancariasRoute,
