@@ -2358,7 +2358,16 @@ function CierreForm() {
     const aplicadoBsCompra = +(aplicadoUsdCompra * tasaN).toFixed(2);
     const cxpSaldoBsCompra = Math.max(0, +(montoBs - aplicadoBsCompra).toFixed(2));
     const cxpSaldoUsdCompra = Math.max(0, +(montoUsd - aplicadoUsdCompra).toFixed(2));
-    const compraQuedaPagada = compraOffBalance ? true : (compraPagada || cxpSaldoBsCompra <= 0.01);
+    const tieneAnticipoCompra = compraAplicaciones.length > 0;
+    // Si hay anticipo, la compra debe ir como pendiente para que la aplicación descuente bien.
+    // El remanente se paga inmediatamente si el usuario marcó "pagada".
+    const efectivoTrasAnticipoCompra = !compraOffBalance && tieneAnticipoCompra && compraPagada && cxpSaldoBsCompra > 0.01;
+    const snapshotPagada = compraOffBalance
+      ? true
+      : (tieneAnticipoCompra
+          ? cxpSaldoBsCompra <= 0.01
+          : (compraPagada || cxpSaldoBsCompra <= 0.01));
+    const snapshotBanco = !compraOffBalance && compraPagada && !tieneAnticipoCompra ? compraCuentaBanco : null;
 
     // Evitar facturas duplicadas (mismo proveedor + mismo N° factura), incluso en otros meses
     const { data: dup } = await supabase
@@ -2375,7 +2384,7 @@ function CierreForm() {
     }
 
 
-    const grupoId = compraAplicaciones.length > 0 ? crypto.randomUUID() : null;
+    const grupoId = tieneAnticipoCompra ? crypto.randomUUID() : null;
 
     // 1) Insertar snapshot de compra (COGS) primero
     const { data: snap, error } = await supabase.from("inventario_snapshots").insert({
@@ -2384,9 +2393,9 @@ function CierreForm() {
       modo: compraOffBalance ? "off_balance" : "on_balance",
       fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
       tercero_id: compraTerceroId, numero_factura: compraNumFactura,
-      pagada: compraQuedaPagada,
-      cuenta_bancaria_id: !compraOffBalance && compraPagada ? compraCuentaBanco : null,
-      fecha_vencimiento: !compraOffBalance && !compraQuedaPagada ? (compraVenc || null) : null,
+      pagada: snapshotPagada,
+      cuenta_bancaria_id: snapshotBanco,
+      fecha_vencimiento: !compraOffBalance && !snapshotPagada ? (compraVenc || null) : null,
       cxp_id: null,
       notas: compraNotas || null,
       registrado_por: user.id,
@@ -2394,27 +2403,10 @@ function CierreForm() {
     } as any).select().single();
     if (error) { setCompraBusy(false); return toast.error(error.message); }
 
-    // 2) Aplicar anticipos ANTES de crear CxP — si falla, rollback de la compra
-    if (compraAplicaciones.length > 0 && grupoId) {
-      const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
-      const res = await aplicarAnticiposContraFactura({
-        aplicaciones: compraAplicaciones,
-        grupoId,
-        facturaFecha: compraFecha,
-        facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
-        facturaNumero: compraNumFactura,
-        created_by: user.id,
-        centro: "Compartido",
-      });
-      if (!res.ok) {
-        if (snap?.id) await supabase.from("inventario_snapshots").delete().eq("id", snap.id);
-        setCompraBusy(false);
-        return toast.error(`Anticipo: ${res.error}`);
-      }
-    }
-
-    // 3) Crear CxP por el saldo restante (si aplica)
-    if (!compraOffBalance && !compraPagada && cxpSaldoBsCompra > 0.01) {
+    // 2) Crear CxP por el saldo neto si corresponde (siempre que haya anticipo o factura pendiente)
+    let cxpRowId: string | null = null;
+    const debeCrearCxp = !compraOffBalance && !snapshotPagada && cxpSaldoBsCompra > 0.01;
+    if (debeCrearCxp) {
       const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
       const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
@@ -2426,14 +2418,74 @@ function CierreForm() {
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
       } as any).select().single();
-      if (cxpErr) { setCompraBusy(false); return toast.error(cxpErr.message); }
+      if (cxpErr) {
+        if (snap?.id) await supabase.from("inventario_snapshots").delete().eq("id", snap.id);
+        setCompraBusy(false); return toast.error(cxpErr.message);
+      }
+      cxpRowId = cxp?.id ?? null;
       if (cxp?.id && snap?.id) {
         await supabase.from("inventario_snapshots").update({ cxp_id: cxp.id }).eq("id", snap.id);
       }
     }
 
+    // 3) Aplicar anticipos contra la factura
+    if (tieneAnticipoCompra && grupoId) {
+      const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
+      const res = await aplicarAnticiposContraFactura({
+        aplicaciones: compraAplicaciones,
+        grupoId,
+        facturaFecha: compraFecha,
+        facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
+        facturaNumero: compraNumFactura,
+        created_by: user.id,
+        centro: "Compartido",
+      });
+      if (!res.ok) {
+        if (cxpRowId) await supabase.from("cuentas_por_pagar").delete().eq("id", cxpRowId);
+        if (snap?.id) await supabase.from("inventario_snapshots").delete().eq("id", snap.id);
+        setCompraBusy(false);
+        return toast.error(`Anticipo: ${res.error}`);
+      }
+    }
+
+    // 4) Si el usuario marcó "pagada" y hay remanente tras anticipo, pagarlo de inmediato
+    if (efectivoTrasAnticipoCompra && cxpRowId) {
+      if (!compraCuentaBanco) {
+        setCompraBusy(false);
+        return toast.error("Falta cuenta bancaria para pagar el remanente del anticipo");
+      }
+      const usdPago = tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra;
+      const { error: ePago } = await supabase.from("transacciones").insert({
+        fecha: compraFecha, cuenta_codigo: "9.1", centro_costo: "Compartido" as any,
+        monto_bs: cxpSaldoBsCompra, monto_base_bs: cxpSaldoBsCompra, iva_bs: 0,
+        tasa_bcv: tasaN, tasa_paralela: null, monto_usd: usdPago,
+        metodo_pago: "transferencia" as any,
+        cuenta_bancaria_id: compraCuentaBanco,
+        tercero_id: compraTerceroId,
+        notas: `Pago inmediato de compra ${compraNumFactura} (remanente tras anticipo)`,
+        modo: "on_balance" as any,
+        grupo_transaccion_id: grupoId,
+        created_by: user.id,
+      } as any);
+      if (ePago) { setCompraBusy(false); return toast.error(ePago.message); }
+      await supabase.from("cuentas_por_pagar").update({
+        estado: "pagada",
+        pagada_at: new Date().toISOString(),
+        monto_pendiente_bs: 0,
+      }).eq("id", cxpRowId);
+      await supabase.from("inventario_snapshots").update({
+        pagada: true, cuenta_bancaria_id: compraCuentaBanco,
+      }).eq("id", snap!.id);
+    }
+
     setCompraBusy(false);
-    toast.success("Compra registrada");
+    toast.success(
+      tieneAnticipoCompra
+        ? (cxpSaldoBsCompra <= 0.01
+            ? `Compra cubierta totalmente con anticipo (${fmtUsd(aplicadoUsdCompra)})`
+            : `Compra registrada · anticipo ${fmtUsd(aplicadoUsdCompra)} aplicado · ${compraPagada ? "remanente pagado" : "CxP por " + fmtUsd(cxpSaldoUsdCompra)}`)
+        : "Compra registrada"
+    );
     setCompraMonto(""); setCompraNumFactura(""); setCompraNotas(""); setCompraVenc("");
     setCompraIvaAplica(false); setCompraOffBalance(false);
     setCompraAplicaciones([]);
