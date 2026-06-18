@@ -2603,7 +2603,7 @@ function CierreForm() {
                     <th>Proveedor</th>
                     <th>N° fact.</th>
                     <th className="text-right">Monto Bs</th>
-                    <th className="text-right">USD (paralela)</th>
+                    <th className="text-right">USD (BCV)</th>
                     <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
@@ -2612,8 +2612,8 @@ function CierreForm() {
                   {(compras ?? []).map((c: any) => {
                     const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
                     const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
-                    const tp = paralelaByFecha.get(c.fecha) ?? paralelaPromedio;
-                    const usdPar = tp ? base / tp : null;
+                    const tb = Number(c.tasa_bcv) || bcvByFecha.get(c.fecha) || tasaPromedio;
+                    const usdPar = tb ? base / tb : null;
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
