@@ -1,64 +1,33 @@
 ## Diagnóstico
 
-Encontré **dos bugs** en el flujo de aplicar anticipos contra factura (afecta tanto COGS como Gastos):
+El problema viene de dos puntos del flujo actual:
 
-### Bug 1 — el saldo del anticipo NO se reduce (causa raíz)
+1. Al registrar un anticipo, la pantalla todavía usa la tasa paralela como tasa principal y guarda `monto_usd` con esa tasa, aunque el flujo de egresos debe usar BCV.
+2. Al aplicar anticipos contra facturas, el descuento se está calculando en USD y luego convirtiendo de forma inconsistente; en la práctica puede no descontar correctamente el saldo Bs que queda pendiente/CxP.
 
-La política RLS de UPDATE sobre `transacciones` es:
+## Plan de corrección
 
-```
-has_role(admin) OR modo = 'off_balance'
-```
+1. **Corregir registro de anticipos a proveedor**
+   - Cambiar el formulario de anticipo para autollenar y validar **tasa BCV**.
+   - Calcular `monto_usd = monto_bs / tasa_bcv`.
+   - Guardar `tasa_bcv` como tasa principal y dejar `tasa_paralela` solo como referencia si existe.
+   - Actualizar etiquetas visibles de “Tasa paralela” a “Tasa BCV”.
 
-Cuando `aplicarAnticiposContraFactura` intenta actualizar `anticipo_aplicado_usd` y `anticipo_estado` del anticipo original (que es `on_balance`), y el usuario **no** es admin, el UPDATE **no afecta ninguna fila pero supabase-js no devuelve error** (sólo cuenta de filas = 0). Por eso el reverso se inserta, pero el saldo queda intacto y el banner sigue mostrando el anticipo completo.
+2. **Aplicar anticipos por monto Bs equivalente a BCV**
+   - En Gastos/Facturas y COGS, calcular el monto aplicado en Bs usando `aplicarUsd * tasa_bcv de la factura`.
+   - Crear CxP solo por el saldo real después del anticipo.
+   - Si el anticipo cubre toda la factura, no crear CxP y marcar la compra/factura como pagada cuando aplique.
 
-### Bug 2 — la CxP se crea por el monto total de la factura, no el neto
+3. **Reforzar la función de base de datos**
+   - Ajustar `aplicar_anticipo_a_factura` para que cierre/actualice el anticipo correctamente y deje el reverso en `14.2` vinculado al grupo de la factura.
+   - Mantener diferencial cambiario en `11.1/11.2` solo cuando supere $0.01.
+   - Asegurar permisos de ejecución para usuarios autenticados.
 
-En el flujo de COGS (y también en Gastos), cuando la factura no está pagada se crea una `cuentas_por_pagar` por el **monto total** de la factura, ignorando lo que se aplicó del anticipo. La CxP debería ser `total − anticipo aplicado`.
+4. **Backfill del histórico roto**
+   - Detectar anticipos registrados recientemente con `cuenta_codigo = '14.2'` y `anticipo_estado IS NULL` o montos USD calculados con paralela.
+   - Recalcularlos a BCV cuando tengan `tasa_bcv` válida.
+   - Normalizar `anticipo_estado = 'abierto'` para anticipos reales positivos sin estado.
 
-### No, no espera al cierre de mes
-
-La aplicación es inmediata al guardar la factura. El cierre de mes no toca anticipos.
-
-## Plan de arreglo
-
-### 1. RPC `SECURITY DEFINER` para aplicar el anticipo atómicamente
-
-Crear `public.aplicar_anticipo_a_factura(anticipo_id uuid, aplicar_usd numeric, grupo_id uuid, factura_fecha date, factura_proveedor text, factura_numero text, centro centro_costo)` que:
-
-- Lee el anticipo original (estado, aplicado, montos, tasas, tercero, banco).
-- Valida: `aplicar_usd > 0`, `aplicar_usd ≤ saldo`, anticipo no cerrado.
-- Inserta el reverso negativo en `transacciones` cuenta 14.2 (mismas tasas del anticipo, `created_by = auth.uid()`, `grupo_transaccion_id = grupo_id`).
-- Actualiza `anticipo_aplicado_usd` y `anticipo_estado` (`parcialmente_aplicado` / `aplicado`).
-- Todo en una transacción; bypassa RLS porque es SECURITY DEFINER.
-- Devuelve `{ reverso_id, nuevo_aplicado_usd, nuevo_estado }`.
-
-`GRANT EXECUTE ... TO authenticated`.
-
-### 2. Reemplazar `aplicarAnticiposContraFactura` para usar el RPC
-
-En `src/lib/anticipos-proveedor.ts`, sustituir el insert + update por una llamada `supabase.rpc('aplicar_anticipo_a_factura', {...})` por cada aplicación. Cualquier error sí se propaga al toast.
-
-### 3. CxP neta del anticipo aplicado
-
-En `src/routes/_authenticated/registrar.tsx`:
-
-- **COGS** (`addCompra`, ~línea 2341): calcular `aplicadoUsd = Σ compraAplicaciones.aplicarUsd`, `aplicadoBs = aplicadoUsd * compraTasaN`, y crear la CxP con `monto_pendiente_bs = montoBs − aplicadoBs`. Si `aplicadoBs ≥ montoBs`, marcar la compra como `pagada = true` y **no** crear CxP.
-- **Gastos factura** (flujo equivalente alrededor de línea 1043): mismo ajuste sobre la CxP de gasto.
-
-### 4. Verificación
-
-Después de aplicar la migración + cambios:
-
-- Registrar anticipo de $100 a un proveedor.
-- Registrar factura de $150 al mismo proveedor aplicando $100.
-- Confirmar en `Activos transitorios → Anticipos a proveedores`: saldo del anticipo = $0, estado `aplicado`.
-- Confirmar en `Cuentas por pagar`: CxP por $50, no $150.
-
-### Archivos afectados
-
-- Migración nueva: función `aplicar_anticipo_a_factura` (SECURITY DEFINER).
-- `src/lib/anticipos-proveedor.ts` — cambia `aplicarAnticiposContraFactura` para llamar el RPC.
-- `src/routes/_authenticated/registrar.tsx` — ajusta creación de CxP en COGS y en Gastos factura.
-
-No requiere cambios en el banner ni en `activos-transitorios.tsx`.
+5. **Verificación funcional**
+   - Revisar una factura de prueba con anticipo abierto: después de guardar, debe verse el reverso en `14.2`, el anticipo debe quedar aplicado/parcial, y la CxP debe existir solo por el remanente.
+   - Confirmar que las vistas de Anticipos y CxP reflejen el saldo pendiente correcto.
