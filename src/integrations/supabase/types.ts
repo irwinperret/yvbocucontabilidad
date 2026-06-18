@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      _recalc_bcv_backup_20260618: {
+        Row: {
+          anticipo_aplicado_usd_anterior: number | null
+          anticipo_aplicado_usd_nuevo: number | null
+          created_at: string
+          cuenta_codigo: string | null
+          fecha: string | null
+          id: string
+          monto_bs: number | null
+          monto_usd_anterior: number | null
+          monto_usd_nuevo: number | null
+          tasa_bcv: number | null
+          tasa_paralela: number | null
+        }
+        Insert: {
+          anticipo_aplicado_usd_anterior?: number | null
+          anticipo_aplicado_usd_nuevo?: number | null
+          created_at?: string
+          cuenta_codigo?: string | null
+          fecha?: string | null
+          id: string
+          monto_bs?: number | null
+          monto_usd_anterior?: number | null
+          monto_usd_nuevo?: number | null
+          tasa_bcv?: number | null
+          tasa_paralela?: number | null
+        }
+        Update: {
+          anticipo_aplicado_usd_anterior?: number | null
+          anticipo_aplicado_usd_nuevo?: number | null
+          created_at?: string
+          cuenta_codigo?: string | null
+          fecha?: string | null
+          id?: string
+          monto_bs?: number | null
+          monto_usd_anterior?: number | null
+          monto_usd_nuevo?: number | null
+          tasa_bcv?: number | null
+          tasa_paralela?: number | null
+        }
+        Relationships: []
+      }
       ajustes_bancarios: {
         Row: {
           created_at: string
