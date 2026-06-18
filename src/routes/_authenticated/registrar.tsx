@@ -837,7 +837,8 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
 
   const { data: paralelaSug } = useParalelaForDate(fecha);
   const { data: bcvSug } = useTasaForDate(fecha);
-  useEffect(() => { if (paralelaSug?.tasa) setTasa(String(paralelaSug.tasa)); }, [paralelaSug?.tasa]);
+  // Egresos: tasa principal es BCV
+  useEffect(() => { if (bcvSug?.tasa) setTasa(String(bcvSug.tasa)); }, [bcvSug?.tasa]);
 
   const montoBsN = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
@@ -848,7 +849,7 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
     if (!user) return;
     if (!terceroId) return toast.error("Selecciona proveedor");
     if (!montoBsN) return toast.error("Falta monto Bs");
-    if (!tasaN) return toast.error("Falta tasa paralela");
+    if (!tasaN) return toast.error("Falta tasa BCV");
     if (!cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
     setBusy(true);
     const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
@@ -856,7 +857,7 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: "14.2", centro_costo: centro as any,
       monto_bs: montoBsN, monto_base_bs: montoBsN, iva_bs: 0, iva_aplica: false,
-      tasa_bcv: Number(bcvSug?.tasa) || tasaN, tasa_paralela: tasaN,
+      tasa_bcv: tasaN, tasa_paralela: paralelaSug?.tasa ?? null,
       monto_usd: +montoUsd.toFixed(2),
       metodo_pago: "transferencia" as any,
       tercero_id: terceroId,
