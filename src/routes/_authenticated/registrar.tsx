@@ -959,9 +959,9 @@ function GastosFacturaForm() {
   const esUSD = moneda === "USD";
   const totalInput = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
-  // Conversión Bs↔USD SIEMPRE a tasa paralela (BCV solo se usa para fijar precios fuera del sistema).
+  // Conversión Bs→USD a tasa BCV (egresos). Paralela sólo para ingresos.
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
+  const tasaConvN = tasaN || tasaParalelaN;
   const total = esUSD ? totalInput * tasaConvN : totalInput;
   const base = ivaAplica ? total / 1.16 : total;
   const iva = ivaAplica ? total - base : 0;
