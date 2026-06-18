@@ -1988,7 +1988,7 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
 
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
+  const tasaConvN = tasaN || tasaParalelaN; // egreso → BCV
   const muestraBanco = tipo !== "depreciacion";
 
   // Conversión según moneda de entrada (USD → Bs a tasa paralela)
