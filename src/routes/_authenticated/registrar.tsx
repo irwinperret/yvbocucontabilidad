@@ -2633,7 +2633,7 @@ function CierreForm() {
                   <tr className="border-t font-semibold">
                     <td colSpan={3} className="py-2">Total compras del período</td>
                     <td className="text-right mono">{fmtBs(totalCompras)}</td>
-                    <td className="text-right mono">{fmtUsd(totalComprasUsdParalela)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasUsdBcv)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
@@ -2650,10 +2650,10 @@ function CierreForm() {
           <div><Label>Inventario final USD</Label><Input type="number" step="0.01" value={invFinUsd} onChange={(e) => setInvFinUsd(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex justify-between text-sm">
             <span className="text-muted-foreground">Compras del mes (auto)</span>
-            <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdParalela)}</span>
+            <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdBcv)}</span>
           </div>
           <div className="rounded-md bg-muted/50 p-3">
-            <div className="text-xs text-muted-foreground">Tasa paralela promedio del mes (auto)</div>
+            <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
             <div className="text-base font-bold mono">{tasaPromedio ? tasaPromedio.toFixed(4) : "—"}</div>
             <div className="text-xs text-muted-foreground">{(tasasMes ?? []).length} tasa(s) registradas</div>
           </div>
