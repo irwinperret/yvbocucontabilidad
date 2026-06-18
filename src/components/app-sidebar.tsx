@@ -45,6 +45,7 @@ const analisisDetalles = [
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
   { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
+  { title: "Anticipos a proveedores", url: "/anticipos-proveedores", icon: Users },
   { title: "Activos transitorios", url: "/activos-transitorios", icon: Wallet },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
