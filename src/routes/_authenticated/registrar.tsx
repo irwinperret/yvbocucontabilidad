@@ -934,7 +934,7 @@ function GastosFacturaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
+  useEffect(() => { if (tasaSugerida) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida?.tasa]);
 
   // Autocomplete por tercero: cuenta + método + notas recientes
   const { data: sugerencias } = useGastosSugerencias(terceroId, centro);
@@ -959,9 +959,9 @@ function GastosFacturaForm() {
   const esUSD = moneda === "USD";
   const totalInput = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
-  // Conversión Bs↔USD SIEMPRE a tasa paralela (BCV solo se usa para fijar precios fuera del sistema).
+  // Conversión Bs→USD a tasa BCV (egresos). Paralela sólo para ingresos.
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
+  const tasaConvN = tasaN || tasaParalelaN;
   const total = esUSD ? totalInput * tasaConvN : totalInput;
   const base = ivaAplica ? total / 1.16 : total;
   const iva = ivaAplica ? total - base : 0;
@@ -1660,12 +1660,12 @@ function OpsIvaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
+  useEffect(() => { if (tasaSugerida) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida?.tasa]);
 
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
+  const tasaConvN = tasaN || tasaParalelaN; // egreso → BCV
   const usd = tasaConvN ? total / tasaConvN : 0;
 
 
@@ -1984,11 +1984,11 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida]);
+  useEffect(() => { if (tasaSugerida) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
 
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
+  const tasaConvN = tasaN || tasaParalelaN; // egreso → BCV
   const muestraBanco = tipo !== "depreciacion";
 
   // Conversión según moneda de entrada (USD → Bs a tasa paralela)
@@ -2263,7 +2263,7 @@ function CierreForm() {
       const fin = finDate.toISOString().slice(0, 10);
       const { data } = await supabase
         .from("tasas_bcv")
-        .select("tasa")
+        .select("fecha, tasa")
         .gte("fecha", ini)
         .lt("fecha", fin);
       return data ?? [];
@@ -2274,45 +2274,30 @@ function CierreForm() {
     if (!arr.length) return 0;
     return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
   }, [tasasMes]);
-
-  // Tasas paralela del período (para mostrar USD-paralela por compra)
-  const { data: paralelasMes } = useQuery({
-    queryKey: ["paralelas-periodo", periodo],
-    queryFn: async () => {
-      const ini = `${periodo}-01`;
-      const finDate = new Date(`${periodo}-01T00:00:00`);
-      finDate.setMonth(finDate.getMonth() + 1);
-      const fin = finDate.toISOString().slice(0, 10);
-      const { data } = await supabase.from("tasas_paralela").select("fecha, tasa").gte("fecha", ini).lt("fecha", fin);
-      return data ?? [];
-    },
-  });
-  const paralelaByFecha = useMemo(() => {
+  const bcvByFecha = useMemo(() => {
     const m = new Map<string, number>();
-    (paralelasMes ?? []).forEach((p: any) => m.set(p.fecha, Number(p.tasa)));
+    (tasasMes ?? []).forEach((p: any) => m.set(p.fecha, Number(p.tasa)));
     return m;
-  }, [paralelasMes]);
-  const paralelaPromedio = useMemo(() => {
-    const arr = (paralelasMes ?? []) as any[];
-    if (!arr.length) return 0;
-    return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
-  }, [paralelasMes]);
+  }, [tasasMes]);
+
+  // (Paralela ya no se usa para COGS — los egresos se valoran a BCV.)
+  const paralelaPromedio = 0;
 
   const totalCompras = (compras ?? [])
     .filter((c: any) => c.modo !== "off_balance")
     .reduce((s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
-  const totalComprasUsdParalela = (compras ?? [])
+  const totalComprasUsdBcv = (compras ?? [])
     .filter((c: any) => c.modo !== "off_balance")
     .reduce((s: number, c: any) => {
       const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
-      const tp = paralelaByFecha.get(c.fecha) ?? paralelaPromedio;
-      return s + (tp ? base / tp : 0);
+      const tb = Number(c.tasa_bcv) || bcvByFecha.get(c.fecha) || tasaPromedio;
+      return s + (tb ? base / tb : 0);
     }, 0);
 
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
-  const cogsUsd = iniUsd + totalComprasUsdParalela - finUsd;
-  const cogs = paralelaPromedio ? cogsUsd * paralelaPromedio : (tasaPromedio ? cogsUsd * tasaPromedio : 0);
+  const cogsUsd = iniUsd + totalComprasUsdBcv - finUsd;
+  const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2618,7 +2603,7 @@ function CierreForm() {
                     <th>Proveedor</th>
                     <th>N° fact.</th>
                     <th className="text-right">Monto Bs</th>
-                    <th className="text-right">USD (paralela)</th>
+                    <th className="text-right">USD (BCV)</th>
                     <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
@@ -2627,8 +2612,8 @@ function CierreForm() {
                   {(compras ?? []).map((c: any) => {
                     const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
                     const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
-                    const tp = paralelaByFecha.get(c.fecha) ?? paralelaPromedio;
-                    const usdPar = tp ? base / tp : null;
+                    const tb = Number(c.tasa_bcv) || bcvByFecha.get(c.fecha) || tasaPromedio;
+                    const usdPar = tb ? base / tb : null;
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
@@ -2648,7 +2633,7 @@ function CierreForm() {
                   <tr className="border-t font-semibold">
                     <td colSpan={3} className="py-2">Total compras del período</td>
                     <td className="text-right mono">{fmtBs(totalCompras)}</td>
-                    <td className="text-right mono">{fmtUsd(totalComprasUsdParalela)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasUsdBcv)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
@@ -2665,10 +2650,10 @@ function CierreForm() {
           <div><Label>Inventario final USD</Label><Input type="number" step="0.01" value={invFinUsd} onChange={(e) => setInvFinUsd(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex justify-between text-sm">
             <span className="text-muted-foreground">Compras del mes (auto)</span>
-            <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdParalela)}</span>
+            <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdBcv)}</span>
           </div>
           <div className="rounded-md bg-muted/50 p-3">
-            <div className="text-xs text-muted-foreground">Tasa paralela promedio del mes (auto)</div>
+            <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
             <div className="text-base font-bold mono">{tasaPromedio ? tasaPromedio.toFixed(4) : "—"}</div>
             <div className="text-xs text-muted-foreground">{(tasasMes ?? []).length} tasa(s) registradas</div>
           </div>
