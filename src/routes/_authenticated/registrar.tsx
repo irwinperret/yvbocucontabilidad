@@ -1006,18 +1006,24 @@ function GastosFacturaForm() {
     const ivaUsdGasto = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
     const grupoTransaccionGasto = aplicaciones.length > 0 || ivaAplica ? grupoIdGasto : null;
     const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
-    const aplicadoBsFactura = +(aplicadoUsdFactura * tasaConvN).toFixed(2);
+    const aplicadoBsFactura = +(aplicadoUsdFactura * tasaN).toFixed(2);
     const cxpSaldoBs = Math.max(0, +(total - aplicadoBsFactura).toFixed(2));
     const cxpSaldoUsd = Math.max(0, +(totalUsd - aplicadoUsdFactura).toFixed(2));
+    // Si hay anticipo aplicado, la factura se trata como pendiente para que la CxP
+    // refleje el neto y la aplicación descuente correctamente. Si el usuario NO eligió
+    // "pendiente", se liquida el remanente en efectivo justo después.
+    const tieneAnticipo = aplicaciones.length > 0;
+    const efectivoTrasAnticipo = !pendiente && tieneAnticipo && cxpSaldoBs > 0.01;
+    const facturaPendienteEfectiva = pendiente || tieneAnticipo; // siempre crear CxP cuando hay anticipo
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: base, monto_base_bs: base, iva_bs: 0,
       iva_aplica: false, tipo_iva: null,
       tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
-      metodo_pago: pendiente ? "pendiente" : (metodo as any),
+      metodo_pago: facturaPendienteEfectiva ? "pendiente" : (metodo as any),
       tercero_id: terceroId || null, numero_factura: numFactura, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
-      cuenta_bancaria_id: !pendiente && cuentaBancariaId ? cuentaBancariaId : null,
+      cuenta_bancaria_id: !facturaPendienteEfectiva && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
       grupo_transaccion_id: grupoTransaccionGasto,
     } as any).select().single();
@@ -1038,8 +1044,25 @@ function GastosFacturaForm() {
         tipo: "credito",
       });
     }
+    // Crear CxP por el saldo (neto del anticipo) cuando aplique
+    let cxpId: string | null = null;
+    if (facturaPendienteEfectiva && tx && cxpSaldoBs > 0.01) {
+      const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
+      const { data: cxpRow, error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
+        proveedor: prov?.razon_social ?? "Proveedor",
+        numero_factura: numFactura,
+        tercero_id: terceroId || null,
+        centro_costo: centro as any,
+        monto_bs: cxpSaldoBs, monto_usd: cxpSaldoUsd,
+        monto_pendiente_bs: cxpSaldoBs,
+        fecha_vencimiento: fechaVenc || null,
+        transaccion_id: tx.id, estado: "pendiente",
+      } as any).select().single();
+      if (eCxp) { setBusy(false); return toast.error(eCxp.message); }
+      cxpId = cxpRow?.id ?? null;
+    }
     // Aplicar anticipos a proveedor seleccionados
-    if (aplicaciones.length > 0 && tx) {
+    if (tieneAnticipo && tx) {
       const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
       const res = await aplicarAnticiposContraFactura({
         aplicaciones,
@@ -1052,21 +1075,38 @@ function GastosFacturaForm() {
       });
       if (!res.ok) { setBusy(false); return toast.error(`Anticipo: ${res.error}`); }
     }
-    if (pendiente && tx && cxpSaldoBs > 0.01) {
-      const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
-      await supabase.from("cuentas_por_pagar").insert({
-        proveedor: prov?.razon_social ?? "Proveedor",
-        numero_factura: numFactura,
+    // Si NO era pendiente original y queda remanente, pagarlo de inmediato
+    if (efectivoTrasAnticipo && tx && cxpId) {
+      const usdPago = tasaN > 0 ? +(cxpSaldoBs / tasaN).toFixed(2) : cxpSaldoUsd;
+      const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
+        fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
+        monto_bs: cxpSaldoBs, monto_base_bs: cxpSaldoBs, iva_bs: 0,
+        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: usdPago,
+        metodo_pago: metodo as any,
+        cuenta_bancaria_id: cuentaBancariaId || null,
         tercero_id: terceroId || null,
-        centro_costo: centro as any,
-        monto_bs: cxpSaldoBs, monto_usd: cxpSaldoUsd,
-        monto_pendiente_bs: cxpSaldoBs,
-        fecha_vencimiento: fechaVenc || null,
-        transaccion_id: tx.id, estado: "pendiente",
-      } as any);
+        notas: `Pago inmediato de factura ${numFactura} (remanente tras anticipo)`,
+        modo: offBalance ? "off_balance" : "on_balance",
+        grupo_transaccion_id: grupoIdGasto,
+        created_by: user.id,
+      } as any).select().single();
+      if (ePago) { setBusy(false); return toast.error(ePago.message); }
+      if (txPago) await logAudit("transacciones", "INSERT", txPago.id, null, txPago);
+      await supabase.from("cuentas_por_pagar").update({
+        estado: "pagada",
+        pagada_at: new Date().toISOString(),
+        monto_pendiente_bs: 0,
+      }).eq("id", cxpId);
     }
     setBusy(false);
-    toast.success(pendiente ? "Factura registrada (CxP creada)" : "Gasto registrado");
+    const msg = tieneAnticipo
+      ? (cxpSaldoBs <= 0.01
+          ? `Factura cubierta totalmente con anticipo (${fmtUsd(aplicadoUsdFactura)})`
+          : (pendiente
+              ? `Factura registrada · anticipo ${fmtUsd(aplicadoUsdFactura)} aplicado · CxP por ${fmtUsd(cxpSaldoUsd)}`
+              : `Factura registrada · anticipo ${fmtUsd(aplicadoUsdFactura)} aplicado · pago en efectivo ${fmtUsd(cxpSaldoUsd)}`))
+      : (pendiente ? "Factura registrada (CxP creada)" : "Gasto registrado");
+    toast.success(msg);
     qc.invalidateQueries();
     setMontoTotal(""); setNumFactura(""); setNotas("");
     setAplicaciones([]);
