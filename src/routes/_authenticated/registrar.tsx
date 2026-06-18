@@ -2334,7 +2334,45 @@ function CierreForm() {
     }
 
 
-    let cxpId: string | null = null;
+    const grupoId = compraAplicaciones.length > 0 ? crypto.randomUUID() : null;
+
+    // 1) Insertar snapshot de compra (COGS) primero
+    const { data: snap, error } = await supabase.from("inventario_snapshots").insert({
+      periodo, tipo: "compra", monto_bs: montoBs,
+      monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
+      modo: compraOffBalance ? "off_balance" : "on_balance",
+      fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
+      tercero_id: compraTerceroId, numero_factura: compraNumFactura,
+      pagada: compraQuedaPagada,
+      cuenta_bancaria_id: !compraOffBalance && compraPagada ? compraCuentaBanco : null,
+      fecha_vencimiento: !compraOffBalance && !compraQuedaPagada ? (compraVenc || null) : null,
+      cxp_id: null,
+      notas: compraNotas || null,
+      registrado_por: user.id,
+      grupo_transaccion_id: grupoId,
+    } as any).select().single();
+    if (error) { setCompraBusy(false); return toast.error(error.message); }
+
+    // 2) Aplicar anticipos ANTES de crear CxP — si falla, rollback de la compra
+    if (compraAplicaciones.length > 0 && grupoId) {
+      const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
+      const res = await aplicarAnticiposContraFactura({
+        aplicaciones: compraAplicaciones,
+        grupoId,
+        facturaFecha: compraFecha,
+        facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
+        facturaNumero: compraNumFactura,
+        created_by: user.id,
+        centro: "Compartido",
+      });
+      if (!res.ok) {
+        if (snap?.id) await supabase.from("inventario_snapshots").delete().eq("id", snap.id);
+        setCompraBusy(false);
+        return toast.error(`Anticipo: ${res.error}`);
+      }
+    }
+
+    // 3) Crear CxP por el saldo restante (si aplica)
     if (!compraOffBalance && !compraPagada && cxpSaldoBsCompra > 0.01) {
       const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
       const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
@@ -2348,39 +2386,9 @@ function CierreForm() {
         estado: "pendiente",
       } as any).select().single();
       if (cxpErr) { setCompraBusy(false); return toast.error(cxpErr.message); }
-      cxpId = cxp?.id ?? null;
-    }
-
-    const grupoId = compraAplicaciones.length > 0 ? crypto.randomUUID() : null;
-    const { error } = await supabase.from("inventario_snapshots").insert({
-      periodo, tipo: "compra", monto_bs: montoBs,
-      monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
-      modo: compraOffBalance ? "off_balance" : "on_balance",
-      fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
-      tercero_id: compraTerceroId, numero_factura: compraNumFactura,
-      pagada: compraQuedaPagada,
-      cuenta_bancaria_id: !compraOffBalance && compraPagada ? compraCuentaBanco : null,
-      fecha_vencimiento: !compraOffBalance && !compraQuedaPagada ? (compraVenc || null) : null,
-      cxp_id: cxpId,
-      notas: compraNotas || null,
-      registrado_por: user.id,
-      grupo_transaccion_id: grupoId,
-    } as any);
-    if (error) { setCompraBusy(false); return toast.error(error.message); }
-
-    // Aplicar anticipos contra esta compra (sin afectar G&P; sólo reverso FC del 14.2)
-    if (compraAplicaciones.length > 0 && grupoId) {
-      const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
-      const res = await aplicarAnticiposContraFactura({
-        aplicaciones: compraAplicaciones,
-        grupoId,
-        facturaFecha: compraFecha,
-        facturaProveedorNombre: prov?.razon_social ?? "Proveedor",
-        facturaNumero: compraNumFactura,
-        created_by: user.id,
-        centro: "Compartido",
-      });
-      if (!res.ok) { setCompraBusy(false); return toast.error(`Anticipo: ${res.error}`); }
+      if (cxp?.id && snap?.id) {
+        await supabase.from("inventario_snapshots").update({ cxp_id: cxp.id }).eq("id", snap.id);
+      }
     }
 
     setCompraBusy(false);
