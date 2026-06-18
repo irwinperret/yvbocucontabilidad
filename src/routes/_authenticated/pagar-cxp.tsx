@@ -271,8 +271,15 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Registrar pago — {cxp.proveedor}</DialogTitle></DialogHeader>
         <div className="text-sm text-muted-foreground mb-2">
-          Saldo pendiente: <span className="mono font-semibold">{fmtBs(pendiente)}</span>
-          {" · "}<span className="mono">{fmtUsd(pendienteUsd)}</span>
+          Saldo pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsd)}</span>
+          {(() => {
+            const tasa = Number(cxp.monto_bs) > 0 && Number(cxp.monto_usd) > 0 ? Number(cxp.monto_bs) / Number(cxp.monto_usd) : 0;
+            const fechaRef = cxp.created_at ? String(cxp.created_at).slice(0, 10) : null;
+            return tasa > 0 ? (
+              <span className="ml-2 text-xs">(tasa BCV {tasa.toFixed(2)}{fechaRef ? ` — ${fmtDate(fechaRef)}` : ""})</span>
+            ) : null;
+          })()}
+          <div className="text-xs mt-0.5">Equivalente en Bs: <span className="mono">{fmtBs(pendiente)}</span></div>
         </div>
 
         {cxp.tercero_id && (
