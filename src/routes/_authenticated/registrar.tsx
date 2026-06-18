@@ -1665,7 +1665,7 @@ function OpsIvaForm() {
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
+  const tasaConvN = tasaN || tasaParalelaN; // egreso → BCV
   const usd = tasaConvN ? total / tasaConvN : 0;
 
 
