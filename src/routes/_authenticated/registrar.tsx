@@ -934,7 +934,7 @@ function GastosFacturaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
+  useEffect(() => { if (tasaSugerida) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida?.tasa]);
 
   // Autocomplete por tercero: cuenta + método + notas recientes
   const { data: sugerencias } = useGastosSugerencias(terceroId, centro);
