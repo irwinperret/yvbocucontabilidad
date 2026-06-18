@@ -131,14 +131,14 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   const pendienteUsd = Number(cxp.monto_usd) *
     (Number(cxp.monto_pendiente_bs ?? cxp.monto_bs) / Number(cxp.monto_bs || 1));
 
-  // Bs equivalente del anticipo aplicado, usando la tasa paralela del propio anticipo
+  // Anticipos: reverso en Bs usa la tasa BCV del anticipo (egresos → BCV)
   const aplicadoUsd = useMemo(
     () => aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0),
     [aplicaciones],
   );
   const aplicadoBs = useMemo(
     () => aplicaciones.reduce(
-      (s, a) => s + a.aplicarUsd * Number(a.anticipo.tasa_paralela || a.anticipo.tasa_bcv || 0),
+      (s, a) => s + a.aplicarUsd * Number(a.anticipo.tasa_bcv || 0),
       0,
     ),
     [aplicaciones],
@@ -154,7 +154,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
     if (!touchedMonto) setMontoBs(String(saldoTrasAplicar));
   }, [saldoTrasAplicar, touchedMonto]);
 
-  useQuery({
+  const { data: bcvSug } = useQuery({
     queryKey: ["tasa-pago", fecha],
     queryFn: async () => {
       const { data } = await supabase.from("tasas_bcv").select("*").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
@@ -174,8 +174,8 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
-  const usd = tasaConvN ? total / tasaConvN : 0;
+  // Egresos: conversión a USD con BCV.
+  const usd = tasaN ? total / tasaN : 0;
 
   const cubreTodo = +(aplicadoBs + total).toFixed(2) >= +pendiente.toFixed(2) - 0.01;
 
