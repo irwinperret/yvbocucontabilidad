@@ -2263,7 +2263,7 @@ function CierreForm() {
       const fin = finDate.toISOString().slice(0, 10);
       const { data } = await supabase
         .from("tasas_bcv")
-        .select("tasa")
+        .select("fecha, tasa")
         .gte("fecha", ini)
         .lt("fecha", fin);
       return data ?? [];
@@ -2274,45 +2274,30 @@ function CierreForm() {
     if (!arr.length) return 0;
     return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
   }, [tasasMes]);
-
-  // Tasas paralela del período (para mostrar USD-paralela por compra)
-  const { data: paralelasMes } = useQuery({
-    queryKey: ["paralelas-periodo", periodo],
-    queryFn: async () => {
-      const ini = `${periodo}-01`;
-      const finDate = new Date(`${periodo}-01T00:00:00`);
-      finDate.setMonth(finDate.getMonth() + 1);
-      const fin = finDate.toISOString().slice(0, 10);
-      const { data } = await supabase.from("tasas_paralela").select("fecha, tasa").gte("fecha", ini).lt("fecha", fin);
-      return data ?? [];
-    },
-  });
-  const paralelaByFecha = useMemo(() => {
+  const bcvByFecha = useMemo(() => {
     const m = new Map<string, number>();
-    (paralelasMes ?? []).forEach((p: any) => m.set(p.fecha, Number(p.tasa)));
+    (tasasMes ?? []).forEach((p: any) => m.set(p.fecha, Number(p.tasa)));
     return m;
-  }, [paralelasMes]);
-  const paralelaPromedio = useMemo(() => {
-    const arr = (paralelasMes ?? []) as any[];
-    if (!arr.length) return 0;
-    return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
-  }, [paralelasMes]);
+  }, [tasasMes]);
+
+  // (Paralela ya no se usa para COGS — los egresos se valoran a BCV.)
+  const paralelaPromedio = 0;
 
   const totalCompras = (compras ?? [])
     .filter((c: any) => c.modo !== "off_balance")
     .reduce((s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
-  const totalComprasUsdParalela = (compras ?? [])
+  const totalComprasUsdBcv = (compras ?? [])
     .filter((c: any) => c.modo !== "off_balance")
     .reduce((s: number, c: any) => {
       const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
-      const tp = paralelaByFecha.get(c.fecha) ?? paralelaPromedio;
-      return s + (tp ? base / tp : 0);
+      const tb = Number(c.tasa_bcv) || bcvByFecha.get(c.fecha) || tasaPromedio;
+      return s + (tb ? base / tb : 0);
     }, 0);
 
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
-  const cogsUsd = iniUsd + totalComprasUsdParalela - finUsd;
-  const cogs = paralelaPromedio ? cogsUsd * paralelaPromedio : (tasaPromedio ? cogsUsd * tasaPromedio : 0);
+  const cogsUsd = iniUsd + totalComprasUsdBcv - finUsd;
+  const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
