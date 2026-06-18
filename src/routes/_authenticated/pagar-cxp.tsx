@@ -80,24 +80,38 @@ function PagarCxPPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((c: any) => (
+                  {data.map((c: any) => {
+                    const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
+                    const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
+                    const pendUsd = Number(c.monto_usd) * ratio;
+                    const tasa = Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0;
+                    const fechaRef = c.created_at ? String(c.created_at).slice(0, 10) : null;
+                    return (
                     <tr key={c.id} className="border-b last:border-0">
                       <td className="py-2 px-2">{c.proveedor ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{c.numero_factura ?? "—"}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtBs(c.monto_pendiente_bs ?? c.monto_bs)}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
+                      <td className="py-2 px-2 text-right mono">{fmtBs(pendBs)}</td>
+                      <td className="py-2 px-2 text-right mono">
+                        <div>{fmtUsd(pendUsd)}</div>
+                        {tasa > 0 && (
+                          <div className="text-[10px] text-muted-foreground font-normal">
+                            BCV {tasa.toFixed(2)}{fechaRef ? ` · ${fmtDate(fechaRef)}` : ""}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2 px-2 mono">{c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</td>
                       <td className="py-2 px-2">{badge(c)}</td>
                       <td className="py-2 px-2 flex justify-end gap-1">
                         <Button size="sm" onClick={() => setPagando(c)}>Pagar</Button>
                         <DeleteButton
-                          detail={`${c.proveedor} · Fact ${c.numero_factura} · ${fmtBs(c.monto_pendiente_bs ?? c.monto_bs)}`}
+                          detail={`${c.proveedor} · Fact ${c.numero_factura} · ${fmtBs(pendBs)}`}
                           warnings={["Se eliminará también la transacción asociada del G&P."]}
                           onConfirm={() => eliminar(c)}
                         />
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
