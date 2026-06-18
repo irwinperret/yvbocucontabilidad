@@ -29,9 +29,14 @@ function CxPAnalisisPage() {
   const items = data ?? [];
   const vencidas = items.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento < todayISO());
   const porVencer = items.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento >= todayISO() && (new Date(c.fecha_vencimiento).getTime() - Date.now()) / 86400000 <= 7);
-  const totalVencidas = vencidas.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
-  const totalPorVencer = porVencer.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
-  const total = items.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
+  const pendUsdOf = (c: any) => {
+    const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
+    const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
+    return Number(c.monto_usd) * ratio;
+  };
+  const totalVencidas = vencidas.reduce((s: number, c: any) => s + pendUsdOf(c), 0);
+  const totalPorVencer = porVencer.reduce((s: number, c: any) => s + pendUsdOf(c), 0);
+  const total = items.reduce((s: number, c: any) => s + pendUsdOf(c), 0);
 
   return (
     <div className="space-y-6">
