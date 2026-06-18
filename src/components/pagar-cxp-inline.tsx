@@ -113,14 +113,22 @@ export function PagarCxPInline({
                     {cxps.map((c: any) => {
                       const dv = diasVencida(c);
                       const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
-                      const pendUsd = Number(c.monto_usd) * (pendBs / Number(c.monto_bs || 1));
+                      const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
+                      const pendUsd = Number(c.monto_usd) * ratio;
+                      const tasa = Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0;
+                      const fechaRef = c.created_at ? String(c.created_at).slice(0, 10) : null;
                       return (
                         <tr key={c.id} className="border-b last:border-0">
                           <td className="py-1 px-1 mono">{c.numero_factura ?? "—"}</td>
-                          <td className="py-1 px-1 mono">{c.created_at ? fmtDate(c.created_at.slice(0, 10)) : "—"}</td>
+                          <td className="py-1 px-1 mono">{fechaRef ? fmtDate(fechaRef) : "—"}</td>
                           <td className="py-1 px-1 text-right mono">{fmtBs(c.monto_bs)}</td>
                           <td className="py-1 px-1 text-right mono font-semibold">{fmtBs(pendBs)}</td>
-                          <td className="py-1 px-1 text-right mono">{fmtUsd(pendUsd)}</td>
+                          <td className="py-1 px-1 text-right mono">
+                            <div>{fmtUsd(pendUsd)}</div>
+                            {tasa > 0 && (
+                              <div className="text-[9px] text-muted-foreground font-normal">BCV {tasa.toFixed(2)}</div>
+                            )}
+                          </td>
                           <td className="py-1 px-1 mono">
                             {c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}
                             {dv && <Badge variant="destructive" className="ml-1 text-[9px]">venció hace {dv}d</Badge>}

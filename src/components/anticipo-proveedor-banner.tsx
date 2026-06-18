@@ -90,7 +90,12 @@ export function AnticipoProveedorBanner({
               />
               <div className="flex-1 grid grid-cols-3 gap-2 items-center">
                 <div className="mono">{fmtDate(a.fecha)}</div>
-                <div>Saldo <span className="mono font-semibold">{fmtUsd(max)}</span></div>
+                <div>
+                  Saldo <span className="mono font-semibold">{fmtUsd(max)}</span>
+                  {a.tasa_bcv ? (
+                    <div className="text-[10px] text-muted-foreground">tasa BCV {Number(a.tasa_bcv).toFixed(2)} — {fmtDate(a.fecha)}</div>
+                  ) : null}
+                </div>
                 <div className="text-muted-foreground truncate" title={a.notas ?? ""}>{a.notas ?? "—"}</div>
               </div>
               <div className="w-32">

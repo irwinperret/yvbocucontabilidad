@@ -29,9 +29,14 @@ function CxPAnalisisPage() {
   const items = data ?? [];
   const vencidas = items.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento < todayISO());
   const porVencer = items.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento >= todayISO() && (new Date(c.fecha_vencimiento).getTime() - Date.now()) / 86400000 <= 7);
-  const totalVencidas = vencidas.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
-  const totalPorVencer = porVencer.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
-  const total = items.reduce((s: number, c: any) => s + Number(c.monto_usd), 0);
+  const pendUsdOf = (c: any) => {
+    const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
+    const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
+    return Number(c.monto_usd) * ratio;
+  };
+  const totalVencidas = vencidas.reduce((s: number, c: any) => s + pendUsdOf(c), 0);
+  const totalPorVencer = porVencer.reduce((s: number, c: any) => s + pendUsdOf(c), 0);
+  const total = items.reduce((s: number, c: any) => s + pendUsdOf(c), 0);
 
   return (
     <div className="space-y-6">
@@ -65,17 +70,31 @@ function CxPAnalisisPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((c: any) => (
+                  {items.map((c: any) => {
+                    const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
+                    const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
+                    const pendUsd = Number(c.monto_usd) * ratio;
+                    const tasa = Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0;
+                    const fechaRef = c.created_at ? String(c.created_at).slice(0, 10) : null;
+                    return (
                     <tr key={c.id} className="border-b last:border-0">
                       <td className="py-2 px-2">{c.proveedor ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{c.numero_factura ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{(c as any).numero_orden ?? "—"}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtBs(c.monto_pendiente_bs ?? c.monto_bs)}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
+                      <td className="py-2 px-2 text-right mono">{fmtBs(pendBs)}</td>
+                      <td className="py-2 px-2 text-right mono">
+                        <div>{fmtUsd(pendUsd)}</div>
+                        {tasa > 0 && (
+                          <div className="text-[10px] text-muted-foreground font-normal">
+                            BCV {tasa.toFixed(2)}{fechaRef ? ` · ${fmtDate(fechaRef)}` : ""}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2 px-2 mono">{c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</td>
                       <td className="py-2 px-2">{badge(c)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
