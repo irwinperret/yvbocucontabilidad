@@ -432,7 +432,7 @@ function ImportarVentasPage() {
               } as any);
             }
           }
-          // Re-sincronizar pierna IVA (12.4) por grupo
+          // Re-sincronizar patas anexas (IVA, bono, propina) por grupo
           if (tx) {
             const { deleteIvaLegsByGrupo, insertIvaLeg } = await import("@/lib/iva-helpers");
             const grupoExistente = (dup as any).grupo_transaccion_id ?? crypto.randomUUID();
@@ -449,7 +449,10 @@ function ImportarVentasPage() {
                 referencia: "xetux", notas: notasBase, created_by: user.id,
                 grupo_transaccion_id: grupoExistente, tipo: "debito",
               });
+              ivaLegs++;
             }
+            await syncBono(r, centroRow, tasas, tasaConv, grupoExistente);
+            await syncPropina(r, centroRow, tasas, tasaConv, tx.id);
           }
           updated++;
           continue;
