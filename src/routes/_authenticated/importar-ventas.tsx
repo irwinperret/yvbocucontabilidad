@@ -195,8 +195,12 @@ function ImportarVentasPage() {
   // Stats
   const stats = useMemo(() => {
     let importable = 0, mixto = 0, cxc = 0, sinMapeo = 0, descuento = 0, notaCredito = 0, porDeterminar = 0, totalUsd = 0;
+    let totalIva = 0, totalServicio = 0, totalPropina = 0, conIva = 0, conServicio = 0, conPropina = 0;
     for (const r of rows) {
       totalUsd += r.total_usd;
+      totalIva += r.iva_usd; if (r.iva_usd > 0) conIva++;
+      if (r.clase === "factura") { totalServicio += r.servicio_usd; if (r.servicio_usd > 0) conServicio++; }
+      totalPropina += r.propina_usd; if (r.propina_usd > 0) conPropina++;
       if (r.clase === "descuento") { descuento++; importable++; continue; }
       if (r.clase === "nota_credito") { notaCredito++; importable++; continue; }
       if (r.clase === "por_determinar") { porDeterminar++; importable++; continue; }
@@ -206,8 +210,9 @@ function ImportarVentasPage() {
       if (!mapByForma.has(formaKeyOf(r))) { sinMapeo++; continue; }
       importable++;
     }
-    return { importable, mixto, cxc, sinMapeo, descuento, notaCredito, porDeterminar, totalUsd };
+    return { importable, mixto, cxc, sinMapeo, descuento, notaCredito, porDeterminar, totalUsd, totalIva, totalServicio, totalPropina, conIva, conServicio, conPropina };
   }, [rows, mapByForma]);
+
 
   const fetchTasa = async (fecha: string): Promise<{ paralela: number; bcv: number; esParalela: boolean }> => {
     const [{ data: par }, { data: bcv }] = await Promise.all([
@@ -226,6 +231,60 @@ function ImportarVentasPage() {
     if (!elegibles.length) return toast.error("No hay filas importables");
     setBusy(true);
     let ok = 0, updated = 0, unchanged = 0, fail = 0;
+    let ivaLegs = 0, bonoLegs = 0, propinaLegs = 0;
+
+    // Helpers compartidos para sincronizar patas anexas (IVA, bono, propina) en INSERT y UPDATE
+    const syncBono = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, tasaConv: number, grupoId: string) => {
+      if (r.clase !== "factura" || r.servicio_usd <= 0 || centroRow === ("Compartido" as any)) return;
+      const cuentaBono = centroRow === "YV" ? "3.10" : "3.5";
+      const bonoBs = +(r.servicio_usd * tasaConv).toFixed(2);
+      const { data: bonoExist } = await supabase.from("transacciones")
+        .select("id")
+        .eq("referencia", "xetux")
+        .eq("cuenta_codigo", cuentaBono)
+        .eq("numero_factura", r.numero_factura)
+        .limit(1).maybeSingle();
+      const bonoPayload: any = {
+        fecha: r.fecha, cuenta_codigo: cuentaBono, centro_costo: centroRow as any,
+        monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
+        iva_aplica: false, tipo_iva: null,
+        tasa_bcv: tasas.bcv || tasaConv, tasa_paralela: tasas.paralela || null,
+        monto_usd: r.servicio_usd, metodo_pago: "efectivo_usd",
+        numero_factura: r.numero_factura, referencia: "xetux", modo: "on_balance",
+        grupo_transaccion_id: grupoId,
+        notas: `Xetux · Bono 10% servicio · factura ${r.numero_factura} · ${r.cliente}`,
+        created_by: user.id,
+      };
+      if (bonoExist) {
+        await supabase.from("transacciones").update(bonoPayload).eq("id", bonoExist.id);
+      } else {
+        await supabase.from("transacciones").insert(bonoPayload);
+      }
+      bonoLegs++;
+    };
+
+    const syncPropina = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, tasaConv: number, txId: string) => {
+      if (r.propina_usd <= 0) return;
+      const propinaBs = +(r.propina_usd * tasaConv).toFixed(2);
+      const dedupFilter = r.numero_factura
+        ? supabase.from("propinas").select("id").eq("numero_factura", r.numero_factura)
+        : supabase.from("propinas").select("id").eq("numero_orden", r.numero_orden);
+      const { data: propExist } = await dedupFilter.eq("referencia", "xetux").limit(1).maybeSingle();
+      const propPayload: any = {
+        transaccion_id: txId, fecha: r.fecha,
+        monto_usd: r.propina_usd, monto_bs: propinaBs,
+        tasa_paralela: tasas.paralela || tasaConv,
+        centro_costo: centroRow, concepto: "Propina Xetux", referencia: "xetux",
+        numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
+        created_by: user.id,
+      };
+      if (propExist) {
+        await supabase.from("propinas").update(propPayload).eq("id", propExist.id);
+      } else {
+        await supabase.from("propinas").insert(propPayload);
+      }
+      propinaLegs++;
+    };
     setProgress({ done: 0, total: elegibles.length });
 
     const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
@@ -378,7 +437,7 @@ function ImportarVentasPage() {
               } as any);
             }
           }
-          // Re-sincronizar pierna IVA (12.4) por grupo
+          // Re-sincronizar patas anexas (IVA, bono, propina) por grupo
           if (tx) {
             const { deleteIvaLegsByGrupo, insertIvaLeg } = await import("@/lib/iva-helpers");
             const grupoExistente = (dup as any).grupo_transaccion_id ?? crypto.randomUUID();
@@ -395,7 +454,10 @@ function ImportarVentasPage() {
                 referencia: "xetux", notas: notasBase, created_by: user.id,
                 grupo_transaccion_id: grupoExistente, tipo: "debito",
               });
+              ivaLegs++;
             }
+            await syncBono(r, centroRow, tasas, tasaConv, grupoExistente);
+            await syncPropina(r, centroRow, tasas, tasaConv, tx.id);
           }
           updated++;
           continue;
@@ -423,6 +485,7 @@ function ImportarVentasPage() {
             referencia: "xetux", notas: notasBase, created_by: user.id,
             grupo_transaccion_id: grupoId, tipo: "debito",
           });
+          ivaLegs++;
         }
 
         if (r.clase === "factura" && r.esCxC && tx) {
@@ -439,70 +502,11 @@ function ImportarVentasPage() {
           } as any);
         }
 
-        // ====== Bono de servicio (columna T) ======
-        // Solo para facturas con servicio > 0. Cuenta 3.5 (Bocu) o 3.10 (YV).
-        if (r.clase === "factura" && r.servicio_usd > 0 && tx && centroRow !== "Compartido") {
-          const cuentaBono = centroRow === "YV" ? "3.10" : "3.5";
-          const bonoBs = +(r.servicio_usd * tasaConv).toFixed(2);
-          // Dedup: ¿existe ya un bono enlazado a esta factura?
-          const { data: bonoExist } = await supabase.from("transacciones")
-            .select("id, monto_usd")
-            .eq("referencia", "xetux")
-            .eq("cuenta_codigo", cuentaBono)
-            .eq("numero_factura", r.numero_factura)
-            .limit(1).maybeSingle();
-          const bonoPayload: any = {
-            fecha: r.fecha,
-            cuenta_codigo: cuentaBono,
-            centro_costo: centroRow as any,
-            monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
-            iva_aplica: false, tipo_iva: null,
-            tasa_bcv: tasas.bcv || tasaConv,
-            tasa_paralela: tasas.paralela || null,
-            monto_usd: r.servicio_usd,
-            metodo_pago: "efectivo_usd",
-            numero_factura: r.numero_factura,
-            referencia: "xetux",
-            modo: "on_balance",
-            grupo_transaccion_id: grupoId,
-            notas: `Xetux · Bono 10% servicio · factura ${r.numero_factura} · ${r.cliente}`,
-            created_by: user.id,
-          };
-          if (bonoExist) {
-            await supabase.from("transacciones").update(bonoPayload).eq("id", bonoExist.id);
-          } else {
-            await supabase.from("transacciones").insert(bonoPayload);
-          }
+        if (tx) {
+          await syncBono(r, centroRow, tasas, tasaConv, grupoId);
+          await syncPropina(r, centroRow, tasas, tasaConv, tx.id);
         }
 
-        // ====== Propina (columna W) ======
-        // NO va a ingresos/gastos/FC. Solo a tabla propinas.
-        if (r.propina_usd > 0 && tx) {
-          const propinaBs = +(r.propina_usd * tasaConv).toFixed(2);
-          // Dedup: por numero_factura o numero_orden
-          const dedupFilter = r.numero_factura
-            ? supabase.from("propinas").select("id").eq("numero_factura", r.numero_factura)
-            : supabase.from("propinas").select("id").eq("numero_orden", r.numero_orden);
-          const { data: propExist } = await dedupFilter.eq("referencia", "xetux").limit(1).maybeSingle();
-          const propPayload: any = {
-            transaccion_id: tx.id,
-            fecha: r.fecha,
-            monto_usd: r.propina_usd,
-            monto_bs: propinaBs,
-            tasa_paralela: tasas.paralela || tasaConv,
-            centro_costo: centroRow,
-            concepto: "Propina Xetux",
-            referencia: "xetux",
-            numero_factura: r.numero_factura || null,
-            numero_orden: r.numero_orden || null,
-            created_by: user.id,
-          };
-          if (propExist) {
-            await supabase.from("propinas").update(propPayload).eq("id", propExist.id);
-          } else {
-            await supabase.from("propinas").insert(propPayload);
-          }
-        }
 
         ok++;
       } catch (e: any) {
@@ -516,7 +520,7 @@ function ImportarVentasPage() {
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Nuevas: ${ok} · Actualizadas: ${updated} · Sin cambios: ${unchanged} · Fallidas: ${fail}`);
+    toast.success(`Nuevas: ${ok} · Actualizadas: ${updated} · Sin cambios: ${unchanged} · Fallidas: ${fail} · IVA: ${ivaLegs} · Bonos: ${bonoLegs} · Propinas: ${propinaLegs}`);
     if (ok > 0) {
       setRows((all) => all.filter((r) => !filaImportable(r)));
     }
@@ -602,6 +606,9 @@ function ImportarVentasPage() {
                 <Badge variant="outline" className="border-rose-400 text-rose-700">Descuentos: {stats.descuento}</Badge>
                 <Badge variant="outline" className="border-violet-400 text-violet-700">N. Crédito: {stats.notaCredito}</Badge>
                 <Badge variant="outline" className="border-zinc-400 text-zinc-700">Por determinar: {stats.porDeterminar}</Badge>
+                <Badge variant="outline" className="border-sky-400 text-sky-700">IVA: {fmtUsd(stats.totalIva)} ({stats.conIva})</Badge>
+                <Badge variant="outline" className="border-emerald-400 text-emerald-700">Servicio → bono nómina: {fmtUsd(stats.totalServicio)} ({stats.conServicio})</Badge>
+                <Badge variant="outline" className="border-pink-400 text-pink-700">Propina: {fmtUsd(stats.totalPropina)} ({stats.conPropina})</Badge>
               </div>
               <div className="border rounded overflow-x-auto max-h-[500px]">
                 <table className="w-full text-xs">
@@ -614,6 +621,8 @@ function ImportarVentasPage() {
                       <th className="p-2 bg-muted">Cliente</th>
                       <th className="p-2 bg-muted text-right">USD</th>
                       <th className="p-2 bg-muted text-right">IVA USD</th>
+                      <th className="p-2 bg-muted text-right">Servicio USD</th>
+                      <th className="p-2 bg-muted text-right">Propina USD</th>
                       <th className="p-2 bg-muted">Forma / Tipo</th>
                       <th className="p-2 bg-muted">Estado</th>
                     </tr>
@@ -637,6 +646,8 @@ function ImportarVentasPage() {
                           <td className="p-2 truncate max-w-[180px]">{r.cliente}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.total_usd)}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.iva_usd)}</td>
+                          <td className="p-2 text-right mono">{r.clase === "factura" ? fmtUsd(r.servicio_usd) : "—"}</td>
+                          <td className="p-2 text-right mono">{fmtUsd(r.propina_usd)}</td>
                           <td className="p-2 font-mono text-[10px]">{r.clase === "factura" ? r.forma_pago_raw : r.tipo_raw}</td>
                           <td className={`p-2 font-medium ${estado.cls}`}>{estado.label}</td>
                         </tr>
