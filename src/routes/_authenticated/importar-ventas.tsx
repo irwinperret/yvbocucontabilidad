@@ -195,8 +195,12 @@ function ImportarVentasPage() {
   // Stats
   const stats = useMemo(() => {
     let importable = 0, mixto = 0, cxc = 0, sinMapeo = 0, descuento = 0, notaCredito = 0, porDeterminar = 0, totalUsd = 0;
+    let totalIva = 0, totalServicio = 0, totalPropina = 0, conIva = 0, conServicio = 0, conPropina = 0;
     for (const r of rows) {
       totalUsd += r.total_usd;
+      totalIva += r.iva_usd; if (r.iva_usd > 0) conIva++;
+      if (r.clase === "factura") { totalServicio += r.servicio_usd; if (r.servicio_usd > 0) conServicio++; }
+      totalPropina += r.propina_usd; if (r.propina_usd > 0) conPropina++;
       if (r.clase === "descuento") { descuento++; importable++; continue; }
       if (r.clase === "nota_credito") { notaCredito++; importable++; continue; }
       if (r.clase === "por_determinar") { porDeterminar++; importable++; continue; }
@@ -206,8 +210,9 @@ function ImportarVentasPage() {
       if (!mapByForma.has(formaKeyOf(r))) { sinMapeo++; continue; }
       importable++;
     }
-    return { importable, mixto, cxc, sinMapeo, descuento, notaCredito, porDeterminar, totalUsd };
+    return { importable, mixto, cxc, sinMapeo, descuento, notaCredito, porDeterminar, totalUsd, totalIva, totalServicio, totalPropina, conIva, conServicio, conPropina };
   }, [rows, mapByForma]);
+
 
   const fetchTasa = async (fecha: string): Promise<{ paralela: number; bcv: number; esParalela: boolean }> => {
     const [{ data: par }, { data: bcv }] = await Promise.all([
