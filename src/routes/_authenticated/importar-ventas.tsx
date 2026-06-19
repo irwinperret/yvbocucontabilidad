@@ -480,6 +480,7 @@ function ImportarVentasPage() {
             referencia: "xetux", notas: notasBase, created_by: user.id,
             grupo_transaccion_id: grupoId, tipo: "debito",
           });
+          ivaLegs++;
         }
 
         if (r.clase === "factura" && r.esCxC && tx) {
@@ -496,70 +497,11 @@ function ImportarVentasPage() {
           } as any);
         }
 
-        // ====== Bono de servicio (columna T) ======
-        // Solo para facturas con servicio > 0. Cuenta 3.5 (Bocu) o 3.10 (YV).
-        if (r.clase === "factura" && r.servicio_usd > 0 && tx && centroRow !== "Compartido") {
-          const cuentaBono = centroRow === "YV" ? "3.10" : "3.5";
-          const bonoBs = +(r.servicio_usd * tasaConv).toFixed(2);
-          // Dedup: ¿existe ya un bono enlazado a esta factura?
-          const { data: bonoExist } = await supabase.from("transacciones")
-            .select("id, monto_usd")
-            .eq("referencia", "xetux")
-            .eq("cuenta_codigo", cuentaBono)
-            .eq("numero_factura", r.numero_factura)
-            .limit(1).maybeSingle();
-          const bonoPayload: any = {
-            fecha: r.fecha,
-            cuenta_codigo: cuentaBono,
-            centro_costo: centroRow as any,
-            monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
-            iva_aplica: false, tipo_iva: null,
-            tasa_bcv: tasas.bcv || tasaConv,
-            tasa_paralela: tasas.paralela || null,
-            monto_usd: r.servicio_usd,
-            metodo_pago: "efectivo_usd",
-            numero_factura: r.numero_factura,
-            referencia: "xetux",
-            modo: "on_balance",
-            grupo_transaccion_id: grupoId,
-            notas: `Xetux · Bono 10% servicio · factura ${r.numero_factura} · ${r.cliente}`,
-            created_by: user.id,
-          };
-          if (bonoExist) {
-            await supabase.from("transacciones").update(bonoPayload).eq("id", bonoExist.id);
-          } else {
-            await supabase.from("transacciones").insert(bonoPayload);
-          }
+        if (tx) {
+          await syncBono(r, centroRow, tasas, tasaConv, grupoId);
+          await syncPropina(r, centroRow, tasas, tasaConv, tx.id);
         }
 
-        // ====== Propina (columna W) ======
-        // NO va a ingresos/gastos/FC. Solo a tabla propinas.
-        if (r.propina_usd > 0 && tx) {
-          const propinaBs = +(r.propina_usd * tasaConv).toFixed(2);
-          // Dedup: por numero_factura o numero_orden
-          const dedupFilter = r.numero_factura
-            ? supabase.from("propinas").select("id").eq("numero_factura", r.numero_factura)
-            : supabase.from("propinas").select("id").eq("numero_orden", r.numero_orden);
-          const { data: propExist } = await dedupFilter.eq("referencia", "xetux").limit(1).maybeSingle();
-          const propPayload: any = {
-            transaccion_id: tx.id,
-            fecha: r.fecha,
-            monto_usd: r.propina_usd,
-            monto_bs: propinaBs,
-            tasa_paralela: tasas.paralela || tasaConv,
-            centro_costo: centroRow,
-            concepto: "Propina Xetux",
-            referencia: "xetux",
-            numero_factura: r.numero_factura || null,
-            numero_orden: r.numero_orden || null,
-            created_by: user.id,
-          };
-          if (propExist) {
-            await supabase.from("propinas").update(propPayload).eq("id", propExist.id);
-          } else {
-            await supabase.from("propinas").insert(propPayload);
-          }
-        }
 
         ok++;
       } catch (e: any) {
