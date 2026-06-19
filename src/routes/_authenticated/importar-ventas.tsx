@@ -520,7 +520,7 @@ function ImportarVentasPage() {
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Nuevas: ${ok} · Actualizadas: ${updated} · Sin cambios: ${unchanged} · Fallidas: ${fail}`);
+    toast.success(`Nuevas: ${ok} · Actualizadas: ${updated} · Sin cambios: ${unchanged} · Fallidas: ${fail} · IVA: ${ivaLegs} · Bonos: ${bonoLegs} · Propinas: ${propinaLegs}`);
     if (ok > 0) {
       setRows((all) => all.filter((r) => !filaImportable(r)));
     }
