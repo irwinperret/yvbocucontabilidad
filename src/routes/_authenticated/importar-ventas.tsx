@@ -646,6 +646,8 @@ function ImportarVentasPage() {
                           <td className="p-2 truncate max-w-[180px]">{r.cliente}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.total_usd)}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.iva_usd)}</td>
+                          <td className="p-2 text-right mono">{r.clase === "factura" ? fmtUsd(r.servicio_usd) : "—"}</td>
+                          <td className="p-2 text-right mono">{fmtUsd(r.propina_usd)}</td>
                           <td className="p-2 font-mono text-[10px]">{r.clase === "factura" ? r.forma_pago_raw : r.tipo_raw}</td>
                           <td className={`p-2 font-medium ${estado.cls}`}>{estado.label}</td>
                         </tr>
