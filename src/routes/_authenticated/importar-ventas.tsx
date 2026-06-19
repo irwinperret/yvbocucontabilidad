@@ -606,6 +606,9 @@ function ImportarVentasPage() {
                 <Badge variant="outline" className="border-rose-400 text-rose-700">Descuentos: {stats.descuento}</Badge>
                 <Badge variant="outline" className="border-violet-400 text-violet-700">N. Crédito: {stats.notaCredito}</Badge>
                 <Badge variant="outline" className="border-zinc-400 text-zinc-700">Por determinar: {stats.porDeterminar}</Badge>
+                <Badge variant="outline" className="border-sky-400 text-sky-700">IVA: {fmtUsd(stats.totalIva)} ({stats.conIva})</Badge>
+                <Badge variant="outline" className="border-emerald-400 text-emerald-700">Servicio → bono nómina: {fmtUsd(stats.totalServicio)} ({stats.conServicio})</Badge>
+                <Badge variant="outline" className="border-pink-400 text-pink-700">Propina: {fmtUsd(stats.totalPropina)} ({stats.conPropina})</Badge>
               </div>
               <div className="border rounded overflow-x-auto max-h-[500px]">
                 <table className="w-full text-xs">
