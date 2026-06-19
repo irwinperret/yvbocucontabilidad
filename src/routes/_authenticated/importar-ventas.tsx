@@ -621,6 +621,8 @@ function ImportarVentasPage() {
                       <th className="p-2 bg-muted">Cliente</th>
                       <th className="p-2 bg-muted text-right">USD</th>
                       <th className="p-2 bg-muted text-right">IVA USD</th>
+                      <th className="p-2 bg-muted text-right">Servicio USD</th>
+                      <th className="p-2 bg-muted text-right">Propina USD</th>
                       <th className="p-2 bg-muted">Forma / Tipo</th>
                       <th className="p-2 bg-muted">Estado</th>
                     </tr>
