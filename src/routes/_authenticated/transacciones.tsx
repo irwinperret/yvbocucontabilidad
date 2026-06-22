@@ -317,6 +317,8 @@ function TransaccionesPage() {
         const tasaParRaw = t.tasa_paralela == null ? null : Number(t.tasa_paralela);
         const tieneParalela = tasaParRaw != null && tasaParRaw > 0;
         const montoBs = Number(t.monto_bs) || 0;
+        const tasaBcvRaw = Number(t.tasa_bcv) || 0;
+        const tieneBcv = tasaBcvRaw > 0;
         const r = ws.addRow({
           fecha: t.fecha,
           centro: t.centro_costo,
@@ -328,9 +330,10 @@ function TransaccionesPage() {
           bs: montoBs,
           base: Number(t.monto_base_bs) || 0,
           iva: Number(t.iva_bs) || 0,
-          tasa: Number(t.tasa_bcv) || 0,
+          tasa: tasaBcvRaw,
           tasaPar: tieneParalela ? tasaParRaw : "N/A",
           usd: tieneParalela ? montoBs / tasaParRaw! : "N/A",
+          usdBcv: tieneBcv ? montoBs / tasaBcvRaw : "N/A",
           metodo: t.metodo_pago ?? "",
           modo: t.modo,
           notas: t.notas ?? "",
@@ -341,6 +344,7 @@ function TransaccionesPage() {
           r.getCell("tasaPar" as any).numFmt = '#,##0.0000';
           r.getCell("usd" as any).numFmt = '"$"#,##0.00';
         }
+        if (tieneBcv) r.getCell("usdBcv" as any).numFmt = '"$"#,##0.00';
       }
 
       const buf = await wb.xlsx.writeBuffer();
