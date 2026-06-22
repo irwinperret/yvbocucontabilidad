@@ -504,6 +504,7 @@ function TransaccionesPage() {
                     <th className="text-right py-2 px-2">
                       <button type="button" onClick={() => toggleSort("monto_usd")} className="hover:text-foreground">USD{sortArrow("monto_usd")}</button>
                     </th>
+                    <th className="text-right py-2 px-2" title="Equivalente USD calculado a tasa BCV — solo referencia, no impacta G&P ni FC">USD (BCV)</th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-left py-2 px-2">Modo</th>
                     <th className="text-center py-2 px-2">Factura</th>
