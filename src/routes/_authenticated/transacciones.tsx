@@ -304,6 +304,7 @@ function TransaccionesPage() {
         { header: "Tasa BCV", key: "tasa", width: 12 },
         { header: "Tasa Paralela", key: "tasaPar", width: 14 },
         { header: "Monto USD Paralelo", key: "usd", width: 18 },
+        { header: "Monto USD (BCV ref.)", key: "usdBcv", width: 20 },
         { header: "Método", key: "metodo", width: 14 },
         { header: "Modo", key: "modo", width: 12 },
         { header: "Notas", key: "notas", width: 40 },
