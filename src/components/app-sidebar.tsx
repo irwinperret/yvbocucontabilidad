@@ -35,6 +35,7 @@ const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
   { title: "Flujo de caja", url: "/fc", icon: FileText },
+  { title: "Impuestos", url: "/impuestos", icon: Receipt },
   { title: "Propinas", url: "/propinas", icon: DollarSign },
 ];
 
