@@ -464,16 +464,16 @@ function ImportarVentasPage() {
             if (r.iva_usd > 0) {
               await insertIvaLeg({
                 fecha: r.fecha, centro_costo: centroRow as any, modo: modo as any,
-                monto_bs_iva: ivaBs, monto_usd_iva: r.iva_usd,
-                tasa_bcv: tasas.bcv || tasaConv, tasa_paralela: tasas.paralela || null,
+                monto_bs_iva: ivaBs, monto_usd_iva: ivaUsdPar,
+                tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
                 numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
                 referencia: "xetux", notas: notasBase, created_by: user.id,
                 grupo_transaccion_id: grupoExistente, tipo: "debito",
               });
               ivaLegs++;
             }
-            await syncBono(r, centroRow, tasas, tasaConv, grupoExistente);
-            await syncPropina(r, centroRow, tasas, tasaConv, tx.id);
+            await syncBono(r, centroRow, tasas, grupoExistente);
+            await syncPropina(r, centroRow, tasas, tx.id);
           }
           updated++;
           continue;
