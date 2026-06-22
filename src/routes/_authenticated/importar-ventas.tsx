@@ -433,9 +433,9 @@ function ImportarVentasPage() {
                   cliente: r.cliente,
                   centro_costo: centroRow as any,
                   monto_bs: totalBs,
-                  monto_usd: r.total_usd,
+                  monto_usd: totalUsdPar,
                   monto_pendiente_bs: totalBs,
-                  monto_pendiente_usd: r.total_usd,
+                  monto_pendiente_usd: totalUsdPar,
                   numero_orden: r.numero_orden || null,
                 } as any).eq("id", cxcExist.id);
               }
@@ -444,9 +444,9 @@ function ImportarVentasPage() {
                 cliente: r.cliente,
                 centro_costo: centroRow as any,
                 monto_bs: totalBs,
-                monto_usd: r.total_usd,
+                monto_usd: totalUsdPar,
                 monto_pendiente_bs: totalBs,
-                monto_pendiente_usd: r.total_usd,
+                monto_pendiente_usd: totalUsdPar,
                 transaccion_id: tx.id,
                 estado: "vigente",
                 numero_orden: r.numero_orden || null,
