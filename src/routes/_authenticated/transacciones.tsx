@@ -304,6 +304,7 @@ function TransaccionesPage() {
         { header: "Tasa BCV", key: "tasa", width: 12 },
         { header: "Tasa Paralela", key: "tasaPar", width: 14 },
         { header: "Monto USD Paralelo", key: "usd", width: 18 },
+        { header: "Monto USD (BCV ref.)", key: "usdBcv", width: 20 },
         { header: "Método", key: "metodo", width: 14 },
         { header: "Modo", key: "modo", width: 12 },
         { header: "Notas", key: "notas", width: 40 },
@@ -316,6 +317,8 @@ function TransaccionesPage() {
         const tasaParRaw = t.tasa_paralela == null ? null : Number(t.tasa_paralela);
         const tieneParalela = tasaParRaw != null && tasaParRaw > 0;
         const montoBs = Number(t.monto_bs) || 0;
+        const tasaBcvRaw = Number(t.tasa_bcv) || 0;
+        const tieneBcv = tasaBcvRaw > 0;
         const r = ws.addRow({
           fecha: t.fecha,
           centro: t.centro_costo,
@@ -327,9 +330,10 @@ function TransaccionesPage() {
           bs: montoBs,
           base: Number(t.monto_base_bs) || 0,
           iva: Number(t.iva_bs) || 0,
-          tasa: Number(t.tasa_bcv) || 0,
+          tasa: tasaBcvRaw,
           tasaPar: tieneParalela ? tasaParRaw : "N/A",
           usd: tieneParalela ? montoBs / tasaParRaw! : "N/A",
+          usdBcv: tieneBcv ? montoBs / tasaBcvRaw : "N/A",
           metodo: t.metodo_pago ?? "",
           modo: t.modo,
           notas: t.notas ?? "",
@@ -340,6 +344,7 @@ function TransaccionesPage() {
           r.getCell("tasaPar" as any).numFmt = '#,##0.0000';
           r.getCell("usd" as any).numFmt = '"$"#,##0.00';
         }
+        if (tieneBcv) r.getCell("usdBcv" as any).numFmt = '"$"#,##0.00';
       }
 
       const buf = await wb.xlsx.writeBuffer();
@@ -504,6 +509,7 @@ function TransaccionesPage() {
                     <th className="text-right py-2 px-2">
                       <button type="button" onClick={() => toggleSort("monto_usd")} className="hover:text-foreground">USD{sortArrow("monto_usd")}</button>
                     </th>
+                    <th className="text-right py-2 px-2" title="Equivalente USD calculado a tasa BCV — solo referencia, no impacta G&P ni FC">USD (BCV)</th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-left py-2 px-2">Modo</th>
                     <th className="text-center py-2 px-2">Factura</th>
@@ -535,6 +541,9 @@ function TransaccionesPage() {
                       <td className="py-2 px-2 mono text-xs">{t.numero_orden ?? "—"}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(t.monto_usd)}</td>
+                      <td className="py-2 px-2 text-right mono text-muted-foreground">
+                        {Number(t.tasa_bcv) > 0 ? fmtUsd(Number(t.monto_bs) / Number(t.tasa_bcv)) : "—"}
+                      </td>
                       <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
                       <td className="py-2 px-2">
                         {t.modo === "off_balance"
