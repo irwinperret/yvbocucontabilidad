@@ -495,8 +495,8 @@ function ImportarVentasPage() {
           const { insertIvaLeg } = await import("@/lib/iva-helpers");
           await insertIvaLeg({
             fecha: r.fecha, centro_costo: centroRow as any, modo: modo as any,
-            monto_bs_iva: ivaBs, monto_usd_iva: r.iva_usd,
-            tasa_bcv: tasas.bcv || tasaConv, tasa_paralela: tasas.paralela || null,
+            monto_bs_iva: ivaBs, monto_usd_iva: ivaUsdPar,
+            tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
             numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
             referencia: "xetux", notas: notasBase, created_by: user.id,
             grupo_transaccion_id: grupoId, tipo: "debito",
@@ -509,9 +509,9 @@ function ImportarVentasPage() {
             cliente: r.cliente,
             centro_costo: centroRow as any,
             monto_bs: totalBs,
-            monto_usd: r.total_usd,
+            monto_usd: totalUsdPar,
             monto_pendiente_bs: totalBs,
-            monto_pendiente_usd: r.total_usd,
+            monto_pendiente_usd: totalUsdPar,
             transaccion_id: tx.id,
             estado: "vigente",
             numero_orden: r.numero_orden || null,
@@ -519,8 +519,8 @@ function ImportarVentasPage() {
         }
 
         if (tx) {
-          await syncBono(r, centroRow, tasas, tasaConv, grupoId);
-          await syncPropina(r, centroRow, tasas, tasaConv, tx.id);
+          await syncBono(r, centroRow, tasas, grupoId);
+          await syncPropina(r, centroRow, tasas, tx.id);
         }
 
 
