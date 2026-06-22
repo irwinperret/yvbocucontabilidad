@@ -536,6 +536,9 @@ function TransaccionesPage() {
                       <td className="py-2 px-2 mono text-xs">{t.numero_orden ?? "—"}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(t.monto_usd)}</td>
+                      <td className="py-2 px-2 text-right mono text-muted-foreground">
+                        {Number(t.tasa_bcv) > 0 ? fmtUsd(Number(t.monto_bs) / Number(t.tasa_bcv)) : "—"}
+                      </td>
                       <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
                       <td className="py-2 px-2">
                         {t.modo === "off_balance"
