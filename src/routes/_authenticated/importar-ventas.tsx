@@ -233,11 +233,17 @@ function ImportarVentasPage() {
     let ok = 0, updated = 0, unchanged = 0, fail = 0;
     let ivaLegs = 0, bonoLegs = 0, propinaLegs = 0;
 
-    // Helpers compartidos para sincronizar patas anexas (IVA, bono, propina) en INSERT y UPDATE
-    const syncBono = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, tasaConv: number, grupoId: string) => {
+    // Helpers compartidos para sincronizar patas anexas (IVA, bono, propina) en INSERT y UPDATE.
+    // Conversión Xetux: el USD del reporte está calculado a tasa BCV.
+    //   Bs                  = usd_xetux × tasa_bcv
+    //   USD almacenado (a tasa paralela) = Bs / tasa_paralela
+    const syncBono = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, grupoId: string) => {
       if (r.clase !== "factura" || r.servicio_usd <= 0 || centroRow === ("Compartido" as any)) return;
       const cuentaBono = centroRow === "YV" ? "3.10" : "3.5";
-      const bonoBs = +(r.servicio_usd * tasaConv).toFixed(2);
+      const tasaBcv = tasas.bcv;
+      const tasaPar = tasas.paralela || tasas.bcv;
+      const bonoBs = +(r.servicio_usd * tasaBcv).toFixed(2);
+      const bonoUsdPar = +(bonoBs / tasaPar).toFixed(2);
       const { data: bonoExist } = await supabase.from("transacciones")
         .select("id")
         .eq("referencia", "xetux")
@@ -248,8 +254,8 @@ function ImportarVentasPage() {
         fecha: r.fecha, cuenta_codigo: cuentaBono, centro_costo: centroRow as any,
         monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
-        tasa_bcv: tasas.bcv || tasaConv, tasa_paralela: tasas.paralela || null,
-        monto_usd: r.servicio_usd, metodo_pago: "efectivo_usd",
+        tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
+        monto_usd: bonoUsdPar, metodo_pago: "efectivo_usd",
         numero_factura: r.numero_factura, referencia: "xetux", modo: "on_balance",
         grupo_transaccion_id: grupoId,
         notas: `Xetux · Bono 10% servicio · factura ${r.numero_factura} · ${r.cliente}`,
@@ -263,17 +269,20 @@ function ImportarVentasPage() {
       bonoLegs++;
     };
 
-    const syncPropina = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, tasaConv: number, txId: string) => {
+    const syncPropina = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, txId: string) => {
       if (r.propina_usd <= 0) return;
-      const propinaBs = +(r.propina_usd * tasaConv).toFixed(2);
+      const tasaBcv = tasas.bcv;
+      const tasaPar = tasas.paralela || tasas.bcv;
+      const propinaBs = +(r.propina_usd * tasaBcv).toFixed(2);
+      const propinaUsdPar = +(propinaBs / tasaPar).toFixed(2);
       const dedupFilter = r.numero_factura
         ? supabase.from("propinas").select("id").eq("numero_factura", r.numero_factura)
         : supabase.from("propinas").select("id").eq("numero_orden", r.numero_orden);
       const { data: propExist } = await dedupFilter.eq("referencia", "xetux").limit(1).maybeSingle();
       const propPayload: any = {
         transaccion_id: txId, fecha: r.fecha,
-        monto_usd: r.propina_usd, monto_bs: propinaBs,
-        tasa_paralela: tasas.paralela || tasaConv,
+        monto_usd: propinaUsdPar, monto_bs: propinaBs,
+        tasa_paralela: tasas.paralela || tasaBcv,
         centro_costo: centroRow, concepto: "Propina Xetux", referencia: "xetux",
         numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
         created_by: user.id,
