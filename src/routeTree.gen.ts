@@ -25,6 +25,7 @@ import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedOffBalanceRouteImport } from './routes/_authenticated/off-balance'
 import { Route as AuthenticatedLiquidacionesRouteImport } from './routes/_authenticated/liquidaciones'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
+import { Route as AuthenticatedImpuestosRouteImport } from './routes/_authenticated/impuestos'
 import { Route as AuthenticatedImportarVentasRouteImport } from './routes/_authenticated/importar-ventas'
 import { Route as AuthenticatedImportarComprasRouteImport } from './routes/_authenticated/importar-compras'
 import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
@@ -124,6 +125,11 @@ const AuthenticatedLiquidacionesRoute =
 const AuthenticatedInicioRoute = AuthenticatedInicioRouteImport.update({
   id: '/inicio',
   path: '/inicio',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedImpuestosRoute = AuthenticatedImpuestosRouteImport.update({
+  id: '/impuestos',
+  path: '/impuestos',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedImportarVentasRoute =
@@ -226,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/gyp': typeof AuthenticatedGypRoute
   '/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
+  '/impuestos': typeof AuthenticatedImpuestosRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
@@ -258,6 +265,7 @@ export interface FileRoutesByTo {
   '/gyp': typeof AuthenticatedGypRoute
   '/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
+  '/impuestos': typeof AuthenticatedImpuestosRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
@@ -292,6 +300,7 @@ export interface FileRoutesById {
   '/_authenticated/gyp': typeof AuthenticatedGypRoute
   '/_authenticated/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/_authenticated/importar-ventas': typeof AuthenticatedImportarVentasRoute
+  '/_authenticated/impuestos': typeof AuthenticatedImpuestosRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/_authenticated/off-balance': typeof AuthenticatedOffBalanceRoute
@@ -326,6 +335,7 @@ export interface FileRouteTypes {
     | '/gyp'
     | '/importar-compras'
     | '/importar-ventas'
+    | '/impuestos'
     | '/inicio'
     | '/liquidaciones'
     | '/off-balance'
@@ -358,6 +368,7 @@ export interface FileRouteTypes {
     | '/gyp'
     | '/importar-compras'
     | '/importar-ventas'
+    | '/impuestos'
     | '/inicio'
     | '/liquidaciones'
     | '/off-balance'
@@ -391,6 +402,7 @@ export interface FileRouteTypes {
     | '/_authenticated/gyp'
     | '/_authenticated/importar-compras'
     | '/_authenticated/importar-ventas'
+    | '/_authenticated/impuestos'
     | '/_authenticated/inicio'
     | '/_authenticated/liquidaciones'
     | '/_authenticated/off-balance'
@@ -530,6 +542,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInicioRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/impuestos': {
+      id: '/_authenticated/impuestos'
+      path: '/impuestos'
+      fullPath: '/impuestos'
+      preLoaderRoute: typeof AuthenticatedImpuestosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/importar-ventas': {
       id: '/_authenticated/importar-ventas'
       path: '/importar-ventas'
@@ -652,6 +671,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedGypRoute: typeof AuthenticatedGypRoute
   AuthenticatedImportarComprasRoute: typeof AuthenticatedImportarComprasRoute
   AuthenticatedImportarVentasRoute: typeof AuthenticatedImportarVentasRoute
+  AuthenticatedImpuestosRoute: typeof AuthenticatedImpuestosRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedLiquidacionesRoute: typeof AuthenticatedLiquidacionesRoute
   AuthenticatedOffBalanceRoute: typeof AuthenticatedOffBalanceRoute
@@ -683,6 +703,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedGypRoute: AuthenticatedGypRoute,
   AuthenticatedImportarComprasRoute: AuthenticatedImportarComprasRoute,
   AuthenticatedImportarVentasRoute: AuthenticatedImportarVentasRoute,
+  AuthenticatedImpuestosRoute: AuthenticatedImpuestosRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedLiquidacionesRoute: AuthenticatedLiquidacionesRoute,
   AuthenticatedOffBalanceRoute: AuthenticatedOffBalanceRoute,
