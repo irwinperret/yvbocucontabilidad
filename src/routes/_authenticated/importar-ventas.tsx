@@ -308,13 +308,20 @@ function ImportarVentasPage() {
           tasas = await fetchTasa(r.fecha);
           tasaCache.set(r.fecha, tasas);
         }
-        // USD es la fuente de verdad. Bs = USD × tasa paralela (fallback BCV solo si no hay paralela).
-        const tasaConv = tasas.paralela || tasas.bcv;
-        if (!tasaConv) { fail++; toast.error(`Sin tasa para ${r.fecha} (${r.numero_factura || r.numero_orden})`); continue; }
+        // El USD del reporte Xetux está calculado a tasa BCV. Para almacenar:
+        //   Bs                            = usd_xetux × tasa_bcv
+        //   USD oficial (tasa paralela)   = Bs / tasa_paralela
+        // Fallback: si no hay paralela, se usa BCV (sin diferencia entre ambas tasas).
+        const tasaBcv = tasas.bcv;
+        const tasaPar = tasas.paralela || tasas.bcv;
+        if (!tasaBcv) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura || r.numero_orden})`); continue; }
 
-        const totalBs = +(r.total_usd * tasaConv).toFixed(2);
-        const baseBs = +(r.base_usd * tasaConv).toFixed(2);
-        const ivaBs = +(r.iva_usd * tasaConv).toFixed(2);
+        const totalBs = +(r.total_usd * tasaBcv).toFixed(2);
+        const baseBs = +(r.base_usd * tasaBcv).toFixed(2);
+        const ivaBs = +(r.iva_usd * tasaBcv).toFixed(2);
+        const totalUsdPar = +(totalBs / tasaPar).toFixed(2);
+        const baseUsdPar = +(baseBs / tasaPar).toFixed(2);
+        const ivaUsdPar = +(ivaBs / tasaPar).toFixed(2);
 
         // Centro: factura → derivado del nº factura; resto (orden) → Bocu por regla.
         const centroRow: Centro = r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu";
