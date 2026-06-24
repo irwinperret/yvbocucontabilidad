@@ -2025,14 +2025,15 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+  // Pre-llenar con la tasa paralela (sistema). La BCV se conserva como referencia fiscal.
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
-  const tasaN = Number(tasa) || 0;
-  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaN || tasaParalelaN; // egreso → BCV
+  const tasaParalelaInput = Number(tasa) || 0; // valor del input → paralela
+  const tasaBcvN = Number(tasaSugerida?.tasa) || 0; // BCV del día (referencia)
+  const tasaConvN = tasaParalelaInput || Number(paralelaSugerida?.tasa) || 0; // USD = Bs / paralela
   const muestraBanco = tipo !== "depreciacion";
 
-  // Conversión según moneda de entrada (USD → Bs a tasa paralela)
+  // Conversión según moneda de entrada (USD ↔ Bs a tasa paralela)
   const toBs = (v: string) => {
     const n = Number(v) || 0;
     return moneda === "USD" ? n * tasaConvN : n;
@@ -2041,22 +2042,30 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
     const n = Number(v) || 0;
     return moneda === "USD" ? n : (tasaConvN ? n / tasaConvN : 0);
   };
+  const toUsdBcv = (v: string) => {
+    const bs = toBs(v);
+    return tasaBcvN ? bs / tasaBcvN : 0;
+  };
 
   const montoBsCalc = toBs(montoInput);
   const montoUsdCalc = toUsd(montoInput);
+  const montoUsdBcvCalc = toUsdBcv(montoInput);
   const capitalBsCalc = toBs(capitalInput);
   const interesesBsCalc = toBs(interesesInput);
 
   const baseInsert = (cuenta: string, bs: number) => ({
     fecha, cuenta_codigo: cuenta, centro_costo: "Compartido" as any,
     monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
-    tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: tasaConvN ? bs / tasaConvN : 0,
+    tasa_bcv: tasaBcvN || tasaConvN, tasa_paralela: tasaConvN || null,
+    monto_usd: tasaConvN ? bs / tasaConvN : 0,
     metodo_pago: "transferencia" as any, notas: notas || null, detalle: detalle || null,
     modo: "on_balance" as any,
     cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
     capex_categoria: cuenta === "10.6" ? capexCategoria : null,
     created_by: user!.id,
   });
+
+
 
 
   const submit = async (e: React.FormEvent) => {
