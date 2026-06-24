@@ -132,6 +132,9 @@ function VentasForm() {
   const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
   const [tasa, setTasa] = useState("");
+  // Moneda de registro para contado/credito (mismo patrón que GastosFacturaForm).
+  // "Cobro de credito anterior" mantiene su lógica previa basada en método de pago, sin cambios.
+  const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
   const [metodo, setMetodo] = useState("transferencia");
   const [ref, setRef] = useState("");
   const [numOrden, setNumOrden] = useState("");
@@ -184,8 +187,12 @@ function VentasForm() {
   }, [cxcId, tipo, cxcSel?.id, tasaSugerida?.tasa, metodo]);
 
 
-  // Pago en divisas: el monto total se ingresa directamente en USD
-  const pagoEnUsd = tipo !== "credito" && (metodo === "zelle" || metodo === "efectivo_usd");
+  // Pago en divisas: el monto total se ingresa directamente en USD.
+  // Contado y crédito usan el selector explícito de moneda. Cobro de crédito anterior
+  // conserva el comportamiento previo (USD si el método es zelle/efectivo_usd).
+  const pagoEnUsd = (tipo === "contado" || tipo === "credito")
+    ? moneda === "USD"
+    : (metodo === "zelle" || metodo === "efectivo_usd");
   const montoN = Number(montoTotal) || 0;
   const tasaN = Number(tasa) || 0;
   // Contado: Bs→USD a tasa paralela. Crédito y Cobro: a tasa BCV.
@@ -206,7 +213,11 @@ function VentasForm() {
   // #6: bono servicio 10% y propina (manual ventas contado/credito)
   const bonoServAuto = Number((baseUsd * 0.1).toFixed(2));
   const bonoServUsdN = Number(bonoServUsd) || 0;
-  const propinaUsdN = Number(propinaUsd) || 0;
+  // La propina se captura en la misma moneda elegida para la venta (Bs o USD),
+  // igual que el monto total. Se derivan ambos valores para guardarlos consistentes.
+  const propinaInputN = Number(propinaUsd) || 0;
+  const propinaUsdN = pagoEnUsd ? propinaInputN : (tasaConvN ? propinaInputN / tasaConvN : 0);
+  const propinaBsN = pagoEnUsd ? propinaInputN * tasaConvN : propinaInputN;
   useEffect(() => {
     if (tipo !== "contado" && tipo !== "credito") return;
     if (bonoServTouched) return;
@@ -493,20 +504,19 @@ function VentasForm() {
         else if (txBs) await logAudit("transacciones", "INSERT", txBs.id, null, txBs);
       }
       if (propinaUsdN > 0) {
-        const propinaBs = propinaUsdN * tasaConvN;
-        // 1) 13.1 entry transaction (propina recibida) — afecta FC, no G&P
+        // 1) 13.1 entry transaction (propina recibida), afecta FC, no G&P
         const grupoPropina = crypto.randomUUID();
         let entradaId: string | null = null;
         const { data: txProp, error: eTxProp } = await supabase.from("transacciones").insert({
           fecha, cuenta_codigo: "13.1", centro_costo: centro as any,
-          monto_bs: propinaBs, monto_base_bs: propinaBs, iva_bs: 0,
+          monto_bs: propinaBsN, monto_base_bs: propinaBsN, iva_bs: 0,
           iva_aplica: false, tipo_iva: null,
           tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
           monto_usd: propinaUsdN,
           metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
           cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
           numero_orden: numOrden || null,
-          notas: `Propina recibida — ${fecha} — ${centro}`,
+          notas: `Propina recibida, ${fecha}, ${centro}`,
           modo: "on_balance" as any,
           grupo_transaccion_id: grupoPropina,
           created_by: user.id,
@@ -517,7 +527,7 @@ function VentasForm() {
         // 2) Propina row linked to entry tx
         const { error: ePr } = await supabase.from("propinas").insert({
           transaccion_id: tx.id, fecha, centro_costo: centro as any,
-          monto_usd: propinaUsdN, monto_bs: propinaBs,
+          monto_usd: propinaUsdN, monto_bs: propinaBsN,
           tasa_paralela: paralelaSugerida?.tasa ?? null,
           concepto: "Propina venta manual",
           numero_orden: numOrden || null,
@@ -728,6 +738,15 @@ function VentasForm() {
 
           {tipo !== "ajuste_off" && (
             <>
+              {(tipo === "contado" || tipo === "credito") && (
+                <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+                  <Label>Moneda de registro</Label>
+                  <div className="inline-flex rounded-lg border p-1">
+                    <button type="button" onClick={() => setMoneda("BS")} className={`px-3 py-1 text-xs rounded-md ${moneda !== "USD" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Bolívares (Bs)</button>
+                    <button type="button" onClick={() => setMoneda("USD")} className={`px-3 py-1 text-xs rounded-md ${moneda === "USD" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Dólares (USD)</button>
+                  </div>
+                </div>
+              )}
               <div className="md:col-span-2 border-t pt-3 flex items-center justify-between">
                 <Label>¿Aplica IVA 16%?</Label>
                 <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
@@ -771,7 +790,7 @@ function VentasForm() {
                       </p>
                     </div>
                     <div>
-                      <Label>Propina ($)</Label>
+                      <Label>{pagoEnUsd ? "Propina (USD)" : "Propina (Bs)"}</Label>
                       <Input
                         type="number" step="0.01" min="0"
                         value={propinaUsd}
@@ -779,7 +798,7 @@ function VentasForm() {
                         className="mono"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Va a la tabla de propinas. No afecta G&amp;P ni FC.
+                        Se captura en la misma moneda elegida arriba ({pagoEnUsd ? "USD" : "Bs"}). Va a la tabla de propinas. No afecta G&amp;P ni FC.
                       </p>
                     </div>
                   </div>
