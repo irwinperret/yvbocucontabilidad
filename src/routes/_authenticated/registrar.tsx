@@ -2803,13 +2803,13 @@ function LiquidacionesForm() {
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Pull paralela directly from tasas_bcv.tasa_paralela (fallback to tasas_paralela)
+  // Pull paralela directly from tasas_bcv.tasa_paralela (fallback to tasas_paralela); also BCV (referencia)
   const { data: bcvRow } = useQuery({
     queryKey: ["tasa-bcv-paralela-for", fecha],
     queryFn: async () => {
       const { data } = await supabase
         .from("tasas_bcv")
-        .select("fecha, tasa_bs_usd, tasa_paralela")
+        .select("fecha, tasa, tasa_paralela")
         .lte("fecha", fecha)
         .order("fecha", { ascending: false })
         .limit(1)
@@ -2825,8 +2825,10 @@ function LiquidacionesForm() {
 
   const seccionDef = LIQ_SECCIONES.find((s) => s.key === seccion)!;
   const montoBsN = Number(montoBs) || 0;
-  const tasaN = Number(tasa) || 0;
+  const tasaN = Number(tasa) || 0; // paralela (input)
+  const tasaBcvRefN = Number((bcvRow as any)?.tasa) || 0; // BCV referencia
   const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+  const montoUsdBcv = tasaBcvRefN > 0 ? montoBsN / tasaBcvRefN : 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2846,8 +2848,9 @@ function LiquidacionesForm() {
       monto_base_bs: montoBsN,
       iva_bs: 0,
       iva_aplica: false,
-      tasa_bcv: tasaN,
+      tasa_bcv: tasaBcvRefN || tasaN,
       tasa_paralela: tasaN,
+
       monto_usd: +montoUsd.toFixed(2),
       metodo_pago: "transferencia" as any,
       cuenta_bancaria_id: cuentaBancariaId,
