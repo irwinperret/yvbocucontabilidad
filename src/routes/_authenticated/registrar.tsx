@@ -131,6 +131,8 @@ function VentasForm() {
   const [fechaVenc, setFechaVenc] = useState("");
   const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
+  const [ivaMonto, setIvaMonto] = useState("");
+  const [ivaTouched, setIvaTouched] = useState(false);
   const [tasa, setTasa] = useState("");
   // Moneda de registro para contado/credito (mismo patrón que GastosFacturaForm).
   // "Cobro de credito anterior" mantiene su lógica previa basada en método de pago, sin cambios.
@@ -204,16 +206,52 @@ function VentasForm() {
   // con la tasa BCV, y ese monto en Bs se reexpresa en USD a la tasa paralela, que es el
   // dolar contable real. "Cobro de credito anterior" conserva su comportamiento previo.
   const esVentaEnUsdBcv = (tipo === "contado" || tipo === "credito") && pagoEnUsd;
-  const total = esVentaEnUsdBcv
-    ? montoN * tasaBcvN
-    : (pagoEnUsd ? montoN * tasaConvN : montoN);
-  const totalUsd = esVentaEnUsdBcv
-    ? (tasaParalelaN ? total / tasaParalelaN : (tasaBcvN ? montoN : 0))
-    : (pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0));
-  const base = ivaAplica ? total / 1.16 : total;
-  const iva = ivaAplica ? total - base : 0;
-  const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
-  const ivaUsd = ivaAplica ? totalUsd - baseUsd : 0;
+  // Helper: convierte un monto en la moneda elegida a (bs, usd-paralelo)
+  const convertInput = (n: number) => {
+    if (esVentaEnUsdBcv) {
+      const bs = n * tasaBcvN;
+      const usd = tasaParalelaN ? bs / tasaParalelaN : (tasaBcvN ? n : 0);
+      return { bs, usd };
+    }
+    if (pagoEnUsd) {
+      const bs = n * tasaConvN;
+      return { bs, usd: n };
+    }
+    return { bs: n, usd: tasaConvN ? n / tasaConvN : 0 };
+  };
+  // Para contado/credito: el monto digitado es la VENTA NETA (sin IVA, servicio, propina).
+  // El IVA se ingresa por separado (default 16% × neto, editable). Para cobro se conserva
+  // el flujo previo: el monto es el cobro total y se desagrega base/iva con la regla 1.16.
+  const esVentaNeta = tipo === "contado" || tipo === "credito";
+  const ivaInputN = (esVentaNeta && ivaAplica) ? (Number(ivaMonto) || 0) : 0;
+  let base: number, iva: number, baseUsd: number, ivaUsd: number, total: number, totalUsd: number;
+  if (esVentaNeta) {
+    const b = convertInput(montoN);
+    const i = convertInput(ivaInputN);
+    base = b.bs; baseUsd = b.usd;
+    iva = i.bs; ivaUsd = i.usd;
+    total = base + iva;
+    totalUsd = baseUsd + ivaUsd;
+  } else {
+    total = esVentaEnUsdBcv
+      ? montoN * tasaBcvN
+      : (pagoEnUsd ? montoN * tasaConvN : montoN);
+    totalUsd = esVentaEnUsdBcv
+      ? (tasaParalelaN ? total / tasaParalelaN : (tasaBcvN ? montoN : 0))
+      : (pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0));
+    base = ivaAplica ? total / 1.16 : total;
+    iva = ivaAplica ? total - base : 0;
+    baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
+    ivaUsd = ivaAplica ? totalUsd - baseUsd : 0;
+  }
+  // Auto-fill IVA = 16% × venta neta (en la misma moneda) mientras el usuario no lo edite.
+  useEffect(() => {
+    if (!esVentaNeta) return;
+    if (ivaTouched) return;
+    if (!ivaAplica) { setIvaMonto(""); return; }
+    const auto = +(montoN * 0.16).toFixed(2);
+    setIvaMonto(auto > 0 ? auto.toFixed(2) : "");
+  }, [esVentaNeta, ivaAplica, montoN, ivaTouched]);
   const cuenta = tipo === "ajuste_off" ? cuentaVenta(centro, "contado") : cuentaVenta(centro, tipo);
   // Para cobros: USD que se está cancelando con este pago
   const usdCobrado = tipo === "cobro" ? totalUsd : 0;
@@ -768,8 +806,15 @@ function VentasForm() {
                 <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
               </div>
               <div className={pagoEnUsd ? "md:col-span-2" : ""}>
-                <Label>{pagoEnUsd ? (esVentaEnUsdBcv ? (ivaAplica ? "Monto total USD a tasa BCV (IVA incluido)" : "Monto USD a tasa BCV") : (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $")) : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
+                <Label>
+                  {esVentaNeta
+                    ? (pagoEnUsd ? (esVentaEnUsdBcv ? "Monto Venta Neta USD a tasa BCV" : "Monto Venta Neta $") : "Monto Venta Neta Bs")
+                    : (pagoEnUsd ? (esVentaEnUsdBcv ? (ivaAplica ? "Monto total USD a tasa BCV (IVA incluido)" : "Monto USD a tasa BCV") : (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $")) : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"))}
+                </Label>
                 <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
+                {esVentaNeta && (
+                  <p className="text-xs text-muted-foreground mt-1">No incluye IVA, ni servicio, ni propina.</p>
+                )}
               </div>
               {!pagoEnUsd && (
                 <div>
@@ -782,6 +827,22 @@ function VentasForm() {
                   )}
                 </div>
               )}
+              {esVentaNeta && ivaAplica && (
+                <div className="md:col-span-2">
+                  <Label>
+                    {pagoEnUsd ? (esVentaEnUsdBcv ? "IVA USD a tasa BCV" : "IVA $") : "IVA Bs"}
+                  </Label>
+                  <Input
+                    type="number" step="0.01" min="0"
+                    value={ivaMonto}
+                    onChange={(e) => { setIvaMonto(e.target.value); setIvaTouched(true); }}
+                    className="mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sugerido: 16% de la venta neta ({(Number(montoTotal) || 0) > 0 ? (+(Number(montoTotal) * 0.16).toFixed(2)).toFixed(2) : "—"}). Puedes ajustarlo si la factura tiene un IVA distinto.
+                  </p>
+                </div>
+              )}
               {esVentaEnUsdBcv && (
                 <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
                   <div>Tasa BCV usada: <span className="mono font-semibold">{tasaBcvN ? tasaBcvN.toFixed(4) : "—"}</span></div>
@@ -791,7 +852,7 @@ function VentasForm() {
                   </div>
                 </div>
               )}
-              {ivaAplica && tipo === "contado" && (
+              {ivaAplica && esVentaNeta && (
                 <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
                   <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
                   <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
@@ -799,6 +860,7 @@ function VentasForm() {
                   <div>IVA USD paralelo: <span className="mono">{fmtUsd(ivaUsd)}</span></div>
                   <div>Base USD BCV: <span className="mono">{fmtUsd(tasaBcvN ? base / tasaBcvN : 0)}</span></div>
                   <div>IVA USD BCV: <span className="mono">{fmtUsd(tasaBcvN ? iva / tasaBcvN : 0)}</span></div>
+                  <div className="col-span-2 text-muted-foreground">Total con IVA: <span className="mono font-semibold">{fmtBs(total)}</span> · <span className="mono font-semibold">{fmtUsd(totalUsd)}</span></div>
                 </div>
               )}
               <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
