@@ -11,10 +11,10 @@ import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { Pencil, Save, X } from "lucide-react";
 import {
-import { UsdRateBadge } from "@/components/usd-rate-badge";
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell,
   PieChart, Pie,
 } from "recharts";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/aumento-capital")({ component: AumentoCapitalPage });
 

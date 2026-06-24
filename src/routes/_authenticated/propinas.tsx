@@ -19,9 +19,9 @@ import { useAuth } from "@/lib/auth-context";
 import { logAudit } from "@/lib/audit";
 import { useCuentasBancarias } from "@/components/bank-account-select";
 import {
-import { UsdRateBadge } from "@/components/usd-rate-badge";
   Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
 } from "recharts";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/propinas")({ component: PropinasPage });
 

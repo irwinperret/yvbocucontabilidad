@@ -20,9 +20,9 @@ import { useCuentasBancarias, BankAccountSelect } from "@/components/bank-accoun
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import {
-import { UsdRateBadge } from "@/components/usd-rate-badge";
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 const SECCIONES = [
   { key: "Cocina",         cuenta: "3.3",  centro: "Compartido", color: "#0F6E56" },

@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { fmtUsd, fmtBs, fmtDate } from "@/lib/format";
 import { MESES, CAPEX_CATEGORIAS } from "@/lib/account-helpers";
 import {
-import { UsdRateBadge } from "@/components/usd-rate-badge";
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
   { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
