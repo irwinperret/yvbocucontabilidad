@@ -562,7 +562,7 @@ function ImportarVentasPage() {
 
         if (tx) {
           await syncBono(r, centroRow, tasas, grupoId);
-          await syncPropina(r, centroRow, tasas, tx.id);
+          await syncPropina(r, centroRow, tasas, tx.id, grupoId, metodo);
         }
 
 
