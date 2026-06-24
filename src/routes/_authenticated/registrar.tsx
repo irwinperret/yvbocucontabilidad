@@ -1701,12 +1701,13 @@ function OpsIvaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida?.tasa]);
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
   const total = Number(montoBs) || 0;
-  const tasaN = Number(tasa) || 0;
+  const tasaN = Number(tasa) || 0; // paralela (input)
+  const tasaBcvN = Number(tasaSugerida?.tasa) || 0; // BCV referencia
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaN || tasaParalelaN; // egreso → BCV
+  const tasaConvN = tasaN || tasaParalelaN; // USD = Bs / paralela
   const usd = tasaConvN ? total / tasaConvN : 0;
 
 
@@ -1714,7 +1715,8 @@ function OpsIvaForm() {
     e.preventDefault();
     if (!user) return;
     if (!total) return toast.error("Monto requerido");
-    if (!tasaN) return toast.error("Falta tasa BCV");
+    if (!tasaConvN) return toast.error("Falta tasa paralela");
+
     if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
