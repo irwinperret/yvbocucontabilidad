@@ -22,6 +22,7 @@ import { logAudit } from "@/lib/audit";
 import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 const SECCIONES = [
   { key: "Cocina",         cuenta: "3.3",  centro: "Compartido", color: "#0F6E56" },
@@ -163,6 +164,7 @@ function LiquidacionesHistorialPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Liquidaciones</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Historial de liquidaciones de personal</p>
       </div>
 

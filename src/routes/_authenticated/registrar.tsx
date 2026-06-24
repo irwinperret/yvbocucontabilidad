@@ -1701,12 +1701,13 @@ function OpsIvaForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida?.tasa]);
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
   const total = Number(montoBs) || 0;
-  const tasaN = Number(tasa) || 0;
+  const tasaN = Number(tasa) || 0; // paralela (input)
+  const tasaBcvN = Number(tasaSugerida?.tasa) || 0; // BCV referencia
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaN || tasaParalelaN; // egreso → BCV
+  const tasaConvN = tasaN || tasaParalelaN; // USD = Bs / paralela
   const usd = tasaConvN ? total / tasaConvN : 0;
 
 
@@ -1714,7 +1715,8 @@ function OpsIvaForm() {
     e.preventDefault();
     if (!user) return;
     if (!total) return toast.error("Monto requerido");
-    if (!tasaN) return toast.error("Falta tasa BCV");
+    if (!tasaConvN) return toast.error("Falta tasa paralela");
+
     if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const { data: tx, error } = await supabase.from("transacciones").insert({
@@ -1726,8 +1728,9 @@ function OpsIvaForm() {
       iva_bs: 0,
       iva_aplica: false,
       tipo_iva: null,
-      tasa_bcv: tasaN,
-      tasa_paralela: paralelaSugerida?.tasa ?? null,
+      tasa_bcv: tasaBcvN || tasaConvN,
+      tasa_paralela: tasaConvN || null,
+
       monto_usd: usd,
       metodo_pago: metodo as any,
       referencia: ref || null,
@@ -2025,14 +2028,15 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  useEffect(() => { if (tasaSugerida) setTasa(String(tasaSugerida.tasa)); }, [tasaSugerida]);
+  // Pre-llenar con la tasa paralela (sistema). La BCV se conserva como referencia fiscal.
+  useEffect(() => { if (paralelaSugerida) setTasa(String(paralelaSugerida.tasa)); }, [paralelaSugerida?.tasa]);
 
-  const tasaN = Number(tasa) || 0;
-  const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
-  const tasaConvN = tasaN || tasaParalelaN; // egreso → BCV
+  const tasaParalelaInput = Number(tasa) || 0; // valor del input → paralela
+  const tasaBcvN = Number(tasaSugerida?.tasa) || 0; // BCV del día (referencia)
+  const tasaConvN = tasaParalelaInput || Number(paralelaSugerida?.tasa) || 0; // USD = Bs / paralela
   const muestraBanco = tipo !== "depreciacion";
 
-  // Conversión según moneda de entrada (USD → Bs a tasa paralela)
+  // Conversión según moneda de entrada (USD ↔ Bs a tasa paralela)
   const toBs = (v: string) => {
     const n = Number(v) || 0;
     return moneda === "USD" ? n * tasaConvN : n;
@@ -2041,16 +2045,22 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
     const n = Number(v) || 0;
     return moneda === "USD" ? n : (tasaConvN ? n / tasaConvN : 0);
   };
+  const toUsdBcv = (v: string) => {
+    const bs = toBs(v);
+    return tasaBcvN ? bs / tasaBcvN : 0;
+  };
 
   const montoBsCalc = toBs(montoInput);
   const montoUsdCalc = toUsd(montoInput);
+  const montoUsdBcvCalc = toUsdBcv(montoInput);
   const capitalBsCalc = toBs(capitalInput);
   const interesesBsCalc = toBs(interesesInput);
 
   const baseInsert = (cuenta: string, bs: number) => ({
     fecha, cuenta_codigo: cuenta, centro_costo: "Compartido" as any,
     monto_bs: bs, monto_base_bs: bs, iva_bs: 0,
-    tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: tasaConvN ? bs / tasaConvN : 0,
+    tasa_bcv: tasaBcvN || tasaConvN, tasa_paralela: tasaConvN || null,
+    monto_usd: tasaConvN ? bs / tasaConvN : 0,
     metodo_pago: "transferencia" as any, notas: notas || null, detalle: detalle || null,
     modo: "on_balance" as any,
     cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
@@ -2059,9 +2069,11 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
   });
 
 
+
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !tasaN) return toast.error("Falta tasa");
+    if (!user || !tasaConvN) return toast.error("Falta tasa paralela");
     if (muestraBanco && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     try {
@@ -2175,10 +2187,12 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
               )}
               <div><Label>Monto {sufijo}</Label><Input type="number" step="0.01" value={montoInput} onChange={(e) => setMontoInput(e.target.value)} required className="mono" /></div>
               <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-              <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-                <span className="text-sm text-muted-foreground">{moneda === "USD" ? "Equivalente Bs" : "Equivalente USD"}</span>
-                <span className="text-lg font-bold mono">{moneda === "USD" ? fmtBs(montoBsCalc) : fmtUsd(montoUsdCalc)}</span>
+              <div className="md:col-span-2 rounded-md bg-muted p-3 space-y-1 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Equivalente Bs</span><span className="mono font-semibold">{fmtBs(montoBsCalc)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">USD paralelo (sistema · tasa {tasaConvN ? tasaConvN.toFixed(4) : "—"})</span><span className="mono font-bold text-base">{fmtUsd(montoUsdCalc)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">USD BCV (referencia · tasa {tasaBcvN ? tasaBcvN.toFixed(4) : "—"})</span><span className="mono">{fmtUsd(montoUsdBcvCalc)}</span></div>
               </div>
+
 
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
             </>
@@ -2458,7 +2472,7 @@ function CierreForm() {
       const { error: ePago } = await supabase.from("transacciones").insert({
         fecha: compraFecha, cuenta_codigo: "9.1", centro_costo: "Compartido" as any,
         monto_bs: cxpSaldoBsCompra, monto_base_bs: cxpSaldoBsCompra, iva_bs: 0,
-        tasa_bcv: tasaN, tasa_paralela: null, monto_usd: usdPago,
+        tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: tasaN || null, monto_usd: usdPago,
         metodo_pago: "transferencia" as any,
         cuenta_bancaria_id: compraCuentaBanco,
         tercero_id: compraTerceroId,
@@ -2792,13 +2806,13 @@ function LiquidacionesForm() {
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Pull paralela directly from tasas_bcv.tasa_paralela (fallback to tasas_paralela)
+  // Pull paralela directly from tasas_bcv.tasa_paralela (fallback to tasas_paralela); also BCV (referencia)
   const { data: bcvRow } = useQuery({
     queryKey: ["tasa-bcv-paralela-for", fecha],
     queryFn: async () => {
       const { data } = await supabase
         .from("tasas_bcv")
-        .select("fecha, tasa_bs_usd, tasa_paralela")
+        .select("fecha, tasa, tasa_paralela")
         .lte("fecha", fecha)
         .order("fecha", { ascending: false })
         .limit(1)
@@ -2814,8 +2828,10 @@ function LiquidacionesForm() {
 
   const seccionDef = LIQ_SECCIONES.find((s) => s.key === seccion)!;
   const montoBsN = Number(montoBs) || 0;
-  const tasaN = Number(tasa) || 0;
+  const tasaN = Number(tasa) || 0; // paralela (input)
+  const tasaBcvRefN = Number((bcvRow as any)?.tasa) || 0; // BCV referencia
   const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+  const montoUsdBcv = tasaBcvRefN > 0 ? montoBsN / tasaBcvRefN : 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2835,8 +2851,9 @@ function LiquidacionesForm() {
       monto_base_bs: montoBsN,
       iva_bs: 0,
       iva_aplica: false,
-      tasa_bcv: tasaN,
+      tasa_bcv: tasaBcvRefN || tasaN,
       tasa_paralela: tasaN,
+
       monto_usd: +montoUsd.toFixed(2),
       metodo_pago: "transferencia" as any,
       cuenta_bancaria_id: cuentaBancariaId,

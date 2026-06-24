@@ -10,6 +10,7 @@ import { MESES, CAPEX_CATEGORIAS } from "@/lib/account-helpers";
 import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
   { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
@@ -134,6 +135,7 @@ function CapExPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CapEx</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">Inversiones en activo fijo (cuenta 10.6)</p>
         </div>
         <div className="flex flex-wrap gap-2">

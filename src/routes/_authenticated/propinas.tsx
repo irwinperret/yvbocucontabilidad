@@ -21,6 +21,7 @@ import { useCuentasBancarias } from "@/components/bank-account-select";
 import {
   Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
 } from "recharts";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/propinas")({ component: PropinasPage });
 
@@ -154,6 +155,7 @@ function PropinasPage() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Propinas</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">Control de propinas adicionales · entrada y distribución al personal</p>
         </div>
         <Button onClick={() => setRegistrando(true)}>

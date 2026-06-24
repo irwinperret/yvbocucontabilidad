@@ -13,6 +13,7 @@ import { useCuentasBancarias } from "@/components/bank-account-select";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { exportFC } from "@/lib/excel-export";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
 
@@ -74,6 +75,7 @@ function FCPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Flujo de caja</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Movimientos efectivos en USD</p>
       </div>
 

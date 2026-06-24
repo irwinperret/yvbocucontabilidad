@@ -15,6 +15,7 @@ import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { DeleteButton } from "@/components/delete-button";
 import { useAuth } from "@/lib/auth-context";
 import { logAudit } from "@/lib/audit";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/saldos-bancarios")({ component: SaldosBancariosPage });
 
@@ -153,6 +154,7 @@ function SaldosBancariosPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Saldos bancarios teóricos</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">
             Saldo esperado por cuenta = saldo inicial + ingresos − egresos + ajustes (basado en transacciones registradas)
           </p>
