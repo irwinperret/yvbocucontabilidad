@@ -206,16 +206,52 @@ function VentasForm() {
   // con la tasa BCV, y ese monto en Bs se reexpresa en USD a la tasa paralela, que es el
   // dolar contable real. "Cobro de credito anterior" conserva su comportamiento previo.
   const esVentaEnUsdBcv = (tipo === "contado" || tipo === "credito") && pagoEnUsd;
-  const total = esVentaEnUsdBcv
-    ? montoN * tasaBcvN
-    : (pagoEnUsd ? montoN * tasaConvN : montoN);
-  const totalUsd = esVentaEnUsdBcv
-    ? (tasaParalelaN ? total / tasaParalelaN : (tasaBcvN ? montoN : 0))
-    : (pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0));
-  const base = ivaAplica ? total / 1.16 : total;
-  const iva = ivaAplica ? total - base : 0;
-  const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
-  const ivaUsd = ivaAplica ? totalUsd - baseUsd : 0;
+  // Helper: convierte un monto en la moneda elegida a (bs, usd-paralelo)
+  const convertInput = (n: number) => {
+    if (esVentaEnUsdBcv) {
+      const bs = n * tasaBcvN;
+      const usd = tasaParalelaN ? bs / tasaParalelaN : (tasaBcvN ? n : 0);
+      return { bs, usd };
+    }
+    if (pagoEnUsd) {
+      const bs = n * tasaConvN;
+      return { bs, usd: n };
+    }
+    return { bs: n, usd: tasaConvN ? n / tasaConvN : 0 };
+  };
+  // Para contado/credito: el monto digitado es la VENTA NETA (sin IVA, servicio, propina).
+  // El IVA se ingresa por separado (default 16% × neto, editable). Para cobro se conserva
+  // el flujo previo: el monto es el cobro total y se desagrega base/iva con la regla 1.16.
+  const esVentaNeta = tipo === "contado" || tipo === "credito";
+  const ivaInputN = (esVentaNeta && ivaAplica) ? (Number(ivaMonto) || 0) : 0;
+  let base: number, iva: number, baseUsd: number, ivaUsd: number, total: number, totalUsd: number;
+  if (esVentaNeta) {
+    const b = convertInput(montoN);
+    const i = convertInput(ivaInputN);
+    base = b.bs; baseUsd = b.usd;
+    iva = i.bs; ivaUsd = i.usd;
+    total = base + iva;
+    totalUsd = baseUsd + ivaUsd;
+  } else {
+    total = esVentaEnUsdBcv
+      ? montoN * tasaBcvN
+      : (pagoEnUsd ? montoN * tasaConvN : montoN);
+    totalUsd = esVentaEnUsdBcv
+      ? (tasaParalelaN ? total / tasaParalelaN : (tasaBcvN ? montoN : 0))
+      : (pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0));
+    base = ivaAplica ? total / 1.16 : total;
+    iva = ivaAplica ? total - base : 0;
+    baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
+    ivaUsd = ivaAplica ? totalUsd - baseUsd : 0;
+  }
+  // Auto-fill IVA = 16% × venta neta (en la misma moneda) mientras el usuario no lo edite.
+  useEffect(() => {
+    if (!esVentaNeta) return;
+    if (ivaTouched) return;
+    if (!ivaAplica) { setIvaMonto(""); return; }
+    const auto = +(montoN * 0.16).toFixed(2);
+    setIvaMonto(auto > 0 ? auto.toFixed(2) : "");
+  }, [esVentaNeta, ivaAplica, montoN, ivaTouched]);
   const cuenta = tipo === "ajuste_off" ? cuentaVenta(centro, "contado") : cuentaVenta(centro, tipo);
   // Para cobros: USD que se está cancelando con este pago
   const usdCobrado = tipo === "cobro" ? totalUsd : 0;
