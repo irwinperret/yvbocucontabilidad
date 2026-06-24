@@ -1,64 +1,37 @@
-## Objetivo
+## Problema
 
-Aclarar visualmente que toda la sección Análisis muestra USD a tasa paralela, y eliminar el mal etiquetado de tasas en los formularios de Registro/Financiamiento.
+En `src/routes/_authenticated/importar-ventas.tsx`, `syncPropina` solo inserta/actualiza la fila en `propinas` apuntando `transaccion_id` a la venta. No crea movimiento contable en `13.1 Propinas por pagar al personal`, por lo que la propina aparece en el tab Propinas pero no en Transacciones, y `transaccion_entrada_id` queda vacío.
 
-## 1. Badge "USD (tasa paralela)" en todas las pestañas de Análisis
+## Cambios
 
-Crear `src/components/usd-rate-badge.tsx` — un badge compacto con tooltip:
+### 1. `syncPropina` (importar-ventas.tsx, líneas 272–296)
 
-> "Montos en USD a tasa paralela. La tasa BCV se conserva como referencia fiscal."
+Replicar el patrón de `syncBono`: antes de tocar la tabla `propinas`, hacer upsert manual de una transacción contable en `13.1` y obtener su `id`.
 
-Insertarlo arriba del título en cada página de Análisis:
+- Dedupe key: `referencia='xetux'` + `cuenta_codigo='13.1'` + `numero_factura` (si existe) o `numero_orden`.
+- Payload de la transacción 13.1:
+  - `fecha`, `centro_costo` = los de la fila
+  - `cuenta_codigo = '13.1'`, `modo = 'on_balance'`
+  - `monto_bs = propinaBs`, `monto_base_bs = propinaBs`, `iva_bs = 0`, `iva_aplica = false`
+  - `monto_usd = propinaUsdPar` (ya calculado a paralela), `tasa_bcv`, `tasa_paralela`
+  - `metodo_pago` = el de la venta (`r.metodo_pago` mapeado) si está disponible, si no `'pendiente'`
+  - `referencia = 'xetux'`, `numero_factura`, `numero_orden`
+  - `grupo_transaccion_id`: pasar el `grupoId` de la venta (firmar `syncPropina` con `grupoId` igual que `syncBono`)
+  - `notas`: `Xetux · Propina · factura ${numero_factura} · ${cliente}`
+  - `created_by: user.id`
+- Si existe → update; si no → insert returning `id`.
+- Pasar ese `id` como `transaccion_entrada_id` en el payload de `propinas`. Mantener `transaccion_id` apuntando a la venta (`txId`) para trazabilidad.
 
-- `dashboard.tsx`, `gyp.tsx`, `fc.tsx`, `capex.tsx`, `aumento-capital.tsx`, `impuestos.tsx`, `propinas.tsx`, `activos-transitorios.tsx`, `cxc.tsx`, `cxp.tsx`, `saldos-bancarios.tsx`, `off-balance.tsx`, `diferencial-cambiario.tsx`, `liquidaciones.tsx`, `anticipos-proveedores.tsx`, `transacciones.tsx`
+Actualizar las dos llamadas a `syncPropina` (líneas 476 y 523) para pasar `grupoId`/`grupoExistente` y el `metodo_pago` de la venta.
 
-Estos archivos ya usan `monto_usd` (ya convertido a paralela en la captura). No se cambia lógica, solo se añade el badge.
+### 2. Retroactivo
 
-## 2. Corregir formularios donde la etiqueta dice "Tasa paralela" pero el valor es BCV
+Actualmente hay **0** filas en `propinas` con `referencia='xetux'` (se limpiaron en el turno anterior), por lo que no hay backfill que ejecutar. La próxima importación generará los movimientos 13.1 correctamente y enlazará `transaccion_entrada_id` desde el inicio. No se requiere migración de datos.
 
-### 2a. `FinanciamientoBaseForm` (registrar.tsx ~líneas 2009-2194) — incluye Aumento de capital
+## Verificación
 
-Bug actual: el `useEffect` pre-llena el campo con `tasaSugerida.tasa` (BCV) aunque el label dice "Tasa paralela". El USD se calcula dividiendo por ese mismo valor → `equivalente USD paralelo` y `USD BCV` salen idénticos.
-
-Cambios:
-- Pre-llenar `tasa` desde `paralelaSugerida.tasa` (paralela real).
-- Calcular `monto_usd` con la tasa paralela (es el USD de sistema).
-- En el bloque "Equivalente", mostrar AMBOS:
-  - `Equivalente USD paralelo = monto_bs / tasa_paralela`
-  - `Equivalente USD BCV = monto_bs / tasa_bcv` (de `tasaSugerida.tasa`)
-- Al insertar: `tasa_bcv = tasaSugerida.tasa` (BCV real del día), `tasa_paralela = tasaN` (valor del input), `monto_usd = monto_bs / tasa_paralela`.
-
-### 2b. `LiquidacionesForm` (~línea 2783)
-
-Actual: pre-llena `tasa` desde `bcvRow.tasa_paralela ?? paralelaAlt.tasa` (correcto, es paralela) pero al insertar guarda `tasa_bcv: tasaN, tasa_paralela: tasaN` (idénticos, mal).
-
-Cambio: leer también el BCV (`bcvRow.tasa`) y guardar `tasa_bcv = bcvRow.tasa`, `tasa_paralela = tasaN`, `monto_usd = monto_bs / tasaN` (ya correcto).
-
-### 2c. Formulario "Ops IVA" (~línea 1689)
-
-Mismo bug: label "Tasa paralela", pre-llena BCV. Cambiar pre-llenado a paralela y `monto_usd` con paralela; guardar `tasa_bcv` del BCV sugerido.
-
-### 2d. Verificación rápida del resto
-
-- Nómina (~1344): ya usa `tasaConvN = tasaParN || tasaBcvN` y guarda ambas tasas. OK.
-- COGS/Compras (~2232): pre-llena con paralela, etiqueta correcta. El snapshot guarda `tasa_bcv = tasaCompraSug.tasa` (BCV real). OK.
-- Línea 2461 (pago remanente compra): cambiar `tasa_bcv: tasaN` por el BCV real del día, y mantener `monto_usd = bs/paralela`.
-- Ventas/Gastos principales: ya distinguen ambas tasas correctamente (revisaré durante implementación).
-
-## 3. Auditoría retroactiva
-
-Ya consultado: 0 transacciones con `tasa_bcv = tasa_paralela`, 0 con `tasa_paralela` nula sobre 106 totales. El fix retroactivo previo ya limpió la base. No se requiere migración adicional.
-
-Se incluirá una consulta SQL en `Análisis → Transacciones` (botón opcional) o simplemente se reporta aquí: actualmente no hay transacciones afectadas.
-
-## 4. Fuera de alcance
-
-- No se toca lógica de importación Xetux.
-- No se toca `/tasa` ni `/tasa-paralela`.
-- No se cambia ningún cálculo en G&P/FC (ya usan `monto_usd` paralela).
-
-## Detalles técnicos
-
-- Nuevo archivo: `src/components/usd-rate-badge.tsx` (badge + tooltip de shadcn).
-- Editar: las ~16 páginas de Análisis (1 línea de import + 1 línea de JSX cada una).
-- Editar: 3 secciones de `src/routes/_authenticated/registrar.tsx` (FinanciamientoBaseForm, LiquidacionesForm, OpsIvaForm + 1 línea en pago remanente COGS).
+Después de implementar:
+1. Re-importar un reporte Xetux de prueba.
+2. Confirmar en Transacciones que aparecen las legs `13.1` con `referencia='xetux'`.
+3. Confirmar en `propinas` que `transaccion_entrada_id` está poblado.
+4. Re-importar el mismo archivo y confirmar que no se duplican (update path).

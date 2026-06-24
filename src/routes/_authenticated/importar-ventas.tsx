@@ -269,18 +269,60 @@ function ImportarVentasPage() {
       bonoLegs++;
     };
 
-    const syncPropina = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, txId: string) => {
+    const syncPropina = async (
+      r: ParsedRow,
+      centroRow: Centro,
+      tasas: { bcv: number; paralela: number },
+      txId: string,
+      grupoId: string,
+      metodoVenta: string | null,
+    ) => {
       if (r.propina_usd <= 0) return;
       const tasaBcv = tasas.bcv;
       const tasaPar = tasas.paralela || tasas.bcv;
       const propinaBs = +(r.propina_usd * tasaBcv).toFixed(2);
       const propinaUsdPar = +(propinaBs / tasaPar).toFixed(2);
+
+      // 1) Upsert leg contable 13.1 "Propinas por pagar al personal"
+      const dedupTx = r.numero_factura
+        ? supabase.from("transacciones").select("id").eq("numero_factura", r.numero_factura)
+        : supabase.from("transacciones").select("id").eq("numero_orden", r.numero_orden);
+      const { data: propTxExist } = await dedupTx
+        .eq("referencia", "xetux")
+        .eq("cuenta_codigo", "13.1")
+        .limit(1).maybeSingle();
+      const propTxPayload: any = {
+        fecha: r.fecha, cuenta_codigo: "13.1", centro_costo: centroRow as any,
+        monto_bs: propinaBs, monto_base_bs: propinaBs, iva_bs: 0,
+        iva_aplica: false, tipo_iva: null,
+        tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
+        monto_usd: propinaUsdPar,
+        metodo_pago: metodoVenta || "pendiente",
+        numero_factura: r.numero_factura || null,
+        numero_orden: r.numero_orden || null,
+        referencia: "xetux", modo: "on_balance",
+        grupo_transaccion_id: grupoId,
+        notas: `Xetux · Propina · factura ${r.numero_factura || r.numero_orden} · ${r.cliente}`,
+        created_by: user.id,
+      };
+      let propTxId: string | null = null;
+      if (propTxExist) {
+        await supabase.from("transacciones").update(propTxPayload).eq("id", propTxExist.id);
+        propTxId = propTxExist.id;
+      } else {
+        const { data: ins } = await supabase.from("transacciones").insert(propTxPayload).select("id").single();
+        propTxId = ins?.id ?? null;
+      }
+
+      // 2) Upsert fila en propinas, enlazando transaccion_entrada_id al leg 13.1
       const dedupFilter = r.numero_factura
         ? supabase.from("propinas").select("id").eq("numero_factura", r.numero_factura)
         : supabase.from("propinas").select("id").eq("numero_orden", r.numero_orden);
       const { data: propExist } = await dedupFilter.eq("referencia", "xetux").limit(1).maybeSingle();
       const propPayload: any = {
-        transaccion_id: txId, fecha: r.fecha,
+        transaccion_id: txId,
+        transaccion_entrada_id: propTxId,
+        fecha: r.fecha,
         monto_usd: propinaUsdPar, monto_bs: propinaBs,
         tasa_paralela: tasas.paralela || tasaBcv,
         centro_costo: centroRow, concepto: "Propina Xetux", referencia: "xetux",
@@ -473,7 +515,7 @@ function ImportarVentasPage() {
               ivaLegs++;
             }
             await syncBono(r, centroRow, tasas, grupoExistente);
-            await syncPropina(r, centroRow, tasas, tx.id);
+            await syncPropina(r, centroRow, tasas, tx.id, grupoExistente, metodo);
           }
           updated++;
           continue;
@@ -520,7 +562,7 @@ function ImportarVentasPage() {
 
         if (tx) {
           await syncBono(r, centroRow, tasas, grupoId);
-          await syncPropina(r, centroRow, tasas, tx.id);
+          await syncPropina(r, centroRow, tasas, tx.id, grupoId, metodo);
         }
 
 
