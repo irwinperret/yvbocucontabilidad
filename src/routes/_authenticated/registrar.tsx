@@ -2070,7 +2070,7 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !tasaN) return toast.error("Falta tasa");
+    if (!user || !tasaConvN) return toast.error("Falta tasa paralela");
     if (muestraBanco && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     try {
