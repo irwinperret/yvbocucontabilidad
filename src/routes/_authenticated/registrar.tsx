@@ -211,8 +211,11 @@ function VentasForm() {
   const usdCobrado = tipo === "cobro" ? totalUsd : 0;
 
   // #6: bono servicio 10% y propina (manual ventas contado/credito)
-  const bonoServAuto = Number((baseUsd * 0.1).toFixed(2));
-  const bonoServUsdN = Number(bonoServUsd) || 0;
+  // El bono se sugiere y se captura en la misma moneda elegida para la venta (Bs o USD).
+  const bonoServAuto = pagoEnUsd ? Number((baseUsd * 0.1).toFixed(2)) : Number((base * 0.1).toFixed(2));
+  const bonoServInputN = Number(bonoServUsd) || 0;
+  const bonoServUsdN = pagoEnUsd ? bonoServInputN : (tasaConvN ? bonoServInputN / tasaConvN : 0);
+  const bonoServBsN = pagoEnUsd ? bonoServInputN * tasaConvN : bonoServInputN;
   // La propina se captura en la misma moneda elegida para la venta (Bs o USD),
   // igual que el monto total. Se derivan ambos valores para guardarlos consistentes.
   const propinaInputN = Number(propinaUsd) || 0;
@@ -488,10 +491,9 @@ function VentasForm() {
     if ((tipo === "contado" || tipo === "credito") && tx) {
       if (bonoServUsdN > 0) {
         const cuentaBono = centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14";
-        const bonoBsLeg = bonoServUsdN * tasaConvN;
         const { data: txBs, error: eBs } = await supabase.from("transacciones").insert({
           fecha, cuenta_codigo: cuentaBono, centro_costo: centro as any,
-          monto_bs: bonoBsLeg, monto_base_bs: bonoBsLeg, iva_bs: 0,
+          monto_bs: bonoServBsN, monto_base_bs: bonoServBsN, iva_bs: 0,
           iva_aplica: false, tipo_iva: null,
           tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: bonoServUsdN,
           metodo_pago: "pendiente" as any,
@@ -778,7 +780,7 @@ function VentasForm() {
                   <div className="text-sm font-medium">Desglose adicional (opcional)</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <Label>Bono servicio 10% ($)</Label>
+                      <Label>{pagoEnUsd ? "Bono servicio 10% (USD)" : "Bono servicio 10% (Bs)"}</Label>
                       <Input
                         type="number" step="0.01" min="0"
                         value={bonoServUsd}
@@ -786,7 +788,7 @@ function VentasForm() {
                         className="mono"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Sugerido: {fmtUsd(bonoServAuto)} (10% de base USD). Se contabiliza como costo en cuenta {centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14"}.
+                        Sugerido: {pagoEnUsd ? fmtUsd(bonoServAuto) : fmtBs(bonoServAuto)} (10% de la base). Se contabiliza como costo en cuenta {centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14"}.
                       </p>
                     </div>
                     <div>
