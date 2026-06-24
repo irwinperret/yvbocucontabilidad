@@ -22,6 +22,7 @@ import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-h
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { AdjuntoCell } from "@/components/adjunto-cell";
 import { fetchAllRows } from "@/lib/fetch-all";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/transacciones")({
   component: TransaccionesPage,
@@ -387,6 +388,7 @@ function TransaccionesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Transacciones</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Lista de movimientos registrados — editar o eliminar</p>
       </div>
 

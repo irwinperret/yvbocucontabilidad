@@ -16,6 +16,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { logAudit } from "@/lib/audit";
 import { METODOS } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/cxc")({ component: CxCPage });
 
@@ -61,6 +62,7 @@ function CxCPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Cuentas por cobrar</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Ventas a crédito pendientes</p>
       </div>
 

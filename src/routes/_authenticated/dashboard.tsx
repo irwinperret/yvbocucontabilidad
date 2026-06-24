@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { DashboardCharts } from "@/components/dashboard-charts";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -46,6 +47,7 @@ function Dashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Período {currentPeriod()}</p>
       </div>
 

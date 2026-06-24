@@ -20,6 +20,7 @@ import { useCuentasBancarias, BankAccountSelect } from "@/components/bank-accoun
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import {
+import { UsdRateBadge } from "@/components/usd-rate-badge";
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
@@ -163,6 +164,7 @@ function LiquidacionesHistorialPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Liquidaciones</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Historial de liquidaciones de personal</p>
       </div>
 

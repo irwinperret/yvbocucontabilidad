@@ -12,6 +12,7 @@ import { CENTROS, MESES } from "@/lib/account-helpers";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { exportGyP } from "@/lib/excel-export";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
@@ -49,6 +50,7 @@ function GyPPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Ganancias y Pérdidas</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Todos los montos en USD · base sin IVA</p>
       </div>
 

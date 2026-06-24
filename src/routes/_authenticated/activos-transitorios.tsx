@@ -21,6 +21,7 @@ import { fmtUsd, fmtBs, fmtDate } from "@/lib/format";
 import { useCuentasBancarias, BankAccountSelect } from "@/components/bank-account-select";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/activos-transitorios")({
   component: ActivosTransitoriosPage,
@@ -45,6 +46,7 @@ function ActivosTransitoriosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Activos transitorios</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Préstamos y anticipos al personal</p>
       </div>
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>

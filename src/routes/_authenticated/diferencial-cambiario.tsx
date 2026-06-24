@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/diferencial-cambiario")({
   component: DiferencialPage,
@@ -82,6 +83,7 @@ function DiferencialPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Diferencial cambiario</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">
             Diferencia informativa (off-balance) entre tasa paralela y BCV para movimientos en USD. No afecta G&amp;P ni FC oficial.
           </p>

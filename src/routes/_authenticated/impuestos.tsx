@@ -15,6 +15,7 @@ import {
   Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
 } from "recharts";
 import { fetchAllRows } from "@/lib/fetch-all";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/impuestos")({ component: ImpuestosPage });
 
@@ -128,6 +129,7 @@ function ImpuestosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Impuestos · IVA</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">
           Movimientos de IVA débito (ventas, cuenta 12.4) y crédito (compras, cuenta 12.5) · neto a declarar
         </p>

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import { DeleteButton } from "@/components/delete-button";
 import { ArrowLeftRight } from "lucide-react";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/off-balance")({ component: OffBalancePage });
 
@@ -76,6 +77,7 @@ function OffBalancePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Off balance</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Movimientos pendientes de migrar al flujo principal</p>
       </div>
 

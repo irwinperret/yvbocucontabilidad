@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
+import { UsdRateBadge } from "@/components/usd-rate-badge";
 
 export const Route = createFileRoute("/_authenticated/cxp")({ component: CxPAnalisisPage });
 
@@ -42,6 +43,7 @@ function CxPAnalisisPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Cuentas por pagar — análisis</h1>
+          <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Vista de obligaciones pendientes (solo lectura)</p>
       </div>
 
