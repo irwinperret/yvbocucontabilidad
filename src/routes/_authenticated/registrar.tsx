@@ -199,9 +199,17 @@ function VentasForm() {
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaBcvN = Number(tasaSugerida?.tasa) || 0;
   const tasaConvN = usaBCV ? (tasaN || tasaBcvN) : (tasaParalelaN || tasaN);
-  // total en Bs y USD según moneda de captura
-  const total = pagoEnUsd ? montoN * tasaConvN : montoN;
-  const totalUsd = pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0);
+  // Ventas (contado/credito) registradas en USD: el monto digitado es "dolares a tasa BCV",
+  // igual convencion que usan los reportes de Xetux. Para contabilizar: primero se pasa a Bs
+  // con la tasa BCV, y ese monto en Bs se reexpresa en USD a la tasa paralela, que es el
+  // dolar contable real. "Cobro de credito anterior" conserva su comportamiento previo.
+  const esVentaEnUsdBcv = (tipo === "contado" || tipo === "credito") && pagoEnUsd;
+  const total = esVentaEnUsdBcv
+    ? montoN * tasaBcvN
+    : (pagoEnUsd ? montoN * tasaConvN : montoN);
+  const totalUsd = esVentaEnUsdBcv
+    ? (tasaParalelaN ? total / tasaParalelaN : (tasaBcvN ? montoN : 0))
+    : (pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0));
   const base = ivaAplica ? total / 1.16 : total;
   const iva = ivaAplica ? total - base : 0;
   const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
@@ -211,16 +219,22 @@ function VentasForm() {
   const usdCobrado = tipo === "cobro" ? totalUsd : 0;
 
   // #6: bono servicio 10% y propina (manual ventas contado/credito)
-  // El bono se sugiere y se captura en la misma moneda elegida para la venta (Bs o USD).
-  const bonoServAuto = pagoEnUsd ? Number((baseUsd * 0.1).toFixed(2)) : Number((base * 0.1).toFixed(2));
+  // Se sugieren y se capturan en la misma moneda elegida para la venta (Bs o USD a tasa BCV).
+  const bonoServAuto = pagoEnUsd
+    ? (tasaBcvN ? Number(((base * 0.1) / tasaBcvN).toFixed(2)) : 0)
+    : Number((base * 0.1).toFixed(2));
   const bonoServInputN = Number(bonoServUsd) || 0;
-  const bonoServUsdN = pagoEnUsd ? bonoServInputN : (tasaConvN ? bonoServInputN / tasaConvN : 0);
-  const bonoServBsN = pagoEnUsd ? bonoServInputN * tasaConvN : bonoServInputN;
-  // La propina se captura en la misma moneda elegida para la venta (Bs o USD),
-  // igual que el monto total. Se derivan ambos valores para guardarlos consistentes.
+  const bonoServBsN = pagoEnUsd ? bonoServInputN * tasaBcvN : bonoServInputN;
+  const bonoServUsdN = pagoEnUsd
+    ? (tasaParalelaN ? bonoServBsN / tasaParalelaN : (tasaBcvN ? bonoServInputN : 0))
+    : (tasaConvN ? bonoServInputN / tasaConvN : 0);
+  // La propina sigue la misma convención: en USD es "dolares a tasa BCV", se pasa a Bs con
+  // BCV y ese Bs se reexpresa en USD a tasa paralela para guardar el dato contable real.
   const propinaInputN = Number(propinaUsd) || 0;
-  const propinaUsdN = pagoEnUsd ? propinaInputN : (tasaConvN ? propinaInputN / tasaConvN : 0);
-  const propinaBsN = pagoEnUsd ? propinaInputN * tasaConvN : propinaInputN;
+  const propinaBsN = pagoEnUsd ? propinaInputN * tasaBcvN : propinaInputN;
+  const propinaUsdN = pagoEnUsd
+    ? (tasaParalelaN ? propinaBsN / tasaParalelaN : (tasaBcvN ? propinaInputN : 0))
+    : (tasaConvN ? propinaInputN / tasaConvN : 0);
   useEffect(() => {
     if (tipo !== "contado" && tipo !== "credito") return;
     if (bonoServTouched) return;
@@ -754,13 +768,22 @@ function VentasForm() {
                 <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
               </div>
               <div className={pagoEnUsd ? "md:col-span-2" : ""}>
-                <Label>{pagoEnUsd ? (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
+                <Label>{pagoEnUsd ? (esVentaEnUsdBcv ? (ivaAplica ? "Monto total USD a tasa BCV (IVA incluido)" : "Monto USD a tasa BCV") : (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $")) : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
                 <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
               </div>
               {!pagoEnUsd && (
                 <div>
                   <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
                   <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+                </div>
+              )}
+              {esVentaEnUsdBcv && (
+                <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
+                  <div>Tasa BCV usada: <span className="mono font-semibold">{tasaBcvN ? tasaBcvN.toFixed(4) : "—"}</span></div>
+                  <div>Tasa paralela usada: <span className="mono font-semibold">{tasaParalelaN ? tasaParalelaN.toFixed(4) : "—"}</span></div>
+                  <div className="col-span-2 text-muted-foreground">
+                    El monto digitado es en USD a tasa BCV. Para la contabilidad se convierte a Bs ({fmtBs(total)}) y luego a dólar paralelo, que es el valor que se registra: <span className="mono font-semibold">{fmtUsd(totalUsd)}</span>.
+                  </div>
                 </div>
               )}
               {ivaAplica && tipo === "contado" && (
@@ -780,7 +803,7 @@ function VentasForm() {
                   <div className="text-sm font-medium">Desglose adicional (opcional)</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <Label>{pagoEnUsd ? "Bono servicio 10% (USD)" : "Bono servicio 10% (Bs)"}</Label>
+                      <Label>{pagoEnUsd ? "Bono servicio 10% (USD a tasa BCV)" : "Bono servicio 10% (Bs)"}</Label>
                       <Input
                         type="number" step="0.01" min="0"
                         value={bonoServUsd}
@@ -792,7 +815,7 @@ function VentasForm() {
                       </p>
                     </div>
                     <div>
-                      <Label>{pagoEnUsd ? "Propina (USD)" : "Propina (Bs)"}</Label>
+                      <Label>{pagoEnUsd ? "Propina (USD a tasa BCV)" : "Propina (Bs)"}</Label>
                       <Input
                         type="number" step="0.01" min="0"
                         value={propinaUsd}
