@@ -1728,8 +1728,9 @@ function OpsIvaForm() {
       iva_bs: 0,
       iva_aplica: false,
       tipo_iva: null,
-      tasa_bcv: tasaN,
-      tasa_paralela: paralelaSugerida?.tasa ?? null,
+      tasa_bcv: tasaBcvN || tasaConvN,
+      tasa_paralela: tasaConvN || null,
+
       monto_usd: usd,
       metodo_pago: metodo as any,
       referencia: ref || null,
