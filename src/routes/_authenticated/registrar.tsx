@@ -2184,10 +2184,12 @@ function FinanciamientoBaseForm({ tipo, setTipo }: { tipo: keyof typeof FINANCIA
               )}
               <div><Label>Monto {sufijo}</Label><Input type="number" step="0.01" value={montoInput} onChange={(e) => setMontoInput(e.target.value)} required className="mono" /></div>
               <div><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-              <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-                <span className="text-sm text-muted-foreground">{moneda === "USD" ? "Equivalente Bs" : "Equivalente USD"}</span>
-                <span className="text-lg font-bold mono">{moneda === "USD" ? fmtBs(montoBsCalc) : fmtUsd(montoUsdCalc)}</span>
+              <div className="md:col-span-2 rounded-md bg-muted p-3 space-y-1 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Equivalente Bs</span><span className="mono font-semibold">{fmtBs(montoBsCalc)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">USD paralelo (sistema · tasa {tasaConvN ? tasaConvN.toFixed(4) : "—"})</span><span className="mono font-bold text-base">{fmtUsd(montoUsdCalc)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">USD BCV (referencia · tasa {tasaBcvN ? tasaBcvN.toFixed(4) : "—"})</span><span className="mono">{fmtUsd(montoUsdBcvCalc)}</span></div>
               </div>
+
 
               {tipo === "depreciacion" && <div className="md:col-span-2 text-xs text-muted-foreground">No genera movimiento de caja.</div>}
             </>
