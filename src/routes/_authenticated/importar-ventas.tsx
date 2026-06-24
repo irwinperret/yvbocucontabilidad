@@ -515,7 +515,7 @@ function ImportarVentasPage() {
               ivaLegs++;
             }
             await syncBono(r, centroRow, tasas, grupoExistente);
-            await syncPropina(r, centroRow, tasas, tx.id);
+            await syncPropina(r, centroRow, tasas, tx.id, grupoExistente, metodo);
           }
           updated++;
           continue;
