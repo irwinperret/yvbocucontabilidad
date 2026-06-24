@@ -131,6 +131,8 @@ function VentasForm() {
   const [fechaVenc, setFechaVenc] = useState("");
   const [ivaAplica, setIvaAplica] = useState(true);
   const [montoTotal, setMontoTotal] = useState("");
+  const [ivaMonto, setIvaMonto] = useState("");
+  const [ivaTouched, setIvaTouched] = useState(false);
   const [tasa, setTasa] = useState("");
   // Moneda de registro para contado/credito (mismo patrón que GastosFacturaForm).
   // "Cobro de credito anterior" mantiene su lógica previa basada en método de pago, sin cambios.
