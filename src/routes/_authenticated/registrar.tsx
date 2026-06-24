@@ -806,8 +806,15 @@ function VentasForm() {
                 <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
               </div>
               <div className={pagoEnUsd ? "md:col-span-2" : ""}>
-                <Label>{pagoEnUsd ? (esVentaEnUsdBcv ? (ivaAplica ? "Monto total USD a tasa BCV (IVA incluido)" : "Monto USD a tasa BCV") : (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $")) : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
+                <Label>
+                  {esVentaNeta
+                    ? (pagoEnUsd ? (esVentaEnUsdBcv ? "Monto Venta Neta USD a tasa BCV" : "Monto Venta Neta $") : "Monto Venta Neta Bs")
+                    : (pagoEnUsd ? (esVentaEnUsdBcv ? (ivaAplica ? "Monto total USD a tasa BCV (IVA incluido)" : "Monto USD a tasa BCV") : (ivaAplica ? "Monto total $ (IVA incluido)" : "Monto total $")) : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs"))}
+                </Label>
                 <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
+                {esVentaNeta && (
+                  <p className="text-xs text-muted-foreground mt-1">No incluye IVA, ni servicio, ni propina.</p>
+                )}
               </div>
               {!pagoEnUsd && (
                 <div>
@@ -820,6 +827,22 @@ function VentasForm() {
                   )}
                 </div>
               )}
+              {esVentaNeta && ivaAplica && (
+                <div className="md:col-span-2">
+                  <Label>
+                    {pagoEnUsd ? (esVentaEnUsdBcv ? "IVA USD a tasa BCV" : "IVA $") : "IVA Bs"}
+                  </Label>
+                  <Input
+                    type="number" step="0.01" min="0"
+                    value={ivaMonto}
+                    onChange={(e) => { setIvaMonto(e.target.value); setIvaTouched(true); }}
+                    className="mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sugerido: 16% de la venta neta ({(Number(montoTotal) || 0) > 0 ? (+(Number(montoTotal) * 0.16).toFixed(2)).toFixed(2) : "—"}). Puedes ajustarlo si la factura tiene un IVA distinto.
+                  </p>
+                </div>
+              )}
               {esVentaEnUsdBcv && (
                 <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
                   <div>Tasa BCV usada: <span className="mono font-semibold">{tasaBcvN ? tasaBcvN.toFixed(4) : "—"}</span></div>
@@ -829,7 +852,7 @@ function VentasForm() {
                   </div>
                 </div>
               )}
-              {ivaAplica && tipo === "contado" && (
+              {ivaAplica && esVentaNeta && (
                 <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
                   <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
                   <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
@@ -837,6 +860,7 @@ function VentasForm() {
                   <div>IVA USD paralelo: <span className="mono">{fmtUsd(ivaUsd)}</span></div>
                   <div>Base USD BCV: <span className="mono">{fmtUsd(tasaBcvN ? base / tasaBcvN : 0)}</span></div>
                   <div>IVA USD BCV: <span className="mono">{fmtUsd(tasaBcvN ? iva / tasaBcvN : 0)}</span></div>
+                  <div className="col-span-2 text-muted-foreground">Total con IVA: <span className="mono font-semibold">{fmtBs(total)}</span> · <span className="mono font-semibold">{fmtUsd(totalUsd)}</span></div>
                 </div>
               )}
               <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
