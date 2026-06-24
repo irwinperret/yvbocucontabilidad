@@ -775,6 +775,11 @@ function VentasForm() {
                 <div>
                   <Label>{usaBCV ? "Tasa BCV" : "Tasa paralela"}</Label>
                   <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+                  {tipo === "contado" && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Tasa BCV de referencia: <span className="mono font-semibold">{tasaBcvN ? tasaBcvN.toFixed(4) : "—"}</span>
+                    </div>
+                  )}
                 </div>
               )}
               {esVentaEnUsdBcv && (
@@ -790,8 +795,10 @@ function VentasForm() {
                 <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
                   <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
                   <div>IVA débito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
-                  <div>Base USD: <span className="mono">{fmtUsd(baseUsd)}</span></div>
-                  <div>IVA USD: <span className="mono">{fmtUsd(ivaUsd)}</span></div>
+                  <div>Base USD paralelo: <span className="mono">{fmtUsd(baseUsd)}</span></div>
+                  <div>IVA USD paralelo: <span className="mono">{fmtUsd(ivaUsd)}</span></div>
+                  <div>Base USD BCV: <span className="mono">{fmtUsd(tasaBcvN ? base / tasaBcvN : 0)}</span></div>
+                  <div>IVA USD BCV: <span className="mono">{fmtUsd(tasaBcvN ? iva / tasaBcvN : 0)}</span></div>
                 </div>
               )}
               <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
