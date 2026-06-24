@@ -1256,9 +1256,18 @@ function GastosFacturaForm() {
             <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
           </div>
           <div>
-            <Label>Tasa paralela</Label>
+            <Label>Tasa BCV</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
+          {tasaN > 0 && totalInput > 0 && (
+            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
+              <div>Tasa BCV usada: <span className="mono font-semibold">{tasaN.toFixed(4)}</span></div>
+              <div>Equivalente: <span className="mono font-semibold">{esUSD ? fmtBs(total) : fmtUsd(totalUsd)}</span></div>
+              <div className="col-span-2 text-muted-foreground text-xs">
+                El monto digitado está en {esUSD ? "USD" : "Bs"}. Para la contabilidad (egresos) se usa la tasa BCV del día: {esUSD ? `${fmtUsd(totalInput)} × ${tasaN.toFixed(4)} = ${fmtBs(total)}` : `${fmtBs(totalInput)} ÷ ${tasaN.toFixed(4)} = ${fmtUsd(totalUsd)}`}.
+              </div>
+            </div>
+          )}
           {ivaAplica && (
             <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
               <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
@@ -2739,6 +2748,15 @@ function CierreForm() {
               <Label className="text-xs">Costo a inventario (base Bs)</Label>
               <Input value={fmtBs(compraBase)} disabled className="mono bg-muted/50" />
             </div>
+            {compraTasaN > 0 && compraInput > 0 && (
+              <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
+                <div>Tasa paralela usada: <span className="mono font-semibold">{compraTasaN.toFixed(4)}</span></div>
+                <div>Equivalente: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraInput / compraTasaN : 0)}</span></div>
+                <div className="col-span-2 text-muted-foreground text-xs">
+                  El monto digitado está en {esCompraUSD ? "USD" : "Bs"}. Para la contabilidad (compras de inventario) se usa la tasa paralela del día: {esCompraUSD ? `${fmtUsd(compraInput)} × ${compraTasaN.toFixed(4)} = ${fmtBs(compraTotal)}` : `${fmtBs(compraInput)} ÷ ${compraTasaN.toFixed(4)} = ${fmtUsd(compraInput / compraTasaN)}`}.
+                </div>
+              </div>
+            )}
             {compraIvaAplica && (
               <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/50 p-2 rounded">
                 <div>Base: <span className="mono font-semibold">{fmtBs(compraBase)}</span></div>
