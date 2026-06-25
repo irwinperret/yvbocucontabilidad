@@ -466,7 +466,7 @@ function VentasForm() {
     if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const grupoId = crypto.randomUUID();
-    const ivaUsd = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
+    const ivaUsd = ivaAplica ? (tasaParalelaN ? +(iva / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0)) : 0;
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: base, monto_base_bs: base, iva_bs: 0,
