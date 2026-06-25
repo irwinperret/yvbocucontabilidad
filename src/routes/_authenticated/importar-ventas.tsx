@@ -557,6 +557,7 @@ function ImportarVentasPage() {
         }
 
         if (r.clase === "factura" && r.esCxC && tx) {
+          const totalUsdBcv = Number(tasaBcv) > 0 ? +(totalBs / Number(tasaBcv)).toFixed(2) : totalUsdPar;
           await supabase.from("cuentas_por_cobrar").insert({
             cliente: r.cliente,
             centro_costo: centroRow as any,
@@ -564,6 +565,10 @@ function ImportarVentasPage() {
             monto_usd: totalUsdPar,
             monto_pendiente_bs: totalBs,
             monto_pendiente_usd: totalUsdPar,
+            monto_usd_bcv: totalUsdBcv,
+            monto_pendiente_usd_bcv: totalUsdBcv,
+            tasa_bcv_venta: tasaBcv || null,
+            tasa_paralela_venta: tasas.paralela || null,
             transaccion_id: tx.id,
             estado: "vigente",
             numero_orden: r.numero_orden || null,
