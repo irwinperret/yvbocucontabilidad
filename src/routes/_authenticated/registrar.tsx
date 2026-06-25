@@ -234,12 +234,17 @@ function VentasForm() {
     total = base + iva;
     totalUsd = baseUsd + ivaUsd;
   } else {
+    // Cobro de crédito en Bs: el USD contable SIEMPRE se calcula a tasa paralela del día del pago,
+    // NO a tasa BCV. La BCV queda guardada solo como referencia (para el diferencial cambiario).
+    const esCobroBs = tipo === "cobro" && !pagoEnUsd;
     total = esVentaEnUsdBcv
       ? montoN * tasaBcvN
       : (pagoEnUsd ? montoN * tasaConvN : montoN);
     totalUsd = esVentaEnUsdBcv
       ? (tasaParalelaN ? total / tasaParalelaN : (tasaBcvN ? montoN : 0))
-      : (pagoEnUsd ? montoN : (tasaConvN ? montoN / tasaConvN : 0));
+      : (pagoEnUsd ? montoN : (esCobroBs
+          ? (tasaParalelaN ? montoN / tasaParalelaN : (tasaConvN ? montoN / tasaConvN : 0))
+          : (tasaConvN ? montoN / tasaConvN : 0)));
     base = ivaAplica ? total / 1.16 : total;
     iva = ivaAplica ? total - base : 0;
     baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
