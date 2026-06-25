@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Pencil, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
-import { DeleteButton } from "@/components/delete-button";
+import { EliminarTransaccionDialog } from "@/components/eliminar-transaccion-dialog";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
 import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
@@ -68,6 +68,7 @@ function TransaccionesPage() {
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const PAGE_SIZE = 50;
 
   useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, cuentaFiltro, metodoFiltro, modoFiltro, busca, sortKey, sortDir]);
@@ -575,15 +576,15 @@ function TransaccionesPage() {
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <DeleteButton
-                            fecha={t.fecha}
-                            detail={`${fmtDate(t.fecha)} · ${t.cuenta_codigo} · ${fmtBs(t.monto_bs)}`}
-                            warnings={[
-                              ...(t.pareja_off_balance_id ? ["Esta transacción está enlazada a otro movimiento off-balance (venta ↔ bono). Si confirmas, se eliminarán las DOS transacciones."] : []),
-                              ...(t.cuenta_codigo === "13.1" && t.grupo_transaccion_id ? ["Esta es una transacción de propina. Si confirmas, se eliminarán también la transacción pareja (entrada/salida) y el registro vinculado en la tabla de propinas."] : []),
-                            ]}
-                            onConfirm={() => eliminar(t)}
-                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(t)}
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -617,6 +618,13 @@ function TransaccionesPage() {
           onSaved={() => { setEditing(null); qc.invalidateQueries(); }}
         />
       )}
+
+      <EliminarTransaccionDialog
+        open={!!deleteTarget}
+        transaccion={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => qc.invalidateQueries()}
+      />
 
       <Dialog open={wipeOpen} onOpenChange={(o) => { if (!o) { setWipeOpen(false); setWipePwd(""); } }}>
         <DialogContent>

@@ -1,55 +1,67 @@
-## Diagnóstico
+## Objetivo
 
-Revisé las transacciones del 20–25/06 y reproduje el bug:
+Centralizar la lógica de borrado de transacciones para detectar relaciones (CxC, CxP, anticipos, grupos) y pedir confirmación explícita antes de hacer borrado en cascada. Reemplazar el `confirm()` y el `eliminar()` actuales por un diálogo unificado.
 
-- Venta a crédito 21/06 (grupo `f00e0f11…`):
-  - 1.4 (base): bs 60 738.38 / USD 76.48 a paralela 794.1345 ✅
-  - 12.4 (IVA): bs 9 718.14 / USD **16.00** → guardado a tasa BCV. Debería ser **12.24** (9 718.14 / 794.1345).
-  - 3.10 (bono servicio): bs 6 073.84 / USD **10.00** → a BCV. Debería ser **7.65**.
-  - 13.1 (propina): bs 5 999.99 / USD **9.88** → a BCV. Debería ser **7.55**.
-- Cobro 25/06 (1.5 — `Cobro creditos anteriores`): bs 47 239.33 / USD **76.48** → guardado a BCV. Debería ser **60.40** (47 239.33 / 782.08725).
+## Cambios
 
-Causa raíz:
-1. **`src/routes/_authenticated/registrar.tsx` (VentasForm)** — cuando `tipo === "credito"`, `usaBCV = true` y por lo tanto `tasaConvN = tasaBcvN`. La línea principal (1.4) se salva porque usa su propio helper `convertInput` que fuerza paralela, pero el resto (IVA en línea 466, bono en 269, propina en 274–276) divide los Bs entre `tasaN`/`tasaConvN` (BCV) en lugar de paralela.
-2. **`src/routes/_authenticated/cxc.tsx` (CobroModal)** — el usuario ingresa el USD que coincide con el pendiente a BCV; luego se guarda `monto_usd: cobroUsd` tal cual y `monto_bs = cobroUsd * tasaBCV`. Nunca reexpresa el USD a paralela. Además, la diferencia cambiaria mezcla unidades (BCV vs paralela original).
+### 1. Nuevo helper `src/lib/eliminar-transaccion.ts`
+Función `analizarBorradoTransaccion(t)` que devuelve:
+```ts
+{
+  transaccionesAEliminar: { id, fecha, cuenta_codigo, descripcion }[],
+  cxcAEliminar: { id, cliente, monto_usd, rol: 'venta'|'cobro' }[],
+  cxpAEliminar: { id, proveedor, monto_usd, rol: 'factura'|'pago' }[],
+  anticipoInfo: { id, proveedor, aplicado_usd } | null,
+  propinasAEliminar: number,
+  bloqueoMesCerrado: string | null,  // fecha que bloquea
+  advertencias: string[],
+}
+```
 
-## Cambios de código (de aquí en adelante)
+Detecciones (todas en paralelo):
+- `cuentas_por_cobrar` donde `transaccion_id = t.id` OR `transaccion_cobro_id = t.id` → agregar contraparte (venta o cobro) a `transaccionesAEliminar`.
+- `cuentas_por_pagar` donde `transaccion_id = t.id` OR `transaccion_pago_id = t.id` (verificar nombre real de columna) → ídem.
+- Si `t.cuenta_codigo` empieza con `14.` → buscar reversos por `grupo_transaccion_id` y advertir si `anticipo_aplicado_usd > 0` (bloquear borrado pidiendo revertir aplicación primero).
+- Si `t.grupo_transaccion_id` no es null → traer todos los hermanos del grupo (bono 3.5/3.10, IVA 12.4/12.5, propina 13.1, reversos 14.x) y listarlos como "se eliminarán junto con esta".
+- `pareja_off_balance_id` (lógica existente).
+- Para cada transacción en la lista, validar `periodo_cerrado(fecha)`; si alguna está cerrada, setear `bloqueoMesCerrado`.
 
-### `src/routes/_authenticated/registrar.tsx` — VentasForm
+Y función `ejecutarBorradoTransaccion(plan)` que ejecuta en orden:
+1. `cuentas_por_cobrar.delete().in('id', cxcIds)`
+2. `cuentas_por_pagar.delete().in('id', cxpIds)`
+3. `propinas.delete()` por transacción
+4. Romper `pareja_off_balance_id` con UPDATE
+5. `transacciones.delete().in('id', allIds)`
+6. `logAudit` por cada id
 
-Forzar que **todas** las patas de una venta (no solo la línea 1.4) reporten `monto_usd` a paralela:
+Si cualquier paso devuelve error → toast con el mensaje y abortar (Supabase no soporta tx multi-statement desde cliente, pero borrar hijos primero evita FK violations; los pasos previos ya borrados quedan, pero la combinación CxC→transacciones es segura porque CxC tiene FK a transacciones).
 
-- IVA leg (línea 466 y la llamada a `insertIvaLeg`):
-  - Calcular `ivaUsd = iva / tasaParalelaN` (fallback a BCV solo si no hay paralela).
-  - Pasar `tasa_bcv: tasaBcvN` (referencia fiscal) y `tasa_paralela: tasaParalelaN` al leg, sin importar `usaBCV`.
-- Bono servicio (líneas 262–269) y propina (272–276): reemplazar la división por `tasaConvN` por una división por `tasaParalelaN`. Para la rama `pagoEnUsd` mantener el patrón "USD digitado a BCV → Bs → paralela" ya usado en el principal (`esVentaEnUsdBcv`).
-- En los `insert` de las patas 3.x y 13.1 (líneas 547–559 y 565–578) guardar siempre `tasa_bcv: tasaBcvN` y `tasa_paralela: tasaParalelaN`, no `tasaN`.
-- En el insert de `propinas` (línea 583+) guardar `tasa_paralela: tasaParalelaN` (no `tasaN`, que para crédito es BCV).
+### 2. Nuevo componente `src/components/eliminar-transaccion-dialog.tsx`
+AlertDialog que recibe el resultado de `analizarBorradoTransaccion` y muestra:
+- Título: "Eliminar transacción y registros vinculados"
+- Mensaje en lenguaje natural: ej. *"Esta transacción está vinculada a una cuenta por cobrar de Irwin Perret por $60.40. Para eliminarla también se eliminará la cuenta por cobrar y la transacción de venta original."*
+- Lista detallada (bullets) de TODO lo que se eliminará: cada transacción (fecha, cuenta, monto), cada CxC/CxP, conteo de propinas.
+- Si `bloqueoMesCerrado` → solo botón "Cerrar" con explicación.
+- Si `anticipo aplicado` → solo botón "Cerrar" pidiendo revertir aplicación primero (no soportamos auto-revertir aún).
+- Botones: **"Eliminar todo"** (destructive) y **"Cancelar"**.
 
-### `src/routes/_authenticated/cxc.tsx` — CobroModal
+### 3. Refactor `src/routes/_authenticated/transacciones.tsx`
+- Reemplazar `eliminar(t)` para que abra el dialog en vez de `confirm()`. El `DeleteButton` actual se sustituye por un botón que setea `dialogTarget` y deja al dialog ejecutar.
+- `borrarSeleccionadas` (bulk): correr `analizarBorradoTransaccion` para cada seleccionada, unir resultados, mostrar el mismo dialog con resumen agregado.
 
-- Mantener el input "USD a tasa BCV" como conveniencia para igualar el pendiente, pero al insertar la transacción:
-  - `monto_bs = cobroUsd * tasaBcv` (igual que hoy, el cliente paga ese Bs).
-  - `monto_usd = monto_bs / tasaParalela` (USD contable real).
-- Recalcular el dif. cambiario comparando paralela@cobro vs paralela@original (`tasaOrigParalela = cxc.monto_bs / cxc.monto_usd`, ya que el CxC se guardó a paralela). Mantener la regla actual: solo ganancia a 11.1; pérdida se ignora.
-- Validar el tope contra `pendienteUsd` usando el USD-paralela equivalente, no el USD-BCV.
+### 4. Aplicar en otros puntos donde se borran transacciones
+Buscar y reemplazar `confirm` + `transacciones.delete` en:
+- `src/routes/_authenticated/cxc.tsx` (si permite borrar cobro)
+- `src/routes/_authenticated/cxp.tsx` / `pagar-cxp.tsx`
+- `src/routes/_authenticated/anticipos-proveedores.tsx`
 
-## Corrección retroactiva
+Cada uno importará el mismo helper + dialog.
 
-Migración con `UPDATE` puntuales sobre `transacciones` y `propinas`:
+## Detalles técnicos
 
-| id (prefijo) | cuenta | bs actual | USD actual | USD correcto |
-|---|---|---|---|---|
-| `a10b27a8` | 12.4 | 9 718.14 | 16.00 | **12.24** (÷794.1345) |
-| `db169156` | 3.10 | 6 073.84 | 10.00 | **7.65** (÷794.1345) |
-| `16461c56` | 13.1 | 5 999.99 | 9.88 | **7.55** (÷794.1345) |
-| `b4f8f1d9` | 1.5  | 47 239.33| 76.48 | **60.40** (÷782.08725) |
+- No usamos transacción SQL real porque el cliente Supabase no la expone; el orden hijo→padre evita FK errors. Si quisiéramos atomicidad estricta, podríamos crear RPC `eliminar_transaccion_cascada(ids[])` SECURITY DEFINER — **lo dejo como opción**: avísame si lo prefieres en lugar del cascade desde el cliente.
+- `logAudit` se llama con snapshot previo (`datos_antes`) para poder reconstruir si fuera necesario.
+- Validación de mes cerrado se mantiene vía `periodo_cerrado` RPC ya existente.
 
-- También actualizar la fila correspondiente en `propinas` (`monto_usd = 7.55`, `tasa_paralela = 794.1345`).
-- La CxC asociada a la venta 21/06 ya se guardó correctamente (76.48 USD paralela) y se marcó como `cobrada`. No se modifica su estado: el cliente sí canceló los Bs adeudados; la diferencia entre 76.48 (CxC) y 60.40 (cobro) en paralela es una pérdida cambiaria que la regla actual (11.2 eliminada) decide no contabilizar — se deja una nota en el cobro indicándolo, sin asiento adicional.
-
-## Verificación
-
-1. Re-leer las 4 filas afectadas y confirmar que `monto_bs / tasa_paralela ≈ monto_usd`.
-2. Registrar una venta a crédito de prueba en Bs con IVA + bono + propina y validar que las 4 patas guardan `monto_usd` a paralela y `tasa_bcv` solo como referencia.
-3. Hacer un cobro de prueba y verificar que el USD guardado sea `bs / paralela`.
+## Pregunta para confirmar antes de implementar
+¿Prefieres que el borrado en cascada se haga vía **RPC `SECURITY DEFINER`** (atómico, rollback real) o desde el cliente en orden hijo→padre (más simple, ya cubre el 99% de casos)?
