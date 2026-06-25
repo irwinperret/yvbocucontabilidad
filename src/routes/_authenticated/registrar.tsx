@@ -777,11 +777,12 @@ function VentasForm() {
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">No hay cuentas por cobrar vigentes</div>
                   )}
                   {(cxcVigentes ?? []).map((c: any) => {
-                    const pendUsd = Number(c.monto_pendiente_usd ?? c.monto_usd);
-                    const parcial = pendUsd < Number(c.monto_usd) - 0.01;
+                    const pendUsd = Number(c.monto_pendiente_usd_bcv ?? c.monto_usd_bcv ?? c.monto_pendiente_usd ?? c.monto_usd);
+                    const origUsd = Number(c.monto_usd_bcv ?? c.monto_usd);
+                    const parcial = pendUsd < origUsd - 0.01;
                     return (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.cliente} — {c.centro_costo} — pendiente {fmtUsd(pendUsd)}{parcial ? ` (de ${fmtUsd(c.monto_usd)})` : ""}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
+                        {c.cliente} — {c.centro_costo} — pendiente {fmtUsd(pendUsd)} USD BCV{parcial ? ` (de ${fmtUsd(origUsd)})` : ""}{c.fecha_vencimiento ? ` · vence ${c.fecha_vencimiento}` : ""}
                       </SelectItem>
                     );
                   })}
