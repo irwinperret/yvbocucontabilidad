@@ -265,21 +265,32 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Registrar cobro — {cxc.cliente}</DialogTitle></DialogHeader>
         <div className="text-sm text-muted-foreground mb-2">
-          Pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsd)}</span>
+          Pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsdBcv)}</span>
+          <span className="text-xs ml-1">(USD a tasa BCV — lo que el cliente debe comercialmente)</span>
         </div>
         <div className="space-y-3">
           <div><Label>Fecha del cobro</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label>Monto USD a cobrar</Label><Input type="number" step="0.01" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} className="mono" /></div>
-            <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
+            <div>
+              <Label>Monto USD (BCV) a cobrar</Label>
+              <Input type="number" step="0.01" value={montoUsdBcv} onChange={(e) => setMontoUsdBcv(e.target.value)} className="mono" />
+            </div>
+            <div><Label>Tasa BCV (día del pago)</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
           </div>
-          <div className="rounded-md bg-muted p-2 flex justify-between text-sm">
-            <span>Bs equivalente</span><span className="mono font-semibold">{fmtBs(cobroBs)}</span>
+          <div className="rounded-md bg-muted p-2 space-y-1 text-sm">
+            <div className="flex justify-between"><span>Bs a cobrar</span><span className="mono font-semibold">{fmtBs(cobroBs)}</span></div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>USD paralelo (contable, paralela {tasaParalelaN ? tasaParalelaN.toFixed(4) : "—"})</span>
+              <span className="mono">{fmtUsd(cobroUsdParalela)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>USD paralelo esperado (paralela venta {tasaParVentaSafe.toFixed(4)})</span>
+              <span className="mono">{fmtUsd(cobroUsdParaEsperado)}</span>
+            </div>
           </div>
           {Math.abs(fxDeltaUsd) >= 0.01 && (
-            <div className={`text-xs rounded p-2 border ${fxDeltaUsd > 0 ? "text-green-700 bg-green-50 border-green-300" : "text-orange-700 bg-orange-50 border-orange-300"}`}>
-              {fxDeltaUsd > 0 ? "Ganancia" : "Pérdida"} cambiaria proporcional: {fmtUsd(Math.abs(fxDeltaUsd))}
-              {fxDeltaUsd < 0 && " (no se contabiliza)"}
+            <div className={`text-xs rounded p-2 border ${fxDeltaUsd > 0 ? "text-green-700 bg-green-50 border-green-300" : "text-red-700 bg-red-50 border-red-300"}`}>
+              {fxDeltaUsd > 0 ? "Ganancia (11.1)" : "Pérdida (11.2)"} cambiaria: {fmtUsd(Math.abs(fxDeltaUsd))} · se asienta automáticamente
             </div>
           )}
           <div>
@@ -292,9 +303,9 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
           <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
           <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
           <div><Label>Notas</Label><Input value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
-          {!cubreTodo && cobroUsd > 0 && (
+          {!cubreTodo && cobroUsdBcv > 0 && (
             <div className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
-              Cobro parcial — quedará un saldo de {fmtUsd(pendienteUsd - cobroUsd)}
+              Cobro parcial — quedará un saldo de {fmtUsd(pendienteUsdBcv - cobroUsdBcv)} (USD BCV)
             </div>
           )}
           <div className="flex justify-end gap-2">
