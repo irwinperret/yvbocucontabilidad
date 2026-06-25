@@ -217,7 +217,8 @@ function VentasForm() {
       const bs = n * tasaConvN;
       return { bs, usd: n };
     }
-    return { bs: n, usd: tasaConvN ? n / tasaConvN : 0 };
+    const tasaUsd = tasaParalelaN || tasaBcvN; // Bs→USD siempre a paralela; fallback BCV
+    return { bs: n, usd: tasaUsd ? n / tasaUsd : 0 };
   };
   // Para contado/credito: el monto digitado es la VENTA NETA (sin IVA, servicio, propina).
   // El IVA se ingresa por separado (default 16% × neto, editable). Para cobro se conserva
