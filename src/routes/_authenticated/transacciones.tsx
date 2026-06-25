@@ -69,6 +69,7 @@ function TransaccionesPage() {
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const PAGE_SIZE = 50;
 
   useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, cuentaFiltro, metodoFiltro, modoFiltro, busca, sortKey, sortDir]);
