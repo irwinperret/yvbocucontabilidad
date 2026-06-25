@@ -54,9 +54,10 @@ function CxCPage() {
   const vigentes = (data ?? []).filter((c: any) => c.estado === "vigente");
   const vencidas = vigentes.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento < todayISO());
   const porVencer = vigentes.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento >= todayISO() && (new Date(c.fecha_vencimiento).getTime() - Date.now()) / 86400000 <= 7);
-  const totalVencidas = vencidas.reduce((s: number, c: any) => s + Number(c.monto_pendiente_usd ?? c.monto_usd), 0);
-  const totalPorVencer = porVencer.reduce((s: number, c: any) => s + Number(c.monto_pendiente_usd ?? c.monto_usd), 0);
-  const totalVigentes = vigentes.reduce((s: number, c: any) => s + Number(c.monto_pendiente_usd ?? c.monto_usd), 0);
+  const pendBcv = (c: any) => Number(c.monto_pendiente_usd_bcv ?? c.monto_usd_bcv ?? c.monto_pendiente_usd ?? c.monto_usd);
+  const totalVencidas = vencidas.reduce((s: number, c: any) => s + pendBcv(c), 0);
+  const totalPorVencer = porVencer.reduce((s: number, c: any) => s + pendBcv(c), 0);
+  const totalVigentes = vigentes.reduce((s: number, c: any) => s + pendBcv(c), 0);
 
   return (
     <div className="space-y-6">
@@ -67,10 +68,10 @@ function CxCPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Vencidas" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
-        <Kpi label="Por vencer 7d" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
-        <Kpi label="Vigentes" value={fmtUsd(totalVigentes - totalVencidas - totalPorVencer)} count={vigentes.length - vencidas.length - porVencer.length} color="positive" />
-        <Kpi label="Total" value={fmtUsd(totalVigentes)} count={vigentes.length} color="" />
+        <Kpi label="Vencidas (USD BCV)" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
+        <Kpi label="Por vencer 7d (USD BCV)" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
+        <Kpi label="Vigentes (USD BCV)" value={fmtUsd(totalVigentes - totalVencidas - totalPorVencer)} count={vigentes.length - vencidas.length - porVencer.length} color="positive" />
+        <Kpi label="Total (USD BCV)" value={fmtUsd(totalVigentes)} count={vigentes.length} color="" />
       </div>
 
       <Card>
