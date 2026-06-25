@@ -174,9 +174,12 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
   const cobroBs = cobroUsd * tasaN;
-  const tasaOrig = Number(cxc.monto_usd) > 0 ? Number(cxc.monto_bs) / Number(cxc.monto_usd) : tasaN;
-  const fxBs = cobroUsd * (tasaN - tasaOrig);
-  const fxDeltaUsd = tasaN > 0 ? fxBs / tasaN : 0;
+  // USD contable real (paralela). Fallback a BCV solo si no hay tasa paralela.
+  const cobroUsdParalela = tasaParalelaN ? cobroBs / tasaParalelaN : cobroUsd;
+  // Tasa paralela original del CxC (porque el CxC se guardó a paralela).
+  const tasaOrigParalela = Number(cxc.monto_usd) > 0 ? Number(cxc.monto_bs) / Number(cxc.monto_usd) : (tasaParalelaN || tasaN);
+  const fxBs = cobroUsdParalela * ((tasaParalelaN || tasaN) - tasaOrigParalela);
+  const fxDeltaUsd = (tasaParalelaN || tasaN) > 0 ? fxBs / (tasaParalelaN || tasaN) : 0;
   const cubreTodo = cobroUsd >= pendienteUsd - 0.01;
 
   const confirmar = async () => {
