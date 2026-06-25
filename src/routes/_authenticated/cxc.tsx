@@ -68,10 +68,10 @@ function CxCPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Vencidas" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
-        <Kpi label="Por vencer 7d" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
-        <Kpi label="Vigentes" value={fmtUsd(totalVigentes - totalVencidas - totalPorVencer)} count={vigentes.length - vencidas.length - porVencer.length} color="positive" />
-        <Kpi label="Total" value={fmtUsd(totalVigentes)} count={vigentes.length} color="" />
+        <Kpi label="Vencidas (USD BCV)" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
+        <Kpi label="Por vencer 7d (USD BCV)" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
+        <Kpi label="Vigentes (USD BCV)" value={fmtUsd(totalVigentes - totalVencidas - totalPorVencer)} count={vigentes.length - vencidas.length - porVencer.length} color="positive" />
+        <Kpi label="Total (USD BCV)" value={fmtUsd(totalVigentes)} count={vigentes.length} color="" />
       </div>
 
       <Card>
