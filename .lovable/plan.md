@@ -1,38 +1,55 @@
-## Problema
+## Diagnóstico
 
-En `VentasForm` (`src/routes/_authenticated/registrar.tsx`), cuando registras una venta a crédito en bolívares, el USD contable se está calculando dividiendo entre la **tasa BCV** en lugar de la **tasa paralela**. Como la BCV es menor, el USD resultante queda inflado (igual al "USD BCV") en vez de ser el USD real al paralelo (que es menor).
+Revisé las transacciones del 20–25/06 y reproduje el bug:
 
-Esto contradice la regla del proyecto: todas las conversiones Bs→USD se hacen a tasa paralela; la BCV solo se guarda como referencia fiscal.
+- Venta a crédito 21/06 (grupo `f00e0f11…`):
+  - 1.4 (base): bs 60 738.38 / USD 76.48 a paralela 794.1345 ✅
+  - 12.4 (IVA): bs 9 718.14 / USD **16.00** → guardado a tasa BCV. Debería ser **12.24** (9 718.14 / 794.1345).
+  - 3.10 (bono servicio): bs 6 073.84 / USD **10.00** → a BCV. Debería ser **7.65**.
+  - 13.1 (propina): bs 5 999.99 / USD **9.88** → a BCV. Debería ser **7.55**.
+- Cobro 25/06 (1.5 — `Cobro creditos anteriores`): bs 47 239.33 / USD **76.48** → guardado a BCV. Debería ser **60.40** (47 239.33 / 782.08725).
 
-### Causa exacta
+Causa raíz:
+1. **`src/routes/_authenticated/registrar.tsx` (VentasForm)** — cuando `tipo === "credito"`, `usaBCV = true` y por lo tanto `tasaConvN = tasaBcvN`. La línea principal (1.4) se salva porque usa su propio helper `convertInput` que fuerza paralela, pero el resto (IVA en línea 466, bono en 269, propina en 274–276) divide los Bs entre `tasaN`/`tasaConvN` (BCV) en lugar de paralela.
+2. **`src/routes/_authenticated/cxc.tsx` (CobroModal)** — el usuario ingresa el USD que coincide con el pendiente a BCV; luego se guarda `monto_usd: cobroUsd` tal cual y `monto_bs = cobroUsd * tasaBCV`. Nunca reexpresa el USD a paralela. Además, la diferencia cambiaria mezcla unidades (BCV vs paralela original).
 
-- Línea 152: `usaBCV = tipo === "credito" || tipo === "cobro"`.
-- Línea 203: `tasaConvN = usaBCV ? (tasaN || tasaBcvN) : (tasaParalelaN || tasaN)` → para crédito, `tasaConvN` es la BCV.
-- Línea 220 (`convertInput`, rama Bs): `usd = n / tasaConvN` → divide entre BCV.
-- En el insert (línea 470) se guarda `tasa_bcv: tasaN` (BCV, correcto como referencia), `tasa_paralela: paralelaSugerida?.tasa` (correcto), pero `monto_usd: baseUsd` quedó calculado a BCV.
-- La CxC creada (líneas 498-499) hereda el mismo `baseUsd` inflado.
+## Cambios de código (de aquí en adelante)
 
-## Fix
+### `src/routes/_authenticated/registrar.tsx` — VentasForm
 
-Cambiar `convertInput` para que la conversión Bs→USD use siempre la tasa **paralela** (con fallback a BCV solo si no hay paralela ese día), independientemente de `usaBCV`. El input editable `tasa` y el campo `tasa_bcv` del insert siguen siendo BCV en crédito — eso es correcto y no se toca.
+Forzar que **todas** las patas de una venta (no solo la línea 1.4) reporten `monto_usd` a paralela:
 
-Cambio puntual en la rama Bs de `convertInput` (línea 220):
+- IVA leg (línea 466 y la llamada a `insertIvaLeg`):
+  - Calcular `ivaUsd = iva / tasaParalelaN` (fallback a BCV solo si no hay paralela).
+  - Pasar `tasa_bcv: tasaBcvN` (referencia fiscal) y `tasa_paralela: tasaParalelaN` al leg, sin importar `usaBCV`.
+- Bono servicio (líneas 262–269) y propina (272–276): reemplazar la división por `tasaConvN` por una división por `tasaParalelaN`. Para la rama `pagoEnUsd` mantener el patrón "USD digitado a BCV → Bs → paralela" ya usado en el principal (`esVentaEnUsdBcv`).
+- En los `insert` de las patas 3.x y 13.1 (líneas 547–559 y 565–578) guardar siempre `tasa_bcv: tasaBcvN` y `tasa_paralela: tasaParalelaN`, no `tasaN`.
+- En el insert de `propinas` (línea 583+) guardar `tasa_paralela: tasaParalelaN` (no `tasaN`, que para crédito es BCV).
 
-```ts
-// antes:
-return { bs: n, usd: tasaConvN ? n / tasaConvN : 0 };
-// después:
-const tasaUsd = tasaParalelaN || tasaBcvN; // paralela; fallback BCV
-return { bs: n, usd: tasaUsd ? n / tasaUsd : 0 };
-```
+### `src/routes/_authenticated/cxc.tsx` — CobroModal
 
-Con esto:
-- Venta a crédito en Bs → `baseUsd` e `ivaUsd` se calculan a paralela (USD menor, correcto).
-- La transacción guarda `tasa_bcv` = BCV (input), `tasa_paralela` = paralela del día, `monto_usd` = base/paralela.
-- La CxC (`monto_usd`, `monto_pendiente_usd`) queda al USD paralelo correcto, consistente con cómo luego se cobra y se calcula la diferencia cambiaria (que ya usa `tasaConvN` paralela en el cobro porque ahí `usaBCV` también es true pero el cobro de crédito anterior trabaja en USD digitado directo).
-- El recuadro informativo "Base USD BCV / IVA USD BCV" sigue mostrando el equivalente a BCV como referencia visual (ya usa `base / tasaBcvN` directamente).
+- Mantener el input "USD a tasa BCV" como conveniencia para igualar el pendiente, pero al insertar la transacción:
+  - `monto_bs = cobroUsd * tasaBcv` (igual que hoy, el cliente paga ese Bs).
+  - `monto_usd = monto_bs / tasaParalela` (USD contable real).
+- Recalcular el dif. cambiario comparando paralela@cobro vs paralela@original (`tasaOrigParalela = cxc.monto_bs / cxc.monto_usd`, ya que el CxC se guardó a paralela). Mantener la regla actual: solo ganancia a 11.1; pérdida se ignora.
+- Validar el tope contra `pendienteUsd` usando el USD-paralela equivalente, no el USD-BCV.
 
-## Alcance / fuera de alcance
+## Corrección retroactiva
 
-- Solo se modifica la línea 220 de `convertInput`. Sin tocar UI, labels, ni la lógica de "Cobro de crédito anterior" (esa pestaña tiene su propio flujo en USD).
-- No se migran datos históricos. Las ventas a crédito ya registradas con el `monto_usd` inflado se quedan como están; si quieres que las recalcule, dímelo y lo hacemos como paso aparte.
+Migración con `UPDATE` puntuales sobre `transacciones` y `propinas`:
+
+| id (prefijo) | cuenta | bs actual | USD actual | USD correcto |
+|---|---|---|---|---|
+| `a10b27a8` | 12.4 | 9 718.14 | 16.00 | **12.24** (÷794.1345) |
+| `db169156` | 3.10 | 6 073.84 | 10.00 | **7.65** (÷794.1345) |
+| `16461c56` | 13.1 | 5 999.99 | 9.88 | **7.55** (÷794.1345) |
+| `b4f8f1d9` | 1.5  | 47 239.33| 76.48 | **60.40** (÷782.08725) |
+
+- También actualizar la fila correspondiente en `propinas` (`monto_usd = 7.55`, `tasa_paralela = 794.1345`).
+- La CxC asociada a la venta 21/06 ya se guardó correctamente (76.48 USD paralela) y se marcó como `cobrada`. No se modifica su estado: el cliente sí canceló los Bs adeudados; la diferencia entre 76.48 (CxC) y 60.40 (cobro) en paralela es una pérdida cambiaria que la regla actual (11.2 eliminada) decide no contabilizar — se deja una nota en el cobro indicándolo, sin asiento adicional.
+
+## Verificación
+
+1. Re-leer las 4 filas afectadas y confirmar que `monto_bs / tasa_paralela ≈ monto_usd`.
+2. Registrar una venta a crédito de prueba en Bs con IVA + bono + propina y validar que las 4 patas guardan `monto_usd` a paralela y `tasa_bcv` solo como referencia.
+3. Hacer un cobro de prueba y verificar que el USD guardado sea `bs / paralela`.

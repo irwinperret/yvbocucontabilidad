@@ -174,9 +174,12 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
   const cobroBs = cobroUsd * tasaN;
-  const tasaOrig = Number(cxc.monto_usd) > 0 ? Number(cxc.monto_bs) / Number(cxc.monto_usd) : tasaN;
-  const fxBs = cobroUsd * (tasaN - tasaOrig);
-  const fxDeltaUsd = tasaN > 0 ? fxBs / tasaN : 0;
+  // USD contable real (paralela). Fallback a BCV solo si no hay tasa paralela.
+  const cobroUsdParalela = tasaParalelaN ? cobroBs / tasaParalelaN : cobroUsd;
+  // Tasa paralela original del CxC (porque el CxC se guardó a paralela).
+  const tasaOrigParalela = Number(cxc.monto_usd) > 0 ? Number(cxc.monto_bs) / Number(cxc.monto_usd) : (tasaParalelaN || tasaN);
+  const fxBs = cobroUsdParalela * ((tasaParalelaN || tasaN) - tasaOrigParalela);
+  const fxDeltaUsd = (tasaParalelaN || tasaN) > 0 ? fxBs / (tasaParalelaN || tasaN) : 0;
   const cubreTodo = cobroUsd >= pendienteUsd - 0.01;
 
   const confirmar = async () => {
@@ -191,7 +194,7 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
       cuenta_codigo: "1.5",
       centro_costo: cxc.centro_costo,
       monto_bs: cobroBs, monto_base_bs: cobroBs, iva_bs: 0,
-      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: cobroUsd,
+      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: cobroUsdParalela,
       metodo_pago: metodo as any,
       referencia: ref || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
@@ -212,7 +215,7 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
         monto_bs: absBs, monto_base_bs: absBs, iva_bs: 0,
         tasa_bcv: tasaN, monto_usd: absUsd,
         metodo_pago: "transferencia",
-        notas: `Dif. cambiaria CxC ${cxc.cliente} — tasa original ${tasaOrig.toFixed(4)} → cobro ${tasaN.toFixed(4)}`,
+        notas: `Dif. cambiaria CxC ${cxc.cliente} — paralela original ${tasaOrigParalela.toFixed(4)} → cobro ${(tasaParalelaN || tasaN).toFixed(4)}`,
         modo: "on_balance", created_by: userId,
       } as any).select().single();
       if (errFx) toast.error("Cobro OK, pero falló ajuste cambiario: " + errFx.message);
@@ -231,7 +234,7 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
       }).eq("id", cxc.id);
     } else {
       const nuevoPendUsd = +(pendienteUsd - cobroUsd).toFixed(2);
-      const nuevoPendBs = +(nuevoPendUsd * tasaOrig).toFixed(2);
+      const nuevoPendBs = +(nuevoPendUsd * tasaOrigParalela).toFixed(2);
       await supabase.from("cuentas_por_cobrar").update({
         monto_pendiente_usd: nuevoPendUsd,
         monto_pendiente_bs: nuevoPendBs,

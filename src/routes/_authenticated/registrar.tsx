@@ -262,18 +262,21 @@ function VentasForm() {
   const bonoServAuto = pagoEnUsd
     ? (tasaBcvN ? Number(((base * 0.1) / tasaBcvN).toFixed(2)) : 0)
     : Number((base * 0.1).toFixed(2));
+  // Bono y propina: el USD contable SIEMPRE se reexpresa a tasa paralela (no BCV),
+  // independientemente de que la venta sea contado o crédito. El BCV solo se usa como
+  // tasa de conversión inicial cuando el usuario digita en USD a tasa BCV.
   const bonoServInputN = Number(bonoServUsd) || 0;
   const bonoServBsN = pagoEnUsd ? bonoServInputN * tasaBcvN : bonoServInputN;
-  const bonoServUsdN = pagoEnUsd
-    ? (tasaParalelaN ? bonoServBsN / tasaParalelaN : (tasaBcvN ? bonoServInputN : 0))
-    : (tasaConvN ? bonoServInputN / tasaConvN : 0);
+  const bonoServUsdN = tasaParalelaN
+    ? bonoServBsN / tasaParalelaN
+    : (tasaBcvN ? bonoServBsN / tasaBcvN : 0);
   // La propina sigue la misma convención: en USD es "dolares a tasa BCV", se pasa a Bs con
   // BCV y ese Bs se reexpresa en USD a tasa paralela para guardar el dato contable real.
   const propinaInputN = Number(propinaUsd) || 0;
   const propinaBsN = pagoEnUsd ? propinaInputN * tasaBcvN : propinaInputN;
-  const propinaUsdN = pagoEnUsd
-    ? (tasaParalelaN ? propinaBsN / tasaParalelaN : (tasaBcvN ? propinaInputN : 0))
-    : (tasaConvN ? propinaInputN / tasaConvN : 0);
+  const propinaUsdN = tasaParalelaN
+    ? propinaBsN / tasaParalelaN
+    : (tasaBcvN ? propinaBsN / tasaBcvN : 0);
   useEffect(() => {
     if (tipo !== "contado" && tipo !== "credito") return;
     if (bonoServTouched) return;
@@ -463,7 +466,7 @@ function VentasForm() {
     if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const grupoId = crypto.randomUUID();
-    const ivaUsd = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
+    const ivaUsd = ivaAplica ? (tasaParalelaN ? +(iva / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0)) : 0;
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: base, monto_base_bs: base, iva_bs: 0,
@@ -486,7 +489,7 @@ function VentasForm() {
         fecha, centro_costo: centro as any,
         modo: offBalance ? "off_balance" : "on_balance",
         monto_bs_iva: iva, monto_usd_iva: ivaUsd,
-        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
+        tasa_bcv: tasaBcvN || tasaN, tasa_paralela: tasaParalelaN || null,
         numero_orden: numOrden || null,
         notas: notas || null,
         created_by: user.id,
@@ -548,7 +551,7 @@ function VentasForm() {
           fecha, cuenta_codigo: cuentaBono, centro_costo: centro as any,
           monto_bs: bonoServBsN, monto_base_bs: bonoServBsN, iva_bs: 0,
           iva_aplica: false, tipo_iva: null,
-          tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: bonoServUsdN,
+          tasa_bcv: tasaBcvN || tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: bonoServUsdN,
           metodo_pago: "pendiente" as any,
           numero_orden: numOrden || null,
           notas: `Bono servicio 10% por venta ${tipo === "credito" ? "a crédito" : "contado"}${cliente ? ` · ${cliente}` : ""}`,
@@ -566,7 +569,7 @@ function VentasForm() {
           fecha, cuenta_codigo: "13.1", centro_costo: centro as any,
           monto_bs: propinaBsN, monto_base_bs: propinaBsN, iva_bs: 0,
           iva_aplica: false, tipo_iva: null,
-          tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
+          tasa_bcv: tasaBcvN || tasaN, tasa_paralela: tasaParalelaN || null,
           monto_usd: propinaUsdN,
           metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
           cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
@@ -583,7 +586,7 @@ function VentasForm() {
         const { error: ePr } = await supabase.from("propinas").insert({
           transaccion_id: tx.id, fecha, centro_costo: centro as any,
           monto_usd: propinaUsdN, monto_bs: propinaBsN,
-          tasa_paralela: paralelaSugerida?.tasa ?? null,
+          tasa_paralela: tasaParalelaN || null,
           concepto: "Propina venta manual",
           numero_orden: numOrden || null,
           notas: notas || null,
