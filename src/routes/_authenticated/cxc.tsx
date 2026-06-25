@@ -234,7 +234,7 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
       }).eq("id", cxc.id);
     } else {
       const nuevoPendUsd = +(pendienteUsd - cobroUsd).toFixed(2);
-      const nuevoPendBs = +(nuevoPendUsd * tasaOrig).toFixed(2);
+      const nuevoPendBs = +(nuevoPendUsd * tasaOrigParalela).toFixed(2);
       await supabase.from("cuentas_por_cobrar").update({
         monto_pendiente_usd: nuevoPendUsd,
         monto_pendiente_bs: nuevoPendBs,
