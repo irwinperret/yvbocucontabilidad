@@ -620,6 +620,13 @@ function TransaccionesPage() {
         />
       )}
 
+      <EliminarTransaccionDialog
+        open={!!deleteTarget}
+        transaccion={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => qc.invalidateQueries()}
+      />
+
       <Dialog open={wipeOpen} onOpenChange={(o) => { if (!o) { setWipeOpen(false); setWipePwd(""); } }}>
         <DialogContent>
           <DialogHeader>
