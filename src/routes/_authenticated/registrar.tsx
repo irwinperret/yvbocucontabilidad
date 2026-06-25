@@ -262,18 +262,21 @@ function VentasForm() {
   const bonoServAuto = pagoEnUsd
     ? (tasaBcvN ? Number(((base * 0.1) / tasaBcvN).toFixed(2)) : 0)
     : Number((base * 0.1).toFixed(2));
+  // Bono y propina: el USD contable SIEMPRE se reexpresa a tasa paralela (no BCV),
+  // independientemente de que la venta sea contado o crédito. El BCV solo se usa como
+  // tasa de conversión inicial cuando el usuario digita en USD a tasa BCV.
   const bonoServInputN = Number(bonoServUsd) || 0;
   const bonoServBsN = pagoEnUsd ? bonoServInputN * tasaBcvN : bonoServInputN;
-  const bonoServUsdN = pagoEnUsd
-    ? (tasaParalelaN ? bonoServBsN / tasaParalelaN : (tasaBcvN ? bonoServInputN : 0))
-    : (tasaConvN ? bonoServInputN / tasaConvN : 0);
+  const bonoServUsdN = tasaParalelaN
+    ? bonoServBsN / tasaParalelaN
+    : (tasaBcvN ? bonoServBsN / tasaBcvN : 0);
   // La propina sigue la misma convención: en USD es "dolares a tasa BCV", se pasa a Bs con
   // BCV y ese Bs se reexpresa en USD a tasa paralela para guardar el dato contable real.
   const propinaInputN = Number(propinaUsd) || 0;
   const propinaBsN = pagoEnUsd ? propinaInputN * tasaBcvN : propinaInputN;
-  const propinaUsdN = pagoEnUsd
-    ? (tasaParalelaN ? propinaBsN / tasaParalelaN : (tasaBcvN ? propinaInputN : 0))
-    : (tasaConvN ? propinaInputN / tasaConvN : 0);
+  const propinaUsdN = tasaParalelaN
+    ? propinaBsN / tasaParalelaN
+    : (tasaBcvN ? propinaBsN / tasaBcvN : 0);
   useEffect(() => {
     if (tipo !== "contado" && tipo !== "credito") return;
     if (bonoServTouched) return;
