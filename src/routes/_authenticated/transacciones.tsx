@@ -577,15 +577,15 @@ function TransaccionesPage() {
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <DeleteButton
-                            fecha={t.fecha}
-                            detail={`${fmtDate(t.fecha)} · ${t.cuenta_codigo} · ${fmtBs(t.monto_bs)}`}
-                            warnings={[
-                              ...(t.pareja_off_balance_id ? ["Esta transacción está enlazada a otro movimiento off-balance (venta ↔ bono). Si confirmas, se eliminarán las DOS transacciones."] : []),
-                              ...(t.cuenta_codigo === "13.1" && t.grupo_transaccion_id ? ["Esta es una transacción de propina. Si confirmas, se eliminarán también la transacción pareja (entrada/salida) y el registro vinculado en la tabla de propinas."] : []),
-                            ]}
-                            onConfirm={() => eliminar(t)}
-                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(t)}
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
