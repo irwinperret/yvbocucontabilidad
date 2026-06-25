@@ -168,7 +168,8 @@ function VentasForm() {
   });
 
   const cxcSel: any = (cxcVigentes ?? []).find((x: any) => x.id === cxcId);
-  const pendienteUsdCxc = Number(cxcSel?.monto_pendiente_usd ?? cxcSel?.monto_usd ?? 0);
+  // Saldo pendiente del deudor: USD a tasa BCV (deuda comercial real)
+  const pendienteUsdCxc = Number(cxcSel?.monto_pendiente_usd_bcv ?? cxcSel?.monto_usd_bcv ?? cxcSel?.monto_pendiente_usd ?? cxcSel?.monto_usd ?? 0);
   const tasaOrigCxc = cxcSel && Number(cxcSel.monto_usd) > 0
     ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd)
     : 0;
@@ -472,11 +473,17 @@ function VentasForm() {
     setBusy(true);
     const grupoId = crypto.randomUUID();
     const ivaUsd = ivaAplica ? (tasaParalelaN ? +(iva / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0)) : 0;
+    // Cuenta 1.4 (venta a crédito): la deuda está denominada en USD-BCV, no en USD paralela.
+    // El deudor paga en Bs a la tasa BCV del día del pago, por eso monto_usd se calcula con BCV.
+    // tasa_paralela se conserva como referencia para el diferencial cambiario en el cobro.
+    const baseUsdParaCuenta = (tipo === "credito" && tasaBcvN > 0)
+      ? +(base / tasaBcvN).toFixed(2)
+      : baseUsd;
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: base, monto_base_bs: base, iva_bs: 0,
       iva_aplica: false, tipo_iva: null,
-      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
+      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsdParaCuenta,
       metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
       referencia: tipo === "credito" ? null : (ref || null),
       numero_orden: numOrden || null,
@@ -503,21 +510,27 @@ function VentasForm() {
       });
     }
     if (tipo === "credito" && tx) {
+      // La deuda del cliente incluye IVA. monto_usd y monto_usd_bcv se almacenan en USD-BCV
+      // (lo que el deudor realmente debe). monto_pendiente_usd también va en USD-BCV para
+      // consistencia con el flujo de cobro (que ahora descuenta en USD-BCV).
       const totalUsdBcv = tasaBcvN > 0 ? +(total / tasaBcvN).toFixed(2) : baseUsd;
       await supabase.from("cuentas_por_cobrar").insert({
-        cliente, centro_costo: centro as any, monto_bs: total, monto_usd: baseUsd,
-        monto_pendiente_bs: total, monto_pendiente_usd: baseUsd,
+        cliente, centro_costo: centro as any, monto_bs: total, monto_usd: totalUsdBcv,
+        monto_pendiente_bs: total, monto_pendiente_usd: totalUsdBcv,
         monto_usd_bcv: totalUsdBcv, monto_pendiente_usd_bcv: totalUsdBcv,
         tasa_bcv_venta: tasaBcvN || null, tasa_paralela_venta: tasaParalelaN || null,
         fecha_vencimiento: fechaVenc || null, transaccion_id: tx.id, estado: "vigente",
       } as any);
     }
     if (tipo === "cobro" && tx && cxcId && cxcSel) {
-      const nuevoPendienteUsd = Math.max(0, pendienteUsdCxc - usdCobrado);
-      const completaCobrada = nuevoPendienteUsd < 0.01;
-      const nuevoPendienteBs = nuevoPendienteUsd * tasaConvN; // referencia en Bs al paralelo de hoy
+      // pendienteUsdCxc y usdCobrado ahora están en USD-BCV (deuda comercial).
+      const nuevoPendienteUsdBcv = Math.max(0, pendienteUsdCxc - usdCobrado);
+      const completaCobrada = nuevoPendienteUsdBcv < 0.01;
+      const tasaBcvVentaSafe = Number(cxcSel.tasa_bcv_venta) || (Number(cxcSel.monto_bs) > 0 && Number(cxcSel.monto_usd_bcv) > 0 ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd_bcv) : tasaN);
+      const nuevoPendienteBs = +(nuevoPendienteUsdBcv * tasaBcvVentaSafe).toFixed(2);
       await supabase.from("cuentas_por_cobrar").update({
-        monto_pendiente_usd: nuevoPendienteUsd,
+        monto_pendiente_usd: nuevoPendienteUsdBcv,
+        monto_pendiente_usd_bcv: nuevoPendienteUsdBcv,
         monto_pendiente_bs: nuevoPendienteBs,
         estado: completaCobrada ? "cobrada" : "vigente",
         cobrada_at: completaCobrada ? new Date().toISOString() : null,
@@ -776,8 +789,8 @@ function VentasForm() {
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {cxcSel
-                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaConvN)} a tasa BCV ${tasaConvN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
-                  : "Al guardar, se descuenta del saldo en USD el equivalente del monto cobrado a la tasa BCV de hoy."}
+                  ? `Saldo pendiente: ${fmtUsd(pendienteUsdCxc)} (USD BCV — lo que el cliente debe comercialmente; equivalente hoy a ${fmtBs(pendienteUsdCxc * tasaConvN)} a tasa BCV ${tasaConvN.toFixed(2)}). Este cobro cancela ${fmtUsd(usdCobrado)} de la deuda. La dif. cambiaria vs la tasa paralela original (${tasaOrigCxc.toFixed(2)}) se registra automáticamente.`
+                  : "Al guardar, se descuenta del saldo en USD BCV el equivalente del monto cobrado a la tasa BCV de hoy."}
 
               </p>
             </div>
