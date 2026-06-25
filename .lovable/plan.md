@@ -1,37 +1,38 @@
 ## Problema
 
-En `src/routes/_authenticated/importar-ventas.tsx`, `syncPropina` solo inserta/actualiza la fila en `propinas` apuntando `transaccion_id` a la venta. No crea movimiento contable en `13.1 Propinas por pagar al personal`, por lo que la propina aparece en el tab Propinas pero no en Transacciones, y `transaccion_entrada_id` queda vacío.
+En `VentasForm` (`src/routes/_authenticated/registrar.tsx`), cuando registras una venta a crédito en bolívares, el USD contable se está calculando dividiendo entre la **tasa BCV** en lugar de la **tasa paralela**. Como la BCV es menor, el USD resultante queda inflado (igual al "USD BCV") en vez de ser el USD real al paralelo (que es menor).
 
-## Cambios
+Esto contradice la regla del proyecto: todas las conversiones Bs→USD se hacen a tasa paralela; la BCV solo se guarda como referencia fiscal.
 
-### 1. `syncPropina` (importar-ventas.tsx, líneas 272–296)
+### Causa exacta
 
-Replicar el patrón de `syncBono`: antes de tocar la tabla `propinas`, hacer upsert manual de una transacción contable en `13.1` y obtener su `id`.
+- Línea 152: `usaBCV = tipo === "credito" || tipo === "cobro"`.
+- Línea 203: `tasaConvN = usaBCV ? (tasaN || tasaBcvN) : (tasaParalelaN || tasaN)` → para crédito, `tasaConvN` es la BCV.
+- Línea 220 (`convertInput`, rama Bs): `usd = n / tasaConvN` → divide entre BCV.
+- En el insert (línea 470) se guarda `tasa_bcv: tasaN` (BCV, correcto como referencia), `tasa_paralela: paralelaSugerida?.tasa` (correcto), pero `monto_usd: baseUsd` quedó calculado a BCV.
+- La CxC creada (líneas 498-499) hereda el mismo `baseUsd` inflado.
 
-- Dedupe key: `referencia='xetux'` + `cuenta_codigo='13.1'` + `numero_factura` (si existe) o `numero_orden`.
-- Payload de la transacción 13.1:
-  - `fecha`, `centro_costo` = los de la fila
-  - `cuenta_codigo = '13.1'`, `modo = 'on_balance'`
-  - `monto_bs = propinaBs`, `monto_base_bs = propinaBs`, `iva_bs = 0`, `iva_aplica = false`
-  - `monto_usd = propinaUsdPar` (ya calculado a paralela), `tasa_bcv`, `tasa_paralela`
-  - `metodo_pago` = el de la venta (`r.metodo_pago` mapeado) si está disponible, si no `'pendiente'`
-  - `referencia = 'xetux'`, `numero_factura`, `numero_orden`
-  - `grupo_transaccion_id`: pasar el `grupoId` de la venta (firmar `syncPropina` con `grupoId` igual que `syncBono`)
-  - `notas`: `Xetux · Propina · factura ${numero_factura} · ${cliente}`
-  - `created_by: user.id`
-- Si existe → update; si no → insert returning `id`.
-- Pasar ese `id` como `transaccion_entrada_id` en el payload de `propinas`. Mantener `transaccion_id` apuntando a la venta (`txId`) para trazabilidad.
+## Fix
 
-Actualizar las dos llamadas a `syncPropina` (líneas 476 y 523) para pasar `grupoId`/`grupoExistente` y el `metodo_pago` de la venta.
+Cambiar `convertInput` para que la conversión Bs→USD use siempre la tasa **paralela** (con fallback a BCV solo si no hay paralela ese día), independientemente de `usaBCV`. El input editable `tasa` y el campo `tasa_bcv` del insert siguen siendo BCV en crédito — eso es correcto y no se toca.
 
-### 2. Retroactivo
+Cambio puntual en la rama Bs de `convertInput` (línea 220):
 
-Actualmente hay **0** filas en `propinas` con `referencia='xetux'` (se limpiaron en el turno anterior), por lo que no hay backfill que ejecutar. La próxima importación generará los movimientos 13.1 correctamente y enlazará `transaccion_entrada_id` desde el inicio. No se requiere migración de datos.
+```ts
+// antes:
+return { bs: n, usd: tasaConvN ? n / tasaConvN : 0 };
+// después:
+const tasaUsd = tasaParalelaN || tasaBcvN; // paralela; fallback BCV
+return { bs: n, usd: tasaUsd ? n / tasaUsd : 0 };
+```
 
-## Verificación
+Con esto:
+- Venta a crédito en Bs → `baseUsd` e `ivaUsd` se calculan a paralela (USD menor, correcto).
+- La transacción guarda `tasa_bcv` = BCV (input), `tasa_paralela` = paralela del día, `monto_usd` = base/paralela.
+- La CxC (`monto_usd`, `monto_pendiente_usd`) queda al USD paralelo correcto, consistente con cómo luego se cobra y se calcula la diferencia cambiaria (que ya usa `tasaConvN` paralela en el cobro porque ahí `usaBCV` también es true pero el cobro de crédito anterior trabaja en USD digitado directo).
+- El recuadro informativo "Base USD BCV / IVA USD BCV" sigue mostrando el equivalente a BCV como referencia visual (ya usa `base / tasaBcvN` directamente).
 
-Después de implementar:
-1. Re-importar un reporte Xetux de prueba.
-2. Confirmar en Transacciones que aparecen las legs `13.1` con `referencia='xetux'`.
-3. Confirmar en `propinas` que `transaccion_entrada_id` está poblado.
-4. Re-importar el mismo archivo y confirmar que no se duplican (update path).
+## Alcance / fuera de alcance
+
+- Solo se modifica la línea 220 de `convertInput`. Sin tocar UI, labels, ni la lógica de "Cobro de crédito anterior" (esa pestaña tiene su propio flujo en USD).
+- No se migran datos históricos. Las ventas a crédito ya registradas con el `monto_usd` inflado se quedan como están; si quieres que las recalcule, dímelo y lo hacemos como paso aparte.
