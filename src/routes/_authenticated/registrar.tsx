@@ -551,7 +551,7 @@ function VentasForm() {
           fecha, cuenta_codigo: cuentaBono, centro_costo: centro as any,
           monto_bs: bonoServBsN, monto_base_bs: bonoServBsN, iva_bs: 0,
           iva_aplica: false, tipo_iva: null,
-          tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: bonoServUsdN,
+          tasa_bcv: tasaBcvN || tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: bonoServUsdN,
           metodo_pago: "pendiente" as any,
           numero_orden: numOrden || null,
           notas: `Bono servicio 10% por venta ${tipo === "credito" ? "a crédito" : "contado"}${cliente ? ` · ${cliente}` : ""}`,
