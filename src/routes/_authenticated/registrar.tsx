@@ -489,7 +489,7 @@ function VentasForm() {
         fecha, centro_costo: centro as any,
         modo: offBalance ? "off_balance" : "on_balance",
         monto_bs_iva: iva, monto_usd_iva: ivaUsd,
-        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
+        tasa_bcv: tasaBcvN || tasaN, tasa_paralela: tasaParalelaN || null,
         numero_orden: numOrden || null,
         notas: notas || null,
         created_by: user.id,
