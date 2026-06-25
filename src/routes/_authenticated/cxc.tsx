@@ -279,13 +279,16 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
             <div><Label>Tasa BCV (día del pago)</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
           </div>
           <div className="rounded-md bg-muted p-2 space-y-1 text-sm">
-            <div className="flex justify-between"><span>Bs a cobrar</span><span className="mono font-semibold">{fmtBs(cobroBs)}</span></div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>USD paralelo (contable, paralela {tasaParalelaN ? tasaParalelaN.toFixed(4) : "—"})</span>
+            <div className="flex justify-between"><span className="font-semibold">Monto a cobrar (Bs)</span><span className="mono font-semibold">{fmtBs(cobroBs)}</span></div>
+            <div className="text-[11px] text-muted-foreground">
+              Equivalente a <span className="mono">{fmtUsd(cobroUsdBcv)}</span> USD BCV — igual al USD BCV original de la factura (la deuda comercial no cambia; sólo se ajustan los Bs al BCV del día del pago).
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t">
+              <span>USD paralelo (contable / FC — paralela {tasaParalelaN ? tasaParalelaN.toFixed(4) : "—"})</span>
               <span className="mono">{fmtUsd(cobroUsdParalela)}</span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>USD paralelo esperado (paralela venta {tasaParVentaSafe.toFixed(4)})</span>
+              <span>USD paralelo factura (paralela venta {tasaParVentaSafe.toFixed(4)})</span>
               <span className="mono">{fmtUsd(cobroUsdParaEsperado)}</span>
             </div>
           </div>
