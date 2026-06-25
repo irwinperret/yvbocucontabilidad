@@ -569,7 +569,7 @@ function VentasForm() {
           fecha, cuenta_codigo: "13.1", centro_costo: centro as any,
           monto_bs: propinaBsN, monto_base_bs: propinaBsN, iva_bs: 0,
           iva_aplica: false, tipo_iva: null,
-          tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
+          tasa_bcv: tasaBcvN || tasaN, tasa_paralela: tasaParalelaN || null,
           monto_usd: propinaUsdN,
           metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
           cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
