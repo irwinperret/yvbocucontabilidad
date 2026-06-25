@@ -194,7 +194,7 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
       cuenta_codigo: "1.5",
       centro_costo: cxc.centro_costo,
       monto_bs: cobroBs, monto_base_bs: cobroBs, iva_bs: 0,
-      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: cobroUsd,
+      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: cobroUsdParalela,
       metodo_pago: metodo as any,
       referencia: ref || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
