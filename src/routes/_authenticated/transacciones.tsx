@@ -203,21 +203,25 @@ function TransaccionesPage() {
 
   const borrarSeleccionadas = async () => {
     if (!selected.size) return;
-    if (!confirm(`¿Borrar ${selected.size} transacciones seleccionadas? Esta acción es irreversible.`)) return;
-    const ids = Array.from(selected);
     const seleccionadas = filtradas.filter((t: any) => selected.has(t.id));
-    // Validar mes cerrado
+    if (!confirm(`¿Borrar ${seleccionadas.length} transacciones seleccionadas? Se eliminarán también las CxC, CxP, propinas y transacciones vinculadas (off-balance, mismo grupo, venta/cobro contraparte). Esta acción es irreversible.`)) return;
+    const { analizarBorradoTransaccion, ejecutarBorradoTransaccion } = await import("@/lib/eliminar-transaccion");
+    let okCount = 0;
+    const errores: string[] = [];
     for (const t of seleccionadas) {
-      if (await isPeriodClosed(t.fecha)) {
-        return toast.error(`No se puede borrar: hay transacciones en meses cerrados (ej. ${t.fecha}).`);
+      try {
+        const plan = await analizarBorradoTransaccion(t);
+        if (plan.bloqueoMesCerrado) { errores.push(`${t.fecha}: mes cerrado`); continue; }
+        if (plan.bloqueoAnticipoAplicado) { errores.push(`${t.id.slice(0,8)}: ${plan.bloqueoAnticipoAplicado}`); continue; }
+        const res = await ejecutarBorradoTransaccion(plan);
+        if (!res.ok) { errores.push(`${t.id.slice(0,8)}: ${res.error}`); continue; }
+        okCount += plan.transacciones.length;
+      } catch (e: any) {
+        errores.push(`${t.id.slice(0,8)}: ${e?.message ?? "error"}`);
       }
     }
-    // Romper FKs de parejas off-balance
-    await supabase.from("transacciones").update({ pareja_off_balance_id: null } as any).in("id", ids);
-    const { error } = await supabase.from("transacciones").delete().in("id", ids);
-    if (error) return toast.error(error.message);
-    for (const id of ids) await logAudit("transacciones", "DELETE", id, null, null);
-    toast.success(`${ids.length} transacciones eliminadas`);
+    if (okCount) toast.success(`${okCount} transacción(es) eliminada(s)`);
+    if (errores.length) toast.error(`Fallaron ${errores.length}: ${errores.slice(0,3).join(" · ")}${errores.length > 3 ? "…" : ""}`);
     setSelected(new Set());
     qc.invalidateQueries();
   };
