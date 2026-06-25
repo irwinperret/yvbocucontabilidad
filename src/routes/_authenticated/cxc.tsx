@@ -86,8 +86,8 @@ function CxCPage() {
                     <th className="text-left py-2 px-2">Cliente</th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">N° Orden</th>
-                    <th className="text-right py-2 px-2">Original USD</th>
-                    <th className="text-right py-2 px-2">Pendiente USD</th>
+                    <th className="text-right py-2 px-2">Original USD (par)</th>
+                    <th className="text-right py-2 px-2">Pendiente USD (BCV)</th>
                     <th className="text-right py-2 px-2">Original Bs (a tasa emisión)</th>
                     <th className="text-left py-2 px-2">Vence</th>
                     <th className="text-left py-2 px-2">Estado</th>
@@ -96,8 +96,9 @@ function CxCPage() {
                 </thead>
                 <tbody>
                   {data.map((c: any) => {
-                    const pendUsd = Number(c.monto_pendiente_usd ?? c.monto_usd);
-                    const parcial = pendUsd > 0 && pendUsd < Number(c.monto_usd) - 0.01;
+                    const pendUsdBcv = Number(c.monto_pendiente_usd_bcv ?? c.monto_usd_bcv ?? c.monto_pendiente_usd ?? c.monto_usd);
+                    const origUsdBcv = Number(c.monto_usd_bcv ?? c.monto_usd);
+                    const parcial = pendUsdBcv > 0 && pendUsdBcv < origUsdBcv - 0.01;
                     return (
                       <tr key={c.id} className="border-b last:border-0">
                         <td className="py-2 px-2">{c.cliente}</td>
@@ -105,7 +106,7 @@ function CxCPage() {
                         <td className="py-2 px-2 mono text-xs">{(c as any).numero_orden ?? "—"}</td>
                         <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
                         <td className="py-2 px-2 text-right mono">
-                          {fmtUsd(pendUsd)}
+                          {fmtUsd(pendUsdBcv)}
                           {parcial && <span className="ml-1 text-[10px] text-orange-600">parcial</span>}
                         </td>
                         <td className="py-2 px-2 text-right mono">{fmtBs(c.monto_bs)}</td>
@@ -143,9 +144,14 @@ function CxCPage() {
 }
 
 function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string; onClose: () => void; onDone: () => void }) {
-  const pendienteUsd = Number(cxc.monto_pendiente_usd ?? cxc.monto_usd);
+  // El saldo del deudor está en USD-BCV (deuda comercial). Si no hay backfill, derivar.
+  const tasaBcvVenta = Number(cxc.tasa_bcv_venta) || 0;
+  const tasaParVenta = Number(cxc.tasa_paralela_venta) || 0;
+  const pendienteUsdBcv = Number(cxc.monto_pendiente_usd_bcv ?? cxc.monto_usd_bcv ?? cxc.monto_pendiente_usd ?? cxc.monto_usd);
+  const pendienteUsdPar = Number(cxc.monto_pendiente_usd ?? cxc.monto_usd);
+
   const [fecha, setFecha] = useState(todayISO());
-  const [montoUsd, setMontoUsd] = useState(String(pendienteUsd.toFixed(2)));
+  const [montoUsdBcv, setMontoUsdBcv] = useState(String(pendienteUsdBcv.toFixed(2)));
   const [tasa, setTasa] = useState("");
   const [metodo, setMetodo] = useState("transferencia");
   const [ref, setRef] = useState("");
@@ -170,58 +176,64 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
     },
   });
 
-  const cobroUsd = Number(montoUsd) || 0;
-  const tasaN = Number(tasa) || 0;
+  const cobroUsdBcv = Number(montoUsdBcv) || 0;
+  const tasaBcvN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
-  const cobroBs = cobroUsd * tasaN;
-  // USD contable real (paralela). Fallback a BCV solo si no hay tasa paralela.
-  const cobroUsdParalela = tasaParalelaN ? cobroBs / tasaParalelaN : cobroUsd;
-  // Tasa paralela original del CxC (porque el CxC se guardó a paralela).
-  const tasaOrigParalela = Number(cxc.monto_usd) > 0 ? Number(cxc.monto_bs) / Number(cxc.monto_usd) : (tasaParalelaN || tasaN);
-  const fxBs = cobroUsdParalela * ((tasaParalelaN || tasaN) - tasaOrigParalela);
-  const fxDeltaUsd = (tasaParalelaN || tasaN) > 0 ? fxBs / (tasaParalelaN || tasaN) : 0;
-  const cubreTodo = cobroUsd >= pendienteUsd - 0.01;
+  // Bs que el deudor debe pagar HOY para cubrir esa porción de la deuda (USD-BCV × BCV del día del pago)
+  const cobroBs = +(cobroUsdBcv * tasaBcvN).toFixed(2);
+  // USD contable (paralela del día del pago) — el que entra al FC
+  const cobroUsdParalela = tasaParalelaN > 0 ? +(cobroBs / tasaParalelaN).toFixed(2) : cobroUsdBcv;
+  // Tasas originales (con fallback robusto)
+  const tasaParVentaSafe = tasaParVenta > 0 ? tasaParVenta : (Number(cxc.monto_usd) > 0 ? Number(cxc.monto_bs) / Number(cxc.monto_usd) : tasaParalelaN);
+  const tasaBcvVentaSafe = tasaBcvVenta > 0 ? tasaBcvVenta : (pendienteUsdBcv > 0 ? Number(cxc.monto_bs) / pendienteUsdBcv : tasaBcvN);
+  // USD paralela esperado: la porción cobrada (en USD-BCV) re-expresada a paralela ORIGINAL de la venta
+  const cobroUsdParaEsperado = tasaParVentaSafe > 0 ? +((cobroUsdBcv * tasaBcvVentaSafe) / tasaParVentaSafe).toFixed(2) : cobroUsdParalela;
+  const fxDeltaUsd = +(cobroUsdParalela - cobroUsdParaEsperado).toFixed(2);
+  const fxBs = +(fxDeltaUsd * tasaParalelaN).toFixed(2);
+  const cubreTodo = cobroUsdBcv >= pendienteUsdBcv - 0.01;
 
   const confirmar = async () => {
-    if (!tasaN) return toast.error("Falta tasa BCV");
-    if (cobroUsd <= 0) return toast.error("Monto inválido");
-    if (cobroUsd > pendienteUsd + 0.01) return toast.error("Excede el pendiente");
+    if (!tasaBcvN) return toast.error("Falta tasa BCV del día del pago");
+    if (!tasaParalelaN) return toast.error("Falta tasa paralela del día del pago");
+    if (cobroUsdBcv <= 0) return toast.error("Monto inválido");
+    if (cobroUsdBcv > pendienteUsdBcv + 0.01) return toast.error("Excede el pendiente");
     if (!cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
     setBusy(true);
+    const grupoId = crypto.randomUUID();
 
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha,
       cuenta_codigo: "1.5",
       centro_costo: cxc.centro_costo,
       monto_bs: cobroBs, monto_base_bs: cobroBs, iva_bs: 0,
-      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: cobroUsdParalela,
+      tasa_bcv: tasaBcvN, tasa_paralela: tasaParalelaN, monto_usd: cobroUsdParalela,
       metodo_pago: metodo as any,
       referencia: ref || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
       notas: `Cobro CxC — ${cxc.cliente}${notas ? " · " + notas : ""}`,
       modo: "on_balance", created_by: userId,
+      grupo_transaccion_id: grupoId,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
 
-    // Diferencia cambiaria proporcional al cobro (solo ganancia)
-    if (fxDeltaUsd >= 0.01) {
-      const absUsd = fxDeltaUsd;
-      const absBs = Math.abs(fxBs);
+    // Diferencial cambiario paralela-vs-paralela. Ganancia → 11.1, Pérdida → 11.2 (ambas afectan G&P, no FC).
+    if (Math.abs(fxDeltaUsd) >= 0.01) {
+      const esGanancia = fxDeltaUsd > 0;
+      const cuentaFx = esGanancia ? "11.1" : "11.2";
       const { data: txFx, error: errFx } = await supabase.from("transacciones").insert({
         fecha,
-        cuenta_codigo: "11.1",
+        cuenta_codigo: cuentaFx,
         centro_costo: cxc.centro_costo,
-        monto_bs: absBs, monto_base_bs: absBs, iva_bs: 0,
-        tasa_bcv: tasaN, monto_usd: absUsd,
+        monto_bs: Math.abs(fxBs), monto_base_bs: Math.abs(fxBs), iva_bs: 0,
+        tasa_bcv: tasaBcvN, tasa_paralela: tasaParalelaN, monto_usd: Math.abs(fxDeltaUsd),
         metodo_pago: "transferencia",
-        notas: `Dif. cambiaria CxC ${cxc.cliente} — paralela original ${tasaOrigParalela.toFixed(4)} → cobro ${(tasaParalelaN || tasaN).toFixed(4)}`,
+        notas: `Dif. cambiaria CxC ${cxc.cliente} — paralela venta ${tasaParVentaSafe.toFixed(4)} → paralela pago ${tasaParalelaN.toFixed(4)} (${esGanancia ? "ganancia" : "pérdida"})`,
         modo: "on_balance", created_by: userId,
+        grupo_transaccion_id: grupoId,
       } as any).select().single();
       if (errFx) toast.error("Cobro OK, pero falló ajuste cambiario: " + errFx.message);
       else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
-    } else if (fxDeltaUsd <= -0.01) {
-      toast.info(`Pérdida cambiaria ${fmtUsd(Math.abs(fxDeltaUsd))} no contabilizada (cuenta 11.2 eliminada)`);
     }
 
     if (cubreTodo) {
@@ -229,16 +241,19 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
         estado: "cobrada",
         monto_pendiente_bs: 0,
         monto_pendiente_usd: 0,
+        monto_pendiente_usd_bcv: 0,
         cobrada_at: new Date().toISOString(),
         transaccion_cobro_id: tx!.id,
-      }).eq("id", cxc.id);
+      } as any).eq("id", cxc.id);
     } else {
-      const nuevoPendUsd = +(pendienteUsd - cobroUsd).toFixed(2);
-      const nuevoPendBs = +(nuevoPendUsd * tasaOrigParalela).toFixed(2);
+      const nuevoPendUsdBcv = +(pendienteUsdBcv - cobroUsdBcv).toFixed(2);
+      const nuevoPendUsdPar = +(pendienteUsdPar - cobroUsdParaEsperado).toFixed(2);
+      const nuevoPendBs = +(nuevoPendUsdBcv * tasaBcvVentaSafe).toFixed(2);
       await supabase.from("cuentas_por_cobrar").update({
-        monto_pendiente_usd: nuevoPendUsd,
+        monto_pendiente_usd: Math.max(0, nuevoPendUsdPar),
+        monto_pendiente_usd_bcv: Math.max(0, nuevoPendUsdBcv),
         monto_pendiente_bs: nuevoPendBs,
-      }).eq("id", cxc.id);
+      } as any).eq("id", cxc.id);
     }
 
     setBusy(false);
@@ -251,21 +266,32 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Registrar cobro — {cxc.cliente}</DialogTitle></DialogHeader>
         <div className="text-sm text-muted-foreground mb-2">
-          Pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsd)}</span>
+          Pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsdBcv)}</span>
+          <span className="text-xs ml-1">(USD a tasa BCV — lo que el cliente debe comercialmente)</span>
         </div>
         <div className="space-y-3">
           <div><Label>Fecha del cobro</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label>Monto USD a cobrar</Label><Input type="number" step="0.01" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} className="mono" /></div>
-            <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
+            <div>
+              <Label>Monto USD (BCV) a cobrar</Label>
+              <Input type="number" step="0.01" value={montoUsdBcv} onChange={(e) => setMontoUsdBcv(e.target.value)} className="mono" />
+            </div>
+            <div><Label>Tasa BCV (día del pago)</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
           </div>
-          <div className="rounded-md bg-muted p-2 flex justify-between text-sm">
-            <span>Bs equivalente</span><span className="mono font-semibold">{fmtBs(cobroBs)}</span>
+          <div className="rounded-md bg-muted p-2 space-y-1 text-sm">
+            <div className="flex justify-between"><span>Bs a cobrar</span><span className="mono font-semibold">{fmtBs(cobroBs)}</span></div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>USD paralelo (contable, paralela {tasaParalelaN ? tasaParalelaN.toFixed(4) : "—"})</span>
+              <span className="mono">{fmtUsd(cobroUsdParalela)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>USD paralelo esperado (paralela venta {tasaParVentaSafe.toFixed(4)})</span>
+              <span className="mono">{fmtUsd(cobroUsdParaEsperado)}</span>
+            </div>
           </div>
           {Math.abs(fxDeltaUsd) >= 0.01 && (
-            <div className={`text-xs rounded p-2 border ${fxDeltaUsd > 0 ? "text-green-700 bg-green-50 border-green-300" : "text-orange-700 bg-orange-50 border-orange-300"}`}>
-              {fxDeltaUsd > 0 ? "Ganancia" : "Pérdida"} cambiaria proporcional: {fmtUsd(Math.abs(fxDeltaUsd))}
-              {fxDeltaUsd < 0 && " (no se contabiliza)"}
+            <div className={`text-xs rounded p-2 border ${fxDeltaUsd > 0 ? "text-green-700 bg-green-50 border-green-300" : "text-red-700 bg-red-50 border-red-300"}`}>
+              {fxDeltaUsd > 0 ? "Ganancia (11.1)" : "Pérdida (11.2)"} cambiaria: {fmtUsd(Math.abs(fxDeltaUsd))} · se asienta automáticamente
             </div>
           )}
           <div>
@@ -278,9 +304,9 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
           <div><Label>N° referencia</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
           <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
           <div><Label>Notas</Label><Input value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
-          {!cubreTodo && cobroUsd > 0 && (
+          {!cubreTodo && cobroUsdBcv > 0 && (
             <div className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
-              Cobro parcial — quedará un saldo de {fmtUsd(pendienteUsd - cobroUsd)}
+              Cobro parcial — quedará un saldo de {fmtUsd(pendienteUsdBcv - cobroUsdBcv)} (USD BCV)
             </div>
           )}
           <div className="flex justify-end gap-2">

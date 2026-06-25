@@ -498,9 +498,12 @@ function VentasForm() {
       });
     }
     if (tipo === "credito" && tx) {
+      const totalUsdBcv = tasaBcvN > 0 ? +(total / tasaBcvN).toFixed(2) : baseUsd;
       await supabase.from("cuentas_por_cobrar").insert({
         cliente, centro_costo: centro as any, monto_bs: total, monto_usd: baseUsd,
         monto_pendiente_bs: total, monto_pendiente_usd: baseUsd,
+        monto_usd_bcv: totalUsdBcv, monto_pendiente_usd_bcv: totalUsdBcv,
+        tasa_bcv_venta: tasaBcvN || null, tasa_paralela_venta: tasaParalelaN || null,
         fecha_vencimiento: fechaVenc || null, transaccion_id: tx.id, estado: "vigente",
       } as any);
     }
