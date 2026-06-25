@@ -16,7 +16,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Pencil, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
-import { DeleteButton } from "@/components/delete-button";
 import { EliminarTransaccionDialog } from "@/components/eliminar-transaccion-dialog";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
 import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
