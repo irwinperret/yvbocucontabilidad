@@ -586,7 +586,7 @@ function VentasForm() {
         const { error: ePr } = await supabase.from("propinas").insert({
           transaccion_id: tx.id, fecha, centro_costo: centro as any,
           monto_usd: propinaUsdN, monto_bs: propinaBsN,
-          tasa_paralela: paralelaSugerida?.tasa ?? null,
+          tasa_paralela: tasaParalelaN || null,
           concepto: "Propina venta manual",
           numero_orden: numOrden || null,
           notas: notas || null,
