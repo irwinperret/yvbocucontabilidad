@@ -238,7 +238,11 @@ export type Database = {
           monto_bs: number
           monto_pendiente_bs: number | null
           monto_pendiente_usd: number | null
+          monto_pendiente_usd_bcv: number | null
           monto_usd: number
+          monto_usd_bcv: number | null
+          tasa_bcv_venta: number | null
+          tasa_paralela_venta: number | null
           transaccion_cobro_id: string | null
           transaccion_id: string | null
         }
@@ -253,7 +257,11 @@ export type Database = {
           monto_bs: number
           monto_pendiente_bs?: number | null
           monto_pendiente_usd?: number | null
+          monto_pendiente_usd_bcv?: number | null
           monto_usd: number
+          monto_usd_bcv?: number | null
+          tasa_bcv_venta?: number | null
+          tasa_paralela_venta?: number | null
           transaccion_cobro_id?: string | null
           transaccion_id?: string | null
         }
@@ -268,7 +276,11 @@ export type Database = {
           monto_bs?: number
           monto_pendiente_bs?: number | null
           monto_pendiente_usd?: number | null
+          monto_pendiente_usd_bcv?: number | null
           monto_usd?: number
+          monto_usd_bcv?: number | null
+          tasa_bcv_venta?: number | null
+          tasa_paralela_venta?: number | null
           transaccion_cobro_id?: string | null
           transaccion_id?: string | null
         }
