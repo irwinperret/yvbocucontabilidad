@@ -215,7 +215,7 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
         monto_bs: absBs, monto_base_bs: absBs, iva_bs: 0,
         tasa_bcv: tasaN, monto_usd: absUsd,
         metodo_pago: "transferencia",
-        notas: `Dif. cambiaria CxC ${cxc.cliente} — tasa original ${tasaOrig.toFixed(4)} → cobro ${tasaN.toFixed(4)}`,
+        notas: `Dif. cambiaria CxC ${cxc.cliente} — paralela original ${tasaOrigParalela.toFixed(4)} → cobro ${(tasaParalelaN || tasaN).toFixed(4)}`,
         modo: "on_balance", created_by: userId,
       } as any).select().single();
       if (errFx) toast.error("Cobro OK, pero falló ajuste cambiario: " + errFx.message);
