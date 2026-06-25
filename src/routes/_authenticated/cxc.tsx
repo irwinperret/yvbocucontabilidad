@@ -86,8 +86,8 @@ function CxCPage() {
                     <th className="text-left py-2 px-2">Cliente</th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">N° Orden</th>
-                    <th className="text-right py-2 px-2">Original USD</th>
-                    <th className="text-right py-2 px-2">Pendiente USD</th>
+                    <th className="text-right py-2 px-2">Original USD (par)</th>
+                    <th className="text-right py-2 px-2">Pendiente USD (BCV)</th>
                     <th className="text-right py-2 px-2">Original Bs (a tasa emisión)</th>
                     <th className="text-left py-2 px-2">Vence</th>
                     <th className="text-left py-2 px-2">Estado</th>
@@ -96,8 +96,9 @@ function CxCPage() {
                 </thead>
                 <tbody>
                   {data.map((c: any) => {
-                    const pendUsd = Number(c.monto_pendiente_usd ?? c.monto_usd);
-                    const parcial = pendUsd > 0 && pendUsd < Number(c.monto_usd) - 0.01;
+                    const pendUsdBcv = Number(c.monto_pendiente_usd_bcv ?? c.monto_usd_bcv ?? c.monto_pendiente_usd ?? c.monto_usd);
+                    const origUsdBcv = Number(c.monto_usd_bcv ?? c.monto_usd);
+                    const parcial = pendUsdBcv > 0 && pendUsdBcv < origUsdBcv - 0.01;
                     return (
                       <tr key={c.id} className="border-b last:border-0">
                         <td className="py-2 px-2">{c.cliente}</td>
@@ -105,7 +106,7 @@ function CxCPage() {
                         <td className="py-2 px-2 mono text-xs">{(c as any).numero_orden ?? "—"}</td>
                         <td className="py-2 px-2 text-right mono">{fmtUsd(c.monto_usd)}</td>
                         <td className="py-2 px-2 text-right mono">
-                          {fmtUsd(pendUsd)}
+                          {fmtUsd(pendUsdBcv)}
                           {parcial && <span className="ml-1 text-[10px] text-orange-600">parcial</span>}
                         </td>
                         <td className="py-2 px-2 text-right mono">{fmtBs(c.monto_bs)}</td>
