@@ -1063,7 +1063,9 @@ function GastosFacturaForm() {
   const [cuenta, setCuenta] = useState("");
   const [centro, setCentro] = useState<Centro>("YV");
   const [ivaAplica, setIvaAplica] = useState(true);
-  const [montoTotal, setMontoTotal] = useState("");
+  const [montoNeto, setMontoNeto] = useState("");
+  const [montoIva, setMontoIva] = useState("");
+  const [ivaTocado, setIvaTocado] = useState(false);
   const [tasa, setTasa] = useState("");
   const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
   const [metodo, setMetodo] = useState("transferencia");
@@ -1101,16 +1103,28 @@ function GastosFacturaForm() {
   useEffect(() => { if (!terceroId) setAutoAplicado(null); }, [terceroId]);
 
   const esUSD = moneda === "USD";
-  const totalInput = Number(montoTotal) || 0;
+  const netoInput = Number(montoNeto) || 0;
   const tasaN = Number(tasa) || 0;
-  // Conversión Bs→USD a tasa BCV (egresos). Paralela sólo para ingresos.
   const tasaParalelaN = Number(paralelaSugerida?.tasa) || 0;
   const tasaConvN = tasaN || tasaParalelaN;
-  const total = esUSD ? totalInput * tasaConvN : totalInput;
-  const base = ivaAplica ? total / 1.16 : total;
-  const iva = ivaAplica ? total - base : 0;
-  const totalUsd = esUSD ? totalInput : (tasaConvN ? totalInput / tasaConvN : 0);
-  const baseUsd = ivaAplica ? totalUsd / 1.16 : totalUsd;
+  // Autollenar IVA = 16% del neto en la misma moneda mientras el usuario no lo edite
+  useEffect(() => {
+    if (ivaTocado) return;
+    if (!ivaAplica) { setMontoIva(""); return; }
+    setMontoIva(netoInput > 0 ? (+(netoInput * 0.16).toFixed(2)).toString() : "");
+  }, [netoInput, ivaAplica, ivaTocado]);
+  const ivaInput = ivaAplica ? (Number(montoIva) || 0) : 0;
+  const totalInput = netoInput + ivaInput;
+  // Conversión Bs→USD a tasa BCV (egresos)
+  const base = esUSD ? netoInput * tasaConvN : netoInput;
+  const iva = esUSD ? ivaInput * tasaConvN : ivaInput;
+  const total = base + iva;
+  const baseUsd = esUSD ? netoInput : (tasaConvN ? netoInput / tasaConvN : 0);
+  const ivaUsd = esUSD ? ivaInput : (tasaConvN ? ivaInput / tasaConvN : 0);
+  const totalUsd = baseUsd + ivaUsd;
+  // USD paralelo para CxP (referencia contable)
+  const totalUsdParalelo = tasaParalelaN > 0 ? total / tasaParalelaN : 0;
+  const baseUsdParalelo = tasaParalelaN > 0 ? base / tasaParalelaN : 0;
 
   const cuentaSel = (cuentas ?? []).find((c: any) => c.codigo === cuenta);
 
@@ -1191,13 +1205,20 @@ function GastosFacturaForm() {
     let cxpId: string | null = null;
     if (facturaPendienteEfectiva && tx && cxpSaldoBs > 0.01) {
       const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
+      const usdBcvCxp = tasaN > 0 ? +(cxpSaldoBs / tasaN).toFixed(2) : 0;
+      const usdParCxp = tasaParalelaN > 0 ? +(cxpSaldoBs / tasaParalelaN).toFixed(2) : 0;
       const { data: cxpRow, error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
         numero_factura: numFactura,
         tercero_id: terceroId || null,
         centro_costo: centro as any,
-        monto_bs: cxpSaldoBs, monto_usd: cxpSaldoUsd,
+        monto_bs: cxpSaldoBs, monto_usd: usdBcvCxp,
         monto_pendiente_bs: cxpSaldoBs,
+        monto_pendiente_usd_bcv: usdBcvCxp,
+        usd_bcv_factura: usdBcvCxp,
+        usd_paralelo_factura: usdParCxp,
+        tasa_bcv_factura: tasaN,
+        tasa_paralela_factura: tasaParalelaN || null,
         fecha_vencimiento: fechaVenc || null,
         transaccion_id: tx.id, estado: "pendiente",
       } as any).select().single();
@@ -1220,7 +1241,7 @@ function GastosFacturaForm() {
     }
     // Si NO era pendiente original y queda remanente, pagarlo de inmediato
     if (efectivoTrasAnticipo && tx && cxpId) {
-      const usdPago = tasaN > 0 ? +(cxpSaldoBs / tasaN).toFixed(2) : cxpSaldoUsd;
+      const usdPago = tasaParalelaN > 0 ? +(cxpSaldoBs / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(cxpSaldoBs / tasaN).toFixed(2) : cxpSaldoUsd);
       const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
         monto_bs: cxpSaldoBs, monto_base_bs: cxpSaldoBs, iva_bs: 0,
@@ -1251,7 +1272,7 @@ function GastosFacturaForm() {
       : (pendiente ? "Factura registrada (CxP creada)" : "Gasto registrado");
     toast.success(msg);
     qc.invalidateQueries();
-    setMontoTotal(""); setNumFactura(""); setNotas("");
+    setMontoNeto(""); setMontoIva(""); setIvaTocado(false); setNumFactura(""); setNotas("");
     setAplicaciones([]);
   };
 
@@ -1351,26 +1372,30 @@ function GastosFacturaForm() {
             </div>
           </div>
           <div>
-            <Label>{esUSD ? (ivaAplica ? "Monto total USD (IVA incluido)" : "Monto USD") : (ivaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
-            <Input type="number" step="0.01" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} required className="mono" />
+            <Label>{esUSD ? "Monto neto factura USD (sin IVA)" : "Monto neto factura Bs (sin IVA)"}</Label>
+            <Input type="number" step="0.01" value={montoNeto} onChange={(e) => setMontoNeto(e.target.value)} required className="mono" />
           </div>
           <div>
             <Label>Tasa BCV</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
-          {tasaN > 0 && totalInput > 0 && (
-            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
-              <div>Tasa BCV usada: <span className="mono font-semibold">{tasaN.toFixed(4)}</span></div>
-              <div>Equivalente: <span className="mono font-semibold">{esUSD ? fmtBs(total) : fmtUsd(totalUsd)}</span></div>
-              <div className="col-span-2 text-muted-foreground text-xs">
-                El monto digitado está en {esUSD ? "USD" : "Bs"}. Para la contabilidad (egresos) se usa la tasa BCV del día: {esUSD ? `${fmtUsd(totalInput)} × ${tasaN.toFixed(4)} = ${fmtBs(total)}` : `${fmtBs(totalInput)} ÷ ${tasaN.toFixed(4)} = ${fmtUsd(totalUsd)}`}.
-              </div>
+          {ivaAplica && (
+            <div className="md:col-span-2">
+              <Label>{esUSD ? "IVA USD" : "IVA Bs"} <span className="text-xs text-muted-foreground font-normal">(default 16% · editable)</span></Label>
+              <Input type="number" step="0.01" value={montoIva} onChange={(e) => { setIvaTocado(true); setMontoIva(e.target.value); }} className="mono" />
             </div>
           )}
-          {ivaAplica && (
-            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
-              <div>Base: <span className="mono font-semibold">{fmtBs(base)}</span></div>
-              <div>IVA crédito: <span className="mono font-semibold">{fmtBs(iva)}</span></div>
+          <div className="md:col-span-2 rounded-md bg-muted/50 p-3 grid grid-cols-2 gap-2 text-sm">
+            <div>Monto neto: <span className="mono font-semibold">{esUSD ? fmtUsd(netoInput) : fmtBs(netoInput)}</span></div>
+            {ivaAplica && <div>IVA: <span className="mono font-semibold">{esUSD ? fmtUsd(ivaInput) : fmtBs(ivaInput)}</span></div>}
+            <div className="col-span-2 border-t pt-1">Monto total factura: <span className="mono font-bold">{esUSD ? fmtUsd(totalInput) : fmtBs(totalInput)}</span></div>
+          </div>
+          {tasaN > 0 && netoInput > 0 && (
+            <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/30 p-2 rounded">
+              <div>Tasa BCV: <span className="mono font-semibold">{tasaN.toFixed(4)}</span></div>
+              <div>Equiv. total: <span className="mono font-semibold">{esUSD ? fmtBs(total) : fmtUsd(totalUsd)}</span></div>
+              <div>Base (G&amp;P) Bs: <span className="mono font-semibold">{fmtBs(base)}</span></div>
+              {ivaAplica && <div>IVA crédito Bs: <span className="mono font-semibold">{fmtBs(iva)}</span></div>}
             </div>
           )}
           <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
@@ -2377,7 +2402,9 @@ function CierreForm() {
   const [compraTasa, setCompraTasa] = useState("");
   const [compraTerceroId, setCompraTerceroId] = useState("");
   const [compraNumFactura, setCompraNumFactura] = useState("");
-  const [compraMonto, setCompraMonto] = useState("");
+  const [compraMonto, setCompraMonto] = useState(""); // neto (sin IVA), en la moneda seleccionada
+  const [compraIvaMonto, setCompraIvaMonto] = useState("");
+  const [compraIvaTocado, setCompraIvaTocado] = useState(false);
   const [compraMoneda, setCompraMoneda] = useState<"BS" | "USD">("BS");
   const [compraIvaAplica, setCompraIvaAplica] = useState(true);
   const [compraOffBalance, setCompraOffBalance] = useState(false);
@@ -2389,15 +2416,22 @@ function CierreForm() {
   const [compraAplicaciones, setCompraAplicaciones] = useState<AplicacionSel[]>([]);
 
   const esCompraUSD = compraMoneda === "USD";
-  const compraInput = Number(compraMonto) || 0;
+  const compraNetoInput = Number(compraMonto) || 0;
+  const compraIvaInput = compraIvaAplica ? (Number(compraIvaMonto) || 0) : 0;
   const compraTasaN = Number(compraTasa) || 0;
-  const compraTotal = esCompraUSD ? compraInput * compraTasaN : compraInput;
-  const compraBase = compraIvaAplica ? compraTotal / 1.16 : compraTotal;
-  const compraIva = compraIvaAplica ? compraTotal - compraBase : 0;
+  const compraBase = esCompraUSD ? compraNetoInput * compraTasaN : compraNetoInput;
+  const compraIva = esCompraUSD ? compraIvaInput * compraTasaN : compraIvaInput;
+  const compraTotal = compraBase + compraIva;
+  const compraTotalInput = compraNetoInput + compraIvaInput;
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
   const { data: paralelaCompraSug } = useParalelaForDate(compraFecha);
   useEffect(() => { if (paralelaCompraSug) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug?.tasa]);
+  useEffect(() => {
+    if (compraIvaTocado) return;
+    if (!compraIvaAplica) { setCompraIvaMonto(""); return; }
+    setCompraIvaMonto(compraNetoInput > 0 ? (+(compraNetoInput * 0.16).toFixed(2)).toString() : "");
+  }, [compraNetoInput, compraIvaAplica, compraIvaTocado]);
 
 
   const { data: compras } = useQuery({
@@ -2509,21 +2543,25 @@ function CierreForm() {
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    const input = Number(compraMonto) || 0;
     const tasaN = Number(compraTasa) || 0;
-    if (!input) return toast.error("Monto requerido");
+    if (!compraNetoInput) return toast.error("Monto neto requerido");
     if (!tasaN) return toast.error("Tasa requerida");
     if (!compraTerceroId) return toast.error("Selecciona proveedor");
     if (!compraNumFactura) return toast.error("N° factura requerido");
     if (!compraOffBalance && compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
 
-    const montoBs = esCompraUSD ? input * tasaN : input;
-    const montoUsd = esCompraUSD ? input : (tasaN ? input / tasaN : 0);
+    // Total Bs/USD usando tasa paralela (compras COGS valoradas a paralela)
+    const totalInputCompra = compraNetoInput + compraIvaInput;
+    const montoBs = esCompraUSD ? totalInputCompra * tasaN : totalInputCompra;
+    const montoUsd = esCompraUSD ? totalInputCompra : (tasaN ? totalInputCompra / tasaN : 0);
+    const bcvCompraN = Number(tasaCompraSug?.tasa) || tasaN;
+    const montoUsdBcv = bcvCompraN > 0 ? +(montoBs / bcvCompraN).toFixed(2) : montoUsd;
     const aplicadoUsdCompra = +(compraAplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
     const aplicadoBsCompra = +(aplicadoUsdCompra * tasaN).toFixed(2);
     const cxpSaldoBsCompra = Math.max(0, +(montoBs - aplicadoBsCompra).toFixed(2));
     const cxpSaldoUsdCompra = Math.max(0, +(montoUsd - aplicadoUsdCompra).toFixed(2));
+    const cxpSaldoUsdBcvCompra = bcvCompraN > 0 ? +(cxpSaldoBsCompra / bcvCompraN).toFixed(2) : cxpSaldoUsdCompra;
     const tieneAnticipoCompra = compraAplicaciones.length > 0;
     // Si hay anticipo, la compra debe ir como pendiente para que la aplicación descuente bien.
     // El remanente se paga inmediatamente si el usuario marcó "pagada".
@@ -2579,8 +2617,13 @@ function CierreForm() {
         numero_factura: compraNumFactura,
         tercero_id: compraTerceroId,
         centro_costo: "Compartido" as any,
-        monto_bs: cxpSaldoBsCompra, monto_usd: cxpSaldoUsdCompra,
+        monto_bs: cxpSaldoBsCompra, monto_usd: cxpSaldoUsdBcvCompra,
         monto_pendiente_bs: cxpSaldoBsCompra,
+        monto_pendiente_usd_bcv: cxpSaldoUsdBcvCompra,
+        usd_bcv_factura: cxpSaldoUsdBcvCompra,
+        usd_paralelo_factura: cxpSaldoUsdCompra,
+        tasa_bcv_factura: bcvCompraN || null,
+        tasa_paralela_factura: tasaN || null,
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
       } as any).select().single();
@@ -2788,7 +2831,7 @@ function CierreForm() {
               <div className="md:col-span-2">
                 <AnticipoProveedorBanner
                   terceroId={compraTerceroId}
-                  facturaTotalUsd={Number(esCompraUSD ? compraInput : (compraTasaN ? compraInput / compraTasaN : 0)) || 0}
+                  facturaTotalUsd={Number(esCompraUSD ? compraNetoInput + compraIvaInput : (compraTasaN ? (compraNetoInput + compraIvaInput) / compraTasaN : 0)) || 0}
                   onAplicacionesChange={setCompraAplicaciones}
                 />
                 {compraAplicaciones.length > 0 && (
@@ -2840,26 +2883,34 @@ function CierreForm() {
               <Switch checked={compraIvaAplica} onCheckedChange={setCompraIvaAplica} />
             </div>
             <div>
-              <Label className="text-xs">{esCompraUSD ? (compraIvaAplica ? "Monto total USD (IVA incluido)" : "Monto USD") : (compraIvaAplica ? "Monto total Bs (IVA incluido)" : "Monto Bs")}</Label>
+              <Label className="text-xs">{esCompraUSD ? "Monto neto USD (sin IVA)" : "Monto neto Bs (sin IVA)"}</Label>
               <Input type="number" step="0.01" value={compraMonto} onChange={(e) => setCompraMonto(e.target.value)} className="mono" required />
             </div>
             <div>
+              <Label className="text-xs">{esCompraUSD ? "IVA USD" : "IVA Bs"} (16% por defecto)</Label>
+              <Input type="number" step="0.01" value={compraIvaMonto} disabled={!compraIvaAplica} onFocus={() => setCompraIvaTocado(true)} onChange={(e) => { setCompraIvaTocado(true); setCompraIvaMonto(e.target.value); }} className="mono" />
+            </div>
+            <div className="md:col-span-2">
+              <Label className="text-xs">Monto total factura (neto + IVA)</Label>
+              <Input value={esCompraUSD ? fmtUsd(compraTotalInput) : fmtBs(compraTotalInput)} disabled className="mono bg-muted/50" />
+            </div>
+            <div className="md:col-span-2">
               <Label className="text-xs">Costo a inventario (base Bs)</Label>
               <Input value={fmtBs(compraBase)} disabled className="mono bg-muted/50" />
             </div>
-            {compraTasaN > 0 && compraInput > 0 && (
+            {compraTasaN > 0 && compraNetoInput > 0 && (
               <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
                 <div>Tasa paralela usada: <span className="mono font-semibold">{compraTasaN.toFixed(4)}</span></div>
-                <div>Equivalente: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraInput / compraTasaN : 0)}</span></div>
+                <div>Equivalente total: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraTotalInput / compraTasaN : 0)}</span></div>
                 <div className="col-span-2 text-muted-foreground text-xs">
-                  El monto digitado está en {esCompraUSD ? "USD" : "Bs"}. Para la contabilidad (compras de inventario) se usa la tasa paralela del día: {esCompraUSD ? `${fmtUsd(compraInput)} × ${compraTasaN.toFixed(4)} = ${fmtBs(compraTotal)}` : `${fmtBs(compraInput)} ÷ ${compraTasaN.toFixed(4)} = ${fmtUsd(compraInput / compraTasaN)}`}.
+                  Para la contabilidad (compras de inventario) se usa la tasa paralela del día. IVA se contabiliza por separado en cuenta 12.5.
                 </div>
               </div>
             )}
             {compraIvaAplica && (
               <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/50 p-2 rounded">
-                <div>Base: <span className="mono font-semibold">{fmtBs(compraBase)}</span></div>
-                <div>IVA crédito: <span className="mono font-semibold">{fmtBs(compraIva)}</span></div>
+                <div>Base (a 2.x): <span className="mono font-semibold">{fmtBs(compraBase)}</span></div>
+                <div>IVA crédito (a 12.5): <span className="mono font-semibold">{fmtBs(compraIva)}</span></div>
               </div>
             )}
             <div className="md:col-span-2">
