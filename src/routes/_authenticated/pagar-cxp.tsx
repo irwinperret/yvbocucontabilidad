@@ -264,10 +264,14 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
         estado: "pagada",
         pagada_at: new Date().toISOString(),
         monto_pendiente_bs: 0,
+        monto_pendiente_usd_bcv: 0,
       }).eq("id", cxp.id);
     } else {
+      const nuevoUsdBcv = Math.max(0, +(pendienteUsdBcv - aplicadoUsd - usdBcvPagado).toFixed(2));
+      const nuevoBs = Math.max(0, +(pendiente - aplicadoBs - total).toFixed(2));
       await supabase.from("cuentas_por_pagar").update({
-        monto_pendiente_bs: +(pendiente - aplicadoBs - total).toFixed(2),
+        monto_pendiente_bs: nuevoBs,
+        monto_pendiente_usd_bcv: nuevoUsdBcv,
       }).eq("id", cxp.id);
     }
 
