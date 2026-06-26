@@ -218,24 +218,9 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
 
-    // Diferencial cambiario paralela-vs-paralela. Ganancia → 11.1, Pérdida → 11.2 (ambas afectan G&P, no FC).
-    if (Math.abs(fxDeltaUsd) >= 0.01) {
-      const esGanancia = fxDeltaUsd > 0;
-      const cuentaFx = esGanancia ? "11.1" : "11.2";
-      const { data: txFx, error: errFx } = await supabase.from("transacciones").insert({
-        fecha,
-        cuenta_codigo: cuentaFx,
-        centro_costo: cxc.centro_costo,
-        monto_bs: Math.abs(fxBs), monto_base_bs: Math.abs(fxBs), iva_bs: 0,
-        tasa_bcv: tasaBcvN, tasa_paralela: tasaParalelaN, monto_usd: Math.abs(fxDeltaUsd),
-        metodo_pago: "transferencia",
-        notas: `Dif. cambiaria CxC ${cxc.cliente} — paralela venta ${tasaParVentaSafe.toFixed(4)} → paralela pago ${tasaParalelaN.toFixed(4)} (${esGanancia ? "ganancia" : "pérdida"})`,
-        modo: "on_balance", created_by: userId,
-        grupo_transaccion_id: grupoId,
-      } as any).select().single();
-      if (errFx) toast.error("Cobro OK, pero falló ajuste cambiario: " + errFx.message);
-      else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
-    }
+    // Nota: el efecto cambiario queda implícito en monto_usd del cobro (1.5),
+    // que ya refleja la paralela del día del pago. No se asienta diferencial
+    // automático en 11.1/11.2 desde este flujo (evita doble conteo).
 
     if (cubreTodo) {
       await supabase.from("cuentas_por_cobrar").update({
