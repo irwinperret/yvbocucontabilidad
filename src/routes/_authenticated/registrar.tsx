@@ -148,7 +148,8 @@ function VentasForm() {
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
-  // Crédito (fiar) y Cobro de crédito anterior se contabilizan a tasa BCV. Contado va a paralela.
+  // Crédito (fiar) usa BCV para fijar la deuda comercial, pero la contabilidad (monto_usd)
+  // siempre queda en USD paralelo. Cobro usa BCV para saber cuántos Bs cobrar hoy.
   const usaBCV = tipo === "credito" || tipo === "cobro";
   useEffect(() => {
     const sug = usaBCV ? tasaSugerida : paralelaSugerida;
@@ -170,8 +171,9 @@ function VentasForm() {
   const cxcSel: any = (cxcVigentes ?? []).find((x: any) => x.id === cxcId);
   // Saldo pendiente del deudor: USD a tasa BCV (deuda comercial real)
   const pendienteUsdCxc = Number(cxcSel?.monto_pendiente_usd_bcv ?? cxcSel?.monto_usd_bcv ?? cxcSel?.monto_pendiente_usd ?? cxcSel?.monto_usd ?? 0);
-  const tasaOrigCxc = cxcSel && Number(cxcSel.monto_usd) > 0
-    ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd)
+  const pendienteUsdParCxc = Number(cxcSel?.monto_pendiente_usd ?? cxcSel?.monto_usd ?? 0);
+  const tasaOrigCxc = cxcSel
+    ? (Number(cxcSel.tasa_paralela_venta) || (Number(cxcSel.monto_usd) > 0 ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd) : 0))
     : 0;
 
   // Cuando seleccionas una CxC para cobrar, prellena con el equivalente en Bs a la tasa BCV de hoy
@@ -260,8 +262,11 @@ function VentasForm() {
     setIvaMonto(auto > 0 ? auto.toFixed(2) : "");
   }, [esVentaNeta, ivaAplica, montoN, ivaTouched]);
   const cuenta = tipo === "ajuste_off" ? cuentaVenta(centro, "contado") : cuentaVenta(centro, tipo);
-  // Para cobros: USD que se está cancelando con este pago
-  const usdCobrado = tipo === "cobro" ? totalUsd : 0;
+  // Para cobros: separar la deuda comercial (USD BCV) del valor contable (USD paralelo).
+  const usdParCobrado = tipo === "cobro" ? totalUsd : 0;
+  const usdCobrado = tipo === "cobro"
+    ? (pagoEnUsd ? montoN : (tasaBcvN > 0 ? +(total / tasaBcvN).toFixed(2) : 0))
+    : 0;
 
   // #6: bono servicio 10% y propina (manual ventas contado/credito)
   // Se sugieren y se capturan en la misma moneda elegida para la venta (Bs o USD a tasa BCV).
@@ -473,17 +478,11 @@ function VentasForm() {
     setBusy(true);
     const grupoId = crypto.randomUUID();
     const ivaUsd = ivaAplica ? (tasaParalelaN ? +(iva / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0)) : 0;
-    // Cuenta 1.4 (venta a crédito): la deuda está denominada en USD-BCV, no en USD paralela.
-    // El deudor paga en Bs a la tasa BCV del día del pago, por eso monto_usd se calcula con BCV.
-    // tasa_paralela se conserva como referencia para el diferencial cambiario en el cobro.
-    const baseUsdParaCuenta = (tipo === "credito" && tasaBcvN > 0)
-      ? +(base / tasaBcvN).toFixed(2)
-      : baseUsd;
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: base, monto_base_bs: base, iva_bs: 0,
       iva_aplica: false, tipo_iva: null,
-      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsdParaCuenta,
+      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
       metodo_pago: tipo === "credito" ? "pendiente" : (metodo as any),
       referencia: tipo === "credito" ? null : (ref || null),
       numero_orden: numOrden || null,
@@ -510,13 +509,12 @@ function VentasForm() {
       });
     }
     if (tipo === "credito" && tx) {
-      // La deuda del cliente incluye IVA. monto_usd y monto_usd_bcv se almacenan en USD-BCV
-      // (lo que el deudor realmente debe). monto_pendiente_usd también va en USD-BCV para
-      // consistencia con el flujo de cobro (que ahora descuenta en USD-BCV).
+      // La CxC guarda dos vistas: monto_usd en USD paralelo (contable) y monto_usd_bcv
+      // en USD BCV (deuda comercial que se usa para calcular los Bs a cobrar).
       const totalUsdBcv = tasaBcvN > 0 ? +(total / tasaBcvN).toFixed(2) : baseUsd;
       await supabase.from("cuentas_por_cobrar").insert({
-        cliente, centro_costo: centro as any, monto_bs: total, monto_usd: totalUsdBcv,
-        monto_pendiente_bs: total, monto_pendiente_usd: totalUsdBcv,
+        cliente, centro_costo: centro as any, monto_bs: total, monto_usd: totalUsd,
+        monto_pendiente_bs: total, monto_pendiente_usd: totalUsd,
         monto_usd_bcv: totalUsdBcv, monto_pendiente_usd_bcv: totalUsdBcv,
         tasa_bcv_venta: tasaBcvN || null, tasa_paralela_venta: tasaParalelaN || null,
         fecha_vencimiento: fechaVenc || null, transaccion_id: tx.id, estado: "vigente",
@@ -528,8 +526,12 @@ function VentasForm() {
       const completaCobrada = nuevoPendienteUsdBcv < 0.01;
       const tasaBcvVentaSafe = Number(cxcSel.tasa_bcv_venta) || (Number(cxcSel.monto_bs) > 0 && Number(cxcSel.monto_usd_bcv) > 0 ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd_bcv) : tasaN);
       const nuevoPendienteBs = +(nuevoPendienteUsdBcv * tasaBcvVentaSafe).toFixed(2);
+      const usdParOriginalPorcion = tasaOrigCxc > 0
+        ? +((usdCobrado * tasaBcvVentaSafe) / tasaOrigCxc).toFixed(2)
+        : usdParCobrado;
+      const nuevoPendienteUsdPar = Math.max(0, +(pendienteUsdParCxc - usdParOriginalPorcion).toFixed(2));
       await supabase.from("cuentas_por_cobrar").update({
-        monto_pendiente_usd: nuevoPendienteUsdBcv,
+        monto_pendiente_usd: nuevoPendienteUsdPar,
         monto_pendiente_usd_bcv: nuevoPendienteUsdBcv,
         monto_pendiente_bs: nuevoPendienteBs,
         estado: completaCobrada ? "cobrada" : "vigente",
@@ -541,9 +543,9 @@ function VentasForm() {
       // Ganancia → 11.1, Pérdida → 11.2 (ambas afectan G&P, no FC).
       const paralelaHoy = tasaParalelaN || tasaConvN;
       if (tasaOrigCxc > 0 && paralelaHoy > 0) {
-        // Bs cobrados HOY (= total). Esperado USD a paralela orig vs actual a paralela hoy.
-        const usdEsperado = total / tasaOrigCxc;
-        const usdActual = total / paralelaHoy;
+        // Valor contable original de la porción cobrada vs valor contable del pago hoy.
+        const usdEsperado = usdParOriginalPorcion;
+        const usdActual = usdParCobrado;
         const fxUsd = +(usdActual - usdEsperado).toFixed(2);
         if (Math.abs(fxUsd) >= 0.01) {
           const cuentaFx = fxUsd > 0 ? "11.1" : "11.2";
