@@ -2665,11 +2665,13 @@ function CierreForm() {
         setCompraBusy(false);
         return toast.error("Falta cuenta bancaria para pagar el remanente del anticipo");
       }
-      const usdPago = tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra;
+      const usdPago = compraTasaParalelaRefN > 0
+        ? +(cxpSaldoBsCompra / compraTasaParalelaRefN).toFixed(2)
+        : (tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
       const { error: ePago } = await supabase.from("transacciones").insert({
         fecha: compraFecha, cuenta_codigo: "9.1", centro_costo: "Compartido" as any,
         monto_bs: cxpSaldoBsCompra, monto_base_bs: cxpSaldoBsCompra, iva_bs: 0,
-        tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: tasaN || null, monto_usd: usdPago,
+        tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: compraTasaParalelaRefN || null, monto_usd: usdPago,
         metodo_pago: "transferencia" as any,
         cuenta_bancaria_id: compraCuentaBanco,
         tercero_id: compraTerceroId,
