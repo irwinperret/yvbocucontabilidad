@@ -281,28 +281,31 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Registrar pago — {cxp.proveedor}</DialogTitle></DialogHeader>
         <div className="text-sm text-muted-foreground mb-2">
-          Saldo pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsd)}</span>
+          Saldo pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsdBcv)}</span> <span className="text-[10px]">(USD BCV)</span>
           {(() => {
-            const tasa = Number(cxp.monto_bs) > 0 && Number(cxp.monto_usd) > 0 ? Number(cxp.monto_bs) / Number(cxp.monto_usd) : 0;
+            const tasaSnap = Number(cxp.tasa_bcv_factura) || (Number(cxp.monto_bs) > 0 && Number(cxp.monto_usd) > 0 ? Number(cxp.monto_bs) / Number(cxp.monto_usd) : 0);
             const fechaRef = cxp.created_at ? String(cxp.created_at).slice(0, 10) : null;
-            return tasa > 0 ? (
-              <span className="ml-2 text-xs">(tasa BCV {tasa.toFixed(2)}{fechaRef ? ` — ${fmtDate(fechaRef)}` : ""})</span>
+            return tasaSnap > 0 ? (
+              <span className="ml-2 text-xs">(tasa BCV factura {tasaSnap.toFixed(2)}{fechaRef ? ` — ${fmtDate(fechaRef)}` : ""})</span>
             ) : null;
           })()}
-          <div className="text-xs mt-0.5">Equivalente en Bs: <span className="mono">{fmtBs(pendiente)}</span></div>
+          <div className="text-xs mt-0.5">
+            Monto a pagar: <span className="mono font-semibold">{fmtBs(montoBsSugerido)}</span>
+            {tasaN > 0 && <span className="ml-1">(= {fmtUsd(usdBcvTrasAnticipo)} USD BCV × {tasaN.toFixed(4)} BCV pago)</span>}
+          </div>
         </div>
 
         {cxp.tercero_id && (
           <div className="mb-3">
             <AnticipoProveedorBanner
               terceroId={cxp.tercero_id}
-              facturaTotalUsd={pendienteUsd}
+              facturaTotalUsd={pendienteUsdBcv}
               onAplicacionesChange={(sel) => { setAplicaciones(sel); setTouchedMonto(false); }}
             />
             {aplicaciones.length > 0 && (
               <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2 flex justify-between">
                 <span>Anticipo a aplicar: <strong className="mono">{fmtUsd(aplicadoUsd)}</strong> (~{fmtBs(aplicadoBs)})</span>
-                <span>Diferencia a pagar: <strong className="mono">{fmtBs(saldoTrasAplicar)}</strong></span>
+                <span>Diferencia a pagar: <strong className="mono">{fmtBs(montoBsSugerido)}</strong></span>
               </div>
             )}
           </div>
