@@ -2426,7 +2426,9 @@ function CierreForm() {
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
   const { data: paralelaCompraSug } = useParalelaForDate(compraFecha);
-  useEffect(() => { if (paralelaCompraSug) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug?.tasa]);
+  // Egresos COGS: tasa principal = BCV (consistente con Gastos/Facturas y CxP).
+  useEffect(() => { if (tasaCompraSug?.tasa) setCompraTasa(String(tasaCompraSug.tasa)); }, [tasaCompraSug?.tasa]);
+  const compraTasaParalelaRefN = Number(paralelaCompraSug?.tasa) || 0;
   useEffect(() => {
     if (compraIvaTocado) return;
     if (!compraIvaAplica) { setCompraIvaMonto(""); return; }
