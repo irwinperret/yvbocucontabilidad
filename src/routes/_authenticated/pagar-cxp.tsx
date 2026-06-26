@@ -83,8 +83,12 @@ function PagarCxPPage() {
                   {data.map((c: any) => {
                     const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
                     const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
-                    const pendUsd = Number(c.monto_usd) * ratio;
-                    const tasa = Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0;
+                    // Saldo pendiente en USD BCV (preferir snapshot frozen)
+                    const usdBcvBase = Number(c.monto_pendiente_usd_bcv ?? c.usd_bcv_factura ?? c.monto_usd ?? 0);
+                    const pendUsdBcv = c.monto_pendiente_usd_bcv != null
+                      ? Number(c.monto_pendiente_usd_bcv)
+                      : usdBcvBase * ratio;
+                    const tasaBcvSnap = Number(c.tasa_bcv_factura) || (Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0);
                     const fechaRef = c.created_at ? String(c.created_at).slice(0, 10) : null;
                     return (
                     <tr key={c.id} className="border-b last:border-0">
@@ -92,10 +96,10 @@ function PagarCxPPage() {
                       <td className="py-2 px-2 mono text-xs">{c.numero_factura ?? "—"}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(pendBs)}</td>
                       <td className="py-2 px-2 text-right mono">
-                        <div>{fmtUsd(pendUsd)}</div>
-                        {tasa > 0 && (
+                        <div>{fmtUsd(pendUsdBcv)} <span className="text-[10px] text-muted-foreground">(USD BCV)</span></div>
+                        {tasaBcvSnap > 0 && (
                           <div className="text-[10px] text-muted-foreground font-normal">
-                            BCV {tasa.toFixed(2)}{fechaRef ? ` · ${fmtDate(fechaRef)}` : ""}
+                            BCV {tasaBcvSnap.toFixed(2)}{fechaRef ? ` · ${fmtDate(fechaRef)}` : ""}
                           </div>
                         )}
                       </td>
@@ -142,8 +146,11 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   const [aplicaciones, setAplicaciones] = useState<AplicacionSel[]>([]);
 
   const pendiente = Number(cxp.monto_pendiente_bs ?? cxp.monto_bs);
-  const pendienteUsd = Number(cxp.monto_usd) *
-    (Number(cxp.monto_pendiente_bs ?? cxp.monto_bs) / Number(cxp.monto_bs || 1));
+  // USD BCV pendiente (deuda inmutable expresada en USD BCV)
+  const usdBcvFactura = Number(cxp.usd_bcv_factura ?? cxp.monto_usd ?? 0);
+  const pendienteUsdBcv = cxp.monto_pendiente_usd_bcv != null
+    ? Number(cxp.monto_pendiente_usd_bcv)
+    : (Number(cxp.monto_bs) > 0 ? usdBcvFactura * (pendiente / Number(cxp.monto_bs)) : usdBcvFactura);
 
   // Anticipos: reverso en Bs usa la tasa BCV del anticipo (egresos → BCV)
   const aplicadoUsd = useMemo(
@@ -158,15 +165,8 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
     [aplicaciones],
   );
 
-  const saldoTrasAplicar = Math.max(0, +(pendiente - aplicadoBs).toFixed(2));
-  const [montoBs, setMontoBs] = useState(String(pendiente));
-
-  // Cuando cambia lo aplicado por anticipos, ajustamos el monto cash al saldo restante
-  // (solo si el usuario no lo ha tocado manualmente fuera de ese valor)
-  const [touchedMonto, setTouchedMonto] = useState(false);
-  useEffect(() => {
-    if (!touchedMonto) setMontoBs(String(saldoTrasAplicar));
-  }, [saldoTrasAplicar, touchedMonto]);
+  // Saldo USD BCV restante tras aplicar anticipos (anticipos también se expresan en USD BCV)
+  const usdBcvTrasAnticipo = Math.max(0, +(pendienteUsdBcv - aplicadoUsd).toFixed(2));
 
   const { data: bcvSug } = useQuery({
     queryKey: ["tasa-pago", fecha],
@@ -185,13 +185,23 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
     },
   });
 
-  const total = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
   const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
-  // Egresos: conversión a USD con BCV.
-  const usd = tasaN ? total / tasaN : 0;
+  // Monto Bs a pagar = USD BCV restante × tasa BCV del pago
+  const montoBsSugerido = +(usdBcvTrasAnticipo * tasaN).toFixed(2);
+  const [touchedMonto, setTouchedMonto] = useState(false);
+  const [montoBs, setMontoBs] = useState(String(pendiente));
+  useEffect(() => {
+    if (!touchedMonto) setMontoBs(String(montoBsSugerido));
+  }, [montoBsSugerido, touchedMonto]);
 
-  const cubreTodo = +(aplicadoBs + total).toFixed(2) >= +pendiente.toFixed(2) - 0.01;
+  const total = Number(montoBs) || 0;
+  // Cobertura por USD BCV: lo aplicado por anticipo + lo pagado en Bs convertido a USD BCV
+  const usdBcvPagado = tasaN > 0 ? +(total / tasaN).toFixed(2) : 0;
+  // USD paralela para FC/contabilidad (mismo patrón que CxC)
+  const usd = tasaParalelaN > 0 ? +(total / tasaParalelaN).toFixed(2) : (tasaN ? total / tasaN : 0);
+
+  const cubreTodo = +(aplicadoUsd + usdBcvPagado).toFixed(2) >= +pendienteUsdBcv.toFixed(2) - 0.01;
 
   const confirmar = async () => {
     if (total > 0 && !tasaN) return toast.error("Falta tasa");
@@ -254,10 +264,14 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
         estado: "pagada",
         pagada_at: new Date().toISOString(),
         monto_pendiente_bs: 0,
+        monto_pendiente_usd_bcv: 0,
       }).eq("id", cxp.id);
     } else {
+      const nuevoUsdBcv = Math.max(0, +(pendienteUsdBcv - aplicadoUsd - usdBcvPagado).toFixed(2));
+      const nuevoBs = Math.max(0, +(pendiente - aplicadoBs - total).toFixed(2));
       await supabase.from("cuentas_por_pagar").update({
-        monto_pendiente_bs: +(pendiente - aplicadoBs - total).toFixed(2),
+        monto_pendiente_bs: nuevoBs,
+        monto_pendiente_usd_bcv: nuevoUsdBcv,
       }).eq("id", cxp.id);
     }
 
@@ -271,28 +285,31 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Registrar pago — {cxp.proveedor}</DialogTitle></DialogHeader>
         <div className="text-sm text-muted-foreground mb-2">
-          Saldo pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsd)}</span>
+          Saldo pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsdBcv)}</span> <span className="text-[10px]">(USD BCV)</span>
           {(() => {
-            const tasa = Number(cxp.monto_bs) > 0 && Number(cxp.monto_usd) > 0 ? Number(cxp.monto_bs) / Number(cxp.monto_usd) : 0;
+            const tasaSnap = Number(cxp.tasa_bcv_factura) || (Number(cxp.monto_bs) > 0 && Number(cxp.monto_usd) > 0 ? Number(cxp.monto_bs) / Number(cxp.monto_usd) : 0);
             const fechaRef = cxp.created_at ? String(cxp.created_at).slice(0, 10) : null;
-            return tasa > 0 ? (
-              <span className="ml-2 text-xs">(tasa BCV {tasa.toFixed(2)}{fechaRef ? ` — ${fmtDate(fechaRef)}` : ""})</span>
+            return tasaSnap > 0 ? (
+              <span className="ml-2 text-xs">(tasa BCV factura {tasaSnap.toFixed(2)}{fechaRef ? ` — ${fmtDate(fechaRef)}` : ""})</span>
             ) : null;
           })()}
-          <div className="text-xs mt-0.5">Equivalente en Bs: <span className="mono">{fmtBs(pendiente)}</span></div>
+          <div className="text-xs mt-0.5">
+            Monto a pagar: <span className="mono font-semibold">{fmtBs(montoBsSugerido)}</span>
+            {tasaN > 0 && <span className="ml-1">(= {fmtUsd(usdBcvTrasAnticipo)} USD BCV × {tasaN.toFixed(4)} BCV pago)</span>}
+          </div>
         </div>
 
         {cxp.tercero_id && (
           <div className="mb-3">
             <AnticipoProveedorBanner
               terceroId={cxp.tercero_id}
-              facturaTotalUsd={pendienteUsd}
+              facturaTotalUsd={pendienteUsdBcv}
               onAplicacionesChange={(sel) => { setAplicaciones(sel); setTouchedMonto(false); }}
             />
             {aplicaciones.length > 0 && (
               <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2 flex justify-between">
                 <span>Anticipo a aplicar: <strong className="mono">{fmtUsd(aplicadoUsd)}</strong> (~{fmtBs(aplicadoBs)})</span>
-                <span>Diferencia a pagar: <strong className="mono">{fmtBs(saldoTrasAplicar)}</strong></span>
+                <span>Diferencia a pagar: <strong className="mono">{fmtBs(montoBsSugerido)}</strong></span>
               </div>
             )}
           </div>

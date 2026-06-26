@@ -114,8 +114,11 @@ export function PagarCxPInline({
                       const dv = diasVencida(c);
                       const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
                       const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
-                      const pendUsd = Number(c.monto_usd) * ratio;
-                      const tasa = Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0;
+                      const usdBcvBase = Number(c.usd_bcv_factura ?? c.monto_usd ?? 0);
+                      const pendUsdBcv = c.monto_pendiente_usd_bcv != null
+                        ? Number(c.monto_pendiente_usd_bcv)
+                        : usdBcvBase * ratio;
+                      const tasa = Number(c.tasa_bcv_factura) || (Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0);
                       const fechaRef = c.created_at ? String(c.created_at).slice(0, 10) : null;
                       return (
                         <tr key={c.id} className="border-b last:border-0">
@@ -124,7 +127,7 @@ export function PagarCxPInline({
                           <td className="py-1 px-1 text-right mono">{fmtBs(c.monto_bs)}</td>
                           <td className="py-1 px-1 text-right mono font-semibold">{fmtBs(pendBs)}</td>
                           <td className="py-1 px-1 text-right mono">
-                            <div>{fmtUsd(pendUsd)}</div>
+                            <div>{fmtUsd(pendUsdBcv)} <span className="text-[9px] text-muted-foreground">USD BCV</span></div>
                             {tasa > 0 && (
                               <div className="text-[9px] text-muted-foreground font-normal">BCV {tasa.toFixed(2)}</div>
                             )}

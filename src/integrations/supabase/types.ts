@@ -324,12 +324,17 @@ export type Database = {
           id: string
           monto_bs: number
           monto_pendiente_bs: number | null
+          monto_pendiente_usd_bcv: number | null
           monto_usd: number
           numero_factura: string | null
           pagada_at: string | null
           proveedor: string | null
+          tasa_bcv_factura: number | null
+          tasa_paralela_factura: number | null
           tercero_id: string | null
           transaccion_id: string | null
+          usd_bcv_factura: number | null
+          usd_paralelo_factura: number | null
         }
         Insert: {
           centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
@@ -339,12 +344,17 @@ export type Database = {
           id?: string
           monto_bs: number
           monto_pendiente_bs?: number | null
+          monto_pendiente_usd_bcv?: number | null
           monto_usd: number
           numero_factura?: string | null
           pagada_at?: string | null
           proveedor?: string | null
+          tasa_bcv_factura?: number | null
+          tasa_paralela_factura?: number | null
           tercero_id?: string | null
           transaccion_id?: string | null
+          usd_bcv_factura?: number | null
+          usd_paralelo_factura?: number | null
         }
         Update: {
           centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
@@ -354,12 +364,17 @@ export type Database = {
           id?: string
           monto_bs?: number
           monto_pendiente_bs?: number | null
+          monto_pendiente_usd_bcv?: number | null
           monto_usd?: number
           numero_factura?: string | null
           pagada_at?: string | null
           proveedor?: string | null
+          tasa_bcv_factura?: number | null
+          tasa_paralela_factura?: number | null
           tercero_id?: string | null
           transaccion_id?: string | null
+          usd_bcv_factura?: number | null
+          usd_paralelo_factura?: number | null
         }
         Relationships: [
           {
