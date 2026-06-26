@@ -11,7 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Info, ArrowUpDown, Plus, Send } from "lucide-react";
+import { Info, ArrowUpDown, Plus, Send, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { fmtUsd, fmtDate } from "@/lib/format";
 import { MESES } from "@/lib/account-helpers";
 import { toast } from "sonner";
@@ -52,6 +56,8 @@ function PropinasPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [registrando, setRegistrando] = useState(false);
   const [distribuyendo, setDistribuyendo] = useState<Propina | null>(null);
+  const [editando, setEditando] = useState<Propina | null>(null);
+  const [eliminando, setEliminando] = useState<Propina | null>(null);
 
   const { data: propinas } = useQuery({
     queryKey: ["propinas", anio],
@@ -302,11 +308,19 @@ function PropinasPage() {
                       </td>
                       <td className="py-1.5 px-2 text-muted-foreground text-xs">{p.notas ?? "—"}</td>
                       <td className="py-1.5 px-2 text-right">
-                        {!distribuida && (
-                          <Button size="sm" variant="outline" onClick={() => setDistribuyendo(p)}>
-                            <Send className="h-3 w-3 mr-1" /> Marcar distribuida
+                        <div className="flex items-center justify-end gap-1">
+                          {!distribuida && (
+                            <Button size="sm" variant="outline" onClick={() => setDistribuyendo(p)}>
+                              <Send className="h-3 w-3 mr-1" /> Distribuir
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" title="Editar" onClick={() => setEditando(p)}>
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                        )}
+                          <Button size="icon" variant="ghost" title="Eliminar" onClick={() => setEliminando(p)}>
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -322,6 +336,8 @@ function PropinasPage() {
 
       {registrando && <RegistrarPropinaDialog onClose={() => setRegistrando(false)} />}
       {distribuyendo && <DistribuirPropinaDialog propina={distribuyendo} onClose={() => setDistribuyendo(null)} />}
+      {editando && <EditarPropinaDialog propina={editando} onClose={() => setEditando(null)} />}
+      {eliminando && <EliminarPropinaDialog propina={eliminando} onClose={() => setEliminando(null)} />}
     </div>
   );
 }
@@ -585,5 +601,156 @@ function DistribuirPropinaDialog({ propina, onClose }: { propina: Propina; onClo
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ──────────────────────────── Editar propina ────────────────────────────
+function EditarPropinaDialog({ propina, onClose }: { propina: Propina; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [fecha, setFecha] = useState(propina.fecha);
+  const [centro, setCentro] = useState<string>(propina.centro_costo ?? "YV");
+  const [montoUsd, setMontoUsd] = useState(String(propina.monto_usd ?? ""));
+  const [notas, setNotas] = useState(propina.notas ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = Number(montoUsd);
+    if (!n || n <= 0) return toast.error("Monto inválido");
+    setBusy(true);
+
+    // Tasas a la fecha (recalculamos por si cambió)
+    const [{ data: rateBcv }, { data: rateP }] = await Promise.all([
+      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const tBcv = Number((rateBcv as any)?.tasa) || Number(propina.tasa_paralela) || 0;
+    const tPar = Number((rateP as any)?.tasa) || Number(propina.tasa_paralela) || tBcv;
+    const montoBs = +(n * (tPar || tBcv || 0)).toFixed(2);
+
+    const { error: ePr } = await supabase.from("propinas").update({
+      fecha, centro_costo: centro as any,
+      monto_usd: n, monto_bs: montoBs, tasa_paralela: tPar,
+      notas: notas || null,
+    } as any).eq("id", propina.id);
+    if (ePr) { setBusy(false); return toast.error("Falló actualizar propina: " + ePr.message); }
+    await logAudit("propinas", "UPDATE", propina.id, propina, { ...propina, fecha, centro_costo: centro, monto_usd: n, monto_bs: montoBs });
+
+    // Sync transacción de entrada
+    if (propina.transaccion_entrada_id) {
+      const { error: eTx } = await supabase.from("transacciones").update({
+        fecha, centro_costo: centro as any,
+        monto_bs: montoBs, monto_base_bs: montoBs,
+        monto_usd: n, tasa_bcv: tBcv || tPar, tasa_paralela: tPar,
+      } as any).eq("id", propina.transaccion_entrada_id);
+      if (eTx) toast.error("Propina actualizada, pero falló sync de transacción de entrada: " + eTx.message);
+    }
+    // Sync transacción de salida (si existe) — mantenemos negativos
+    if (propina.transaccion_salida_id) {
+      const montoSalUsd = Number(propina.monto_distribuido_usd ?? n);
+      const montoSalBs = +(montoSalUsd * (tPar || tBcv || 0)).toFixed(2);
+      const { error: eTx2 } = await supabase.from("transacciones").update({
+        centro_costo: centro as any,
+        monto_bs: -montoSalBs, monto_base_bs: -montoSalBs,
+        monto_usd: -montoSalUsd, tasa_bcv: tBcv || tPar, tasa_paralela: tPar,
+      } as any).eq("id", propina.transaccion_salida_id);
+      if (eTx2) toast.error("Propina actualizada, pero falló sync de transacción de salida: " + eTx2.message);
+    }
+
+    setBusy(false);
+    toast.success("Propina actualizada");
+    qc.invalidateQueries();
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar propina</DialogTitle>
+          <p className="text-xs text-muted-foreground">Los cambios sincronizan la(s) transacción(es) vinculada(s) en 13.1.</p>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
+            <div>
+              <Label>Centro de costo</Label>
+              <Select value={centro} onValueChange={setCentro}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="YV">YV</SelectItem>
+                  <SelectItem value="Bocu">Bocú</SelectItem>
+                  <SelectItem value="Compartido">Compartido</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Monto USD</Label>
+            <Input type="number" step="0.01" min="0" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} required className="mono" />
+          </div>
+          <div>
+            <Label>Notas</Label>
+            <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Guardar cambios"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ──────────────────────────── Eliminar propina ────────────────────────────
+function EliminarPropinaDialog({ propina, onClose }: { propina: Propina; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+
+  const eliminar = async () => {
+    setBusy(true);
+    const txIds = [propina.transaccion_entrada_id, propina.transaccion_salida_id].filter(Boolean) as string[];
+    // 1) Borrar propina (libera FKs por ON DELETE SET NULL pero igual la quitamos)
+    const { error: eP } = await supabase.from("propinas").delete().eq("id", propina.id);
+    if (eP) { setBusy(false); return toast.error("Falló eliminar propina: " + eP.message); }
+    await logAudit("propinas", "DELETE", propina.id, propina, null);
+    // 2) Borrar transacciones vinculadas
+    if (txIds.length) {
+      const { error: eT } = await supabase.from("transacciones").delete().in("id", txIds);
+      if (eT) {
+        setBusy(false);
+        return toast.error("Propina eliminada, pero falló eliminar transacción(es): " + eT.message);
+      }
+      for (const id of txIds) await logAudit("transacciones", "DELETE", id, { id }, null);
+    }
+    setBusy(false);
+    toast.success("Propina y transacciones asociadas eliminadas");
+    qc.invalidateQueries();
+    onClose();
+  };
+
+  return (
+    <AlertDialog open onOpenChange={(o) => !o && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Eliminar propina</AlertDialogTitle>
+          <AlertDialogDescription>
+            Esto eliminará la propina del {fmtDate(propina.fecha)} por {fmtUsd(propina.monto_usd)} y su(s) transacción(es)
+            asociada(s) en el sistema. ¿Confirmar?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => { e.preventDefault(); eliminar(); }}
+            disabled={busy}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {busy ? "Eliminando…" : "Eliminar todo"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
