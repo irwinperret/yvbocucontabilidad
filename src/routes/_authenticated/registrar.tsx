@@ -1398,7 +1398,9 @@ function GastosFacturaForm() {
           {tasaN > 0 && netoInput > 0 && (
             <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/30 p-2 rounded">
               <div>Tasa BCV: <span className="mono font-semibold">{tasaN.toFixed(4)}</span></div>
-              <div>Equiv. total: <span className="mono font-semibold">{esUSD ? fmtBs(total) : fmtUsd(totalUsd)}</span></div>
+              <div>Tasa paralela (ref): <span className="mono font-semibold">{tasaParalelaN ? tasaParalelaN.toFixed(4) : "—"}</span></div>
+              <div>Equiv. total: <span className="mono font-semibold">{esUSD ? fmtBs(total) : fmtUsd(totalUsd)}</span> <span className="text-[10px] text-muted-foreground">(USD BCV)</span></div>
+              <div>USD paralelo (ref): <span className="mono font-semibold">{totalUsdParalelo > 0 ? fmtUsd(totalUsdParalelo) : "—"}</span></div>
               <div>Base (G&amp;P) Bs: <span className="mono font-semibold">{fmtBs(base)}</span></div>
               {ivaAplica && <div>IVA crédito Bs: <span className="mono font-semibold">{fmtBs(iva)}</span></div>}
             </div>
