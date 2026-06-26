@@ -1378,6 +1378,11 @@ function GastosFacturaForm() {
           <div>
             <Label>Tasa BCV</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+            {tasaParalelaN > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Tasa paralela (referencia): <span className="mono font-semibold">{tasaParalelaN.toFixed(4)}</span>
+              </p>
+            )}
           </div>
           {ivaAplica && (
             <div className="md:col-span-2">
