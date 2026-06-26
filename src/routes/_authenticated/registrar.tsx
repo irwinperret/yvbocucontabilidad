@@ -171,6 +171,7 @@ function VentasForm() {
   const cxcSel: any = (cxcVigentes ?? []).find((x: any) => x.id === cxcId);
   // Saldo pendiente del deudor: USD a tasa BCV (deuda comercial real)
   const pendienteUsdCxc = Number(cxcSel?.monto_pendiente_usd_bcv ?? cxcSel?.monto_usd_bcv ?? cxcSel?.monto_pendiente_usd ?? cxcSel?.monto_usd ?? 0);
+  const pendienteUsdParCxc = Number(cxcSel?.monto_pendiente_usd ?? cxcSel?.monto_usd ?? 0);
   const tasaOrigCxc = cxcSel
     ? (Number(cxcSel.tasa_paralela_venta) || (Number(cxcSel.monto_usd) > 0 ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd) : 0))
     : 0;
@@ -261,8 +262,11 @@ function VentasForm() {
     setIvaMonto(auto > 0 ? auto.toFixed(2) : "");
   }, [esVentaNeta, ivaAplica, montoN, ivaTouched]);
   const cuenta = tipo === "ajuste_off" ? cuentaVenta(centro, "contado") : cuentaVenta(centro, tipo);
-  // Para cobros: USD que se está cancelando con este pago
-  const usdCobrado = tipo === "cobro" ? totalUsd : 0;
+  // Para cobros: separar la deuda comercial (USD BCV) del valor contable (USD paralelo).
+  const usdParCobrado = tipo === "cobro" ? totalUsd : 0;
+  const usdCobrado = tipo === "cobro"
+    ? (pagoEnUsd ? montoN : (tasaBcvN > 0 ? +(total / tasaBcvN).toFixed(2) : 0))
+    : 0;
 
   // #6: bono servicio 10% y propina (manual ventas contado/credito)
   // Se sugieren y se capturan en la misma moneda elegida para la venta (Bs o USD a tasa BCV).
@@ -522,8 +526,12 @@ function VentasForm() {
       const completaCobrada = nuevoPendienteUsdBcv < 0.01;
       const tasaBcvVentaSafe = Number(cxcSel.tasa_bcv_venta) || (Number(cxcSel.monto_bs) > 0 && Number(cxcSel.monto_usd_bcv) > 0 ? Number(cxcSel.monto_bs) / Number(cxcSel.monto_usd_bcv) : tasaN);
       const nuevoPendienteBs = +(nuevoPendienteUsdBcv * tasaBcvVentaSafe).toFixed(2);
+      const usdParOriginalPorcion = tasaOrigCxc > 0
+        ? +((usdCobrado * tasaBcvVentaSafe) / tasaOrigCxc).toFixed(2)
+        : usdParCobrado;
+      const nuevoPendienteUsdPar = Math.max(0, +(pendienteUsdParCxc - usdParOriginalPorcion).toFixed(2));
       await supabase.from("cuentas_por_cobrar").update({
-        monto_pendiente_usd: nuevoPendienteUsdBcv,
+        monto_pendiente_usd: nuevoPendienteUsdPar,
         monto_pendiente_usd_bcv: nuevoPendienteUsdBcv,
         monto_pendiente_bs: nuevoPendienteBs,
         estado: completaCobrada ? "cobrada" : "vigente",
@@ -535,9 +543,9 @@ function VentasForm() {
       // Ganancia → 11.1, Pérdida → 11.2 (ambas afectan G&P, no FC).
       const paralelaHoy = tasaParalelaN || tasaConvN;
       if (tasaOrigCxc > 0 && paralelaHoy > 0) {
-        // Bs cobrados HOY (= total). Esperado USD a paralela orig vs actual a paralela hoy.
-        const usdEsperado = total / tasaOrigCxc;
-        const usdActual = total / paralelaHoy;
+        // Valor contable original de la porción cobrada vs valor contable del pago hoy.
+        const usdEsperado = usdParOriginalPorcion;
+        const usdActual = usdParCobrado;
         const fxUsd = +(usdActual - usdEsperado).toFixed(2);
         if (Math.abs(fxUsd) >= 0.01) {
           const cuentaFx = fxUsd > 0 ? "11.1" : "11.2";
