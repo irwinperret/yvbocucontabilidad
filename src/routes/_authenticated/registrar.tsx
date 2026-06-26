@@ -1378,6 +1378,11 @@ function GastosFacturaForm() {
           <div>
             <Label>Tasa BCV</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
+            {tasaParalelaN > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Tasa paralela (referencia): <span className="mono font-semibold">{tasaParalelaN.toFixed(4)}</span>
+              </p>
+            )}
           </div>
           {ivaAplica && (
             <div className="md:col-span-2">
@@ -1393,7 +1398,9 @@ function GastosFacturaForm() {
           {tasaN > 0 && netoInput > 0 && (
             <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/30 p-2 rounded">
               <div>Tasa BCV: <span className="mono font-semibold">{tasaN.toFixed(4)}</span></div>
-              <div>Equiv. total: <span className="mono font-semibold">{esUSD ? fmtBs(total) : fmtUsd(totalUsd)}</span></div>
+              <div>Tasa paralela (ref): <span className="mono font-semibold">{tasaParalelaN ? tasaParalelaN.toFixed(4) : "—"}</span></div>
+              <div>Equiv. total: <span className="mono font-semibold">{esUSD ? fmtBs(total) : fmtUsd(totalUsd)}</span> <span className="text-[10px] text-muted-foreground">(USD BCV)</span></div>
+              <div>USD paralelo (ref): <span className="mono font-semibold">{totalUsdParalelo > 0 ? fmtUsd(totalUsdParalelo) : "—"}</span></div>
               <div>Base (G&amp;P) Bs: <span className="mono font-semibold">{fmtBs(base)}</span></div>
               {ivaAplica && <div>IVA crédito Bs: <span className="mono font-semibold">{fmtBs(iva)}</span></div>}
             </div>
@@ -2426,7 +2433,9 @@ function CierreForm() {
 
   const { data: tasaCompraSug } = useTasaForDate(compraFecha);
   const { data: paralelaCompraSug } = useParalelaForDate(compraFecha);
-  useEffect(() => { if (paralelaCompraSug) setCompraTasa(String(paralelaCompraSug.tasa)); }, [paralelaCompraSug?.tasa]);
+  // Egresos COGS: tasa principal = BCV (consistente con Gastos/Facturas y CxP).
+  useEffect(() => { if (tasaCompraSug?.tasa) setCompraTasa(String(tasaCompraSug.tasa)); }, [tasaCompraSug?.tasa]);
+  const compraTasaParalelaRefN = Number(paralelaCompraSug?.tasa) || 0;
   useEffect(() => {
     if (compraIvaTocado) return;
     if (!compraIvaAplica) { setCompraIvaMonto(""); return; }
@@ -2622,8 +2631,8 @@ function CierreForm() {
         monto_pendiente_usd_bcv: cxpSaldoUsdBcvCompra,
         usd_bcv_factura: cxpSaldoUsdBcvCompra,
         usd_paralelo_factura: cxpSaldoUsdCompra,
-        tasa_bcv_factura: bcvCompraN || null,
-        tasa_paralela_factura: tasaN || null,
+        tasa_bcv_factura: bcvCompraN || tasaN || null,
+        tasa_paralela_factura: compraTasaParalelaRefN || null,
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
       } as any).select().single();
@@ -2663,11 +2672,13 @@ function CierreForm() {
         setCompraBusy(false);
         return toast.error("Falta cuenta bancaria para pagar el remanente del anticipo");
       }
-      const usdPago = tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra;
+      const usdPago = compraTasaParalelaRefN > 0
+        ? +(cxpSaldoBsCompra / compraTasaParalelaRefN).toFixed(2)
+        : (tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
       const { error: ePago } = await supabase.from("transacciones").insert({
         fecha: compraFecha, cuenta_codigo: "9.1", centro_costo: "Compartido" as any,
         monto_bs: cxpSaldoBsCompra, monto_base_bs: cxpSaldoBsCompra, iva_bs: 0,
-        tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: tasaN || null, monto_usd: usdPago,
+        tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: compraTasaParalelaRefN || null, monto_usd: usdPago,
         metodo_pago: "transferencia" as any,
         cuenta_bancaria_id: compraCuentaBanco,
         tercero_id: compraTerceroId,
@@ -2820,9 +2831,13 @@ function CierreForm() {
               <Input type="date" value={compraFecha} onChange={(e) => setCompraFecha(e.target.value)} required />
             </div>
             <div>
-              <Label className="text-xs">Tasa paralela del día</Label>
+              <Label className="text-xs">Tasa BCV del día</Label>
               <Input type="number" step="0.0001" value={compraTasa} onChange={(e) => setCompraTasa(e.target.value)} required className="mono" />
-
+              {compraTasaParalelaRefN > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Tasa paralela (referencia): <span className="mono font-semibold">{compraTasaParalelaRefN.toFixed(4)}</span>
+                </p>
+              )}
             </div>
             <div className="md:col-span-2">
               <TerceroSelect value={compraTerceroId} onChange={setCompraTerceroId} terceros={(terceros ?? []) as any} />
@@ -2900,10 +2915,12 @@ function CierreForm() {
             </div>
             {compraTasaN > 0 && compraNetoInput > 0 && (
               <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
-                <div>Tasa paralela usada: <span className="mono font-semibold">{compraTasaN.toFixed(4)}</span></div>
-                <div>Equivalente total: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraTotalInput / compraTasaN : 0)}</span></div>
+                <div>Tasa BCV usada: <span className="mono font-semibold">{compraTasaN.toFixed(4)}</span></div>
+                <div>Tasa paralela (ref): <span className="mono font-semibold">{compraTasaParalelaRefN ? compraTasaParalelaRefN.toFixed(4) : "—"}</span></div>
+                <div>Equivalente total: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraTotalInput / compraTasaN : 0)}</span> <span className="text-[10px] text-muted-foreground">(USD BCV)</span></div>
+                <div>USD paralelo (ref): <span className="mono font-semibold">{compraTasaParalelaRefN > 0 ? fmtUsd(compraTotal / compraTasaParalelaRefN) : "—"}</span></div>
                 <div className="col-span-2 text-muted-foreground text-xs">
-                  Para la contabilidad (compras de inventario) se usa la tasa paralela del día. IVA se contabiliza por separado en cuenta 12.5.
+                  Para la contabilidad (compras de inventario) se usa la tasa BCV del día como divisor del USD de la deuda. IVA se contabiliza por separado en cuenta 12.5.
                 </div>
               </div>
             )}
