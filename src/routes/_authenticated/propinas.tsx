@@ -11,7 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Info, ArrowUpDown, Plus, Send } from "lucide-react";
+import { Info, ArrowUpDown, Plus, Send, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { fmtUsd, fmtDate } from "@/lib/format";
 import { MESES } from "@/lib/account-helpers";
 import { toast } from "sonner";
@@ -52,6 +56,8 @@ function PropinasPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [registrando, setRegistrando] = useState(false);
   const [distribuyendo, setDistribuyendo] = useState<Propina | null>(null);
+  const [editando, setEditando] = useState<Propina | null>(null);
+  const [eliminando, setEliminando] = useState<Propina | null>(null);
 
   const { data: propinas } = useQuery({
     queryKey: ["propinas", anio],
@@ -302,11 +308,19 @@ function PropinasPage() {
                       </td>
                       <td className="py-1.5 px-2 text-muted-foreground text-xs">{p.notas ?? "—"}</td>
                       <td className="py-1.5 px-2 text-right">
-                        {!distribuida && (
-                          <Button size="sm" variant="outline" onClick={() => setDistribuyendo(p)}>
-                            <Send className="h-3 w-3 mr-1" /> Marcar distribuida
+                        <div className="flex items-center justify-end gap-1">
+                          {!distribuida && (
+                            <Button size="sm" variant="outline" onClick={() => setDistribuyendo(p)}>
+                              <Send className="h-3 w-3 mr-1" /> Distribuir
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" title="Editar" onClick={() => setEditando(p)}>
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                        )}
+                          <Button size="icon" variant="ghost" title="Eliminar" onClick={() => setEliminando(p)}>
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -322,6 +336,8 @@ function PropinasPage() {
 
       {registrando && <RegistrarPropinaDialog onClose={() => setRegistrando(false)} />}
       {distribuyendo && <DistribuirPropinaDialog propina={distribuyendo} onClose={() => setDistribuyendo(null)} />}
+      {editando && <EditarPropinaDialog propina={editando} onClose={() => setEditando(null)} />}
+      {eliminando && <EliminarPropinaDialog propina={eliminando} onClose={() => setEliminando(null)} />}
     </div>
   );
 }
