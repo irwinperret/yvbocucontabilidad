@@ -61,18 +61,19 @@ function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Tasa BCV hoy</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tasa paralela hoy</CardTitle>
           </CardHeader>
           <CardContent>
             {tasa ? (
               <>
                 <div className="text-2xl font-bold mono">{Number(tasa.tasa).toFixed(2)}</div>
-                <div className="text-xs mt-1">
+                <div className="text-xs mt-1 flex items-center gap-2">
                   {tasaVencida ? <Badge variant="destructive">Vencida {fmtDate(tasa.fecha)}</Badge> : <Badge className="bg-green-600">Vigente</Badge>}
+                  {tasaBcv && <span className="text-muted-foreground">BCV ref: {Number(tasaBcv.tasa).toFixed(2)}</span>}
                 </div>
               </>
             ) : (
-              <div className="text-sm text-muted-foreground">Sin tasa. <Link to="/tasa" className="text-primary underline">Registrar</Link></div>
+              <div className="text-sm text-muted-foreground">Sin tasa paralela. <Link to="/tasa-paralela" className="text-primary underline">Registrar</Link></div>
             )}
           </CardContent>
         </Card>
