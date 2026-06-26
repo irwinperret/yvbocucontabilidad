@@ -2624,8 +2624,8 @@ function CierreForm() {
         monto_pendiente_usd_bcv: cxpSaldoUsdBcvCompra,
         usd_bcv_factura: cxpSaldoUsdBcvCompra,
         usd_paralelo_factura: cxpSaldoUsdCompra,
-        tasa_bcv_factura: bcvCompraN || null,
-        tasa_paralela_factura: tasaN || null,
+        tasa_bcv_factura: bcvCompraN || tasaN || null,
+        tasa_paralela_factura: compraTasaParalelaRefN || null,
         fecha_vencimiento: compraVenc || null,
         estado: "pendiente",
       } as any).select().single();
