@@ -13,7 +13,14 @@ export const Route = createFileRoute("/_authenticated/dashboard")({ component: D
 
 function Dashboard() {
   const { data: tasa } = useQuery({
-    queryKey: ["tasa", todayISO()],
+    queryKey: ["tasa-paralela-dashboard", todayISO()],
+    queryFn: async () => {
+      const { data } = await supabase.from("tasas_paralela").select("*").order("fecha", { ascending: false }).limit(1).maybeSingle();
+      return data;
+    },
+  });
+  const { data: tasaBcv } = useQuery({
+    queryKey: ["tasa-bcv-dashboard", todayISO()],
     queryFn: async () => {
       const { data } = await supabase.from("tasas_bcv").select("*").order("fecha", { ascending: false }).limit(1).maybeSingle();
       return data;
