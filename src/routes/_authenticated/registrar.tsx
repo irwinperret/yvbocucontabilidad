@@ -2908,10 +2908,12 @@ function CierreForm() {
             </div>
             {compraTasaN > 0 && compraNetoInput > 0 && (
               <div className="md:col-span-2 grid grid-cols-2 gap-2 text-sm bg-muted/50 p-3 rounded">
-                <div>Tasa paralela usada: <span className="mono font-semibold">{compraTasaN.toFixed(4)}</span></div>
-                <div>Equivalente total: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraTotalInput / compraTasaN : 0)}</span></div>
+                <div>Tasa BCV usada: <span className="mono font-semibold">{compraTasaN.toFixed(4)}</span></div>
+                <div>Tasa paralela (ref): <span className="mono font-semibold">{compraTasaParalelaRefN ? compraTasaParalelaRefN.toFixed(4) : "—"}</span></div>
+                <div>Equivalente total: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraTotalInput / compraTasaN : 0)}</span> <span className="text-[10px] text-muted-foreground">(USD BCV)</span></div>
+                <div>USD paralelo (ref): <span className="mono font-semibold">{compraTasaParalelaRefN > 0 ? fmtUsd(compraTotal / compraTasaParalelaRefN) : "—"}</span></div>
                 <div className="col-span-2 text-muted-foreground text-xs">
-                  Para la contabilidad (compras de inventario) se usa la tasa paralela del día. IVA se contabiliza por separado en cuenta 12.5.
+                  Para la contabilidad (compras de inventario) se usa la tasa BCV del día como divisor del USD de la deuda. IVA se contabiliza por separado en cuenta 12.5.
                 </div>
               </div>
             )}
