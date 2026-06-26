@@ -279,8 +279,8 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
             </div>
           </div>
           {Math.abs(fxDeltaUsd) >= 0.01 && (
-            <div className={`text-xs rounded p-2 border ${fxDeltaUsd > 0 ? "text-green-700 bg-green-50 border-green-300" : "text-red-700 bg-red-50 border-red-300"}`}>
-              {fxDeltaUsd > 0 ? "Ganancia (11.1)" : "Pérdida (11.2)"} cambiaria: {fmtUsd(Math.abs(fxDeltaUsd))} · se asienta automáticamente
+            <div className="text-xs rounded p-2 border bg-muted text-muted-foreground">
+              Δ cambiario implícito: {fmtUsd(Math.abs(fxDeltaUsd))} ({fxDeltaUsd > 0 ? "USD paralelo pago > USD paralelo venta" : "USD paralelo pago < USD paralelo venta"}). Ya queda reflejado en el monto USD del cobro; no se crea asiento separado en 11.1/11.2.
             </div>
           )}
           <div>
