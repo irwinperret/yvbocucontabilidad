@@ -1248,14 +1248,11 @@ function GastosFacturaForm() {
     }
     // Si NO era pendiente original y queda remanente, pagarlo de inmediato
     if (efectivoTrasAnticipo && tx && cxpId) {
-      const baseRatio = total > 0 ? base / total : 1;
-      const pagoBaseBs = +(cxpSaldoBs * baseRatio).toFixed(2);
-      const pagoIvaBs = +(cxpSaldoBs - pagoBaseBs).toFixed(2);
-      const usdPago = tasaParalelaN > 0 ? +(pagoBaseBs / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(pagoBaseBs / tasaN).toFixed(2) : cxpSaldoUsd);
+      const usdPago = tasaParaContable > 0 ? +(cxpSaldoBs / tasaParaContable).toFixed(2) : cxpSaldoUsd;
       const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-        monto_bs: cxpSaldoBs, monto_base_bs: pagoBaseBs, iva_bs: pagoIvaBs,
-        iva_aplica: pagoIvaBs > 0, tipo_iva: pagoIvaBs > 0 ? "credito_fiscal" : null,
+        monto_bs: cxpSaldoBs, monto_base_bs: cxpSaldoBs, iva_bs: 0,
+        iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: usdPago,
         metodo_pago: metodo as any,
         cuenta_bancaria_id: cuentaBancariaId || null,
@@ -1273,6 +1270,7 @@ function GastosFacturaForm() {
         monto_pendiente_bs: 0,
       }).eq("id", cxpId);
     }
+
     setBusy(false);
     const msg = tieneAnticipo
       ? (cxpSaldoBs <= 0.01
