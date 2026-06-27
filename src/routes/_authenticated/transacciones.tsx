@@ -547,40 +547,15 @@ function TransaccionesPage() {
                       <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{t.numero_orden ?? "—"}</td>
                       {(() => {
-                        const ivaBs = Number(t.iva_bs) || 0;
-                        const baseBs = Number(t.monto_base_bs) || 0;
                         const totalBs = Number(t.monto_bs) || 0;
                         const totalUsd = Number(t.monto_usd) || 0;
-                        const ratio = totalBs > 0 && ivaBs > 0 ? baseBs / totalBs : 1;
-                        const baseUsd = totalUsd * ratio;
-                        const ivaUsd = totalUsd - baseUsd;
                         const bcvUsdTotal = Number(t.tasa_bcv) > 0 ? totalBs / Number(t.tasa_bcv) : null;
-                        const bcvUsdBase = bcvUsdTotal != null ? bcvUsdTotal * ratio : null;
-                        const bcvUsdIva = bcvUsdTotal != null ? bcvUsdTotal - bcvUsdBase! : null;
-                        const showSplit = ivaBs > 0;
                         return (
                           <>
-                            <td className="py-2 px-2 text-right mono">
-                              <div>{fmtBs(showSplit ? baseBs : totalBs)}</div>
-                              {showSplit && (
-                                <div className="text-[10px] text-muted-foreground">+ IVA {fmtBs(ivaBs)}</div>
-                              )}
-                            </td>
-                            <td className="py-2 px-2 text-right mono">
-                              <div>{fmtUsd(showSplit ? baseUsd : totalUsd)}</div>
-                              {showSplit && (
-                                <div className="text-[10px] text-muted-foreground">+ IVA {fmtUsd(ivaUsd)}</div>
-                              )}
-                            </td>
+                            <td className="py-2 px-2 text-right mono">{fmtBs(totalBs)}</td>
+                            <td className="py-2 px-2 text-right mono">{fmtUsd(totalUsd)}</td>
                             <td className="py-2 px-2 text-right mono text-muted-foreground">
-                              {bcvUsdTotal == null ? "—" : (
-                                <>
-                                  <div>{fmtUsd(showSplit ? bcvUsdBase! : bcvUsdTotal)}</div>
-                                  {showSplit && (
-                                    <div className="text-[10px]">+ IVA {fmtUsd(bcvUsdIva!)}</div>
-                                  )}
-                                </>
-                              )}
+                              {bcvUsdTotal == null ? "—" : fmtUsd(bcvUsdTotal)}
                             </td>
                           </>
                         );
