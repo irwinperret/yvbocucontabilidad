@@ -215,7 +215,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
 
     const { data: txOrig } = await supabase
       .from("transacciones")
-      .select("cuenta_codigo, centro_costo, grupo_transaccion_id")
+      .select("cuenta_codigo, centro_costo, grupo_transaccion_id, monto_bs, monto_base_bs, iva_bs")
       .eq("id", cxp.transaccion_id).maybeSingle();
     const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
 
@@ -239,12 +239,19 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
 
     // 2) Pago en efectivo / transferencia por el remanente
     if (total > 0) {
+      const origTotalBs = Number(txOrig?.monto_bs ?? cxp.monto_bs ?? 0);
+      const origBaseBs = Number(txOrig?.monto_base_bs ?? origTotalBs) || origTotalBs;
+      const baseRatio = origTotalBs > 0 ? origBaseBs / origTotalBs : 1;
+      const pagoBaseBs = +(total * baseRatio).toFixed(2);
+      const pagoIvaBs = +(total - pagoBaseBs).toFixed(2);
+      const usdPagoBase = tasaParalelaN > 0 ? +(pagoBaseBs / tasaParalelaN).toFixed(2) : (tasaN ? +(pagoBaseBs / tasaN).toFixed(2) : 0);
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha,
         cuenta_codigo: txOrig?.cuenta_codigo ?? "9.1",
         centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
-        monto_bs: total, monto_base_bs: total, iva_bs: 0,
-        tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usd,
+        monto_bs: total, monto_base_bs: pagoBaseBs, iva_bs: pagoIvaBs,
+        iva_aplica: pagoIvaBs > 0, tipo_iva: pagoIvaBs > 0 ? "credito_fiscal" : null,
+        tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usdPagoBase,
         metodo_pago: metodo as any,
         referencia: ref || null,
         notas: `Pago CxP — ${cxp.proveedor} · Fact ${cxp.numero_factura}${notas ? " · " + notas : ""}`,
@@ -329,7 +336,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
             <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
           </div>
           <div className="rounded-md bg-muted p-2 flex justify-between text-sm">
-            <span>USD (pago cash)</span><span className="mono font-semibold">{fmtUsd(usd)}</span>
+            <span>USD base pagada (paralelo)</span><span className="mono font-semibold">{fmtUsd(total > 0 && tasaParalelaN > 0 ? ((total * ((Number(cxp.monto_base_bs ?? cxp.monto_bs ?? 0) || Number(cxp.monto_bs ?? 0)) / (Number(cxp.monto_bs ?? 0) || 1))) / tasaParalelaN) : usd)}</span>
           </div>
           {total > 0 && (
             <>
