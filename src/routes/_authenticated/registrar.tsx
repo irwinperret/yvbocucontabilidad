@@ -2553,7 +2553,7 @@ function CierreForm() {
     if (!compraOffBalance && compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
 
-    // Total Bs/USD usando tasa paralela (compras COGS valoradas a paralela)
+    // Total Bs de la factura: base neta + IVA.
     const totalInputCompra = compraNetoInput + compraIvaInput;
     const montoBs = esCompraUSD ? totalInputCompra * tasaN : totalInputCompra;
     const montoUsd = esCompraUSD ? totalInputCompra : (tasaN ? totalInputCompra / tasaN : 0);
@@ -2593,8 +2593,11 @@ function CierreForm() {
     const grupoId = tieneAnticipoCompra ? crypto.randomUUID() : null;
 
     // 1) Insertar snapshot de compra (COGS) primero
-    const tasaParaContableCompra = compraTasaParalelaRefN || bcvCompraN || tasaN;
-    const montoUsdContable = tasaParaContableCompra > 0 ? +(montoBs / tasaParaContableCompra).toFixed(2) : montoUsd;
+    const compraEsPendiente = !compraOffBalance && !snapshotPagada;
+    const tasaParaContableCompra = compraEsPendiente ? (bcvCompraN || tasaN) : (compraTasaParalelaRefN || bcvCompraN || tasaN);
+    const montoUsdContable = compraEsPendiente
+      ? (tasaParaContableCompra > 0 ? +(montoBs / tasaParaContableCompra).toFixed(2) : montoUsd)
+      : (tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : 0);
     const baseUsdContableCompra = tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : 0;
     const ivaUsdContableCompra = tasaParaContableCompra > 0 ? +(compraIva / tasaParaContableCompra).toFixed(2) : 0;
     const { data: snap, error } = await supabase.from("inventario_snapshots").insert({
@@ -2919,7 +2922,7 @@ function CierreForm() {
                 <div>Equivalente total: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraTotalInput / compraTasaN : 0)}</span> <span className="text-[10px] text-muted-foreground">(USD BCV)</span></div>
                 <div>USD paralelo (ref): <span className="mono font-semibold">{compraTasaParalelaRefN > 0 ? fmtUsd(compraTotal / compraTasaParalelaRefN) : "—"}</span></div>
                 <div className="col-span-2 text-muted-foreground text-xs">
-                  Para la contabilidad (compras de inventario) se usa la tasa BCV del día como divisor del USD de la deuda. IVA se contabiliza por separado en cuenta 12.5.
+                  CxP pendiente usa BCV para denominar la deuda; compra pagada al contado usa paralelo. El IVA queda separado en la misma fila.
                 </div>
               </div>
             )}
@@ -2946,7 +2949,7 @@ function CierreForm() {
                     <th>Proveedor</th>
                     <th>N° fact.</th>
                     <th className="text-right">Monto Bs</th>
-                    <th className="text-right">USD (BCV)</th>
+                    <th className="text-right">USD base</th>
                     <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
@@ -2955,8 +2958,7 @@ function CierreForm() {
                   {(compras ?? []).map((c: any) => {
                     const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
                     const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
-                    const tb = Number(c.tasa_bcv) || bcvByFecha.get(c.fecha) || tasaPromedio;
-                    const usdPar = tb ? base / tb : null;
+                    const usdPar = Number(c.monto_base_usd ?? c.monto_usd) || null;
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
