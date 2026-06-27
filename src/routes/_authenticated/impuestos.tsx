@@ -25,6 +25,10 @@ type Row = {
   cuenta_codigo: string;
   centro_costo: string | null;
   monto_bs: number | null;
+  monto_base_bs?: number | null;
+  iva_bs?: number | null;
+  iva_aplica?: boolean | null;
+  tipo_iva?: string | null;
   monto_usd: number | null;
   tasa_bcv: number | null;
   tasa_paralela: number | null;
@@ -48,8 +52,8 @@ function ImpuestosPage() {
       return await fetchAllRows<Row>(async (from, to) => {
         return await supabase
           .from("transacciones")
-          .select("id,fecha,cuenta_codigo,centro_costo,monto_bs,monto_usd,tasa_bcv,tasa_paralela,numero_factura,referencia,notas,grupo_transaccion_id")
-          .in("cuenta_codigo", ["12.4", "12.5"])
+          .select("id,fecha,cuenta_codigo,centro_costo,monto_bs,monto_base_bs,iva_bs,iva_aplica,tipo_iva,monto_usd,tasa_bcv,tasa_paralela,numero_factura,referencia,notas,grupo_transaccion_id")
+          .or("cuenta_codigo.in.(12.4,12.5),iva_bs.gt.0")
           .gte("fecha", ini)
           .lte("fecha", fin)
           .order("fecha", { ascending: false })
@@ -70,10 +74,13 @@ function ImpuestosPage() {
   const totales = useMemo(() => {
     let debUsd = 0, debBs = 0, credUsd = 0, credBs = 0;
     filtered.forEach((r) => {
-      const usd = Number(r.monto_usd ?? 0);
-      const bs = Number(r.monto_bs ?? 0);
+      const isInlineCredit = r.cuenta_codigo !== "12.4" && r.cuenta_codigo !== "12.5" && Number(r.iva_bs ?? 0) > 0;
+      const bs = isInlineCredit ? Number(r.iva_bs ?? 0) : Number(r.monto_bs ?? 0);
+      const usd = isInlineCredit
+        ? (Number(r.tasa_paralela ?? 0) > 0 ? bs / Number(r.tasa_paralela) : (Number(r.tasa_bcv ?? 0) > 0 ? bs / Number(r.tasa_bcv) : 0))
+        : Number(r.monto_usd ?? 0);
       if (r.cuenta_codigo === "12.4") { debUsd += usd; debBs += bs; }
-      else if (r.cuenta_codigo === "12.5") { credUsd += usd; credBs += bs; }
+      else if (r.cuenta_codigo === "12.5" || isInlineCredit) { credUsd += usd; credBs += bs; }
     });
     return {
       debUsd, debBs, credUsd, credBs,
@@ -90,9 +97,13 @@ function ImpuestosPage() {
     (rows ?? []).forEach((r) => {
       if (centroFiltro !== "Consolidado" && (r.centro_costo ?? "") !== centroFiltro) return;
       const m = Number(r.fecha.slice(5, 7));
-      const usd = Number(r.monto_usd ?? 0);
+      const isInlineCredit = r.cuenta_codigo !== "12.4" && r.cuenta_codigo !== "12.5" && Number(r.iva_bs ?? 0) > 0;
+      const bs = isInlineCredit ? Number(r.iva_bs ?? 0) : Number(r.monto_bs ?? 0);
+      const usd = isInlineCredit
+        ? (Number(r.tasa_paralela ?? 0) > 0 ? bs / Number(r.tasa_paralela) : (Number(r.tasa_bcv ?? 0) > 0 ? bs / Number(r.tasa_bcv) : 0))
+        : Number(r.monto_usd ?? 0);
       if (r.cuenta_codigo === "12.4") out[m].debito += usd;
-      else if (r.cuenta_codigo === "12.5") out[m].credito += usd;
+      else if (r.cuenta_codigo === "12.5" || isInlineCredit) out[m].credito += usd;
     });
     Object.values(out).forEach((r) => { r.neto = r.debito - r.credito; });
     return Object.values(out);
@@ -102,15 +113,20 @@ function ImpuestosPage() {
     const headers = ["Fecha", "Tipo", "Centro", "N° Factura", "Referencia", "Monto Bs", "Monto USD", "Tasa BCV", "Notas"];
     const lines = [headers.join(",")];
     filtered.forEach((r) => {
-      const tipo = r.cuenta_codigo === "12.4" ? "IVA Débito (Venta)" : "IVA Crédito (Compra)";
+        const isInlineCredit = r.cuenta_codigo !== "12.4" && r.cuenta_codigo !== "12.5" && Number(r.iva_bs ?? 0) > 0;
+        const bs = isInlineCredit ? Number(r.iva_bs ?? 0) : Number(r.monto_bs ?? 0);
+        const usd = isInlineCredit
+          ? (Number(r.tasa_paralela ?? 0) > 0 ? bs / Number(r.tasa_paralela) : (Number(r.tasa_bcv ?? 0) > 0 ? bs / Number(r.tasa_bcv) : 0))
+          : Number(r.monto_usd ?? 0);
+        const tipo = r.cuenta_codigo === "12.4" ? "IVA Débito (Venta)" : "IVA Crédito (Compra)";
       const row = [
         r.fecha,
         tipo,
         r.centro_costo ?? "",
         r.numero_factura ?? "",
         r.referencia ?? "",
-        Number(r.monto_bs ?? 0).toFixed(2),
-        Number(r.monto_usd ?? 0).toFixed(2),
+        bs.toFixed(2),
+        usd.toFixed(2),
         Number(r.tasa_bcv ?? 0).toFixed(4),
         `"${(r.notas ?? "").replace(/"/g, '""')}"`,
       ];
@@ -255,6 +271,11 @@ function ImpuestosPage() {
               <tbody>
                 {filtered.map((r) => {
                   const isDeb = r.cuenta_codigo === "12.4";
+                  const isInlineCredit = r.cuenta_codigo !== "12.4" && r.cuenta_codigo !== "12.5" && Number(r.iva_bs ?? 0) > 0;
+                  const bs = isInlineCredit ? Number(r.iva_bs ?? 0) : Number(r.monto_bs ?? 0);
+                  const usd = isInlineCredit
+                    ? (Number(r.tasa_paralela ?? 0) > 0 ? bs / Number(r.tasa_paralela) : (Number(r.tasa_bcv ?? 0) > 0 ? bs / Number(r.tasa_bcv) : 0))
+                    : Number(r.monto_usd ?? 0);
                   return (
                     <tr key={r.id} className="border-b last:border-0">
                       <td className="py-1.5 px-2 mono">{fmtDate(r.fecha)}</td>
@@ -268,8 +289,8 @@ function ImpuestosPage() {
                       <td className="py-1.5 px-2">{r.centro_costo ?? "—"}</td>
                       <td className="py-1.5 px-2 mono text-xs">{r.numero_factura ?? "—"}</td>
                       <td className="py-1.5 px-2 text-xs text-muted-foreground">{r.referencia ?? "—"}</td>
-                      <td className="py-1.5 px-2 mono text-right">{fmtBs(Number(r.monto_bs ?? 0))}</td>
-                      <td className="py-1.5 px-2 mono text-right font-semibold">{fmtUsd(Number(r.monto_usd ?? 0))}</td>
+                      <td className="py-1.5 px-2 mono text-right">{fmtBs(bs)}</td>
+                      <td className="py-1.5 px-2 mono text-right font-semibold">{fmtUsd(usd)}</td>
                       <td className="py-1.5 px-2 text-muted-foreground text-xs">{r.notas ?? "—"}</td>
                     </tr>
                   );
