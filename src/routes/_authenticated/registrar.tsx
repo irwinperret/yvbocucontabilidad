@@ -1160,27 +1160,27 @@ function GastosFacturaForm() {
     if (!pendiente && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const grupoIdGasto = crypto.randomUUID();
-    // Branch exacto: CxP pendiente usa BCV; pago inmediato usa paralelo.
     const tasaParaContable = tasaParalelaN || tasaN;
-    const grupoTransaccionGasto = aplicaciones.length > 0 ? grupoIdGasto : null;
+    const tieneIva = ivaAplica && iva > 0;
     const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
     const aplicadoBsFactura = +(aplicadoUsdFactura * tasaN).toFixed(2);
     const cxpSaldoBs = Math.max(0, +(total - aplicadoBsFactura).toFixed(2));
     const cxpSaldoUsd = Math.max(0, +(totalUsd - aplicadoUsdFactura).toFixed(2));
-    // Si hay anticipo aplicado, la factura se trata como pendiente para que la CxP
-    // refleje el neto y la aplicación descuente correctamente. Si el usuario NO eligió
-    // "pendiente", se liquida el remanente en efectivo justo después.
     const tieneAnticipo = aplicaciones.length > 0;
     const efectivoTrasAnticipo = !pendiente && tieneAnticipo && cxpSaldoBs > 0.01;
-    const facturaPendienteEfectiva = pendiente || tieneAnticipo; // siempre crear CxP cuando hay anticipo
-    const montoUsdGasto = facturaPendienteEfectiva
-      ? (tasaN > 0 ? +(base / tasaN).toFixed(2) : 0)
-      : (tasaParaContable > 0 ? +(base / tasaParaContable).toFixed(2) : 0);
+    const facturaPendienteEfectiva = pendiente || tieneAnticipo;
+    // El grupo enlaza la fila principal con su leg de IVA y/o aplicaciones de anticipo.
+    const grupoTransaccionGasto = (tieneAnticipo || tieneIva) ? grupoIdGasto : null;
+    // CxP pendiente usa BCV (valor deuda); pago inmediato usa paralelo (contable).
+    const divisorUsdMain = facturaPendienteEfectiva ? tasaN : tasaParaContable;
+    const montoUsdGastoBase = divisorUsdMain > 0 ? +(base / divisorUsdMain).toFixed(2) : 0;
+    const montoUsdIva = tieneIva && divisorUsdMain > 0 ? +(iva / divisorUsdMain).toFixed(2) : 0;
+    // Fila principal: solo NETO (sin IVA). El IVA va en una fila aparte a cuenta 12.5.
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-      monto_bs: total, monto_base_bs: base, iva_bs: iva,
-      iva_aplica: ivaAplica && iva > 0, tipo_iva: ivaAplica && iva > 0 ? "credito_fiscal" : null,
-      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: montoUsdGasto,
+      monto_bs: base, monto_base_bs: base, iva_bs: 0,
+      iva_aplica: false, tipo_iva: null,
+      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: montoUsdGastoBase,
       metodo_pago: facturaPendienteEfectiva ? "pendiente" : (metodo as any),
       tercero_id: terceroId || null, numero_factura: numFactura, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
@@ -1190,6 +1190,22 @@ function GastosFacturaForm() {
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    // Leg IVA crédito fiscal (12.5) — fila separada
+    if (tieneIva) {
+      const { insertIvaLeg } = await import("@/lib/iva-helpers");
+      await insertIvaLeg({
+        fecha, centro_costo: centro as any,
+        modo: offBalance ? "off_balance" : "on_balance",
+        monto_bs_iva: iva, monto_usd_iva: montoUsdIva,
+        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
+        tercero_id: terceroId || null, numero_factura: numFactura,
+        cuenta_bancaria_id: !facturaPendienteEfectiva && cuentaBancariaId ? cuentaBancariaId : null,
+        notas: notas || null,
+        created_by: user.id,
+        grupo_transaccion_id: grupoIdGasto,
+        tipo: "credito",
+      });
+    }
     // Crear CxP por el saldo (neto del anticipo) cuando aplique
     let cxpId: string | null = null;
     if (facturaPendienteEfectiva && tx && cxpSaldoBs > 0.01) {
@@ -1232,14 +1248,11 @@ function GastosFacturaForm() {
     }
     // Si NO era pendiente original y queda remanente, pagarlo de inmediato
     if (efectivoTrasAnticipo && tx && cxpId) {
-      const baseRatio = total > 0 ? base / total : 1;
-      const pagoBaseBs = +(cxpSaldoBs * baseRatio).toFixed(2);
-      const pagoIvaBs = +(cxpSaldoBs - pagoBaseBs).toFixed(2);
-      const usdPago = tasaParalelaN > 0 ? +(pagoBaseBs / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(pagoBaseBs / tasaN).toFixed(2) : cxpSaldoUsd);
+      const usdPago = tasaParaContable > 0 ? +(cxpSaldoBs / tasaParaContable).toFixed(2) : cxpSaldoUsd;
       const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-        monto_bs: cxpSaldoBs, monto_base_bs: pagoBaseBs, iva_bs: pagoIvaBs,
-        iva_aplica: pagoIvaBs > 0, tipo_iva: pagoIvaBs > 0 ? "credito_fiscal" : null,
+        monto_bs: cxpSaldoBs, monto_base_bs: cxpSaldoBs, iva_bs: 0,
+        iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: usdPago,
         metodo_pago: metodo as any,
         cuenta_bancaria_id: cuentaBancariaId || null,
@@ -1257,6 +1270,7 @@ function GastosFacturaForm() {
         monto_pendiente_bs: 0,
       }).eq("id", cxpId);
     }
+
     setBusy(false);
     const msg = tieneAnticipo
       ? (cxpSaldoBs <= 0.01
@@ -2680,16 +2694,13 @@ function CierreForm() {
         setCompraBusy(false);
         return toast.error("Falta cuenta bancaria para pagar el remanente del anticipo");
       }
-      const compraBaseRatio = montoBs > 0 ? compraBase / montoBs : 1;
-      const pagoBaseBsCompra = +(cxpSaldoBsCompra * compraBaseRatio).toFixed(2);
-      const pagoIvaBsCompra = +(cxpSaldoBsCompra - pagoBaseBsCompra).toFixed(2);
       const usdPago = compraTasaParalelaRefN > 0
-        ? +(pagoBaseBsCompra / compraTasaParalelaRefN).toFixed(2)
-        : (tasaN > 0 ? +(pagoBaseBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
+        ? +(cxpSaldoBsCompra / compraTasaParalelaRefN).toFixed(2)
+        : (tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
       const { error: ePago } = await supabase.from("transacciones").insert({
         fecha: compraFecha, cuenta_codigo: "9.1", centro_costo: "Compartido" as any,
-        monto_bs: cxpSaldoBsCompra, monto_base_bs: pagoBaseBsCompra, iva_bs: pagoIvaBsCompra,
-        iva_aplica: pagoIvaBsCompra > 0, tipo_iva: pagoIvaBsCompra > 0 ? "credito_fiscal" : null,
+        monto_bs: cxpSaldoBsCompra, monto_base_bs: cxpSaldoBsCompra, iva_bs: 0,
+        iva_aplica: false, tipo_iva: null,
         tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: compraTasaParalelaRefN || null, monto_usd: usdPago,
         metodo_pago: "transferencia" as any,
         cuenta_bancaria_id: compraCuentaBanco,

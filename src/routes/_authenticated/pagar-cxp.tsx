@@ -260,19 +260,16 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       }
     }
 
-    // 2) Pago en efectivo / transferencia por el remanente
+    // 2) Pago en efectivo / transferencia por el remanente (fila única, sin split IVA)
     if (total > 0) {
-      const baseRatio = Number(txOrig?.monto_bs ?? cxp.monto_bs ?? 0) > 0 ? Number(txOrig?.monto_base_bs ?? cxp.monto_bs ?? 0) / Number(txOrig?.monto_bs ?? cxp.monto_bs ?? 0) : 1;
-      const pagoBaseBs = +(total * baseRatio).toFixed(2);
-      const pagoIvaBs = +(total - pagoBaseBs).toFixed(2);
-      const usdPagoBase = tasaParalelaN > 0 ? +(pagoBaseBs / tasaParalelaN).toFixed(2) : (tasaN ? +(pagoBaseBs / tasaN).toFixed(2) : 0);
+      const usdPago = tasaParalelaN > 0 ? +(total / tasaParalelaN).toFixed(2) : (tasaN ? +(total / tasaN).toFixed(2) : 0);
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha,
         cuenta_codigo: txOrig?.cuenta_codigo ?? "9.1",
         centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
-        monto_bs: total, monto_base_bs: pagoBaseBs, iva_bs: pagoIvaBs,
-        iva_aplica: pagoIvaBs > 0, tipo_iva: pagoIvaBs > 0 ? "credito_fiscal" : null,
-        tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usdPagoBase,
+        monto_bs: total, monto_base_bs: total, iva_bs: 0,
+        iva_aplica: false, tipo_iva: null,
+        tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usdPago,
         metodo_pago: metodo as any,
         referencia: ref || null,
         notas: `Pago CxP — ${cxp.proveedor} · Fact ${cxp.numero_factura}${notas ? " · " + notas : ""}`,
