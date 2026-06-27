@@ -1410,7 +1410,7 @@ function GastosFacturaForm() {
           )}
           <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
             <span className="text-sm text-muted-foreground">Equivalente · Total {fmtBs(total)}</span>
-            <span className="text-lg font-bold mono">G&P base: {fmtUsd(baseUsd)}</span>
+            <span className="text-lg font-bold mono">G&P base: {fmtUsd(baseUsdParalelo)} <span className="text-[10px] text-muted-foreground">(paralela)</span></span>
           </div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
             {sugerencias?.notasRecientes && sugerencias.notasRecientes.length > 0 && (
