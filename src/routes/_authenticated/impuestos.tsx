@@ -260,12 +260,9 @@ function ImpuestosPage() {
               </thead>
               <tbody>
                 {filtered.map((r) => {
-                  const isDeb = r.cuenta_codigo === "12.4";
-                  const isInlineCredit = r.cuenta_codigo !== "12.4" && r.cuenta_codigo !== "12.5" && Number(r.iva_bs ?? 0) > 0;
-                  const bs = isInlineCredit ? Number(r.iva_bs ?? 0) : Number(r.monto_bs ?? 0);
-                  const usd = isInlineCredit
-                    ? (Number(r.tasa_paralela ?? 0) > 0 ? bs / Number(r.tasa_paralela) : (Number(r.tasa_bcv ?? 0) > 0 ? bs / Number(r.tasa_bcv) : 0))
-                    : Number(r.monto_usd ?? 0);
+                   const isDeb = r.cuenta_codigo === "12.4";
+                   const bs = Number(r.monto_bs ?? 0);
+                   const usd = Number(r.monto_usd ?? 0);
                   return (
                     <tr key={r.id} className="border-b last:border-0">
                       <td className="py-1.5 px-2 mono">{fmtDate(r.fecha)}</td>
