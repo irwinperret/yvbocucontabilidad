@@ -1115,7 +1115,7 @@ function GastosFacturaForm() {
   }, [netoInput, ivaAplica, ivaTocado]);
   const ivaInput = ivaAplica ? (Number(montoIva) || 0) : 0;
   const totalInput = netoInput + ivaInput;
-  // Conversión Bs→USD a tasa BCV (egresos)
+  // La tasa principal documenta BCV para facturas/deuda; pagos inmediatos usan paralelo.
   const base = esUSD ? netoInput * tasaConvN : netoInput;
   const iva = esUSD ? ivaInput * tasaConvN : ivaInput;
   const total = base + iva;
@@ -1160,11 +1160,9 @@ function GastosFacturaForm() {
     if (!pendiente && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const grupoIdGasto = crypto.randomUUID();
-    // Accounting USD usa SIEMPRE paralela (memory rule). BCV solo para deuda CxP.
+    // Branch exacto: CxP pendiente usa BCV; pago inmediato usa paralelo.
     const tasaParaContable = tasaParalelaN || tasaN;
-    const ivaUsdGasto = ivaAplica && tasaParaContable > 0 ? +(iva / tasaParaContable).toFixed(2) : 0;
-    const baseUsdContable = tasaParaContable > 0 ? +(base / tasaParaContable).toFixed(2) : 0;
-    const grupoTransaccionGasto = aplicaciones.length > 0 || ivaAplica ? grupoIdGasto : null;
+    const grupoTransaccionGasto = aplicaciones.length > 0 ? grupoIdGasto : null;
     const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
     const aplicadoBsFactura = +(aplicadoUsdFactura * tasaN).toFixed(2);
     const cxpSaldoBs = Math.max(0, +(total - aplicadoBsFactura).toFixed(2));
@@ -1175,11 +1173,14 @@ function GastosFacturaForm() {
     const tieneAnticipo = aplicaciones.length > 0;
     const efectivoTrasAnticipo = !pendiente && tieneAnticipo && cxpSaldoBs > 0.01;
     const facturaPendienteEfectiva = pendiente || tieneAnticipo; // siempre crear CxP cuando hay anticipo
+    const montoUsdGasto = facturaPendienteEfectiva
+      ? (tasaN > 0 ? +(total / tasaN).toFixed(2) : 0)
+      : (tasaParaContable > 0 ? +(base / tasaParaContable).toFixed(2) : 0);
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-      monto_bs: base, monto_base_bs: base, iva_bs: 0,
-      iva_aplica: false, tipo_iva: null,
-      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsdContable,
+      monto_bs: total, monto_base_bs: base, iva_bs: iva,
+      iva_aplica: ivaAplica && iva > 0, tipo_iva: ivaAplica && iva > 0 ? "credito_fiscal" : null,
+      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: montoUsdGasto,
       metodo_pago: facturaPendienteEfectiva ? "pendiente" : (metodo as any),
       tercero_id: terceroId || null, numero_factura: numFactura, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
@@ -1189,21 +1190,6 @@ function GastosFacturaForm() {
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
-    if (ivaAplica && iva > 0 && tx) {
-      const { insertIvaLeg } = await import("@/lib/iva-helpers");
-      await insertIvaLeg({
-        fecha, centro_costo: centro as any,
-        modo: offBalance ? "off_balance" : "on_balance",
-        monto_bs_iva: iva, monto_usd_iva: ivaUsdGasto,
-        tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null,
-        tercero_id: terceroId || null,
-        numero_factura: numFactura,
-        notas: notas || null,
-        created_by: user.id,
-        grupo_transaccion_id: grupoIdGasto,
-        tipo: "credito",
-      });
-    }
     // Crear CxP por el saldo (neto del anticipo) cuando aplique
     let cxpId: string | null = null;
     if (facturaPendienteEfectiva && tx && cxpSaldoBs > 0.01) {
@@ -1244,10 +1230,14 @@ function GastosFacturaForm() {
     }
     // Si NO era pendiente original y queda remanente, pagarlo de inmediato
     if (efectivoTrasAnticipo && tx && cxpId) {
-      const usdPago = tasaParalelaN > 0 ? +(cxpSaldoBs / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(cxpSaldoBs / tasaN).toFixed(2) : cxpSaldoUsd);
+      const baseRatio = total > 0 ? base / total : 1;
+      const pagoBaseBs = +(cxpSaldoBs * baseRatio).toFixed(2);
+      const pagoIvaBs = +(cxpSaldoBs - pagoBaseBs).toFixed(2);
+      const usdPago = tasaParalelaN > 0 ? +(pagoBaseBs / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(pagoBaseBs / tasaN).toFixed(2) : cxpSaldoUsd);
       const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
-        monto_bs: cxpSaldoBs, monto_base_bs: cxpSaldoBs, iva_bs: 0,
+        monto_bs: cxpSaldoBs, monto_base_bs: pagoBaseBs, iva_bs: pagoIvaBs,
+        iva_aplica: pagoIvaBs > 0, tipo_iva: pagoIvaBs > 0 ? "credito_fiscal" : null,
         tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: usdPago,
         metodo_pago: metodo as any,
         cuenta_bancaria_id: cuentaBancariaId || null,
@@ -2563,7 +2553,7 @@ function CierreForm() {
     if (!compraOffBalance && compraPagada && !compraCuentaBanco) return toast.error("Indica cuenta bancaria");
     setCompraBusy(true);
 
-    // Total Bs/USD usando tasa paralela (compras COGS valoradas a paralela)
+    // Total Bs de la factura: base neta + IVA.
     const totalInputCompra = compraNetoInput + compraIvaInput;
     const montoBs = esCompraUSD ? totalInputCompra * tasaN : totalInputCompra;
     const montoUsd = esCompraUSD ? totalInputCompra : (tasaN ? totalInputCompra / tasaN : 0);
@@ -2603,8 +2593,11 @@ function CierreForm() {
     const grupoId = tieneAnticipoCompra ? crypto.randomUUID() : null;
 
     // 1) Insertar snapshot de compra (COGS) primero
-    const tasaParaContableCompra = compraTasaParalelaRefN || bcvCompraN || tasaN;
-    const montoUsdContable = tasaParaContableCompra > 0 ? +(montoBs / tasaParaContableCompra).toFixed(2) : montoUsd;
+    const compraEsPendiente = !compraOffBalance && !snapshotPagada;
+    const tasaParaContableCompra = compraEsPendiente ? (bcvCompraN || tasaN) : (compraTasaParalelaRefN || bcvCompraN || tasaN);
+    const montoUsdContable = compraEsPendiente
+      ? (tasaParaContableCompra > 0 ? +(montoBs / tasaParaContableCompra).toFixed(2) : montoUsd)
+      : (tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : 0);
     const baseUsdContableCompra = tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : 0;
     const ivaUsdContableCompra = tasaParaContableCompra > 0 ? +(compraIva / tasaParaContableCompra).toFixed(2) : 0;
     const { data: snap, error } = await supabase.from("inventario_snapshots").insert({
@@ -2929,7 +2922,7 @@ function CierreForm() {
                 <div>Equivalente total: <span className="mono font-semibold">{esCompraUSD ? fmtBs(compraTotal) : fmtUsd(compraTasaN ? compraTotalInput / compraTasaN : 0)}</span> <span className="text-[10px] text-muted-foreground">(USD BCV)</span></div>
                 <div>USD paralelo (ref): <span className="mono font-semibold">{compraTasaParalelaRefN > 0 ? fmtUsd(compraTotal / compraTasaParalelaRefN) : "—"}</span></div>
                 <div className="col-span-2 text-muted-foreground text-xs">
-                  Para la contabilidad (compras de inventario) se usa la tasa BCV del día como divisor del USD de la deuda. IVA se contabiliza por separado en cuenta 12.5.
+                  CxP pendiente usa BCV para denominar la deuda; compra pagada al contado usa paralelo. El IVA queda separado en la misma fila.
                 </div>
               </div>
             )}
@@ -2956,7 +2949,7 @@ function CierreForm() {
                     <th>Proveedor</th>
                     <th>N° fact.</th>
                     <th className="text-right">Monto Bs</th>
-                    <th className="text-right">USD (BCV)</th>
+                    <th className="text-right">USD base</th>
                     <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
@@ -2965,8 +2958,7 @@ function CierreForm() {
                   {(compras ?? []).map((c: any) => {
                     const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
                     const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
-                    const tb = Number(c.tasa_bcv) || bcvByFecha.get(c.fecha) || tasaPromedio;
-                    const usdPar = tb ? base / tb : null;
+                    const usdPar = Number(c.monto_base_usd ?? c.monto_usd) || null;
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
