@@ -2694,16 +2694,13 @@ function CierreForm() {
         setCompraBusy(false);
         return toast.error("Falta cuenta bancaria para pagar el remanente del anticipo");
       }
-      const compraBaseRatio = montoBs > 0 ? compraBase / montoBs : 1;
-      const pagoBaseBsCompra = +(cxpSaldoBsCompra * compraBaseRatio).toFixed(2);
-      const pagoIvaBsCompra = +(cxpSaldoBsCompra - pagoBaseBsCompra).toFixed(2);
       const usdPago = compraTasaParalelaRefN > 0
-        ? +(pagoBaseBsCompra / compraTasaParalelaRefN).toFixed(2)
-        : (tasaN > 0 ? +(pagoBaseBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
+        ? +(cxpSaldoBsCompra / compraTasaParalelaRefN).toFixed(2)
+        : (tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
       const { error: ePago } = await supabase.from("transacciones").insert({
         fecha: compraFecha, cuenta_codigo: "9.1", centro_costo: "Compartido" as any,
-        monto_bs: cxpSaldoBsCompra, monto_base_bs: pagoBaseBsCompra, iva_bs: pagoIvaBsCompra,
-        iva_aplica: pagoIvaBsCompra > 0, tipo_iva: pagoIvaBsCompra > 0 ? "credito_fiscal" : null,
+        monto_bs: cxpSaldoBsCompra, monto_base_bs: cxpSaldoBsCompra, iva_bs: 0,
+        iva_aplica: false, tipo_iva: null,
         tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: compraTasaParalelaRefN || null, monto_usd: usdPago,
         metodo_pago: "transferencia" as any,
         cuenta_bancaria_id: compraCuentaBanco,
