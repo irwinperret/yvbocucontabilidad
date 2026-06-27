@@ -1,55 +1,64 @@
-# Verificación de COGS/Compras, auditoría histórica y pago de CxP inline
 
-## Objetivo
-Cerrar los pendientes implícitos del último ciclo: confirmar que el cambio BCV/Paralela + split de IVA quedó correctamente aplicado en COGS, auditar registros históricos por si quedaron mal, y validar que `pagar-cxp-inline.tsx` reutiliza la misma lógica que `pagar-cxp.tsx`.
+# IVA en compras/gastos como 2 filas reales
 
-## Pasos
+Ventas ya está correcto (split 12.4 + cuenta de ingreso). Solo aplica a **COGS/Compras** y **Gastos/Facturas**, en adelante y retroactivo.
 
-### 1. Verificación en vivo de COGS/Compras (Playwright)
-- Levantar `localhost:8080`, restaurar sesión Supabase desde env.
-- Navegar a `/registrar`, ir al tab **COGS/Compras**.
-- Capturar screenshot inicial.
-- Llenar formulario: proveedor, monto neto, IVA 16%, fecha hoy.
-- Verificar visualmente:
-  - "Tasa BCV del día" es el input principal y tiene un valor distinto a "Tasa paralela (referencia)".
-  - Panel de equivalencia muestra **USD BCV** y **USD paralelo (ref)** como valores distintos.
-  - Campos `montoNeto` e `IVA` son inputs separados.
-- Submit y leer transacción recién creada en DB:
-  - Confirmar `monto_base_bs` + `iva_bs` separados.
-  - Confirmar `monto_usd = monto_bs / tasa_bcv` (no paralela).
-  - Confirmar leg IVA (cuenta 12.5) creado con su propio `grupo_transaccion_id`.
+## Cambios de comportamiento
 
-### 2. Misma verificación en Gastos/Facturas
-- Repetir paso 1 en el tab Gastos/Facturas (cuentas 3.x / 5.x).
-- Confirmar tasas distintas, split IVA, divisor BCV.
+Al registrar un gasto/compra con IVA, se insertan **dos transacciones** vinculadas por un mismo `grupo_transaccion_id`:
 
-### 3. Auditoría histórica
-- Query a `transacciones` para COGS y Gastos en los últimos 60 días:
-  - Buscar filas donde `tasa_bcv = tasa_paralela` con ambos no nulos → sospecha de bug previo.
-  - Buscar filas con IVA aplicado sin leg 12.5 hermano por `grupo_transaccion_id`.
-  - Buscar CxP donde `tasa_bcv_factura = tasa_paralela_factura` (snapshots iguales).
-- Producir lista de IDs afectados; si hay >0, preparar migración de corrección retroactiva (recalcular `monto_usd` con BCV correcta del día, snapshots de CxP).
+1. **Fila principal** (cuenta de gasto/COGS, p. ej. 4.2, 6.2):
+   - `monto_bs` = monto **neto** (sin IVA)
+   - `monto_base_bs` = monto neto, `iva_bs` = 0, `iva_aplica` = false
+   - `monto_usd` = neto / `tasa_paralela` si pago al contado, neto / `tasa_bcv` si CxP
+2. **Fila IVA** cuenta **12.5 "IVA crédito fiscal"**:
+   - `monto_bs` = IVA en Bs
+   - `monto_base_bs` = IVA, `iva_bs` = 0, `iva_aplica` = false (marcador `tipo_iva = 'credito_fiscal'`)
+   - `monto_usd` = IVA / mismo divisor que la fila principal (paralela si contado, BCV si CxP)
+   - `metodo_pago`, `tercero_id`, `fecha`, `centro_costo`, `modo` heredados
+   - `notas`: prefijo "IVA crédito fiscal — " + nota original
 
-### 4. Pago de CxP inline desde Registrar
-- `src/components/pagar-cxp-inline.tsx` ya delega en `PagoModal` (de `pagar-cxp.tsx`) → hereda automáticamente la lógica BCV→Paralela. **Sólo verificar**, no reescribir.
-- Test en vivo: desde `/registrar`, elegir flujo "Pagar factura pendiente (CxP)" en COGS y en Gastos. Seleccionar una CxP abierta, abrir modal, confirmar:
-  - Muestra `usd_bcv_factura` como deuda.
-  - Calcula `monto_bs_a_pagar = usd_bcv_pendiente × tasa_bcv_hoy`.
-  - `monto_usd` de la transacción de pago usa paralela.
-  - No genera transacción separada 11.1/11.2 (diferencial implícito).
-- Confirmar también que el tab muestra correctamente el badge "Pago CxP" en `/transacciones`.
+Si IVA = 0 → solo se inserta la fila principal (como hoy ventas sin IVA).
 
-### 5. Reporte
-- Resumir: qué pasó la verificación, cuántos registros históricos quedaron afectados, qué migración correctiva se aplicó (si aplica).
-- Si todo OK, cerrar pendientes.
+## CxP
 
-## Detalles técnicos
-- Verificación en vivo: Playwright headless en `/tmp/browser/cogs-audit/`, viewport 1280×1800.
-- Auditoría: queries de solo lectura primero; cualquier UPDATE va por migración con justificación por fila.
-- No tocar lógica del `PagoModal` salvo que la verificación demuestre un bug.
-- No modificar `aplicar_anticipo_a_factura` (fuera de scope).
+`cuentas_por_pagar.monto_bs` y `monto_pendiente_bs` siguen reflejando el **total con IVA** (lo que efectivamente se le debe al proveedor). `monto_usd` y snapshots BCV/paralela se calculan sobre el **total**, no sobre el neto. La fila vinculada vía `transaccion_id` sigue siendo la principal (cuenta de gasto/COGS); la fila 12.5 queda únicamente atada por `grupo_transaccion_id` (no genera CxP propia).
 
-## Fuera de scope
-- Cambios de UI/UX más allá de etiquetas si la verificación los descubre.
-- Refactor de `pagar-cxp.tsx`.
-- Anticipos a proveedores (ya cerrado en ciclos anteriores).
+## Pago de CxP (`pagar-cxp.tsx` y `pagar-cxp-inline.tsx`)
+
+El pago sigue siendo **una sola fila** a la cuenta de banco/efectivo por el monto total pagado (neto + IVA proporcional). No se divide el pago en 2; el IVA ya quedó registrado al momento de la factura. Se elimina la división `pagoBaseBs/pagoIvaBs` introducida en el último cambio y se vuelve a usar `monto_bs_a_pagar` completo, `monto_usd` = `monto_bs_a_pagar / tasa_paralela` (FX implícito).
+
+## Reporte de impuestos (`impuestos.tsx`)
+
+Volver a leer IVA crédito fiscal **solo** desde transacciones de cuenta `12.5` (quitar el `or iva_bs.gt.0`). IVA débito fiscal sigue desde `12.4` (ventas ya lo hacen así).
+
+## Visualización en Transacciones
+
+Quitar el "+ IVA …" stacked introducido en el turno anterior — ya no hace falta porque las 2 filas existen físicamente y se muestran como filas independientes. Agregar un pequeño badge "vinculado" cuando `grupo_transaccion_id` apunta al mismo grupo, para que el usuario vea visualmente que las 2 líneas pertenecen al mismo registro (opcional, podemos omitirlo si prefieres).
+
+## Backfill retroactivo (migración de datos)
+
+Para cada transacción de cuentas de gasto/COGS con `iva_bs > 0` y sin fila 12.5 hermana en su `grupo_transaccion_id`:
+
+1. Crear nueva fila 12.5 con `monto_bs = iva_bs`, mismos `fecha/tercero/centro/metodo_pago/modo`, `monto_usd` recalculado con la misma tasa/divisor que la principal, `grupo_transaccion_id` = el de la principal (o uno nuevo si era null, y se actualiza también la principal).
+2. Ajustar la fila principal: `monto_bs = monto_base_bs` (quitar el IVA del total), `iva_bs = 0`, `iva_aplica = false`, `monto_usd` recalculado sobre el neto.
+3. CxP vinculada: mantener `monto_bs` total con IVA (cliente ya pagó/debe el total). Solo recalcular `monto_usd` y snapshots si el cambio anterior los había puesto sobre el neto.
+4. Reporte previo de cuántas filas se tocan antes de ejecutar.
+
+## Archivos a tocar
+
+- `src/routes/_authenticated/registrar.tsx` — `submit` (GastosFacturaForm) y `addCompra` (CogsForm): insertar fila 12.5 hermana, fila principal con `monto_bs = neto`, `iva_bs = 0`.
+- `src/routes/_authenticated/pagar-cxp.tsx` — revertir `pagoBaseBs/pagoIvaBs`, pago = una sola fila al total.
+- `src/routes/_authenticated/pagar-cxp-inline.tsx` — mismo cambio.
+- `src/routes/_authenticated/impuestos.tsx` — leer crédito fiscal solo de 12.5.
+- `src/routes/_authenticated/transacciones.tsx` — quitar render stacked "+ IVA …".
+- Migración SQL de backfill (data-only, vía insert tool).
+
+## Verificación post-cambio
+
+Registrar un gasto de prueba (neto 62.221, IVA 16%, contado, tasa paralela ≠ BCV) y confirmar:
+- 2 filas en `transacciones` con mismo `grupo_transaccion_id`
+- Principal: `monto_bs = 62.221`, `monto_usd = 62221 / tasa_paralela`
+- 12.5: `monto_bs = 9.955,36`, `monto_usd = 9955.36 / tasa_paralela`
+- Tabla Transacciones muestra 2 filas separadas
+- Reporte de Impuestos suma correctamente el crédito fiscal del mes
