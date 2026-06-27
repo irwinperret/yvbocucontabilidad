@@ -1160,7 +1160,10 @@ function GastosFacturaForm() {
     if (!pendiente && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
     const grupoIdGasto = crypto.randomUUID();
-    const ivaUsdGasto = ivaAplica && tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0;
+    // Accounting USD usa SIEMPRE paralela (memory rule). BCV solo para deuda CxP.
+    const tasaParaContable = tasaParalelaN || tasaN;
+    const ivaUsdGasto = ivaAplica && tasaParaContable > 0 ? +(iva / tasaParaContable).toFixed(2) : 0;
+    const baseUsdContable = tasaParaContable > 0 ? +(base / tasaParaContable).toFixed(2) : 0;
     const grupoTransaccionGasto = aplicaciones.length > 0 || ivaAplica ? grupoIdGasto : null;
     const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
     const aplicadoBsFactura = +(aplicadoUsdFactura * tasaN).toFixed(2);
@@ -1176,7 +1179,7 @@ function GastosFacturaForm() {
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
       monto_bs: base, monto_base_bs: base, iva_bs: 0,
       iva_aplica: false, tipo_iva: null,
-      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsd,
+      tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: baseUsdContable,
       metodo_pago: facturaPendienteEfectiva ? "pendiente" : (metodo as any),
       tercero_id: terceroId || null, numero_factura: numFactura, notas: notas || null,
       modo: offBalance ? "off_balance" : "on_balance",
