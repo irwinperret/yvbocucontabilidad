@@ -94,13 +94,9 @@ function ImpuestosPage() {
     (rows ?? []).forEach((r) => {
       if (centroFiltro !== "Consolidado" && (r.centro_costo ?? "") !== centroFiltro) return;
       const m = Number(r.fecha.slice(5, 7));
-      const isInlineCredit = r.cuenta_codigo !== "12.4" && r.cuenta_codigo !== "12.5" && Number(r.iva_bs ?? 0) > 0;
-      const bs = isInlineCredit ? Number(r.iva_bs ?? 0) : Number(r.monto_bs ?? 0);
-      const usd = isInlineCredit
-        ? (Number(r.tasa_paralela ?? 0) > 0 ? bs / Number(r.tasa_paralela) : (Number(r.tasa_bcv ?? 0) > 0 ? bs / Number(r.tasa_bcv) : 0))
-        : Number(r.monto_usd ?? 0);
+      const usd = Number(r.monto_usd ?? 0);
       if (r.cuenta_codigo === "12.4") out[m].debito += usd;
-      else if (r.cuenta_codigo === "12.5" || isInlineCredit) out[m].credito += usd;
+      else if (r.cuenta_codigo === "12.5") out[m].credito += usd;
     });
     Object.values(out).forEach((r) => { r.neto = r.debito - r.credito; });
     return Object.values(out);
