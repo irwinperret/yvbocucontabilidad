@@ -2603,11 +2603,17 @@ function CierreForm() {
     const grupoId = tieneAnticipoCompra ? crypto.randomUUID() : null;
 
     // 1) Insertar snapshot de compra (COGS) primero
+    const tasaParaContableCompra = compraTasaParalelaRefN || bcvCompraN || tasaN;
+    const montoUsdContable = tasaParaContableCompra > 0 ? +(montoBs / tasaParaContableCompra).toFixed(2) : montoUsd;
+    const baseUsdContableCompra = tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : 0;
+    const ivaUsdContableCompra = tasaParaContableCompra > 0 ? +(compraIva / tasaParaContableCompra).toFixed(2) : 0;
     const { data: snap, error } = await supabase.from("inventario_snapshots").insert({
       periodo, tipo: "compra", monto_bs: montoBs,
       monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
+      monto_usd: montoUsdContable, monto_base_usd: baseUsdContableCompra, iva_usd: ivaUsdContableCompra,
       modo: compraOffBalance ? "off_balance" : "on_balance",
-      fecha: compraFecha, tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN,
+      fecha: compraFecha, tasa_bcv: bcvCompraN || tasaN,
+      tasa_paralela: compraTasaParalelaRefN || null,
       tercero_id: compraTerceroId, numero_factura: compraNumFactura,
       pagada: snapshotPagada,
       cuenta_bancaria_id: snapshotBanco,
