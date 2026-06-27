@@ -106,11 +106,8 @@ function ImpuestosPage() {
     const headers = ["Fecha", "Tipo", "Centro", "N° Factura", "Referencia", "Monto Bs", "Monto USD", "Tasa BCV", "Notas"];
     const lines = [headers.join(",")];
     filtered.forEach((r) => {
-        const isInlineCredit = r.cuenta_codigo !== "12.4" && r.cuenta_codigo !== "12.5" && Number(r.iva_bs ?? 0) > 0;
-        const bs = isInlineCredit ? Number(r.iva_bs ?? 0) : Number(r.monto_bs ?? 0);
-        const usd = isInlineCredit
-          ? (Number(r.tasa_paralela ?? 0) > 0 ? bs / Number(r.tasa_paralela) : (Number(r.tasa_bcv ?? 0) > 0 ? bs / Number(r.tasa_bcv) : 0))
-          : Number(r.monto_usd ?? 0);
+        const bs = Number(r.monto_bs ?? 0);
+        const usd = Number(r.monto_usd ?? 0);
         const tipo = r.cuenta_codigo === "12.4" ? "IVA Débito (Venta)" : "IVA Crédito (Compra)";
       const row = [
         r.fecha,
