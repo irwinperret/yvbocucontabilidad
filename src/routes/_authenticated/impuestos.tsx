@@ -74,13 +74,10 @@ function ImpuestosPage() {
   const totales = useMemo(() => {
     let debUsd = 0, debBs = 0, credUsd = 0, credBs = 0;
     filtered.forEach((r) => {
-      const isInlineCredit = r.cuenta_codigo !== "12.4" && r.cuenta_codigo !== "12.5" && Number(r.iva_bs ?? 0) > 0;
-      const bs = isInlineCredit ? Number(r.iva_bs ?? 0) : Number(r.monto_bs ?? 0);
-      const usd = isInlineCredit
-        ? (Number(r.tasa_paralela ?? 0) > 0 ? bs / Number(r.tasa_paralela) : (Number(r.tasa_bcv ?? 0) > 0 ? bs / Number(r.tasa_bcv) : 0))
-        : Number(r.monto_usd ?? 0);
+      const bs = Number(r.monto_bs ?? 0);
+      const usd = Number(r.monto_usd ?? 0);
       if (r.cuenta_codigo === "12.4") { debUsd += usd; debBs += bs; }
-      else if (r.cuenta_codigo === "12.5" || isInlineCredit) { credUsd += usd; credBs += bs; }
+      else if (r.cuenta_codigo === "12.5") { credUsd += usd; credBs += bs; }
     });
     return {
       debUsd, debBs, credUsd, credBs,
