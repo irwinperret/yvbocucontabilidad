@@ -19,6 +19,8 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 
+const CUENTA_PAGO_CXP = "13.2";
+
 export const Route = createFileRoute("/_authenticated/pagar-cxp")({ component: PagarCxPPage });
 
 function PagarCxPPage() {
@@ -260,12 +262,13 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       }
     }
 
-    // 2) Pago en efectivo / transferencia por el remanente (fila única, sin split IVA)
+    // 2) Pago en efectivo / transferencia por el remanente.
+    // Usa una cuenta puente sin G&P: el gasto ya fue reconocido en la factura original.
     if (total > 0) {
       const usdPago = tasaParalelaN > 0 ? +(total / tasaParalelaN).toFixed(2) : (tasaN ? +(total / tasaN).toFixed(2) : 0);
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha,
-        cuenta_codigo: txOrig?.cuenta_codigo ?? "9.1",
+        cuenta_codigo: CUENTA_PAGO_CXP,
         centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
         monto_bs: total, monto_base_bs: total, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,

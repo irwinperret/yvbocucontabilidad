@@ -23,6 +23,8 @@ import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/antici
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { PagarCxPInline } from "@/components/pagar-cxp-inline";
 
+const CUENTA_PAGO_CXP = "13.2";
+
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
   validateSearch: (s: Record<string, unknown>): Search => ({ tab: s.tab as string | undefined }),
@@ -1247,18 +1249,19 @@ function GastosFacturaForm() {
       });
       if (!res.ok) { setBusy(false); return toast.error(`Anticipo: ${res.error}`); }
     }
-    // Si NO era pendiente original y queda remanente, pagarlo de inmediato
+    // Si NO era pendiente original y queda remanente, pagarlo de inmediato.
+    // El pago sale por una cuenta puente sin G&P para no duplicar el gasto ya registrado.
     if (efectivoTrasAnticipo && tx && cxpId) {
       const usdPago = tasaParaContable > 0 ? +(cxpSaldoBs / tasaParaContable).toFixed(2) : cxpSaldoUsd;
       const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
-        fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
+        fecha, cuenta_codigo: CUENTA_PAGO_CXP, centro_costo: centro as any,
         monto_bs: cxpSaldoBs, monto_base_bs: cxpSaldoBs, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: usdPago,
         metodo_pago: metodo as any,
         cuenta_bancaria_id: cuentaBancariaId || null,
         tercero_id: terceroId || null,
-        notas: `Pago inmediato de factura ${numFactura} (remanente tras anticipo)`,
+        notas: `Pago CxP — Fact ${numFactura} (remanente tras anticipo)`,
         modo: offBalance ? "off_balance" : "on_balance",
         grupo_transaccion_id: grupoIdGasto,
         created_by: user.id,
@@ -2699,14 +2702,14 @@ function CierreForm() {
         ? +(cxpSaldoBsCompra / compraTasaParalelaRefN).toFixed(2)
         : (tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
       const { error: ePago } = await supabase.from("transacciones").insert({
-        fecha: compraFecha, cuenta_codigo: "9.1", centro_costo: "Compartido" as any,
+        fecha: compraFecha, cuenta_codigo: CUENTA_PAGO_CXP, centro_costo: "Compartido" as any,
         monto_bs: cxpSaldoBsCompra, monto_base_bs: cxpSaldoBsCompra, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: compraTasaParalelaRefN || null, monto_usd: usdPago,
         metodo_pago: "transferencia" as any,
         cuenta_bancaria_id: compraCuentaBanco,
         tercero_id: compraTerceroId,
-        notas: `Pago inmediato de compra ${compraNumFactura} (remanente tras anticipo)`,
+        notas: `Pago CxP — compra ${compraNumFactura} (remanente tras anticipo)`,
         modo: "on_balance" as any,
         grupo_transaccion_id: grupoId,
         created_by: user.id,
