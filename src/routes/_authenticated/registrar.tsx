@@ -1213,10 +1213,8 @@ function GastosFacturaForm() {
     let cxpId: string | null = null;
     if (facturaPendienteEfectiva && tx && cxpSaldoBs > 0.01) {
       const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
-      const baseRatio = total > 0 ? base / total : 1;
-      const cxpBaseBs = +(cxpSaldoBs * baseRatio).toFixed(2);
-      const usdBcvCxp = tasaN > 0 ? +(cxpBaseBs / tasaN).toFixed(2) : 0;
-      const usdParCxp = tasaParalelaN > 0 ? +(cxpBaseBs / tasaParalelaN).toFixed(2) : 0;
+      const usdBcvCxp = tasaN > 0 ? +(cxpSaldoBs / tasaN).toFixed(2) : 0;
+      const usdParCxp = tasaParalelaN > 0 ? +(cxpSaldoBs / tasaParalelaN).toFixed(2) : 0;
       const { data: cxpRow, error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
         numero_factura: numFactura,
@@ -2643,10 +2641,8 @@ function CierreForm() {
     const debeCrearCxp = !compraOffBalance && !snapshotPagada && cxpSaldoBsCompra > 0.01;
     if (debeCrearCxp) {
       const prov = (terceros ?? []).find((t: any) => t.id === compraTerceroId);
-      const compraBaseRatio = montoBs > 0 ? compraBase / montoBs : 1;
-      const cxpBaseBsCompra = +(cxpSaldoBsCompra * compraBaseRatio).toFixed(2);
-      const cxpBaseUsdBcvCompra = bcvCompraN > 0 ? +(cxpBaseBsCompra / bcvCompraN).toFixed(2) : cxpSaldoUsdBcvCompra;
-      const cxpBaseUsdParCompra = compraTasaParalelaRefN > 0 ? +(cxpBaseBsCompra / compraTasaParalelaRefN).toFixed(2) : cxpSaldoUsdCompra;
+      const cxpBaseUsdBcvCompra = bcvCompraN > 0 ? +(cxpSaldoBsCompra / bcvCompraN).toFixed(2) : cxpSaldoUsdBcvCompra;
+      const cxpBaseUsdParCompra = compraTasaParalelaRefN > 0 ? +(cxpSaldoBsCompra / compraTasaParalelaRefN).toFixed(2) : cxpSaldoUsdCompra;
       const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
         numero_factura: compraNumFactura,
