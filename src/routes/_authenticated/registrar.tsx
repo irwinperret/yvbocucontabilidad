@@ -1171,8 +1171,9 @@ function GastosFacturaForm() {
     const facturaPendienteEfectiva = pendiente || tieneAnticipo;
     // El grupo enlaza la fila principal con su leg de IVA y/o aplicaciones de anticipo.
     const grupoTransaccionGasto = (tieneAnticipo || tieneIva) ? grupoIdGasto : null;
-    // CxP pendiente usa BCV (valor deuda); pago inmediato usa paralelo (contable).
-    const divisorUsdMain = facturaPendienteEfectiva ? tasaN : tasaParaContable;
+    // monto_usd contable SIEMPRE se calcula a tasa paralela (con BCV como último fallback).
+    // El valor en USD BCV (deuda) se preserva por separado en cuentas_por_pagar.usd_bcv_factura.
+    const divisorUsdMain = tasaParaContable || tasaN;
     const montoUsdGastoBase = divisorUsdMain > 0 ? +(base / divisorUsdMain).toFixed(2) : 0;
     const montoUsdIva = tieneIva && divisorUsdMain > 0 ? +(iva / divisorUsdMain).toFixed(2) : 0;
     // Fila principal: solo NETO (sin IVA). El IVA va en una fila aparte a cuenta 12.5.
