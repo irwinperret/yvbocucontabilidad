@@ -19,6 +19,8 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 
+const CUENTA_PAGO_CXP = "13.2";
+
 export const Route = createFileRoute("/_authenticated/pagar-cxp")({ component: PagarCxPPage });
 
 function PagarCxPPage() {
@@ -164,14 +166,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   const pendienteUsdBcv = cxp.monto_pendiente_usd_bcv != null
     ? Number(cxp.monto_pendiente_usd_bcv)
     : (Number(cxp.monto_bs) > 0 ? usdBcvFactura * (pendiente / Number(cxp.monto_bs)) : usdBcvFactura);
-  const origTotalBs = Number(txOrigData?.monto_bs ?? cxp.monto_bs ?? 0);
-  const origBaseBs = Number(txOrigData?.monto_base_bs ?? origTotalBs) || origTotalBs;
-  const origIvaBs = Number(txOrigData?.iva_bs ?? 0);
   const tasaFactura = Number(cxp.tasa_bcv_factura ?? txOrigData?.tasa_bcv ?? 0);
-  const baseRatioFactura = origTotalBs > 0 ? origBaseBs / origTotalBs : 1;
-  const saldoRatio = usdBcvFactura > 0 ? pendienteUsdBcv / usdBcvFactura : 1;
-  const ivaPendienteUsdBcv = tasaFactura > 0 ? +((origIvaBs / tasaFactura) * saldoRatio).toFixed(2) : 0;
-  const totalPendienteUsdBcv = +(pendienteUsdBcv + ivaPendienteUsdBcv).toFixed(2);
 
   // Anticipos: reverso en Bs usa la tasa BCV del anticipo (egresos → BCV)
   const aplicadoUsd = useMemo(
@@ -187,7 +182,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   );
 
   // Saldo USD BCV restante tras aplicar anticipos (anticipos también se expresan en USD BCV)
-  const usdBcvTrasAnticipo = Math.max(0, +(totalPendienteUsdBcv - aplicadoUsd).toFixed(2));
+  const usdBcvTrasAnticipo = Math.max(0, +(pendienteUsdBcv - aplicadoUsd).toFixed(2));
 
   const { data: bcvSug } = useQuery({
     queryKey: ["tasa-pago", fecha],
@@ -222,15 +217,13 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   // USD paralela para FC/contabilidad (mismo patrón que CxC)
   const usd = tasaParalelaN > 0 ? +(total / tasaParalelaN).toFixed(2) : (tasaN ? total / tasaN : 0);
 
-  const pagoBaseBsPreview = +(total * baseRatioFactura).toFixed(2);
-  const pagoBaseUsdBcv = tasaN > 0 ? +(pagoBaseBsPreview / tasaN).toFixed(2) : 0;
-  const cubreTodo = +(aplicadoUsd + usdBcvPagado).toFixed(2) >= +totalPendienteUsdBcv.toFixed(2) - 0.01;
+  const cubreTodo = +(aplicadoUsd + usdBcvPagado).toFixed(2) >= +pendienteUsdBcv.toFixed(2) - 0.01;
 
   const confirmar = async () => {
     if (total > 0 && !tasaN) return toast.error("Falta tasa");
     if (total > 0 && !cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
     if (total < 0) return toast.error("Monto inválido");
-    if (+(aplicadoUsd + usdBcvPagado).toFixed(2) > +totalPendienteUsdBcv.toFixed(2) + 0.01) {
+    if (+(aplicadoUsd + usdBcvPagado).toFixed(2) > +pendienteUsdBcv.toFixed(2) + 0.01) {
       return toast.error("Anticipo + pago exceden el saldo pendiente");
     }
     if (aplicaciones.length === 0 && total <= 0) return toast.error("Indica un monto a pagar o aplica un anticipo");
@@ -260,14 +253,15 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       }
     }
 
-    // 2) Pago en efectivo / transferencia por el remanente (fila única, sin split IVA)
+    // 2) Pago en efectivo / transferencia por el remanente.
+    // Usa una cuenta puente sin G&P: el gasto ya fue reconocido en la factura original.
     if (total > 0) {
       const usdPago = tasaParalelaN > 0 ? +(total / tasaParalelaN).toFixed(2) : (tasaN ? +(total / tasaN).toFixed(2) : 0);
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha,
-        cuenta_codigo: txOrig?.cuenta_codigo ?? "9.1",
+        cuenta_codigo: CUENTA_PAGO_CXP,
         centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
-        monto_bs: total, monto_base_bs: total, iva_bs: 0,
+        monto_bs: total, monto_base_bs: 0, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usdPago,
         metodo_pago: metodo as any,
@@ -292,8 +286,8 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
         monto_pendiente_usd_bcv: 0,
       }).eq("id", cxp.id);
     } else {
-      const nuevoUsdBcv = Math.max(0, +(pendienteUsdBcv - pagoBaseUsdBcv).toFixed(2));
-      const nuevoBs = Math.max(0, +(nuevoUsdBcv * (tasaFactura || Number(cxp.tasa_bcv_factura) || 1) / Math.max(baseRatioFactura, 0.000001)).toFixed(2));
+      const nuevoUsdBcv = Math.max(0, +(pendienteUsdBcv - aplicadoUsd - usdBcvPagado).toFixed(2));
+      const nuevoBs = Math.max(0, +(nuevoUsdBcv * (tasaFactura || Number(cxp.tasa_bcv_factura) || 1)).toFixed(2));
       await supabase.from("cuentas_por_pagar").update({
         monto_pendiente_bs: nuevoBs,
         monto_pendiente_usd_bcv: nuevoUsdBcv,
@@ -310,8 +304,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Registrar pago — {cxp.proveedor}</DialogTitle></DialogHeader>
         <div className="text-sm text-muted-foreground mb-2">
-          Saldo pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsdBcv)}</span> <span className="text-[10px]">(USD BCV neto)</span>
-          {ivaPendienteUsdBcv > 0 && <span className="ml-1 text-xs">+ IVA {fmtUsd(ivaPendienteUsdBcv)} BCV</span>}
+          Saldo pendiente: <span className="mono font-semibold">{fmtUsd(pendienteUsdBcv)}</span> <span className="text-[10px]">(USD BCV total factura)</span>
           {(() => {
             const tasaSnap = Number(cxp.tasa_bcv_factura) || (Number(cxp.monto_bs) > 0 && Number(cxp.monto_usd) > 0 ? Number(cxp.monto_bs) / Number(cxp.monto_usd) : 0);
             const fechaRef = cxp.created_at ? String(cxp.created_at).slice(0, 10) : null;
@@ -355,7 +348,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
             <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} className="mono" /></div>
           </div>
           <div className="rounded-md bg-muted p-2 flex justify-between text-sm">
-            <span>USD base pagada (paralelo)</span><span className="mono font-semibold">{fmtUsd(total > 0 && tasaParalelaN > 0 ? pagoBaseBsPreview / tasaParalelaN : usd)}</span>
+            <span>USD pagados (paralelo)</span><span className="mono font-semibold">{fmtUsd(usd)}</span>
           </div>
           {total > 0 && (
             <>
