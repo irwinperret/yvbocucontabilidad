@@ -270,7 +270,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
         fecha,
         cuenta_codigo: CUENTA_PAGO_CXP,
         centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
-        monto_bs: total, monto_base_bs: total, iva_bs: 0,
+        monto_bs: total, monto_base_bs: 0, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usdPago,
         metodo_pago: metodo as any,

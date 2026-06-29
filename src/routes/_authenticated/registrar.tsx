@@ -1255,7 +1255,7 @@ function GastosFacturaForm() {
       const usdPago = tasaParaContable > 0 ? +(cxpSaldoBs / tasaParaContable).toFixed(2) : cxpSaldoUsd;
       const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: CUENTA_PAGO_CXP, centro_costo: centro as any,
-        monto_bs: cxpSaldoBs, monto_base_bs: cxpSaldoBs, iva_bs: 0,
+        monto_bs: cxpSaldoBs, monto_base_bs: 0, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: usdPago,
         metodo_pago: metodo as any,
@@ -2703,7 +2703,7 @@ function CierreForm() {
         : (tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
       const { error: ePago } = await supabase.from("transacciones").insert({
         fecha: compraFecha, cuenta_codigo: CUENTA_PAGO_CXP, centro_costo: "Compartido" as any,
-        monto_bs: cxpSaldoBsCompra, monto_base_bs: cxpSaldoBsCompra, iva_bs: 0,
+        monto_bs: cxpSaldoBsCompra, monto_base_bs: 0, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: compraTasaParalelaRefN || null, monto_usd: usdPago,
         metodo_pago: "transferencia" as any,
