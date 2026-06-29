@@ -231,6 +231,64 @@ function ImportarComprasPage() {
 
         const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
 
+        // Helper para insertar par (2.1 compra + 12.5 IVA) enlazadas por grupo_transaccion_id
+        const insertCompraTransacciones = async (grupoId: string) => {
+          // 1) Cuenta 2.1 — Compras de mercancía (principal)
+          // pagada=true → monto_usd usa tasa paralela (regla de pago inmediato)
+          const usdParalela = tasas.paralela > 0 ? +(baseBs / tasas.paralela).toFixed(2) : baseUsd;
+          const { data: txCompra, error: eCompra } = await supabase.from("transacciones").insert({
+            fecha: r.fecha,
+            cuenta_codigo: "2.1",
+            centro_costo: centroDefault as any,
+            modo: offBal ? "off_balance" : "on_balance",
+            monto_bs: baseBs,
+            monto_base_bs: baseBs,
+            iva_bs: 0,
+            iva_aplica: false,
+            tipo_iva: null,
+            monto_usd: usdParalela,
+            tasa_bcv: tasas.bcv || null,
+            tasa_paralela: tasas.paralela || null,
+            metodo_pago: "transferencia" as any,
+            tercero_id: terceroId,
+            numero_factura: r.numero_factura,
+            numero_orden: r.numero_orden || null,
+            referencia: "xetux",
+            notas: notaBase,
+            created_by: user!.id,
+            grupo_transaccion_id: grupoId,
+          } as any).select().single();
+          if (eCompra) throw new Error(`2.1 ${r.numero_factura}: ${eCompra.message}`);
+
+          // 2) Pierna IVA crédito (12.5) — solo si hay IVA; nunca sin la 2.1
+          if (ivaAplica && r.iva_usd > 0) {
+            const { insertIvaLeg } = await import("@/lib/iva-helpers");
+            const ivaUsdParalela = tasas.paralela > 0 ? +(ivaBs / tasas.paralela).toFixed(2) : r.iva_usd;
+            const ivaRes = await insertIvaLeg({
+              fecha: r.fecha,
+              centro_costo: centroDefault as any,
+              modo: offBal ? "off_balance" : "on_balance",
+              monto_bs_iva: ivaBs,
+              monto_usd_iva: ivaUsdParalela,
+              tasa_bcv: tasas.bcv || null,
+              tasa_paralela: tasas.paralela || null,
+              tercero_id: terceroId,
+              numero_factura: r.numero_factura,
+              referencia: "xetux-iva",
+              notas: notaBase,
+              created_by: user!.id,
+              grupo_transaccion_id: grupoId,
+              tipo: "credito",
+            });
+            if (!ivaRes) {
+              // Rollback de la 2.1 para no dejar la compra huérfana del IVA
+              await supabase.from("transacciones").delete().eq("id", (txCompra as any).id);
+              throw new Error(`12.5 ${r.numero_factura}: no se pudo registrar IVA, se revirtió la compra`);
+            }
+          }
+          return (txCompra as any).id as string;
+        };
+
         if (existe) {
           // Duplicado: comparamos por USD (fuente de verdad). Si no cambió, saltar.
           const sameAmount = Math.abs(Number(existe.monto_usd || 0) - r.total_usd) < 0.01;
@@ -254,28 +312,22 @@ function ImportarComprasPage() {
               monto_bs: totalBs, monto_usd: r.total_usd,
             } as any).eq("id", existe.cxp_id);
           }
-          // Resync pierna IVA (12.5) — dedup por (referencia, numero_factura)
+          // Resync par de transacciones (2.1 + 12.5) — borrar ambas y reinsertar
           await supabase.from("transacciones").delete()
-            .eq("referencia", "xetux-iva").eq("numero_factura", r.numero_factura);
-          if (ivaAplica && r.iva_usd > 0) {
-            const { insertIvaLeg } = await import("@/lib/iva-helpers");
-            await insertIvaLeg({
-              fecha: r.fecha, centro_costo: "Compartido" as any,
-              modo: offBal ? "off_balance" : "on_balance",
-              monto_bs_iva: ivaBs, monto_usd_iva: r.iva_usd,
-              tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
-              tercero_id: terceroId, numero_factura: r.numero_factura,
-              referencia: "xetux-iva", notas: notaBase,
-              created_by: user.id,
-              grupo_transaccion_id: crypto.randomUUID(),
-              tipo: "credito",
-            });
+            .eq("numero_factura", r.numero_factura)
+            .in("referencia", ["xetux", "xetux-iva"]);
+          try {
+            await insertCompraTransacciones(crypto.randomUUID());
+          } catch (e: any) {
+            fail++; toast.error(e?.message ?? "error reinsertando compra");
+            continue;
           }
           upd++;
           toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
           continue;
         }
 
+        const grupoId = crypto.randomUUID();
         const { error } = await supabase.from("inventario_snapshots").insert({
           periodo, tipo: "compra",
           monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
@@ -292,20 +344,14 @@ function ImportarComprasPage() {
 
         if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
 
-        // Pierna IVA crédito (12.5) para compras nuevas
-        if (ivaAplica && r.iva_usd > 0) {
-          const { insertIvaLeg } = await import("@/lib/iva-helpers");
-          await insertIvaLeg({
-            fecha: r.fecha, centro_costo: "Compartido" as any,
-            modo: offBal ? "off_balance" : "on_balance",
-            monto_bs_iva: ivaBs, monto_usd_iva: r.iva_usd,
-            tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
-            tercero_id: terceroId, numero_factura: r.numero_factura,
-            referencia: "xetux-iva", notas: notaBase,
-            created_by: user.id,
-            grupo_transaccion_id: crypto.randomUUID(),
-            tipo: "credito",
-          });
+        // Insertar par 2.1 + 12.5 enlazados. Si falla la 2.1, no se inserta el IVA.
+        try {
+          await insertCompraTransacciones(grupoId);
+        } catch (e: any) {
+          fail++;
+          toast.error(e?.message ?? "error registrando compra en transacciones");
+          // No revertimos el snapshot — el inventario queda registrado; el usuario puede reimportar.
+          continue;
         }
         ok++;
       } catch (e: any) {
