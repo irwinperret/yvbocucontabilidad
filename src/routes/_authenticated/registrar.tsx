@@ -1251,10 +1251,12 @@ function GastosFacturaForm() {
     // El pago sale por una cuenta puente sin G&P para no duplicar el gasto ya registrado.
     if (efectivoTrasAnticipo && tx && cxpId) {
       const usdPago = tasaParaContable > 0 ? +(cxpSaldoBs / tasaParaContable).toFixed(2) : cxpSaldoUsd;
+      const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
+      const split = await calcularSplitIvaPagoCxp(grupoIdGasto, cxpSaldoBs);
       const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: CUENTA_PAGO_CXP, centro_costo: centro as any,
-        monto_bs: cxpSaldoBs, monto_base_bs: 0, iva_bs: 0,
-        iva_aplica: false, tipo_iva: null,
+        monto_bs: cxpSaldoBs, monto_base_bs: split.monto_base_bs, iva_bs: split.iva_bs,
+        iva_aplica: split.iva_bs > 0, tipo_iva: null,
         tasa_bcv: tasaN, tasa_paralela: paralelaSugerida?.tasa ?? null, monto_usd: usdPago,
         metodo_pago: metodo as any,
         cuenta_bancaria_id: cuentaBancariaId || null,
@@ -1266,6 +1268,7 @@ function GastosFacturaForm() {
       } as any).select().single();
       if (ePago) { setBusy(false); return toast.error(ePago.message); }
       if (txPago) await logAudit("transacciones", "INSERT", txPago.id, null, txPago);
+
       await supabase.from("cuentas_por_pagar").update({
         estado: "pagada",
         pagada_at: new Date().toISOString(),
@@ -2697,10 +2700,12 @@ function CierreForm() {
       const usdPago = compraTasaParalelaRefN > 0
         ? +(cxpSaldoBsCompra / compraTasaParalelaRefN).toFixed(2)
         : (tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
+      const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
+      const split = await calcularSplitIvaPagoCxp(grupoId, cxpSaldoBsCompra);
       const { error: ePago } = await supabase.from("transacciones").insert({
         fecha: compraFecha, cuenta_codigo: CUENTA_PAGO_CXP, centro_costo: "Compartido" as any,
-        monto_bs: cxpSaldoBsCompra, monto_base_bs: 0, iva_bs: 0,
-        iva_aplica: false, tipo_iva: null,
+        monto_bs: cxpSaldoBsCompra, monto_base_bs: split.monto_base_bs, iva_bs: split.iva_bs,
+        iva_aplica: split.iva_bs > 0, tipo_iva: null,
         tasa_bcv: Number(tasaCompraSug?.tasa) || tasaN, tasa_paralela: compraTasaParalelaRefN || null, monto_usd: usdPago,
         metodo_pago: "transferencia" as any,
         cuenta_bancaria_id: compraCuentaBanco,
@@ -2711,6 +2716,7 @@ function CierreForm() {
         created_by: user.id,
       } as any);
       if (ePago) { setCompraBusy(false); return toast.error(ePago.message); }
+
       await supabase.from("cuentas_por_pagar").update({
         estado: "pagada",
         pagada_at: new Date().toISOString(),

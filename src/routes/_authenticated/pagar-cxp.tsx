@@ -257,12 +257,14 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
     // Usa una cuenta puente sin G&P: el gasto ya fue reconocido en la factura original.
     if (total > 0) {
       const usdPago = tasaParalelaN > 0 ? +(total / tasaParalelaN).toFixed(2) : (tasaN ? +(total / tasaN).toFixed(2) : 0);
+      const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
+      const split = await calcularSplitIvaPagoCxp(grupoId, total);
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha,
         cuenta_codigo: CUENTA_PAGO_CXP,
         centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
-        monto_bs: total, monto_base_bs: 0, iva_bs: 0,
-        iva_aplica: false, tipo_iva: null,
+        monto_bs: total, monto_base_bs: split.monto_base_bs, iva_bs: split.iva_bs,
+        iva_aplica: split.iva_bs > 0, tipo_iva: null,
         tasa_bcv: tasaN, tasa_paralela: tasaParalelaN || null, monto_usd: usdPago,
         metodo_pago: metodo as any,
         referencia: ref || null,
@@ -273,6 +275,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
         grupo_transaccion_id: grupoId,
         created_by: userId,
       } as any).select().single();
+
       if (error) { setBusy(false); return toast.error(error.message); }
       if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
     }

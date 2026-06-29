@@ -78,3 +78,36 @@ export async function deleteIvaLegsByGrupo(grupoId: string | null | undefined) {
     .in("cuenta_codigo", ["12.4", "12.5"]);
 }
 
+/**
+ * Calcula el desglose neto/IVA de un pago CxP en proporción al IVA original de
+ * la factura (cuenta 12.5 dentro del mismo grupo_transaccion_id).
+ * NO altera monto_bs ni monto_usd; solo documenta el split para reportes.
+ */
+export async function calcularSplitIvaPagoCxp(
+  grupoId: string | null | undefined,
+  montoBsPago: number,
+): Promise<{ monto_base_bs: number; iva_bs: number; iva_ratio: number }> {
+  const fallback = { monto_base_bs: +Number(montoBsPago || 0).toFixed(2), iva_bs: 0, iva_ratio: 0 };
+  if (!grupoId || !(montoBsPago > 0)) return fallback;
+  const { data } = await supabase
+    .from("transacciones")
+    .select("cuenta_codigo, monto_bs, monto_base_bs, iva_bs")
+    .eq("grupo_transaccion_id", grupoId);
+  if (!data || data.length === 0) return fallback;
+  const ivaLeg = data.find((r: any) => r.cuenta_codigo === "12.5");
+  if (!ivaLeg) return fallback;
+  const principal = data.find(
+    (r: any) => r.cuenta_codigo !== "12.5" && r.cuenta_codigo !== "13.2"
+      && Number(r.monto_base_bs ?? r.monto_bs) > 0,
+  );
+  const neto = Number(principal?.monto_base_bs ?? principal?.monto_bs ?? 0);
+  const iva = Number(ivaLeg.monto_bs ?? 0);
+  const total = neto + iva;
+  if (!(total > 0) || !(iva > 0)) return fallback;
+  const ratio = iva / total;
+  const ivaBs = +(montoBsPago * ratio).toFixed(2);
+  const baseBs = +(montoBsPago - ivaBs).toFixed(2);
+  return { monto_base_bs: baseBs, iva_bs: ivaBs, iva_ratio: ratio };
+}
+
+
