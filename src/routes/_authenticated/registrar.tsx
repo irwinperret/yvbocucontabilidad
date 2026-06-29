@@ -2611,10 +2611,10 @@ function CierreForm() {
 
     // 1) Insertar snapshot de compra (COGS) primero
     const compraEsPendiente = !compraOffBalance && !snapshotPagada;
-    const tasaParaContableCompra = compraEsPendiente ? (bcvCompraN || tasaN) : (compraTasaParalelaRefN || bcvCompraN || tasaN);
-    const montoUsdContable = compraEsPendiente
-      ? (tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : montoUsd)
-      : (tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : 0);
+    // monto_usd contable SIEMPRE a tasa paralela (con BCV como fallback).
+    // El valor en USD BCV (deuda) se preserva en cuentas_por_pagar.usd_bcv_factura.
+    const tasaParaContableCompra = compraTasaParalelaRefN || bcvCompraN || tasaN;
+    const montoUsdContable = tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : montoUsd;
     const baseUsdContableCompra = tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : 0;
     const ivaUsdContableCompra = tasaParaContableCompra > 0 ? +(compraIva / tasaParaContableCompra).toFixed(2) : 0;
     const { data: snap, error } = await supabase.from("inventario_snapshots").insert({
