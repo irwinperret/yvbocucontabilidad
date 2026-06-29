@@ -550,9 +550,19 @@ function TransaccionesPage() {
                         const totalBs = Number(t.monto_bs) || 0;
                         const totalUsd = Number(t.monto_usd) || 0;
                         const bcvUsdTotal = Number(t.tasa_bcv) > 0 ? totalBs / Number(t.tasa_bcv) : null;
+                        const ivaBs = Number(t.iva_bs) || 0;
+                        const baseBs = Number(t.monto_base_bs) || 0;
+                        const showSplit = ivaBs > 0 && baseBs > 0;
                         return (
                           <>
-                            <td className="py-2 px-2 text-right mono">{fmtBs(totalBs)}</td>
+                            <td className="py-2 px-2 text-right mono">
+                              {showSplit ? (
+                                <div className="leading-tight">
+                                  <div>{fmtBs(baseBs)}</div>
+                                  <div className="text-[10px] text-muted-foreground font-normal">+ IVA {fmtBs(ivaBs)}</div>
+                                </div>
+                              ) : fmtBs(totalBs)}
+                            </td>
                             <td className="py-2 px-2 text-right mono">{fmtUsd(totalUsd)}</td>
                             <td className="py-2 px-2 text-right mono text-muted-foreground">
                               {bcvUsdTotal == null ? "—" : fmtUsd(bcvUsdTotal)}
@@ -560,6 +570,7 @@ function TransaccionesPage() {
                           </>
                         );
                       })()}
+
                       <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
                       <td className="py-2 px-2">
                         {t.modo === "off_balance"
