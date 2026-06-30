@@ -1317,13 +1317,13 @@ function GastosFacturaForm() {
             <div className="md:col-span-2">
               <AnticipoProveedorBanner
                 terceroId={terceroId}
-                facturaTotalUsd={baseUsd}
+                facturaTotalUsdBcv={totalUsd}
                 onAplicacionesChange={setAplicaciones}
               />
               {aplicaciones.length > 0 && (
                 <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2 flex justify-between">
-                  <span>Anticipo a aplicar: <strong className="mono">{fmtUsd(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0))}</strong></span>
-                  <span>Diferencia a pagar: <strong className="mono">{fmtUsd(Math.max(0, baseUsd - aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)))}</strong></span>
+                  <span>Anticipo a aplicar: <strong className="mono">{fmtUsd(aplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0))}</strong> <span className="text-[10px]">USD BCV</span></span>
+                  <span>Diferencia a pagar: <strong className="mono">{fmtUsd(Math.max(0, totalUsd - aplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0)))}</strong> <span className="text-[10px]">USD BCV</span></span>
                 </div>
               )}
             </div>
