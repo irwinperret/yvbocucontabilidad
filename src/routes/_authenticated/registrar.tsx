@@ -987,7 +987,11 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
 
   const montoBsN = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
-  const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+  const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
+  // USD BCV: deuda congelada del proveedor con nosotros (lo que el proveedor "reconoce")
+  const montoUsdBcv = tasaN > 0 ? +(montoBsN / tasaN).toFixed(2) : 0;
+  // USD paralelo: valor contable / FC (siguiendo la regla global)
+  const montoUsdPar = tasaParalelaN > 0 ? +(montoBsN / tasaParalelaN).toFixed(2) : montoUsdBcv;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1003,7 +1007,9 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
       fecha, cuenta_codigo: "14.2", centro_costo: centro as any,
       monto_bs: montoBsN, monto_base_bs: montoBsN, iva_bs: 0, iva_aplica: false,
       tasa_bcv: tasaN, tasa_paralela: paralelaSug?.tasa ?? null,
-      monto_usd: +montoUsd.toFixed(2),
+      monto_usd: montoUsdPar,
+      anticipo_usd_bcv: montoUsdBcv,
+      anticipo_aplicado_usd_bcv: 0,
       metodo_pago: "transferencia" as any,
       tercero_id: terceroId,
       cuenta_bancaria_id: cuentaBancariaId,
@@ -1040,9 +1046,15 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
           </div>
           <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
           <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
-          <div className="md:col-span-2 rounded-md bg-muted p-3 flex justify-between">
-            <span className="text-sm text-muted-foreground">Equivalente</span>
-            <span className="text-lg font-bold mono">{fmtUsd(montoUsd)}</span>
+          <div className="md:col-span-2 rounded-md bg-muted p-3 space-y-1">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Valor reconocido por el proveedor (USD BCV)</span>
+              <span className="font-bold mono">{fmtUsd(montoUsdBcv)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Valor contable (USD paralelo)</span>
+              <span className="mono">{fmtUsd(montoUsdPar)}</span>
+            </div>
           </div>
           <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
@@ -1164,7 +1176,8 @@ function GastosFacturaForm() {
     const grupoIdGasto = crypto.randomUUID();
     const tasaParaContable = tasaParalelaN || tasaN;
     const tieneIva = ivaAplica && iva > 0;
-    const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
+    const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0)).toFixed(2);
+    // El aplicado se expresa en USD BCV; reverso Bs = USD BCV × tasa BCV de la factura
     const aplicadoBsFactura = +(aplicadoUsdFactura * tasaN).toFixed(2);
     const cxpSaldoBs = Math.max(0, +(total - aplicadoBsFactura).toFixed(2));
     const cxpSaldoUsd = Math.max(0, +(totalUsd - aplicadoUsdFactura).toFixed(2));
@@ -1316,13 +1329,13 @@ function GastosFacturaForm() {
             <div className="md:col-span-2">
               <AnticipoProveedorBanner
                 terceroId={terceroId}
-                facturaTotalUsd={baseUsd}
+                facturaTotalUsdBcv={totalUsd}
                 onAplicacionesChange={setAplicaciones}
               />
               {aplicaciones.length > 0 && (
                 <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2 flex justify-between">
-                  <span>Anticipo a aplicar: <strong className="mono">{fmtUsd(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0))}</strong></span>
-                  <span>Diferencia a pagar: <strong className="mono">{fmtUsd(Math.max(0, baseUsd - aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)))}</strong></span>
+                  <span>Anticipo a aplicar: <strong className="mono">{fmtUsd(aplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0))}</strong> <span className="text-[10px]">USD BCV</span></span>
+                  <span>Diferencia a pagar: <strong className="mono">{fmtUsd(Math.max(0, totalUsd - aplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0)))}</strong> <span className="text-[10px]">USD BCV</span></span>
                 </div>
               )}
             </div>
@@ -2580,7 +2593,7 @@ function CierreForm() {
     const montoUsd = esCompraUSD ? totalInputCompra : (tasaN ? totalInputCompra / tasaN : 0);
     const bcvCompraN = Number(tasaCompraSug?.tasa) || tasaN;
     const montoUsdBcv = bcvCompraN > 0 ? +(montoBs / bcvCompraN).toFixed(2) : montoUsd;
-    const aplicadoUsdCompra = +(compraAplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
+    const aplicadoUsdCompra = +(compraAplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0)).toFixed(2);
     const aplicadoBsCompra = +(aplicadoUsdCompra * tasaN).toFixed(2);
     const cxpSaldoBsCompra = Math.max(0, +(montoBs - aplicadoBsCompra).toFixed(2));
     const cxpSaldoUsdCompra = Math.max(0, +(montoUsd - aplicadoUsdCompra).toFixed(2));
@@ -2875,12 +2888,12 @@ function CierreForm() {
               <div className="md:col-span-2">
                 <AnticipoProveedorBanner
                   terceroId={compraTerceroId}
-                  facturaTotalUsd={Number(esCompraUSD ? compraNetoInput + compraIvaInput : (compraTasaN ? (compraNetoInput + compraIvaInput) / compraTasaN : 0)) || 0}
+                  facturaTotalUsdBcv={Number(esCompraUSD ? compraNetoInput + compraIvaInput : (compraTasaN ? (compraNetoInput + compraIvaInput) / compraTasaN : 0)) || 0}
                   onAplicacionesChange={setCompraAplicaciones}
                 />
                 {compraAplicaciones.length > 0 && (
                   <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2">
-                    Aplicando anticipo: <strong className="mono">{fmtUsd(compraAplicaciones.reduce((s, a) => s + a.aplicarUsd, 0))}</strong>
+                    Aplicando anticipo: <strong className="mono">{fmtUsd(compraAplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0))}</strong> <span className="text-[10px]">USD BCV</span>
                   </div>
                 )}
               </div>

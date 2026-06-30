@@ -27,8 +27,11 @@ type Row = {
   tercero_id: string | null;
   proveedor: string;
   monto_bs: number;
-  monto_usd: number;
+  monto_usd: number; // USD paralelo (contable)
+  monto_usd_bcv: number; // USD BCV (deuda congelada)
+  aplicado_usd_bcv: number;
   tasa_bcv: number | null;
+  tasa_paralela: number | null;
   anticipo_estado: "abierto" | "parcialmente_aplicado" | "aplicado" | null;
   anticipo_aplicado_usd: number;
   notas: string | null;
@@ -60,7 +63,7 @@ function AnticiposProveedoresPage() {
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("transacciones")
-        .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_bcv, anticipo_estado, anticipo_aplicado_usd, notas, grupo_transaccion_id, terceros(razon_social)")
+        .select("id, fecha, tercero_id, monto_bs, monto_usd, anticipo_usd_bcv, anticipo_aplicado_usd_bcv, tasa_bcv, tasa_paralela, anticipo_estado, anticipo_aplicado_usd, notas, grupo_transaccion_id, terceros(razon_social)")
         .eq("cuenta_codigo", "14.2")
         .gt("monto_usd", 0)
         .gte("fecha", desde)
@@ -85,20 +88,32 @@ function AnticiposProveedoresPage() {
         });
       }
 
-      return (data ?? []).map((r: any) => ({
-        id: r.id,
-        fecha: r.fecha,
-        tercero_id: r.tercero_id,
-        proveedor: r.terceros?.razon_social ?? "—",
-        monto_bs: Number(r.monto_bs) || 0,
-        monto_usd: Number(r.monto_usd) || 0,
-        tasa_bcv: r.tasa_bcv != null ? Number(r.tasa_bcv) : null,
-        anticipo_estado: r.anticipo_estado ?? "abierto",
-        anticipo_aplicado_usd: Number(r.anticipo_aplicado_usd) || 0,
-        notas: r.notas,
-        grupo_transaccion_id: r.grupo_transaccion_id,
-        factura_vinculada: r.grupo_transaccion_id ? facturasMap.get(r.grupo_transaccion_id) ?? null : null,
-      }));
+      return (data ?? []).map((r: any) => {
+        const tasaBcv = r.tasa_bcv != null ? Number(r.tasa_bcv) : null;
+        const usdBcv = r.anticipo_usd_bcv != null
+          ? Number(r.anticipo_usd_bcv)
+          : (tasaBcv ? +(Number(r.monto_bs) / tasaBcv).toFixed(2) : Number(r.monto_usd) || 0);
+        const aplicadoBcv = r.anticipo_aplicado_usd_bcv != null
+          ? Number(r.anticipo_aplicado_usd_bcv)
+          : Number(r.anticipo_aplicado_usd) || 0;
+        return {
+          id: r.id,
+          fecha: r.fecha,
+          tercero_id: r.tercero_id,
+          proveedor: r.terceros?.razon_social ?? "—",
+          monto_bs: Number(r.monto_bs) || 0,
+          monto_usd: Number(r.monto_usd) || 0,
+          monto_usd_bcv: usdBcv,
+          aplicado_usd_bcv: aplicadoBcv,
+          tasa_bcv: tasaBcv,
+          tasa_paralela: r.tasa_paralela != null ? Number(r.tasa_paralela) : null,
+          anticipo_estado: r.anticipo_estado ?? "abierto",
+          anticipo_aplicado_usd: Number(r.anticipo_aplicado_usd) || 0,
+          notas: r.notas,
+          grupo_transaccion_id: r.grupo_transaccion_id,
+          factura_vinculada: r.grupo_transaccion_id ? facturasMap.get(r.grupo_transaccion_id) ?? null : null,
+        };
+      });
     },
   });
 
@@ -118,8 +133,8 @@ function AnticiposProveedoresPage() {
       let cmp = 0;
       if (sortKey === "fecha") cmp = a.fecha.localeCompare(b.fecha);
       else if (sortKey === "proveedor") cmp = a.proveedor.localeCompare(b.proveedor);
-      else if (sortKey === "monto_usd") cmp = a.monto_usd - b.monto_usd;
-      else if (sortKey === "saldo") cmp = (a.monto_usd - a.anticipo_aplicado_usd) - (b.monto_usd - b.anticipo_aplicado_usd);
+      else if (sortKey === "monto_usd") cmp = a.monto_usd_bcv - b.monto_usd_bcv;
+      else if (sortKey === "saldo") cmp = (a.monto_usd_bcv - a.aplicado_usd_bcv) - (b.monto_usd_bcv - b.aplicado_usd_bcv);
       else if (sortKey === "estado") cmp = (a.anticipo_estado ?? "").localeCompare(b.anticipo_estado ?? "");
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -128,8 +143,8 @@ function AnticiposProveedoresPage() {
 
   const kpis = useMemo(() => {
     const rows = anticipos ?? [];
-    const total = rows.reduce((s, r) => s + r.monto_usd, 0);
-    const aplicado = rows.reduce((s, r) => s + r.anticipo_aplicado_usd, 0);
+    const total = rows.reduce((s, r) => s + r.monto_usd_bcv, 0);
+    const aplicado = rows.reduce((s, r) => s + r.aplicado_usd_bcv, 0);
     const saldo = total - aplicado;
     return { total, aplicado, saldo };
   }, [anticipos]);
@@ -164,7 +179,9 @@ function AnticiposProveedoresPage() {
     const mBs = Number(editVals.monto_bs) || 0;
     const tasa = Number(editVals.tasa_bcv) || 0;
     if (!mBs || !tasa) return toast.error("Monto Bs y tasa BCV requeridos");
-    const mUsd = +(mBs / tasa).toFixed(2);
+    const tasaPar = r.tasa_paralela ?? null;
+    const mUsdBcv = +(mBs / tasa).toFixed(2);
+    const mUsdPar = tasaPar ? +(mBs / tasaPar).toFixed(2) : mUsdBcv;
     const { error } = await supabase
       .from("transacciones")
       .update({
@@ -172,9 +189,10 @@ function AnticiposProveedoresPage() {
         monto_bs: mBs,
         monto_base_bs: mBs,
         tasa_bcv: tasa,
-        monto_usd: mUsd,
+        monto_usd: mUsdPar,
+        anticipo_usd_bcv: mUsdBcv,
         notas: editVals.notas || null,
-      })
+      } as any)
       .eq("id", r.id);
     if (error) return toast.error(error.message);
     toast.success("Anticipo actualizado");
@@ -278,17 +296,18 @@ function AnticiposProveedoresPage() {
                     <SortableTh label="Proveedor" k="proveedor" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="py-2 px-2 text-right">Monto Bs</th>
                     <th className="py-2 px-2 text-right">Tasa BCV</th>
-                    <SortableTh label="Monto USD" k="monto_usd" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableTh label="USD BCV (deuda)" k="monto_usd" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <th className="py-2 px-2 text-right">USD paralelo</th>
                     <SortableTh label="Estado" k="estado" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="py-2 px-2">Factura</th>
-                    <SortableTh label="Saldo USD" k="saldo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableTh label="Saldo USD BCV" k="saldo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <th className="py-2 px-2">Notas</th>
                     <th className="py-2 px-2 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => {
-                    const saldo = +(r.monto_usd - r.anticipo_aplicado_usd).toFixed(2);
+                    const saldo = +(r.monto_usd_bcv - r.aplicado_usd_bcv).toFixed(2);
                     const dias = diasAbierto(r.fecha);
                     const isEditing = editId === r.id;
                     const puedeEditar = (r.anticipo_estado ?? "abierto") === "abierto";
@@ -317,7 +336,8 @@ function AnticiposProveedoresPage() {
                             <Input type="number" step="0.0001" className="h-7 text-xs text-right mono" value={editVals.tasa_bcv} onChange={(e) => setEditVals({ ...editVals, tasa_bcv: e.target.value })} />
                           ) : (r.tasa_bcv != null ? r.tasa_bcv.toFixed(2) : "—")}
                         </td>
-                        <td className="py-1.5 px-2 mono text-right">{fmtUsd(r.monto_usd)}</td>
+                        <td className="py-1.5 px-2 mono text-right">{fmtUsd(r.monto_usd_bcv)}</td>
+                        <td className="py-1.5 px-2 mono text-right text-muted-foreground">{fmtUsd(r.monto_usd)}</td>
                         <td className="py-1.5 px-2">{estadoBadge(r.anticipo_estado)}</td>
                         <td className="py-1.5 px-2 mono">{r.factura_vinculada ?? "—"}</td>
                         <td className="py-1.5 px-2 mono text-right">{fmtUsd(saldo)}</td>

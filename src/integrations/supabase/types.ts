@@ -801,7 +801,9 @@ export type Database = {
         Row: {
           adjunto_url: string | null
           anticipo_aplicado_usd: number
+          anticipo_aplicado_usd_bcv: number
           anticipo_estado: string | null
+          anticipo_usd_bcv: number | null
           capex_categoria: string | null
           centro_costo: Database["public"]["Enums"]["centro_costo"]
           created_at: string
@@ -833,7 +835,9 @@ export type Database = {
         Insert: {
           adjunto_url?: string | null
           anticipo_aplicado_usd?: number
+          anticipo_aplicado_usd_bcv?: number
           anticipo_estado?: string | null
+          anticipo_usd_bcv?: number | null
           capex_categoria?: string | null
           centro_costo: Database["public"]["Enums"]["centro_costo"]
           created_at?: string
@@ -865,7 +869,9 @@ export type Database = {
         Update: {
           adjunto_url?: string | null
           anticipo_aplicado_usd?: number
+          anticipo_aplicado_usd_bcv?: number
           anticipo_estado?: string | null
+          anticipo_usd_bcv?: number | null
           capex_categoria?: string | null
           centro_costo?: Database["public"]["Enums"]["centro_costo"]
           created_at?: string
@@ -1150,7 +1156,7 @@ export type Database = {
       aplicar_anticipo_a_factura: {
         Args: {
           anticipo_id: string
-          aplicar_usd: number
+          aplicar_usd_bcv: number
           centro: Database["public"]["Enums"]["centro_costo"]
           factura_fecha: string
           factura_numero: string
