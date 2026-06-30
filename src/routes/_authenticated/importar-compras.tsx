@@ -296,8 +296,8 @@ function ImportarComprasPage() {
         };
 
         if (existe) {
-          // Duplicado: comparamos por USD (fuente de verdad). Si no cambió, saltar.
-          const sameAmount = Math.abs(Number(existe.monto_usd || 0) - r.total_usd) < 0.01;
+          // Duplicado: comparamos por Bs (re-calculado con tasa BCV). Si no cambió, saltar.
+          const sameAmount = Math.abs(Number(existe.monto_bs || 0) - totalBs) < 0.01;
           if (sameAmount) {
             dup++;
             toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
@@ -305,7 +305,7 @@ function ImportarComprasPage() {
           }
           const { error: updErr } = await supabase.from("inventario_snapshots").update({
             monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
-            monto_usd: r.total_usd, monto_base_usd: baseUsd, iva_usd: r.iva_usd,
+            monto_usd: totalUsdParalelo, monto_base_usd: baseUsdParalelo, iva_usd: ivaUsdParalelo,
             tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
             fecha: r.fecha, periodo,
             pagada: true, cuenta_bancaria_id: null,
@@ -315,7 +315,7 @@ function ImportarComprasPage() {
           if (existe.cxp_id) {
             await supabase.from("cuentas_por_pagar").update({
               estado: "pagada", monto_pendiente_bs: 0,
-              monto_bs: totalBs, monto_usd: r.total_usd,
+              monto_bs: totalBs, monto_usd: totalUsdParalelo,
             } as any).eq("id", existe.cxp_id);
           }
           // Resync par de transacciones (2.1 + 12.5) — borrar ambas y reinsertar
@@ -337,7 +337,7 @@ function ImportarComprasPage() {
         const { error } = await supabase.from("inventario_snapshots").insert({
           periodo, tipo: "compra",
           monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
-          monto_usd: r.total_usd, monto_base_usd: baseUsd, iva_usd: r.iva_usd,
+          monto_usd: totalUsdParalelo, monto_base_usd: baseUsdParalelo, iva_usd: ivaUsdParalelo,
           modo: offBal ? "off_balance" : "on_balance",
           fecha: r.fecha, tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
           tercero_id: terceroId, numero_factura: r.numero_factura,
