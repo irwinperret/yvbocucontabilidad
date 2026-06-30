@@ -27,8 +27,11 @@ type Row = {
   tercero_id: string | null;
   proveedor: string;
   monto_bs: number;
-  monto_usd: number;
+  monto_usd: number; // USD paralelo (contable)
+  monto_usd_bcv: number; // USD BCV (deuda congelada)
+  aplicado_usd_bcv: number;
   tasa_bcv: number | null;
+  tasa_paralela: number | null;
   anticipo_estado: "abierto" | "parcialmente_aplicado" | "aplicado" | null;
   anticipo_aplicado_usd: number;
   notas: string | null;
@@ -60,7 +63,7 @@ function AnticiposProveedoresPage() {
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("transacciones")
-        .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_bcv, anticipo_estado, anticipo_aplicado_usd, notas, grupo_transaccion_id, terceros(razon_social)")
+        .select("id, fecha, tercero_id, monto_bs, monto_usd, anticipo_usd_bcv, anticipo_aplicado_usd_bcv, tasa_bcv, tasa_paralela, anticipo_estado, anticipo_aplicado_usd, notas, grupo_transaccion_id, terceros(razon_social)")
         .eq("cuenta_codigo", "14.2")
         .gt("monto_usd", 0)
         .gte("fecha", desde)
@@ -85,20 +88,32 @@ function AnticiposProveedoresPage() {
         });
       }
 
-      return (data ?? []).map((r: any) => ({
-        id: r.id,
-        fecha: r.fecha,
-        tercero_id: r.tercero_id,
-        proveedor: r.terceros?.razon_social ?? "—",
-        monto_bs: Number(r.monto_bs) || 0,
-        monto_usd: Number(r.monto_usd) || 0,
-        tasa_bcv: r.tasa_bcv != null ? Number(r.tasa_bcv) : null,
-        anticipo_estado: r.anticipo_estado ?? "abierto",
-        anticipo_aplicado_usd: Number(r.anticipo_aplicado_usd) || 0,
-        notas: r.notas,
-        grupo_transaccion_id: r.grupo_transaccion_id,
-        factura_vinculada: r.grupo_transaccion_id ? facturasMap.get(r.grupo_transaccion_id) ?? null : null,
-      }));
+      return (data ?? []).map((r: any) => {
+        const tasaBcv = r.tasa_bcv != null ? Number(r.tasa_bcv) : null;
+        const usdBcv = r.anticipo_usd_bcv != null
+          ? Number(r.anticipo_usd_bcv)
+          : (tasaBcv ? +(Number(r.monto_bs) / tasaBcv).toFixed(2) : Number(r.monto_usd) || 0);
+        const aplicadoBcv = r.anticipo_aplicado_usd_bcv != null
+          ? Number(r.anticipo_aplicado_usd_bcv)
+          : Number(r.anticipo_aplicado_usd) || 0;
+        return {
+          id: r.id,
+          fecha: r.fecha,
+          tercero_id: r.tercero_id,
+          proveedor: r.terceros?.razon_social ?? "—",
+          monto_bs: Number(r.monto_bs) || 0,
+          monto_usd: Number(r.monto_usd) || 0,
+          monto_usd_bcv: usdBcv,
+          aplicado_usd_bcv: aplicadoBcv,
+          tasa_bcv: tasaBcv,
+          tasa_paralela: r.tasa_paralela != null ? Number(r.tasa_paralela) : null,
+          anticipo_estado: r.anticipo_estado ?? "abierto",
+          anticipo_aplicado_usd: Number(r.anticipo_aplicado_usd) || 0,
+          notas: r.notas,
+          grupo_transaccion_id: r.grupo_transaccion_id,
+          factura_vinculada: r.grupo_transaccion_id ? facturasMap.get(r.grupo_transaccion_id) ?? null : null,
+        };
+      });
     },
   });
 
