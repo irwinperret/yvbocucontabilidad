@@ -205,9 +205,11 @@ function ImportarComprasPage() {
           tasas = await fetchTasa(r.fecha);
           tasaCache.set(r.fecha, tasas);
         }
-        // USD es la fuente de verdad. Convertimos a Bs con tasa paralela (con fallback a BCV solo si no hay paralela).
-        const tasaConv = tasas.paralela || tasas.bcv;
-        if (!tasaConv) { fail++; toast.error(`Sin tasa para ${r.fecha} (${r.numero_factura})`); continue; }
+        // Xetux calcula sus montos USD a tasa BCV. Conversión correcta:
+        //   1) Bs = USD_xetux × tasa_bcv  (recuperar el monto real en Bs)
+        //   2) USD paralelo = Bs / tasa_paralela  (USD contable para G&P/FC)
+        if (!tasas.bcv) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura})`); continue; }
+        const tasaParaUsd = tasas.paralela || tasas.bcv;
 
         const terceroId = await ensureTercero(r);
         if (!terceroId) { fail++; continue; }
@@ -221,9 +223,13 @@ function ImportarComprasPage() {
 
         const ivaAplica = r.iva_usd > 0;
         const baseUsd = ivaAplica ? Math.max(0, r.total_usd - r.iva_usd) : r.total_usd;
-        const totalBs = +(r.total_usd * tasaConv).toFixed(2);
-        const baseBs = +(baseUsd * tasaConv).toFixed(2);
-        const ivaBs = +(r.iva_usd * tasaConv).toFixed(2);
+        const totalBs = +(r.total_usd * tasas.bcv).toFixed(2);
+        const baseBs = +(baseUsd * tasas.bcv).toFixed(2);
+        const ivaBs = +(r.iva_usd * tasas.bcv).toFixed(2);
+        // USD paralelo (contable) — fuente de verdad para G&P/FC
+        const totalUsdParalelo = +(totalBs / tasaParaUsd).toFixed(2);
+        const baseUsdParalelo = +(baseBs / tasaParaUsd).toFixed(2);
+        const ivaUsdParalelo = +(ivaBs / tasaParaUsd).toFixed(2);
         const periodo = r.fecha.slice(0, 7);
 
         const offBal = offBalance;
@@ -290,8 +296,8 @@ function ImportarComprasPage() {
         };
 
         if (existe) {
-          // Duplicado: comparamos por USD (fuente de verdad). Si no cambió, saltar.
-          const sameAmount = Math.abs(Number(existe.monto_usd || 0) - r.total_usd) < 0.01;
+          // Duplicado: comparamos por Bs (re-calculado con tasa BCV). Si no cambió, saltar.
+          const sameAmount = Math.abs(Number(existe.monto_bs || 0) - totalBs) < 0.01;
           if (sameAmount) {
             dup++;
             toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
@@ -299,7 +305,7 @@ function ImportarComprasPage() {
           }
           const { error: updErr } = await supabase.from("inventario_snapshots").update({
             monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
-            monto_usd: r.total_usd, monto_base_usd: baseUsd, iva_usd: r.iva_usd,
+            monto_usd: totalUsdParalelo, monto_base_usd: baseUsdParalelo, iva_usd: ivaUsdParalelo,
             tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
             fecha: r.fecha, periodo,
             pagada: true, cuenta_bancaria_id: null,
@@ -309,7 +315,7 @@ function ImportarComprasPage() {
           if (existe.cxp_id) {
             await supabase.from("cuentas_por_pagar").update({
               estado: "pagada", monto_pendiente_bs: 0,
-              monto_bs: totalBs, monto_usd: r.total_usd,
+              monto_bs: totalBs, monto_usd: totalUsdParalelo,
             } as any).eq("id", existe.cxp_id);
           }
           // Resync par de transacciones (2.1 + 12.5) — borrar ambas y reinsertar
@@ -331,7 +337,7 @@ function ImportarComprasPage() {
         const { error } = await supabase.from("inventario_snapshots").insert({
           periodo, tipo: "compra",
           monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
-          monto_usd: r.total_usd, monto_base_usd: baseUsd, iva_usd: r.iva_usd,
+          monto_usd: totalUsdParalelo, monto_base_usd: baseUsdParalelo, iva_usd: ivaUsdParalelo,
           modo: offBal ? "off_balance" : "on_balance",
           fecha: r.fecha, tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
           tercero_id: terceroId, numero_factura: r.numero_factura,
