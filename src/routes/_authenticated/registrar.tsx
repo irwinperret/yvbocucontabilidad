@@ -2581,7 +2581,7 @@ function CierreForm() {
     const montoUsd = esCompraUSD ? totalInputCompra : (tasaN ? totalInputCompra / tasaN : 0);
     const bcvCompraN = Number(tasaCompraSug?.tasa) || tasaN;
     const montoUsdBcv = bcvCompraN > 0 ? +(montoBs / bcvCompraN).toFixed(2) : montoUsd;
-    const aplicadoUsdCompra = +(compraAplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
+    const aplicadoUsdCompra = +(compraAplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0)).toFixed(2);
     const aplicadoBsCompra = +(aplicadoUsdCompra * tasaN).toFixed(2);
     const cxpSaldoBsCompra = Math.max(0, +(montoBs - aplicadoBsCompra).toFixed(2));
     const cxpSaldoUsdCompra = Math.max(0, +(montoUsd - aplicadoUsdCompra).toFixed(2));
@@ -2876,12 +2876,12 @@ function CierreForm() {
               <div className="md:col-span-2">
                 <AnticipoProveedorBanner
                   terceroId={compraTerceroId}
-                  facturaTotalUsd={Number(esCompraUSD ? compraNetoInput + compraIvaInput : (compraTasaN ? (compraNetoInput + compraIvaInput) / compraTasaN : 0)) || 0}
+                  facturaTotalUsdBcv={Number(esCompraUSD ? compraNetoInput + compraIvaInput : (compraTasaN ? (compraNetoInput + compraIvaInput) / compraTasaN : 0)) || 0}
                   onAplicacionesChange={setCompraAplicaciones}
                 />
                 {compraAplicaciones.length > 0 && (
                   <div className="mt-2 rounded-md bg-green-50 border border-green-300 text-green-900 text-xs p-2">
-                    Aplicando anticipo: <strong className="mono">{fmtUsd(compraAplicaciones.reduce((s, a) => s + a.aplicarUsd, 0))}</strong>
+                    Aplicando anticipo: <strong className="mono">{fmtUsd(compraAplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0))}</strong> <span className="text-[10px]">USD BCV</span>
                   </div>
                 )}
               </div>
