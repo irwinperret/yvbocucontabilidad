@@ -987,7 +987,11 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
 
   const montoBsN = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
-  const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+  const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
+  // USD BCV: deuda congelada del proveedor con nosotros (lo que el proveedor "reconoce")
+  const montoUsdBcv = tasaN > 0 ? +(montoBsN / tasaN).toFixed(2) : 0;
+  // USD paralelo: valor contable / FC (siguiendo la regla global)
+  const montoUsdPar = tasaParalelaN > 0 ? +(montoBsN / tasaParalelaN).toFixed(2) : montoUsdBcv;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1003,7 +1007,9 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
       fecha, cuenta_codigo: "14.2", centro_costo: centro as any,
       monto_bs: montoBsN, monto_base_bs: montoBsN, iva_bs: 0, iva_aplica: false,
       tasa_bcv: tasaN, tasa_paralela: paralelaSug?.tasa ?? null,
-      monto_usd: +montoUsd.toFixed(2),
+      monto_usd: montoUsdPar,
+      anticipo_usd_bcv: montoUsdBcv,
+      anticipo_aplicado_usd_bcv: 0,
       metodo_pago: "transferencia" as any,
       tercero_id: terceroId,
       cuenta_bancaria_id: cuentaBancariaId,
