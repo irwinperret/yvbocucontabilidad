@@ -246,7 +246,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
         facturaProveedorNombre: cxp.proveedor ?? "Proveedor",
         facturaNumero: cxp.numero_factura ?? null,
         created_by: userId,
-        centro: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as string,
+        centro: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as "YV" | "Bocu" | "Compartido",
       });
       if (!res.ok) { setBusy(false); return toast.error(`Anticipo: ${res.error}`); }
       // Asegurar vinculación
