@@ -327,7 +327,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
           <div className="mb-3">
             <AnticipoProveedorBanner
               terceroId={cxp.tercero_id}
-              facturaTotalUsd={pendienteUsdBcv}
+              facturaTotalUsdBcv={pendienteUsdBcv}
               onAplicacionesChange={(sel) => { setAplicaciones(sel); setTouchedMonto(false); }}
             />
             {aplicaciones.length > 0 && (
