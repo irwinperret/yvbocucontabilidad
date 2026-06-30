@@ -1164,7 +1164,8 @@ function GastosFacturaForm() {
     const grupoIdGasto = crypto.randomUUID();
     const tasaParaContable = tasaParalelaN || tasaN;
     const tieneIva = ivaAplica && iva > 0;
-    const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0)).toFixed(2);
+    const aplicadoUsdFactura = +(aplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0)).toFixed(2);
+    // El aplicado se expresa en USD BCV; reverso Bs = USD BCV × tasa BCV de la factura
     const aplicadoBsFactura = +(aplicadoUsdFactura * tasaN).toFixed(2);
     const cxpSaldoBs = Math.max(0, +(total - aplicadoBsFactura).toFixed(2));
     const cxpSaldoUsd = Math.max(0, +(totalUsd - aplicadoUsdFactura).toFixed(2));
