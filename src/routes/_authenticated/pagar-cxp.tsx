@@ -168,18 +168,20 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
     : (Number(cxp.monto_bs) > 0 ? usdBcvFactura * (pendiente / Number(cxp.monto_bs)) : usdBcvFactura);
   const tasaFactura = Number(cxp.tasa_bcv_factura ?? txOrigData?.tasa_bcv ?? 0);
 
-  // Anticipos: reverso en Bs usa la tasa BCV del anticipo (egresos → BCV)
-  const aplicadoUsd = useMemo(
-    () => aplicaciones.reduce((s, a) => s + a.aplicarUsd, 0),
+  // Anticipos: cantidades en USD BCV. Reverso en Bs se calcula a la tasa BCV de la factura/pago.
+  const aplicadoUsdBcv = useMemo(
+    () => aplicaciones.reduce((s, a) => s + a.aplicarUsdBcv, 0),
     [aplicaciones],
   );
+  // aproximación Bs para mostrar (usa la tasa del pago si existe, sino la de la factura)
   const aplicadoBs = useMemo(
     () => aplicaciones.reduce(
-      (s, a) => s + a.aplicarUsd * Number(a.anticipo.tasa_bcv || 0),
+      (s, a) => s + a.aplicarUsdBcv * Number(a.anticipo.tasa_bcv || 0),
       0,
     ),
     [aplicaciones],
   );
+  const aplicadoUsd = aplicadoUsdBcv; // alias para no romper referencias previas
 
   // Saldo USD BCV restante tras aplicar anticipos (anticipos también se expresan en USD BCV)
   const usdBcvTrasAnticipo = Math.max(0, +(pendienteUsdBcv - aplicadoUsd).toFixed(2));
