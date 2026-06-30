@@ -6,17 +6,25 @@ export type AnticipoProveedor = {
   fecha: string;
   tercero_id: string | null;
   monto_bs: number;
-  monto_usd: number;
+  monto_usd: number; // paralelo (contable)
+  anticipo_usd_bcv: number; // snapshot USD BCV congelado al pago
+  anticipo_aplicado_usd_bcv: number;
   tasa_paralela: number | null;
   tasa_bcv: number;
   cuenta_bancaria_id: string | null;
   notas: string | null;
   anticipo_estado: "abierto" | "parcialmente_aplicado" | "aplicado" | null;
-  anticipo_aplicado_usd: number;
+  anticipo_aplicado_usd: number; // legado, mantener por compatibilidad
 };
 
+const SELECT_FIELDS =
+  "id, fecha, tercero_id, monto_bs, monto_usd, anticipo_usd_bcv, anticipo_aplicado_usd_bcv, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd";
+
+// Saldo del anticipo expresado en USD BCV (deuda del proveedor con nosotros, congelada)
 export function saldoAnticipo(a: AnticipoProveedor): number {
-  return +(Number(a.monto_usd) - Number(a.anticipo_aplicado_usd || 0)).toFixed(2);
+  const total = Number(a.anticipo_usd_bcv) || 0;
+  const aplicado = Number(a.anticipo_aplicado_usd_bcv) || 0;
+  return +(total - aplicado).toFixed(2);
 }
 
 export function useAnticiposAbiertosProveedor(terceroId: string | null | undefined) {
@@ -26,7 +34,7 @@ export function useAnticiposAbiertosProveedor(terceroId: string | null | undefin
     queryFn: async (): Promise<AnticipoProveedor[]> => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd")
+        .select(SELECT_FIELDS)
         .eq("cuenta_codigo", "14.2")
         .eq("tercero_id", terceroId!)
         .in("anticipo_estado", ["abierto", "parcialmente_aplicado"])
@@ -42,7 +50,7 @@ export function useAnticiposProveedor(desde: string, hasta: string) {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd, grupo_transaccion_id")
+        .select(SELECT_FIELDS + ", grupo_transaccion_id")
         .eq("cuenta_codigo", "14.2")
         .gte("fecha", desde)
         .lte("fecha", hasta)
@@ -53,15 +61,15 @@ export function useAnticiposProveedor(desde: string, hasta: string) {
 }
 
 /**
- * Aplica un anticipo (o múltiples) contra una factura.
- * - Inserta una transacción de reversión en cuenta 14.2 por cada anticipo aplicado (monto negativo USD).
- * - Actualiza anticipo_aplicado_usd y anticipo_estado en el anticipo original.
- * - Vincula todo vía grupo_transaccion_id.
- *
- * Llamar DESPUÉS de insertar la factura. Pasa grupoId compartido y created_by.
+ * Aplica uno o más anticipos contra una factura. Las cantidades se expresan en USD BCV
+ * (deuda congelada del proveedor con nosotros). El RPC del backend:
+ *   - calcula reverso Bs = aplicarUsdBcv × tasa BCV de la factura
+ *   - inserta el reverso en 14.2 con monto_usd contable en USD paralelo
+ *   - actualiza anticipo_aplicado_usd_bcv y anticipo_estado
+ *   - NO emite diferencial cambiario (el proveedor absorbe la variación BCV)
  */
 export async function aplicarAnticiposContraFactura(opts: {
-  aplicaciones: { anticipo: AnticipoProveedor; aplicarUsd: number }[];
+  aplicaciones: { anticipo: AnticipoProveedor; aplicarUsdBcv: number }[];
   grupoId: string;
   facturaFecha: string;
   facturaProveedorNombre: string;
@@ -70,12 +78,12 @@ export async function aplicarAnticiposContraFactura(opts: {
   centro: string;
 }): Promise<{ ok: boolean; error?: string }> {
   for (const a of opts.aplicaciones) {
-    const aplicar = Math.min(a.aplicarUsd, saldoAnticipo(a.anticipo));
+    const aplicar = Math.min(a.aplicarUsdBcv, saldoAnticipo(a.anticipo));
     if (aplicar <= 0) continue;
 
     const { error } = await (supabase as any).rpc("aplicar_anticipo_a_factura", {
       anticipo_id: a.anticipo.id,
-      aplicar_usd: aplicar,
+      aplicar_usd_bcv: aplicar,
       grupo_id: opts.grupoId,
       factura_fecha: opts.facturaFecha,
       factura_proveedor: opts.facturaProveedorNombre,
