@@ -6,17 +6,24 @@ import { Label } from "@/components/ui/label";
 import { fmtUsd, fmtDate } from "@/lib/format";
 import { useAnticiposAbiertosProveedor, saldoAnticipo, type AnticipoProveedor } from "@/lib/anticipos-proveedor";
 
-export type AplicacionSel = { anticipo: AnticipoProveedor; aplicarUsd: number };
+export type AplicacionSel = { anticipo: AnticipoProveedor; aplicarUsdBcv: number };
 
 type Row = { check: boolean; usd: string; touched: boolean };
 
+/**
+ * Banner para aplicar anticipos a proveedor contra una factura.
+ *
+ * Las cantidades se expresan en **USD BCV** (deuda congelada del proveedor con nosotros).
+ * El consumidor debe pasar `facturaTotalUsdBcv` = monto total de la factura en USD BCV
+ * (es decir, total Bs / tasa BCV del día de la factura).
+ */
 export function AnticipoProveedorBanner({
   terceroId,
-  facturaTotalUsd,
+  facturaTotalUsdBcv,
   onAplicacionesChange,
 }: {
   terceroId: string;
-  facturaTotalUsd: number;
+  facturaTotalUsdBcv: number;
   onAplicacionesChange: (sel: AplicacionSel[]) => void;
 }) {
   const { data: anticipos } = useAnticiposAbiertosProveedor(terceroId);
@@ -29,10 +36,9 @@ export function AnticipoProveedorBanner({
   );
   const totalAbierto = useMemo(() => abiertos.reduce((s, a) => s + saldoAnticipo(a), 0), [abiertos]);
 
-  // Calcula la selección efectiva (clamp por saldo del anticipo y por total de factura)
   const emit = (rows: Record<string, Row>) => {
     const sel: AplicacionSel[] = [];
-    let restante = Math.max(0, facturaTotalUsd);
+    let restante = Math.max(0, facturaTotalUsdBcv);
     for (const a of abiertos) {
       const r = rows[a.id];
       if (!r?.check) continue;
@@ -40,22 +46,21 @@ export function AnticipoProveedorBanner({
       const pedido = Math.max(0, Number(r.usd) || 0);
       const tomar = Math.min(pedido, max, restante);
       if (tomar > 0.005) {
-        sel.push({ anticipo: a, aplicarUsd: +tomar.toFixed(2) });
+        sel.push({ anticipo: a, aplicarUsdBcv: +tomar.toFixed(2) });
         restante -= tomar;
       }
     }
     onAplicacionesChange(sel);
   };
 
-  // Auto-recalcular USD por defecto cuando cambia el total de la factura (si el usuario no lo tocó)
-  const lastTotalRef = useRef<number>(facturaTotalUsd);
+  const lastTotalRef = useRef<number>(facturaTotalUsdBcv);
   useEffect(() => {
-    if (lastTotalRef.current === facturaTotalUsd) return;
-    lastTotalRef.current = facturaTotalUsd;
+    if (lastTotalRef.current === facturaTotalUsdBcv) return;
+    lastTotalRef.current = facturaTotalUsdBcv;
     if (estado !== "aplicando") return;
     setSeleccion((prev) => {
       const next: Record<string, Row> = { ...prev };
-      let restante = Math.max(0, facturaTotalUsd);
+      let restante = Math.max(0, facturaTotalUsdBcv);
       for (const a of abiertos) {
         const r = next[a.id];
         if (!r?.check) continue;
@@ -67,9 +72,8 @@ export function AnticipoProveedorBanner({
         next[a.id] = { ...r, usd: sugerido.toFixed(2) };
         restante -= sugerido;
       }
-      // emit con los valores nuevos
       const sel: AplicacionSel[] = [];
-      let rem = Math.max(0, facturaTotalUsd);
+      let rem = Math.max(0, facturaTotalUsdBcv);
       for (const a of abiertos) {
         const r = next[a.id];
         if (!r?.check) continue;
@@ -77,14 +81,14 @@ export function AnticipoProveedorBanner({
         const pedido = Math.max(0, Number(r.usd) || 0);
         const tomar = Math.min(pedido, max, rem);
         if (tomar > 0.005) {
-          sel.push({ anticipo: a, aplicarUsd: +tomar.toFixed(2) });
+          sel.push({ anticipo: a, aplicarUsdBcv: +tomar.toFixed(2) });
           rem -= tomar;
         }
       }
       onAplicacionesChange(sel);
       return next;
     });
-  }, [facturaTotalUsd, abiertos, estado]);
+  }, [facturaTotalUsdBcv, abiertos, estado]);
 
   if (!terceroId || !anticipos) return null;
   if (abiertos.length === 0) return null;
@@ -108,7 +112,7 @@ export function AnticipoProveedorBanner({
     return (
       <div className="rounded border border-amber-400 bg-amber-50 text-amber-900 p-3 text-sm flex items-center justify-between gap-3 flex-wrap">
         <div>
-          Este proveedor tiene <strong>{abiertos.length}</strong> anticipo(s) abierto(s) por <strong className="mono">{fmtUsd(totalAbierto)}</strong>. ¿Deseas aplicar alguno contra esta factura?
+          Este proveedor tiene <strong>{abiertos.length}</strong> anticipo(s) abierto(s) por <strong className="mono">{fmtUsd(totalAbierto)}</strong> <span className="text-[10px]">(USD BCV)</span>. ¿Deseas aplicar alguno contra esta factura?
         </div>
         <div className="flex gap-2">
           <Button type="button" size="sm" variant="outline" onClick={() => { setEstado("ignorado"); onAplicacionesChange([]); }}>Ignorar</Button>
@@ -122,14 +126,13 @@ export function AnticipoProveedorBanner({
     setSeleccion((prev) => {
       const next: Record<string, Row> = { ...prev };
       if (checked) {
-        // sugerir USD = min(saldo, restante de factura sobre lo ya seleccionado)
         let usados = 0;
         for (const x of abiertos) {
           if (x.id === a.id) continue;
           const r = next[x.id];
           if (r?.check) usados += Math.min(Number(r.usd) || 0, saldoAnticipo(x));
         }
-        const restante = Math.max(0, facturaTotalUsd - usados);
+        const restante = Math.max(0, facturaTotalUsdBcv - usados);
         const sugerido = Math.min(saldoAnticipo(a), restante);
         next[a.id] = { check: true, usd: sugerido.toFixed(2), touched: false };
       } else {
@@ -154,7 +157,7 @@ export function AnticipoProveedorBanner({
     <div className="rounded border border-amber-400 bg-amber-50/60 p-3 space-y-2">
       <div className="text-sm font-medium text-amber-900">Selecciona el/los anticipo(s) a aplicar</div>
       <div className="text-[11px] text-amber-900/80">
-        Total factura: <span className="mono font-semibold">{fmtUsd(facturaTotalUsd)}</span>
+        Total factura: <span className="mono font-semibold">{fmtUsd(facturaTotalUsdBcv)}</span> <span className="text-[10px]">(USD BCV)</span>
       </div>
       <div className="space-y-1.5">
         {abiertos.map((a) => {
@@ -169,15 +172,15 @@ export function AnticipoProveedorBanner({
               <div className="flex-1 grid grid-cols-3 gap-2 items-center">
                 <div className="mono">{fmtDate(a.fecha)}</div>
                 <div>
-                  Saldo <span className="mono font-semibold">{fmtUsd(max)}</span>
+                  Saldo <span className="mono font-semibold">{fmtUsd(max)}</span> <span className="text-[10px] text-muted-foreground">USD BCV</span>
                   {a.tasa_bcv ? (
-                    <div className="text-[10px] text-muted-foreground">tasa BCV {Number(a.tasa_bcv).toFixed(2)} — {fmtDate(a.fecha)}</div>
+                    <div className="text-[10px] text-muted-foreground">tasa BCV anticipo {Number(a.tasa_bcv).toFixed(2)} — {fmtDate(a.fecha)}</div>
                   ) : null}
                 </div>
                 <div className="text-muted-foreground truncate" title={a.notas ?? ""}>{a.notas ?? "—"}</div>
               </div>
               <div className="w-32">
-                <Label className="text-[10px]">Aplicar USD</Label>
+                <Label className="text-[10px]">Aplicar USD BCV</Label>
                 <Input
                   type="number" step="0.01" min="0" max={max}
                   className="mono h-7 text-xs"
