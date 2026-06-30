@@ -1050,16 +1050,18 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
           </div>
           <div><Label>Monto Bs</Label><Input type="number" step="0.01" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} required className="mono" /></div>
           <div><Label>Tasa BCV</Label><Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" /></div>
+          <div className="md:col-span-2"><Label>Tasa paralela</Label><Input type="number" step="0.0001" value={tasaPar} onChange={(e) => setTasaPar(e.target.value)} required className="mono" /></div>
           <div className="md:col-span-2 rounded-md bg-muted p-3 space-y-1">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Valor reconocido por el proveedor (USD BCV)</span>
+              <span className="text-muted-foreground">Valor reconocido por el proveedor (USD BCV @ {tasaN || "—"})</span>
               <span className="font-bold mono">{fmtUsd(montoUsdBcv)}</span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Valor contable (USD paralelo)</span>
+              <span>Valor contable (USD paralelo @ {tasaParalelaN || "—"})</span>
               <span className="mono">{fmtUsd(montoUsdPar)}</span>
             </div>
           </div>
+
           <div className="md:col-span-2"><BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required /></div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           <div className="md:col-span-2 flex justify-end">
