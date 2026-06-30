@@ -68,6 +68,22 @@ export function useAnticiposProveedor(desde: string, hasta: string) {
  *   - actualiza anticipo_aplicado_usd_bcv y anticipo_estado
  *   - NO emite diferencial cambiario (el proveedor absorbe la variación BCV)
  */
+// Valores válidos del enum `centro_costo` en la BD: 'YV' | 'Bocu' | 'Compartido'.
+export type CentroCosto = "YV" | "Bocu" | "Compartido";
+
+// Firma exacta esperada por la función SQL `public.aplicar_anticipo_a_factura`.
+// Si cambia en la BD, actualizar este tipo para que el typecheck rompa en compilación
+// en vez de fallar en runtime con "function not found in schema cache".
+type AplicarAnticipoArgs = {
+  anticipo_id: string;
+  aplicar_usd_bcv: number;
+  grupo_id: string;
+  factura_fecha: string;
+  factura_proveedor: string;
+  factura_numero: string | null;
+  centro: CentroCosto;
+};
+
 export async function aplicarAnticiposContraFactura(opts: {
   aplicaciones: { anticipo: AnticipoProveedor; aplicarUsdBcv: number }[];
   grupoId: string;
@@ -75,13 +91,13 @@ export async function aplicarAnticiposContraFactura(opts: {
   facturaProveedorNombre: string;
   facturaNumero: string | null;
   created_by: string;
-  centro: string;
+  centro: CentroCosto;
 }): Promise<{ ok: boolean; error?: string }> {
   for (const a of opts.aplicaciones) {
     const aplicar = Math.min(a.aplicarUsdBcv, saldoAnticipo(a.anticipo));
     if (aplicar <= 0) continue;
 
-    const { error } = await (supabase as any).rpc("aplicar_anticipo_a_factura", {
+    const args: AplicarAnticipoArgs = {
       anticipo_id: a.anticipo.id,
       aplicar_usd_bcv: aplicar,
       grupo_id: opts.grupoId,
@@ -89,7 +105,9 @@ export async function aplicarAnticiposContraFactura(opts: {
       factura_proveedor: opts.facturaProveedorNombre,
       factura_numero: opts.facturaNumero,
       centro: opts.centro,
-    });
+    };
+
+    const { error } = await (supabase.rpc as any)("aplicar_anticipo_a_factura", args);
     if (error) return { ok: false, error: error.message };
   }
   return { ok: true };
