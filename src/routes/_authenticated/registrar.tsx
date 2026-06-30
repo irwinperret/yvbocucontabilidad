@@ -976,22 +976,23 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
   const [centro, setCentro] = useState<Centro>("YV");
   const [montoBs, setMontoBs] = useState("");
   const [tasa, setTasa] = useState("");
+  const [tasaPar, setTasaPar] = useState("");
   const [cuentaBancariaId, setCuentaBancariaId] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
   const { data: paralelaSug } = useParalelaForDate(fecha);
   const { data: bcvSug } = useTasaForDate(fecha);
-  // Egresos: tasa principal es BCV
   useEffect(() => { if (bcvSug?.tasa) setTasa(String(bcvSug.tasa)); }, [bcvSug?.tasa]);
+  useEffect(() => { if (paralelaSug?.tasa) setTasaPar(String(paralelaSug.tasa)); }, [paralelaSug?.tasa]);
 
   const montoBsN = Number(montoBs) || 0;
   const tasaN = Number(tasa) || 0;
-  const tasaParalelaN = Number(paralelaSug?.tasa) || 0;
+  const tasaParalelaN = Number(tasaPar) || 0;
   // USD BCV: deuda congelada del proveedor con nosotros (lo que el proveedor "reconoce")
   const montoUsdBcv = tasaN > 0 ? +(montoBsN / tasaN).toFixed(2) : 0;
-  // USD paralelo: valor contable / FC (siguiendo la regla global)
-  const montoUsdPar = tasaParalelaN > 0 ? +(montoBsN / tasaParalelaN).toFixed(2) : montoUsdBcv;
+  // USD paralelo: valor contable / FC — REQUERIDO, sin fallback silencioso a BCV
+  const montoUsdPar = tasaParalelaN > 0 ? +(montoBsN / tasaParalelaN).toFixed(2) : 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -999,6 +1000,8 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
     if (!terceroId) return toast.error("Selecciona proveedor");
     if (!montoBsN) return toast.error("Falta monto Bs");
     if (!tasaN) return toast.error("Falta tasa BCV");
+    if (!tasaParalelaN) return toast.error("Falta tasa paralela del día");
+    if (Math.abs(tasaParalelaN - tasaN) < 0.0001) return toast.error("Tasa paralela no puede ser igual a la BCV");
     if (!cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
     setBusy(true);
     const prov = (terceros ?? []).find((t: any) => t.id === terceroId);
@@ -1006,7 +1009,7 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: "14.2", centro_costo: centro as any,
       monto_bs: montoBsN, monto_base_bs: montoBsN, iva_bs: 0, iva_aplica: false,
-      tasa_bcv: tasaN, tasa_paralela: paralelaSug?.tasa ?? null,
+      tasa_bcv: tasaN, tasa_paralela: tasaParalelaN,
       monto_usd: montoUsdPar,
       anticipo_usd_bcv: montoUsdBcv,
       anticipo_aplicado_usd_bcv: 0,
@@ -1026,6 +1029,7 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
     setMontoBs(""); setNotas("");
     onDone();
   };
+
 
   return (
     <Card>
