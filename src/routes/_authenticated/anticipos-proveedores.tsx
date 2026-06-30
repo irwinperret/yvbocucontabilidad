@@ -133,8 +133,8 @@ function AnticiposProveedoresPage() {
       let cmp = 0;
       if (sortKey === "fecha") cmp = a.fecha.localeCompare(b.fecha);
       else if (sortKey === "proveedor") cmp = a.proveedor.localeCompare(b.proveedor);
-      else if (sortKey === "monto_usd") cmp = a.monto_usd - b.monto_usd;
-      else if (sortKey === "saldo") cmp = (a.monto_usd - a.anticipo_aplicado_usd) - (b.monto_usd - b.anticipo_aplicado_usd);
+      else if (sortKey === "monto_usd") cmp = a.monto_usd_bcv - b.monto_usd_bcv;
+      else if (sortKey === "saldo") cmp = (a.monto_usd_bcv - a.aplicado_usd_bcv) - (b.monto_usd_bcv - b.aplicado_usd_bcv);
       else if (sortKey === "estado") cmp = (a.anticipo_estado ?? "").localeCompare(b.anticipo_estado ?? "");
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -143,8 +143,8 @@ function AnticiposProveedoresPage() {
 
   const kpis = useMemo(() => {
     const rows = anticipos ?? [];
-    const total = rows.reduce((s, r) => s + r.monto_usd, 0);
-    const aplicado = rows.reduce((s, r) => s + r.anticipo_aplicado_usd, 0);
+    const total = rows.reduce((s, r) => s + r.monto_usd_bcv, 0);
+    const aplicado = rows.reduce((s, r) => s + r.aplicado_usd_bcv, 0);
     const saldo = total - aplicado;
     return { total, aplicado, saldo };
   }, [anticipos]);
