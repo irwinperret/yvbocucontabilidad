@@ -179,7 +179,9 @@ function AnticiposProveedoresPage() {
     const mBs = Number(editVals.monto_bs) || 0;
     const tasa = Number(editVals.tasa_bcv) || 0;
     if (!mBs || !tasa) return toast.error("Monto Bs y tasa BCV requeridos");
-    const mUsd = +(mBs / tasa).toFixed(2);
+    const tasaPar = r.tasa_paralela ?? null;
+    const mUsdBcv = +(mBs / tasa).toFixed(2);
+    const mUsdPar = tasaPar ? +(mBs / tasaPar).toFixed(2) : mUsdBcv;
     const { error } = await supabase
       .from("transacciones")
       .update({
@@ -187,9 +189,10 @@ function AnticiposProveedoresPage() {
         monto_bs: mBs,
         monto_base_bs: mBs,
         tasa_bcv: tasa,
-        monto_usd: mUsd,
+        monto_usd: mUsdPar,
+        anticipo_usd_bcv: mUsdBcv,
         notas: editVals.notas || null,
-      })
+      } as any)
       .eq("id", r.id);
     if (error) return toast.error(error.message);
     toast.success("Anticipo actualizado");
@@ -293,17 +296,18 @@ function AnticiposProveedoresPage() {
                     <SortableTh label="Proveedor" k="proveedor" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="py-2 px-2 text-right">Monto Bs</th>
                     <th className="py-2 px-2 text-right">Tasa BCV</th>
-                    <SortableTh label="Monto USD" k="monto_usd" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableTh label="USD BCV (deuda)" k="monto_usd" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <th className="py-2 px-2 text-right">USD paralelo</th>
                     <SortableTh label="Estado" k="estado" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="py-2 px-2">Factura</th>
-                    <SortableTh label="Saldo USD" k="saldo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableTh label="Saldo USD BCV" k="saldo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <th className="py-2 px-2">Notas</th>
                     <th className="py-2 px-2 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => {
-                    const saldo = +(r.monto_usd - r.anticipo_aplicado_usd).toFixed(2);
+                    const saldo = +(r.monto_usd_bcv - r.aplicado_usd_bcv).toFixed(2);
                     const dias = diasAbierto(r.fecha);
                     const isEditing = editId === r.id;
                     const puedeEditar = (r.anticipo_estado ?? "abierto") === "abierto";
@@ -332,7 +336,8 @@ function AnticiposProveedoresPage() {
                             <Input type="number" step="0.0001" className="h-7 text-xs text-right mono" value={editVals.tasa_bcv} onChange={(e) => setEditVals({ ...editVals, tasa_bcv: e.target.value })} />
                           ) : (r.tasa_bcv != null ? r.tasa_bcv.toFixed(2) : "—")}
                         </td>
-                        <td className="py-1.5 px-2 mono text-right">{fmtUsd(r.monto_usd)}</td>
+                        <td className="py-1.5 px-2 mono text-right">{fmtUsd(r.monto_usd_bcv)}</td>
+                        <td className="py-1.5 px-2 mono text-right text-muted-foreground">{fmtUsd(r.monto_usd)}</td>
                         <td className="py-1.5 px-2">{estadoBadge(r.anticipo_estado)}</td>
                         <td className="py-1.5 px-2 mono">{r.factura_vinculada ?? "—"}</td>
                         <td className="py-1.5 px-2 mono text-right">{fmtUsd(saldo)}</td>
