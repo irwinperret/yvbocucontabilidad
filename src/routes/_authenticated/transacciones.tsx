@@ -1184,7 +1184,37 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
         <DialogHeader>
           <DialogTitle>Editar movimiento — {tx.cuenta_codigo}</DialogTitle>
         </DialogHeader>
+        {hermanos.length > 0 && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs space-y-2">
+            <div className="font-medium text-foreground">
+              Esta transacción tiene {hermanos.length} transacción{hermanos.length === 1 ? "" : "es"} relacionada{hermanos.length === 1 ? "" : "s"} en el mismo grupo:
+            </div>
+            <ul className="space-y-0.5 max-h-24 overflow-auto">
+              {hermanos.map((h) => (
+                <li key={h.id} className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">{h.cuenta_codigo}</Badge>
+                  <span className="text-muted-foreground">{fmtDate(h.fecha)}</span>
+                  <span className="mono">{fmtUsd(Number(h.monto_usd) || 0)}</span>
+                </li>
+              ))}
+            </ul>
+            <label className="flex items-start gap-2 cursor-pointer pt-1">
+              <Checkbox
+                checked={propagar}
+                onCheckedChange={(v) => setPropagar(v === true)}
+                className="mt-0.5"
+              />
+              <span className="text-foreground">
+                Propagar cambios de <b>fecha</b>, <b>centro</b> y <b>tasa</b> a las {hermanos.length} transacción{hermanos.length === 1 ? "" : "es"} relacionada{hermanos.length === 1 ? "" : "s"}.
+                <span className="block text-muted-foreground text-[11px] mt-0.5">
+                  Los cambios de monto no se propagan automáticamente — si editas IVA, bono o propina hazlo en su registro.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
         <form onSubmit={save} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
           <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
           <div>
             <Label>Centro</Label>
