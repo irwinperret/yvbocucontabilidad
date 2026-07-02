@@ -2621,6 +2621,22 @@ function CierreForm() {
   );
   const totalComprasUsd = totalComprasNetoUsd + totalComprasIvaUsd;
 
+  // Visualización en USD a valor BCV (sin tocar la contabilidad en paralelo)
+  const totalComprasNetoUsdBcv = comprasOn.reduce((s: number, c: any) => {
+    const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+    const tasa = Number(c.tasa_bcv) || 0;
+    if (tasa > 0) return s + +(netoBs / tasa).toFixed(2);
+    const neto = Number(c.monto_base_usd);
+    return s + (Number.isFinite(neto) && neto !== 0 ? neto : Number(c.monto_usd) || 0);
+  }, 0);
+  const totalComprasIvaUsdBcv = comprasOn.reduce((s: number, c: any) => {
+    const ivaBs = Number(c.iva_bs) || 0;
+    const tasa = Number(c.tasa_bcv) || 0;
+    return s + (tasa > 0 ? +(ivaBs / tasa).toFixed(2) : Number(c.iva_usd) || 0);
+  }, 0);
+  const totalComprasUsdBcv = totalComprasNetoUsdBcv + totalComprasIvaUsdBcv;
+
+
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
   const cogsUsd = iniUsd + totalComprasNetoUsd - finUsd;
