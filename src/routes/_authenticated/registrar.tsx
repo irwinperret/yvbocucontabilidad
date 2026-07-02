@@ -3200,9 +3200,9 @@ function CierreForm() {
                     <td className="text-right mono">{fmtBs(totalComprasNetoBs)}</td>
                     <td className="text-right mono text-muted-foreground">{fmtBs(totalComprasIvaBs)}</td>
                     <td className="text-right mono">{fmtBs(totalCompras)}</td>
-                    <td className="text-right mono">{fmtUsd(totalComprasNetoUsd)}</td>
-                    <td className="text-right mono text-muted-foreground">{fmtUsd(totalComprasIvaUsd)}</td>
-                    <td className="text-right mono">{fmtUsd(totalComprasUsd)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasNetoUsdBcv)}</td>
+                    <td className="text-right mono text-muted-foreground">{fmtUsd(totalComprasIvaUsdBcv)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasUsdBcv)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
