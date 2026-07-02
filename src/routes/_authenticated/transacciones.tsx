@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ExcelJS from "exceljs";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-import { Pencil, Download, Trash2 } from "lucide-react";
+import { Pencil, Download, Trash2, Filter, ArrowUp, ArrowDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { EliminarTransaccionDialog } from "@/components/eliminar-transaccion-dialog";
@@ -28,10 +30,66 @@ export const Route = createFileRoute("/_authenticated/transacciones")({
   component: TransaccionesPage,
 });
 
+// ---------- Session-persistent state helper ----------
+const SESSION_KEY = "transacciones-filters-v1";
+type FilterState = {
+  desde: string;
+  hasta: string;
+  busca: string;
+  centros: string[];
+  cuentas: string[];
+  metodos: string[];
+  modos: string[]; // ["on_balance","off_balance"]
+  tercero: string;
+  factura: string;
+  notas: string;
+  referencia: string;
+  numMin: string;
+  numMax: string;
+  bsMin: string;
+  bsMax: string;
+  usdMin: string;
+  usdMax: string;
+  netoMin: string;
+  netoMax: string;
+  ivaMin: string;
+  ivaMax: string;
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  pageSize: number | "all";
+};
+type SortKey = "numero" | "fecha" | "cuenta_codigo" | "centro_costo" | "monto_bs" | "monto_usd" | "numero_factura";
+const defaultState = (initialDesde: string): FilterState => ({
+  desde: initialDesde,
+  hasta: todayISO(),
+  busca: "",
+  centros: [],
+  cuentas: [],
+  metodos: [],
+  modos: [],
+  tercero: "",
+  factura: "",
+  notas: "",
+  referencia: "",
+  numMin: "", numMax: "",
+  bsMin: "", bsMax: "",
+  usdMin: "", usdMax: "",
+  netoMin: "", netoMax: "",
+  ivaMin: "", ivaMax: "",
+  sortKey: "fecha",
+  sortDir: "desc",
+  pageSize: 50,
+});
+
+function loadState(): Partial<FilterState> | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
 function TransaccionesPage() {
   const qc = useQueryClient();
-  const [desde, setDesde] = useState<string>("");
-  const [hasta, setHasta] = useState(todayISO());
 
   const { data: minFecha, isSuccess: minFechaReady } = useQuery({
     queryKey: ["transacciones-min-fecha"],
@@ -46,21 +104,44 @@ function TransaccionesPage() {
     },
     staleTime: Infinity,
   });
+
+  const [state, setState] = useState<FilterState>(() => {
+    const saved = loadState();
+    const base = defaultState("");
+    return saved ? { ...base, ...saved } : base;
+  });
+  const upd = <K extends keyof FilterState>(k: K, v: FilterState[K]) =>
+    setState((s) => ({ ...s, [k]: v }));
+
+  // Persist
   useEffect(() => {
-    if (!minFechaReady || desde) return;
-    if (minFecha) setDesde(minFecha);
+    try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(state)); } catch {}
+  }, [state]);
+
+  // Initialize desde on first mount if empty
+  useEffect(() => {
+    if (!minFechaReady || state.desde) return;
+    if (minFecha) upd("desde", minFecha);
     else {
       const d = new Date(); d.setDate(d.getDate() - 30);
-      setDesde(d.toISOString().slice(0, 10));
+      upd("desde", d.toISOString().slice(0, 10));
     }
-  }, [minFechaReady, minFecha, desde]);
-  const [centro, setCentro] = useState<string>("todos");
-  const [cuentaFiltro, setCuentaFiltro] = useState<string>("todos");
-  const [metodoFiltro, setMetodoFiltro] = useState<string>("todos");
-  const [modoFiltro, setModoFiltro] = useState<string>("todos");
-  const [busca, setBusca] = useState("");
-  const [sortKey, setSortKey] = useState<"fecha" | "monto_bs" | "monto_usd">("fecha");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  }, [minFechaReady, minFecha, state.desde]);
+
+  const {
+    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos,
+    tercero, factura, notas: notasF, referencia, numMin, numMax,
+    bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
+    sortKey, sortDir, pageSize,
+  } = state;
+
+  // Debounced global search
+  const [buscaDebounced, setBuscaDebounced] = useState(busca);
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaDebounced(busca), 300);
+    return () => clearTimeout(t);
+  }, [busca]);
+
   const [editing, setEditing] = useState<any>(null);
   const [wipeOpen, setWipeOpen] = useState(false);
   const [wipePwd, setWipePwd] = useState("");
@@ -69,40 +150,43 @@ function TransaccionesPage() {
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
-  const PAGE_SIZE = 50;
 
-  useEffect(() => { setPage(0); setSelected(new Set()); }, [desde, hasta, centro, cuentaFiltro, metodoFiltro, modoFiltro, busca, sortKey, sortDir]);
+  useEffect(() => { setPage(0); setSelected(new Set()); }, [
+    desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos,
+    tercero, factura, notasF, referencia, numMin, numMax,
+    bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
+    sortKey, sortDir, pageSize,
+  ]);
 
-  const toggleSort = (k: "fecha" | "monto_bs" | "monto_usd") => {
-    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(k); setSortDir(k === "fecha" ? "desc" : "desc"); }
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) upd("sortDir", sortDir === "asc" ? "desc" : "asc");
+    else { upd("sortKey", k); upd("sortDir", k === "fecha" || k === "numero" ? "desc" : "asc"); }
   };
-  const sortArrow = (k: string) => sortKey === k ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+  const sortArrow = (k: SortKey) => sortKey === k
+    ? (sortDir === "asc" ? <ArrowUp className="inline h-3 w-3 ml-0.5" /> : <ArrowDown className="inline h-3 w-3 ml-0.5" />)
+    : null;
 
   const { data, isLoading } = useQuery({
     enabled: !!desde,
-    queryKey: ["transacciones-list", desde, hasta, centro],
+    queryKey: ["transacciones-list", desde, hasta],
     queryFn: async () => {
       return await fetchAllRows<any>(async (from, to) => {
-        let q = supabase
+        return await supabase
           .from("transacciones")
-          .select("id,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id,grupo_transaccion_id")
+          .select("id,numero,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id,grupo_transaccion_id,tercero_id")
           .gte("fecha", desde)
           .lte("fecha", hasta)
           .order("fecha", { ascending: false })
           .order("created_at", { ascending: false })
           .range(from, to);
-        if (centro !== "todos") q = q.eq("centro_costo", centro as any);
-        return await q;
       });
     },
   });
 
-
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-all-list"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre").order("orden");
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre,grupo,orden").order("orden");
       return data ?? [];
     },
   });
@@ -113,6 +197,25 @@ function TransaccionesPage() {
     return m;
   }, [cuentas]);
 
+  const cuentasByGrupo = useMemo(() => {
+    const g: Record<string, any[]> = {};
+    (cuentas ?? []).forEach((c: any) => { (g[c.grupo || "Otros"] ||= []).push(c); });
+    return g;
+  }, [cuentas]);
+
+  const { data: terceros } = useQuery({
+    queryKey: ["terceros-lookup"],
+    queryFn: async () => {
+      const { data } = await supabase.from("terceros").select("id,razon_social,nombre_comercial");
+      return data ?? [];
+    },
+  });
+  const terceroById = useMemo(() => {
+    const m: Record<string, { razon_social: string; nombre_comercial: string | null }> = {};
+    (terceros ?? []).forEach((t: any) => { m[t.id] = t; });
+    return m;
+  }, [terceros]);
+
   const { data: profiles } = useQuery({
     queryKey: ["profiles-emails"],
     queryFn: async () => {
@@ -120,19 +223,12 @@ function TransaccionesPage() {
       return data ?? [];
     },
   });
-
   const emailById = useMemo(() => {
     const m: Record<string, string> = {};
     (profiles ?? []).forEach((p: any) => { m[p.id] = p.email; });
     return m;
   }, [profiles]);
 
-
-  const cuentasEnData = useMemo(() => {
-    const set = new Set<string>();
-    (data ?? []).forEach((t: any) => t.cuenta_codigo && set.add(t.cuenta_codigo));
-    return Array.from(set).sort();
-  }, [data]);
   const metodosEnData = useMemo(() => {
     const set = new Set<string>();
     (data ?? []).forEach((t: any) => t.metodo_pago && set.add(t.metodo_pago));
@@ -140,43 +236,97 @@ function TransaccionesPage() {
   }, [data]);
 
   const norm = (v: any) =>
-    (v ?? "")
-      .toString()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
+    (v ?? "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  const numOr = (s: string): number | null => {
+    if (s === "" || s == null) return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
 
   const filtradas = useMemo(() => {
-    const s = norm(busca.trim());
+    const s = norm(buscaDebounced.trim());
+    const tN = norm(tercero.trim());
+    const fN = norm(factura.trim());
+    const nN = norm(notasF.trim());
+    const rN = norm(referencia.trim());
+    const nMin = numOr(numMin), nMax = numOr(numMax);
+    const bMin = numOr(bsMin), bMax = numOr(bsMax);
+    const uMin = numOr(usdMin), uMax = numOr(usdMax);
+    const netMin = numOr(netoMin), netMax = numOr(netoMax);
+    const iMin = numOr(ivaMin), iMax = numOr(ivaMax);
+
     let arr = ((data ?? []) as any[]).filter((t: any) => {
-      if (cuentaFiltro !== "todos" && t.cuenta_codigo !== cuentaFiltro) return false;
-      if (metodoFiltro !== "todos" && (t.metodo_pago ?? "") !== metodoFiltro) return false;
-      if (modoFiltro !== "todos" && t.modo !== modoFiltro) return false;
+      if (centros.length && !centros.includes(t.centro_costo)) return false;
+      if (cuentasSel.length && !cuentasSel.includes(t.cuenta_codigo)) return false;
+      if (metodosSel.length && !metodosSel.includes(t.metodo_pago ?? "")) return false;
+      if (modos.length && !modos.includes(t.modo)) return false;
+
+      if (tN) {
+        const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
+        const hit = norm(ter?.razon_social).includes(tN) || norm(ter?.nombre_comercial).includes(tN);
+        if (!hit) return false;
+      }
+      if (fN && !norm(t.numero_factura).includes(fN)) return false;
+      if (nN && !norm(t.notas).includes(nN)) return false;
+      if (rN && !norm(t.referencia).includes(rN)) return false;
+
+      const num = Number(t.numero) || 0;
+      if (nMin != null && num < nMin) return false;
+      if (nMax != null && num > nMax) return false;
+
+      const mBs = Number(t.monto_bs) || 0;
+      if (bMin != null && mBs < bMin) return false;
+      if (bMax != null && mBs > bMax) return false;
+
+      const mUsd = Number(t.monto_usd) || 0;
+      if (uMin != null && mUsd < uMin) return false;
+      if (uMax != null && mUsd > uMax) return false;
+
+      const baseBs = Number(t.monto_base_bs) || 0;
+      if (netMin != null && baseBs < netMin) return false;
+      if (netMax != null && baseBs > netMax) return false;
+
+      const ivaBs = Number(t.iva_bs) || 0;
+      if (iMin != null && ivaBs < iMin) return false;
+      if (iMax != null && ivaBs > iMax) return false;
+
       if (s) {
+        const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
         const hit =
           norm(t.cuenta_codigo).includes(s) ||
           norm(cuentaNombre[t.cuenta_codigo]).includes(s) ||
+          norm(ter?.razon_social).includes(s) ||
+          norm(ter?.nombre_comercial).includes(s) ||
           norm(t.numero_factura).includes(s) ||
           norm(t.numero_orden).includes(s) ||
           norm(t.referencia).includes(s) ||
-          norm(t.notas).includes(s);
+          norm(t.notas).includes(s) ||
+          norm(t.centro_costo).includes(s) ||
+          norm(String(t.numero)).includes(s);
         if (!hit) return false;
       }
       return true;
     });
 
     arr = [...arr].sort((a: any, b: any) => {
-      const av = sortKey === "fecha" ? a.fecha : Number(a[sortKey]) || 0;
-      const bv = sortKey === "fecha" ? b.fecha : Number(b[sortKey]) || 0;
+      let av: any, bv: any;
+      if (sortKey === "fecha") { av = a.fecha; bv = b.fecha; }
+      else if (sortKey === "cuenta_codigo" || sortKey === "centro_costo" || sortKey === "numero_factura") {
+        av = (a[sortKey] ?? "").toString(); bv = (b[sortKey] ?? "").toString();
+      } else {
+        av = Number(a[sortKey]) || 0; bv = Number(b[sortKey]) || 0;
+      }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
       if (av > bv) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
     return arr;
-  }, [data, busca, cuentaNombre, cuentaFiltro, metodoFiltro, modoFiltro, sortKey, sortDir]);
+  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos,
+      numMin, numMax, bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
+      sortKey, sortDir, cuentaNombre, terceroById]);
 
   const totales = useMemo(() => {
-    // Excluye legs IVA (12.4 y 12.5) para no doble-contar
     const noIva = filtradas.filter((t: any) => t.cuenta_codigo !== "12.4" && t.cuenta_codigo !== "12.5");
     return {
       bs: noIva.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
@@ -186,11 +336,14 @@ function TransaccionesPage() {
     };
   }, [filtradas]);
 
-  const totalPages = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
+  const effectivePageSize = pageSize === "all" ? Math.max(filtradas.length, 1) : pageSize;
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filtradas.length / effectivePageSize));
   const paginadas = useMemo(
-    () => filtradas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
-    [filtradas, page]
+    () => pageSize === "all" ? filtradas : filtradas.slice(page * effectivePageSize, (page + 1) * effectivePageSize),
+    [filtradas, page, pageSize, effectivePageSize]
   );
+
+  const totalRegistros = (data ?? []).length;
 
   const toggleSel = (id: string) =>
     setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -226,68 +379,6 @@ function TransaccionesPage() {
     qc.invalidateQueries();
   };
 
-
-  const eliminar = async (t: any) => {
-    if (await isPeriodClosed(t.fecha)) {
-      toast.error("Este mes ya está cerrado, así que no puedes borrar esta transacción todavía.", {
-        description: "Si necesitas corregirla, ve a Registrar → pestaña «COGS e Inventario» y reabre el mes. Luego podrás editarla o eliminarla y volver a cerrarlo.",
-        duration: 8000,
-      });
-      throw new Error("blocked");
-    }
-    const ids: string[] = [t.id];
-    // Si la transacción tiene pareja off-balance, borramos también la otra
-    if (t.pareja_off_balance_id) {
-      const { data: pareja } = await supabase
-        .from("transacciones")
-        .select("id, fecha")
-        .eq("id", t.pareja_off_balance_id)
-        .maybeSingle();
-      if (pareja) {
-        if (await isPeriodClosed(pareja.fecha)) {
-          toast.error("La transacción enlazada está en un mes cerrado — no se puede eliminar el par.");
-          throw new Error("blocked");
-        }
-        ids.push(pareja.id);
-        // Romper el FK self-reference antes de borrar para no bloquearnos
-        await supabase.from("transacciones").update({ pareja_off_balance_id: null } as any).in("id", ids);
-      }
-    }
-    // Si es transacción de propina (13.1) con grupo, eliminar también su pareja y la propina vinculada
-    let propinasEliminadas = 0;
-    if (t.cuenta_codigo === "13.1" && t.grupo_transaccion_id) {
-      const { data: hermanos } = await supabase
-        .from("transacciones")
-        .select("id, fecha")
-        .eq("grupo_transaccion_id", t.grupo_transaccion_id)
-        .eq("cuenta_codigo", "13.1");
-      for (const h of (hermanos ?? [])) {
-        if (h.id === t.id) continue;
-        if (await isPeriodClosed((h as any).fecha)) {
-          toast.error("La transacción de propina enlazada está en un mes cerrado — no se puede eliminar el par.");
-          throw new Error("blocked");
-        }
-        ids.push(h.id);
-      }
-      // Borrar también el registro en la tabla propinas
-      const { count } = await supabase
-        .from("propinas")
-        .delete({ count: "exact" })
-        .or(`transaccion_entrada_id.in.(${ids.join(",")}),transaccion_salida_id.in.(${ids.join(",")})`);
-      propinasEliminadas = count ?? 0;
-    }
-    const { error } = await supabase.from("transacciones").delete().in("id", ids);
-    if (error) { toast.error(error.message); throw error; }
-    for (const id of ids) await logAudit("transacciones", "DELETE", id, id === t.id ? t : null, null);
-    toast.success(
-      t.cuenta_codigo === "13.1"
-        ? `Propina eliminada (${ids.length} mov. en 13.1${propinasEliminadas ? ` + ${propinasEliminadas} registro propinas` : ""})`
-        : ids.length > 1 ? "Par off-balance eliminado (2 movimientos)" : "Movimiento eliminado"
-    );
-    qc.invalidateQueries();
-  };
-
-
   const exportar = async () => {
     if (!filtradas.length) return toast.error("No hay movimientos para exportar");
     setExporting(true);
@@ -297,10 +388,12 @@ function TransaccionesPage() {
       wb.created = new Date();
       const ws = wb.addWorksheet("Transacciones");
       ws.columns = [
+        { header: "#", key: "numero", width: 8 },
         { header: "Fecha", key: "fecha", width: 12 },
         { header: "Centro", key: "centro", width: 10 },
         { header: "Código", key: "codigo", width: 10 },
         { header: "Cuenta", key: "cuenta", width: 36 },
+        { header: "Proveedor/Cliente", key: "tercero", width: 30 },
         { header: "N° Factura", key: "factura", width: 14 },
         { header: "N° Orden", key: "orden", width: 14 },
         { header: "Referencia", key: "referencia", width: 18 },
@@ -325,11 +418,14 @@ function TransaccionesPage() {
         const montoBs = Number(t.monto_bs) || 0;
         const tasaBcvRaw = Number(t.tasa_bcv) || 0;
         const tieneBcv = tasaBcvRaw > 0;
+        const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
         const r = ws.addRow({
+          numero: t.numero ?? "",
           fecha: t.fecha,
           centro: t.centro_costo,
           codigo: t.cuenta_codigo,
           cuenta: cuentaNombre[t.cuenta_codigo] ?? "",
+          tercero: ter?.razon_social ?? "",
           factura: t.numero_factura ?? "",
           orden: t.numero_orden ?? "",
           referencia: t.referencia ?? "",
@@ -358,7 +454,7 @@ function TransaccionesPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `transacciones_${desde}_a_${hasta}${centro !== "todos" ? `_${centro}` : ""}.xlsx`;
+      a.download = `transacciones_${desde}_a_${hasta}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success(`Exportadas ${filtradas.length} transacciones`);
@@ -371,7 +467,6 @@ function TransaccionesPage() {
     if (wipePwd !== "12345678") return toast.error("Contraseña incorrecta");
     setWipeBusy(true);
     try {
-      // Borrar dependencias primero (cuentas por cobrar/pagar referencian transacciones)
       await supabase.from("cuentas_por_cobrar").delete().not("id", "is", null);
       await supabase.from("cuentas_por_pagar").delete().not("id", "is", null);
       const { error, count } = await supabase
@@ -389,76 +484,120 @@ function TransaccionesPage() {
     }
   };
 
+  // --- Date range presets
+  const applyPreset = (preset: string) => {
+    const today = new Date();
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    if (preset === "hoy") { upd("desde", iso(today)); upd("hasta", iso(today)); return; }
+    if (preset === "semana") {
+      const d = new Date(today); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day);
+      upd("desde", iso(d)); upd("hasta", iso(today)); return;
+    }
+    if (preset === "mes") {
+      upd("desde", iso(new Date(today.getFullYear(), today.getMonth(), 1)));
+      upd("hasta", iso(today)); return;
+    }
+    if (preset === "mes_anterior") {
+      const from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const to = new Date(today.getFullYear(), today.getMonth(), 0);
+      upd("desde", iso(from)); upd("hasta", iso(to)); return;
+    }
+    if (preset === "anio") {
+      upd("desde", iso(new Date(today.getFullYear(), 0, 1)));
+      upd("hasta", iso(today)); return;
+    }
+    if (preset === "todo") {
+      if (minFecha) upd("desde", minFecha);
+      upd("hasta", iso(today)); return;
+    }
+  };
+
+  // --- Chips of active filters
+  const chips: { key: string; label: string; clear: () => void }[] = [];
+  if (buscaDebounced) chips.push({ key: "busca", label: `Buscar: "${buscaDebounced}"`, clear: () => upd("busca", "") });
+  centros.forEach((c) => chips.push({ key: `c-${c}`, label: `Centro: ${c}`, clear: () => upd("centros", centros.filter((x) => x !== c)) }));
+  cuentasSel.forEach((c) => chips.push({ key: `cu-${c}`, label: `Cuenta: ${c}`, clear: () => upd("cuentas", cuentasSel.filter((x) => x !== c)) }));
+  metodosSel.forEach((m) => chips.push({ key: `m-${m}`, label: `Método: ${m}`, clear: () => upd("metodos", metodosSel.filter((x) => x !== m)) }));
+  modos.forEach((m) => chips.push({ key: `mo-${m}`, label: `Modo: ${m === "on_balance" ? "on" : "off"}`, clear: () => upd("modos", modos.filter((x) => x !== m)) }));
+  if (tercero) chips.push({ key: "ter", label: `Tercero: "${tercero}"`, clear: () => upd("tercero", "") });
+  if (factura) chips.push({ key: "fac", label: `Factura: "${factura}"`, clear: () => upd("factura", "") });
+  if (notasF) chips.push({ key: "not", label: `Notas: "${notasF}"`, clear: () => upd("notas", "") });
+  if (referencia) chips.push({ key: "ref", label: `Ref: "${referencia}"`, clear: () => upd("referencia", "") });
+  if (numMin || numMax) chips.push({ key: "num", label: `# ${numMin || "…"}-${numMax || "…"}`, clear: () => { upd("numMin", ""); upd("numMax", ""); } });
+  if (bsMin || bsMax) chips.push({ key: "bs", label: `Bs ${bsMin || "…"}-${bsMax || "…"}`, clear: () => { upd("bsMin", ""); upd("bsMax", ""); } });
+  if (usdMin || usdMax) chips.push({ key: "usd", label: `USD ${usdMin || "…"}-${usdMax || "…"}`, clear: () => { upd("usdMin", ""); upd("usdMax", ""); } });
+  if (netoMin || netoMax) chips.push({ key: "neto", label: `Neto Bs ${netoMin || "…"}-${netoMax || "…"}`, clear: () => { upd("netoMin", ""); upd("netoMax", ""); } });
+  if (ivaMin || ivaMax) chips.push({ key: "iva", label: `IVA Bs ${ivaMin || "…"}-${ivaMax || "…"}`, clear: () => { upd("ivaMin", ""); upd("ivaMax", ""); } });
+
+  const clearAll = () => {
+    setState((s) => ({
+      ...s,
+      busca: "", centros: [], cuentas: [], metodos: [], modos: [],
+      tercero: "", factura: "", notas: "", referencia: "",
+      numMin: "", numMax: "", bsMin: "", bsMax: "", usdMin: "", usdMax: "",
+      netoMin: "", netoMax: "", ivaMin: "", ivaMax: "",
+    }));
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Transacciones</h1>
-          <div className="mt-1"><UsdRateBadge /></div>
+        <div className="mt-1"><UsdRateBadge /></div>
         <p className="text-sm text-muted-foreground">Lista de movimientos registrados — editar o eliminar</p>
       </div>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div><Label>Desde</Label><Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></div>
-            <div><Label>Hasta</Label><Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></div>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <Label>Centro</Label>
-              <Select value={centro} onValueChange={setCentro}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label>Desde</Label>
+              <Input type="date" value={desde} onChange={(e) => upd("desde", e.target.value)} />
             </div>
             <div>
-              <Label>Cuenta</Label>
-              <Select value={cuentaFiltro} onValueChange={setCuentaFiltro}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todas</SelectItem>
-                  {cuentasEnData.map((c) => (
-                    <SelectItem key={c} value={c}>{c} — {cuentaNombre[c] ?? ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Hasta</Label>
+              <Input type="date" value={hasta} onChange={(e) => upd("hasta", e.target.value)} />
             </div>
-            <div>
-              <Label>Método</Label>
-              <Select value={metodoFiltro} onValueChange={setMetodoFiltro}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {metodosEnData.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Modo</Label>
-              <Select value={modoFiltro} onValueChange={setModoFiltro}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="on_balance">On-balance</SelectItem>
-                  <SelectItem value="off_balance">Off-balance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2 md:col-span-6">
-              <Label>Buscar</Label>
-              <Input placeholder="cuenta, factura, referencia, notas…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+            <div className="md:col-span-2">
+              <Label>Rango rápido</Label>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  ["hoy", "Hoy"], ["semana", "Esta semana"], ["mes", "Este mes"],
+                  ["mes_anterior", "Mes anterior"], ["anio", "Este año"], ["todo", "Todo"],
+                ].map(([k, l]) => (
+                  <Button key={k} type="button" variant="outline" size="sm" onClick={() => applyPreset(k)}>{l}</Button>
+                ))}
+              </div>
             </div>
           </div>
-          {(cuentaFiltro !== "todos" || metodoFiltro !== "todos" || modoFiltro !== "todos" || centro !== "todos") && (
-            <div className="mt-3 flex flex-wrap gap-3 text-sm rounded-md bg-muted/40 p-2 border">
-              <span className="text-xs text-muted-foreground self-center">Totales del filtro (sin IVA):</span>
-              <span className="mono font-semibold">{fmtBs(totales.bs)}</span>
-              <span className="mono font-semibold">{fmtUsd(totales.usd)}</span>
-              {totales.ivaBs > 0 && (
-                <span className="mono text-xs text-muted-foreground self-center">+ IVA legs {fmtBs(totales.ivaBs)}</span>
-              )}
+          <div>
+            <Label>Búsqueda global</Label>
+            <Input
+              placeholder="Busca en cuenta, tercero, factura, notas, referencia, centro, #…"
+              value={busca}
+              onChange={(e) => upd("busca", e.target.value)}
+            />
+          </div>
+
+          {chips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {chips.map((c) => (
+                <Badge key={c.key} variant="secondary" className="gap-1 pr-1">
+                  {c.label}
+                  <button
+                    type="button"
+                    onClick={c.clear}
+                    className="ml-1 rounded hover:bg-muted-foreground/20 p-0.5"
+                    aria-label="Quitar filtro"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+              <Button variant="ghost" size="sm" onClick={clearAll} className="h-6 text-xs">
+                Limpiar todos
+              </Button>
             </div>
           )}
         </CardContent>
@@ -468,10 +607,32 @@ function TransaccionesPage() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">
-              {isLoading ? "Cargando…" : `${filtradas.length} movimientos`}
-              {filtradas.length > PAGE_SIZE && <span className="text-xs text-muted-foreground font-normal ml-2">· página {page + 1} de {totalPages}</span>}
+              {isLoading
+                ? "Cargando…"
+                : `Mostrando ${filtradas.length.toLocaleString()} de ${totalRegistros.toLocaleString()} transacciones`}
+              {pageSize !== "all" && filtradas.length > effectivePageSize && (
+                <span className="text-xs text-muted-foreground font-normal ml-2">
+                  · página {page + 1} de {totalPages}
+                </span>
+              )}
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 text-xs">
+                <Label className="text-xs whitespace-nowrap">Por página</Label>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(v) => upd("pageSize", v === "all" ? "all" : Number(v))}
+                >
+                  <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="250">250</SelectItem>
+                    <SelectItem value="500">500</SelectItem>
+                    <SelectItem value="all">Todas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {selected.size > 0 && (
                 <Button variant="destructive" size="sm" onClick={borrarSeleccionadas}>
                   <Trash2 className="h-4 w-4 mr-1.5" />
@@ -490,8 +651,19 @@ function TransaccionesPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {(centros.length || cuentasSel.length || metodosSel.length || modos.length) > 0 && (
+            <div className="mb-3 flex flex-wrap gap-3 text-sm rounded-md bg-muted/40 p-2 border">
+              <span className="text-xs text-muted-foreground self-center">Totales del filtro (sin IVA):</span>
+              <span className="mono font-semibold">{fmtBs(totales.bs)}</span>
+              <span className="mono font-semibold">{fmtUsd(totales.usd)}</span>
+              {totales.ivaBs > 0 && (
+                <span className="mono text-xs text-muted-foreground self-center">+ IVA legs {fmtBs(totales.ivaBs)}</span>
+              )}
+            </div>
+          )}
+
           {filtradas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin movimientos en este rango.</p>
+            <p className="text-sm text-muted-foreground">Sin movimientos que coincidan con los filtros.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -503,133 +675,201 @@ function TransaccionesPage() {
                         onCheckedChange={(v) => toggleSelAllPage(Boolean(v))}
                       />
                     </th>
+                    <ThSort onClick={() => toggleSort("numero")} arrow={sortArrow("numero")}>
+                      #
+                      <RangeFilter
+                        min={numMin} max={numMax}
+                        onChange={(mn, mx) => { upd("numMin", mn); upd("numMax", mx); }}
+                        label="Rango de número"
+                      />
+                    </ThSort>
+                    <ThSort onClick={() => toggleSort("fecha")} arrow={sortArrow("fecha")}>Fecha</ThSort>
+                    <ThSort onClick={() => toggleSort("centro_costo")} arrow={sortArrow("centro_costo")}>
+                      Centro
+                      <MultiSelectFilter
+                        options={CENTROS.map((c) => ({ value: c, label: c }))}
+                        selected={centros}
+                        onChange={(v) => upd("centros", v)}
+                        label="Centro"
+                      />
+                    </ThSort>
+                    <ThSort onClick={() => toggleSort("cuenta_codigo")} arrow={sortArrow("cuenta_codigo")}>
+                      Cuenta
+                      <MultiSelectFilter
+                        groupedOptions={Object.entries(cuentasByGrupo).map(([grupo, items]) => ({
+                          group: grupo,
+                          items: items.map((c: any) => ({ value: c.codigo, label: `${c.codigo} — ${c.nombre}` })),
+                        }))}
+                        selected={cuentasSel}
+                        onChange={(v) => upd("cuentas", v)}
+                        label="Cuenta"
+                      />
+                    </ThSort>
+                    <ThSort onClick={() => toggleSort("numero_factura")} arrow={sortArrow("numero_factura")}>
+                      Factura
+                      <TextFilter value={factura} onChange={(v) => upd("factura", v)} label="Contiene" />
+                    </ThSort>
                     <th className="text-left py-2 px-2">
-                      <button type="button" onClick={() => toggleSort("fecha")} className="hover:text-foreground">Fecha{sortArrow("fecha")}</button>
+                      Proveedor/Cliente
+                      <TextFilter value={tercero} onChange={(v) => upd("tercero", v)} label="Razón social contiene" />
                     </th>
-                    <th className="text-left py-2 px-2">Centro</th>
-                    <th className="text-left py-2 px-2">Cuenta</th>
-                    <th className="text-left py-2 px-2">Factura</th>
-                    <th className="text-left py-2 px-2">N° Orden</th>
-                    <th className="text-right py-2 px-2">
-                      <button type="button" onClick={() => toggleSort("monto_bs")} className="hover:text-foreground">Bs{sortArrow("monto_bs")}</button>
+                    <ThSort onClick={() => toggleSort("monto_bs")} arrow={sortArrow("monto_bs")} align="right">
+                      Bs
+                      <RangeFilter
+                        min={bsMin} max={bsMax}
+                        onChange={(mn, mx) => { upd("bsMin", mn); upd("bsMax", mx); }}
+                        label="Rango de Bs (total)"
+                      />
+                      <div className="text-[10px] font-normal text-muted-foreground flex gap-2 mt-0.5">
+                        <RangeFilter
+                          min={netoMin} max={netoMax}
+                          onChange={(mn, mx) => { upd("netoMin", mn); upd("netoMax", mx); }}
+                          label="Rango de neto Bs"
+                          triggerLabel="Neto"
+                        />
+                        <RangeFilter
+                          min={ivaMin} max={ivaMax}
+                          onChange={(mn, mx) => { upd("ivaMin", mn); upd("ivaMax", mx); }}
+                          label="Rango de IVA Bs"
+                          triggerLabel="IVA"
+                        />
+                      </div>
+                    </ThSort>
+                    <ThSort onClick={() => toggleSort("monto_usd")} arrow={sortArrow("monto_usd")} align="right"
+                            title="Neto sin IVA · el + IVA aparece debajo cuando aplica">
+                      USD (neto)
+                      <RangeFilter
+                        min={usdMin} max={usdMax}
+                        onChange={(mn, mx) => { upd("usdMin", mn); upd("usdMax", mx); }}
+                        label="Rango de USD"
+                      />
+                    </ThSort>
+                    <th className="text-right py-2 px-2" title="USD calculado a tasa BCV — solo referencia">USD (BCV)</th>
+                    <th className="text-left py-2 px-2">
+                      Método
+                      <MultiSelectFilter
+                        options={Array.from(new Set([...METODOS, ...metodosEnData])).map((m) => ({ value: m, label: m }))}
+                        selected={metodosSel}
+                        onChange={(v) => upd("metodos", v)}
+                        label="Método"
+                      />
                     </th>
-                    <th className="text-right py-2 px-2" title="Neto sin IVA · el + IVA aparece debajo cuando aplica">
-                      <button type="button" onClick={() => toggleSort("monto_usd")} className="hover:text-foreground">USD (neto){sortArrow("monto_usd")}</button>
+                    <th className="text-left py-2 px-2">
+                      Modo
+                      <MultiSelectFilter
+                        options={[{ value: "on_balance", label: "on balance" }, { value: "off_balance", label: "off balance" }]}
+                        selected={modos}
+                        onChange={(v) => upd("modos", v)}
+                        label="Modo"
+                      />
                     </th>
-                    <th className="text-right py-2 px-2" title="Equivalente USD calculado a tasa BCV — solo referencia, no impacta G&P ni FC">USD (BCV)</th>
-                    <th className="text-left py-2 px-2">Método</th>
-                    <th className="text-left py-2 px-2">Modo</th>
-                    <th className="text-center py-2 px-2">Factura</th>
+                    <th className="text-left py-2 px-2">
+                      Referencia
+                      <TextFilter value={referencia} onChange={(v) => upd("referencia", v)} label="Contiene" />
+                    </th>
+                    <th className="text-left py-2 px-2">
+                      Notas
+                      <TextFilter value={notasF} onChange={(v) => upd("notas", v)} label="Contiene" />
+                    </th>
+                    <th className="text-center py-2 px-2">Adj.</th>
                     <th className="text-left py-2 px-2">Registrado por</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginadas.map((t: any) => (
-                    <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="py-2 px-2">
-                        <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggleSel(t.id)} />
-                      </td>
-                      <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(t.fecha)}</td>
-                      <td className="py-2 px-2">{t.centro_costo}</td>
-                      <td className="py-2 px-2">
-                        <div className="mono text-xs flex items-center gap-1.5">
-                          {t.cuenta_codigo}
-                          {t.cuenta_codigo === "13.1" && (
-                            <Badge className="text-[9px] bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-300">Propina</Badge>
-                          )}
-                          {typeof t.notas === "string" && t.notas.startsWith("Pago CxP") && (
-                            <Badge className="text-[9px] bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-300">Pago CxP</Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
-                      </td>
-                      <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
-                      <td className="py-2 px-2 mono text-xs">{t.numero_orden ?? "—"}</td>
-                      {(() => {
-                        const totalBs = Number(t.monto_bs) || 0;
-                        const totalUsd = Number(t.monto_usd) || 0;
-                        const bcvUsdTotal = Number(t.tasa_bcv) > 0 ? totalBs / Number(t.tasa_bcv) : null;
-                        const ivaBs = Number(t.iva_bs) || 0;
-                        const baseBs = Number(t.monto_base_bs) || 0;
-                        const showSplit = ivaBs > 0 && baseBs > 0 && totalBs > 0;
-                        // USD neto derivado de los USD ya almacenados (no se reconvierte por tasa):
-                        // se toma la proporción base/total en Bs y se aplica al monto_usd guardado.
-                        const netoUsd = showSplit ? totalUsd * (baseBs / totalBs) : totalUsd;
-                        const ivaUsd = showSplit ? Math.max(0, totalUsd - netoUsd) : 0;
-                        return (
-                          <>
-                            <td className="py-2 px-2 text-right mono">
-                              {showSplit ? (
-                                <div className="leading-tight">
-                                  <div>{fmtBs(baseBs)}</div>
-                                  <div className="text-[10px] text-muted-foreground font-normal">+ IVA {fmtBs(ivaBs)}</div>
-                                </div>
-                              ) : fmtBs(totalBs)}
-                            </td>
-                            <td className="py-2 px-2 text-right mono">
-                              {showSplit ? (
-                                <div className="leading-tight">
-                                  <div>{fmtUsd(netoUsd)}</div>
-                                  <div className="text-[10px] text-muted-foreground font-normal">+ IVA {fmtUsd(ivaUsd)}</div>
-                                </div>
-                              ) : fmtUsd(totalUsd)}
-                            </td>
-                            <td className="py-2 px-2 text-right mono text-muted-foreground">
-                              {bcvUsdTotal == null ? "—" : fmtUsd(bcvUsdTotal)}
-                            </td>
-                          </>
-                        );
-                      })()}
-
-                      <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
-                      <td className="py-2 px-2">
-                        {t.modo === "off_balance"
-                          ? <Badge variant="outline" className="text-[10px]">off</Badge>
-                          : <Badge className="text-[10px]">on</Badge>}
-                      </td>
-                      <td className="py-2 px-2 text-center">
-                        <AdjuntoCell
-                          transaccionId={t.id}
-                          adjuntoPath={t.adjunto_url ?? null}
-                          canDelete={true}
-                          onChange={(p) => {
-                            t.adjunto_url = p;
-                            qc.invalidateQueries({ queryKey: ["transacciones-list"] });
-                          }}
-                        />
-                      </td>
-                      <td className="py-2 px-2 text-xs text-muted-foreground">{emailById[t.created_by] ?? "—"}</td>
-                      <td className="py-2 px-2">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => setEditing(t)}
-                            title="Editar"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
-                            onClick={() => setDeleteTarget(t)}
-                            title="Eliminar"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {paginadas.map((t: any) => {
+                    const totalBs = Number(t.monto_bs) || 0;
+                    const totalUsd = Number(t.monto_usd) || 0;
+                    const bcvUsdTotal = Number(t.tasa_bcv) > 0 ? totalBs / Number(t.tasa_bcv) : null;
+                    const ivaBs = Number(t.iva_bs) || 0;
+                    const baseBs = Number(t.monto_base_bs) || 0;
+                    const showSplit = ivaBs > 0 && baseBs > 0 && totalBs > 0;
+                    const netoUsd = showSplit ? totalUsd * (baseBs / totalBs) : totalUsd;
+                    const ivaUsd = showSplit ? Math.max(0, totalUsd - netoUsd) : 0;
+                    const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
+                    return (
+                      <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="py-2 px-2">
+                          <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggleSel(t.id)} />
+                        </td>
+                        <td className="py-2 px-2 mono text-xs text-muted-foreground">{t.numero ?? "—"}</td>
+                        <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(t.fecha)}</td>
+                        <td className="py-2 px-2">{t.centro_costo}</td>
+                        <td className="py-2 px-2">
+                          <div className="mono text-xs flex items-center gap-1.5">
+                            {t.cuenta_codigo}
+                            {t.cuenta_codigo === "13.1" && (
+                              <Badge className="text-[9px] bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-300">Propina</Badge>
+                            )}
+                            {typeof t.notas === "string" && t.notas.startsWith("Pago CxP") && (
+                              <Badge className="text-[9px] bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-300">Pago CxP</Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
+                        </td>
+                        <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
+                        <td className="py-2 px-2 text-xs truncate max-w-[200px]" title={ter?.razon_social ?? ""}>
+                          {ter?.razon_social ?? "—"}
+                        </td>
+                        <td className="py-2 px-2 text-right mono">
+                          {showSplit ? (
+                            <div className="leading-tight">
+                              <div>{fmtBs(baseBs)}</div>
+                              <div className="text-[10px] text-muted-foreground font-normal">+ IVA {fmtBs(ivaBs)}</div>
+                            </div>
+                          ) : fmtBs(totalBs)}
+                        </td>
+                        <td className="py-2 px-2 text-right mono">
+                          {showSplit ? (
+                            <div className="leading-tight">
+                              <div>{fmtUsd(netoUsd)}</div>
+                              <div className="text-[10px] text-muted-foreground font-normal">+ IVA {fmtUsd(ivaUsd)}</div>
+                            </div>
+                          ) : fmtUsd(totalUsd)}
+                        </td>
+                        <td className="py-2 px-2 text-right mono text-muted-foreground">
+                          {bcvUsdTotal == null ? "—" : fmtUsd(bcvUsdTotal)}
+                        </td>
+                        <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
+                        <td className="py-2 px-2">
+                          {t.modo === "off_balance"
+                            ? <Badge variant="outline" className="text-[10px]">off</Badge>
+                            : <Badge className="text-[10px]">on</Badge>}
+                        </td>
+                        <td className="py-2 px-2 text-xs truncate max-w-[140px]" title={t.referencia ?? ""}>{t.referencia ?? "—"}</td>
+                        <td className="py-2 px-2 text-xs truncate max-w-[220px]" title={t.notas ?? ""}>{t.notas ?? "—"}</td>
+                        <td className="py-2 px-2 text-center">
+                          <AdjuntoCell
+                            transaccionId={t.id}
+                            adjuntoPath={t.adjunto_url ?? null}
+                            canDelete={true}
+                            onChange={(p) => {
+                              t.adjunto_url = p;
+                              qc.invalidateQueries({ queryKey: ["transacciones-list"] });
+                            }}
+                          />
+                        </td>
+                        <td className="py-2 px-2 text-xs text-muted-foreground">{emailById[t.created_by] ?? "—"}</td>
+                        <td className="py-2 px-2">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(t)} title="Editar">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
+                                    onClick={() => setDeleteTarget(t)} title="Eliminar">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-              {totalPages > 1 && (
+              {pageSize !== "all" && totalPages > 1 && (
                 <div className="flex items-center justify-between mt-3 text-sm">
                   <div className="text-xs text-muted-foreground">
-                    Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtradas.length)} de {filtradas.length}
+                    Mostrando {page * effectivePageSize + 1}–{Math.min((page + 1) * effectivePageSize, filtradas.length)} de {filtradas.length}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="outline" size="sm" onClick={() => setPage(0)} disabled={page === 0}>«</Button>
@@ -644,7 +884,6 @@ function TransaccionesPage() {
           )}
         </CardContent>
       </Card>
-
 
       {editing && (
         <EditDialog
@@ -671,18 +910,11 @@ function TransaccionesPage() {
           </DialogHeader>
           <div className="space-y-2">
             <Label>Contraseña</Label>
-            <Input
-              type="password"
-              value={wipePwd}
-              onChange={(e) => setWipePwd(e.target.value)}
-              placeholder="Contraseña de la página"
-              autoFocus
-            />
+            <Input type="password" value={wipePwd} onChange={(e) => setWipePwd(e.target.value)}
+                   placeholder="Contraseña de la página" autoFocus />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setWipeOpen(false); setWipePwd(""); }} disabled={wipeBusy}>
-              Cancelar
-            </Button>
+            <Button variant="ghost" onClick={() => { setWipeOpen(false); setWipePwd(""); }} disabled={wipeBusy}>Cancelar</Button>
             <Button variant="destructive" onClick={borrarTodo} disabled={wipeBusy || !wipePwd}>
               {wipeBusy ? "Borrando…" : "Sí, borrar todo"}
             </Button>
@@ -690,6 +922,139 @@ function TransaccionesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ========== Header helpers ==========
+function ThSort({
+  children, onClick, arrow, align = "left", title,
+}: { children: React.ReactNode; onClick: () => void; arrow: React.ReactNode; align?: "left" | "right"; title?: string }) {
+  return (
+    <th className={`py-2 px-2 ${align === "right" ? "text-right" : "text-left"}`} title={title}>
+      <div className={`flex items-center gap-1 ${align === "right" ? "justify-end" : ""}`}>
+        <button type="button" onClick={onClick} className="hover:text-foreground inline-flex items-center">
+          {children}
+          {arrow}
+        </button>
+      </div>
+    </th>
+  );
+}
+
+function TextFilter({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`ml-1 inline-flex items-center rounded p-0.5 hover:bg-muted ${value ? "text-primary" : "text-muted-foreground"}`}
+          aria-label="Filtrar"
+        >
+          <Filter className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3 pointer-events-auto" align="start">
+        <Label className="text-xs">{label}</Label>
+        <Input className="mt-1" value={value} onChange={(e) => onChange(e.target.value)} autoFocus />
+        {value && (
+          <Button variant="ghost" size="sm" className="mt-2 h-7 text-xs" onClick={() => onChange("")}>Limpiar</Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function RangeFilter({
+  min, max, onChange, label, triggerLabel,
+}: {
+  min: string; max: string;
+  onChange: (min: string, max: string) => void;
+  label: string;
+  triggerLabel?: string;
+}) {
+  const active = min !== "" || max !== "";
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`ml-1 inline-flex items-center gap-0.5 rounded p-0.5 hover:bg-muted ${active ? "text-primary" : "text-muted-foreground"}`}
+          aria-label="Filtrar rango"
+        >
+          {triggerLabel && <span className="text-[10px]">{triggerLabel}</span>}
+          <Filter className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-3 pointer-events-auto" align="start">
+        <Label className="text-xs">{label}</Label>
+        <div className="grid grid-cols-2 gap-2 mt-1">
+          <Input placeholder="Desde" value={min} onChange={(e) => onChange(e.target.value, max)} type="number" />
+          <Input placeholder="Hasta" value={max} onChange={(e) => onChange(min, e.target.value)} type="number" />
+        </div>
+        {active && (
+          <Button variant="ghost" size="sm" className="mt-2 h-7 text-xs" onClick={() => onChange("", "")}>Limpiar</Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+type OptionItem = { value: string; label: string };
+function MultiSelectFilter({
+  options, groupedOptions, selected, onChange, label,
+}: {
+  options?: OptionItem[];
+  groupedOptions?: { group: string; items: OptionItem[] }[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+  label: string;
+}) {
+  const active = selected.length > 0;
+  const toggle = (val: string) => {
+    onChange(selected.includes(val) ? selected.filter((x) => x !== val) : [...selected, val]);
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`ml-1 inline-flex items-center rounded p-0.5 hover:bg-muted ${active ? "text-primary" : "text-muted-foreground"}`}
+          aria-label="Filtrar"
+        >
+          <Filter className="h-3 w-3" />
+          {active && <span className="text-[10px] ml-0.5">{selected.length}</span>}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2 pointer-events-auto" align="start">
+        <div className="flex items-center justify-between mb-1">
+          <Label className="text-xs">{label}</Label>
+          {active && (
+            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onChange([])}>Limpiar</Button>
+          )}
+        </div>
+        <ScrollArea className="h-64">
+          <div className="space-y-1 pr-2">
+            {options?.map((o) => (
+              <label key={o.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted rounded px-1 py-0.5">
+                <Checkbox checked={selected.includes(o.value)} onCheckedChange={() => toggle(o.value)} />
+                <span className="truncate">{o.label}</span>
+              </label>
+            ))}
+            {groupedOptions?.map((g) => (
+              <div key={g.group}>
+                <div className="text-[10px] uppercase text-muted-foreground mt-2 mb-0.5 px-1">{g.group}</div>
+                {g.items.map((o) => (
+                  <label key={o.value} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted rounded px-1 py-0.5">
+                    <Checkbox checked={selected.includes(o.value)} onCheckedChange={() => toggle(o.value)} />
+                    <span className="truncate">{o.label}</span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -823,6 +823,7 @@ export type Database = {
           monto_bs: number
           monto_usd: number
           notas: string | null
+          numero: number
           numero_factura: string | null
           numero_orden: string | null
           pareja_off_balance_id: string | null
@@ -857,6 +858,7 @@ export type Database = {
           monto_bs: number
           monto_usd: number
           notas?: string | null
+          numero?: number
           numero_factura?: string | null
           numero_orden?: string | null
           pareja_off_balance_id?: string | null
@@ -891,6 +893,7 @@ export type Database = {
           monto_bs?: number
           monto_usd?: number
           notas?: string | null
+          numero?: number
           numero_factura?: string | null
           numero_orden?: string | null
           pareja_off_balance_id?: string | null
