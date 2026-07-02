@@ -485,8 +485,9 @@ function ImportarComprasPage() {
                       <th className="p-2 bg-muted">RIF</th>
                       <th className="p-2 bg-muted">Tipo</th>
                       <th className="p-2 bg-muted">N° Documento</th>
-                      <th className="p-2 bg-muted text-right">USD</th>
+                      <th className="p-2 bg-muted text-right">Neto USD</th>
                       <th className="p-2 bg-muted text-right">IVA USD</th>
+                      <th className="p-2 bg-muted text-right">Total USD</th>
                       <th className="p-2 bg-muted">Prov.</th>
                     </tr>
                   </thead>
