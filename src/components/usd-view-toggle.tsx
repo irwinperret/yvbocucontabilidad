@@ -13,18 +13,17 @@ export function UsdViewToggle({ className }: { className?: string }) {
   return (
     <Button
       type="button"
-      size="sm"
       onClick={toggle}
       className={cn(
-        "h-9 pl-3 pr-4 gap-2 rounded-full font-semibold shadow-sm transition-colors",
-        "bg-primary text-primary-foreground hover:bg-primary/90",
+        "h-10 pl-3.5 pr-4 gap-2 rounded-full font-semibold shadow-sm transition-all",
+        "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow",
         "border border-primary/20",
         className,
       )}
       title={`Cambiar a ${isBcv ? "USD Paralelo" : "USD BCV"}`}
     >
-      <span className="relative flex h-5 w-5 items-center justify-center rounded-full bg-primary-foreground/20">
-        <DollarSign className="h-3.5 w-3.5" />
+      <span className="relative flex h-6 w-6 items-center justify-center rounded-full bg-primary-foreground/20">
+        <DollarSign className="h-4 w-4" />
       </span>
       <span className="text-sm">{label}</span>
       <ArrowRightLeft className="h-3.5 w-3.5 opacity-80" />
