@@ -1154,6 +1154,45 @@ export type Database = {
           },
         ]
       }
+      v_transacciones_mensual_bcv: {
+        Row: {
+          anio: number | null
+          base_bs: number | null
+          base_usd: number | null
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          cuenta_codigo: string | null
+          iva_bs: number | null
+          mes: number | null
+          modo: Database["public"]["Enums"]["modo_transaccion"] | null
+          movimientos: number | null
+          periodo: string | null
+          total_bs: number | null
+          total_usd: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "plan_de_cuentas"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "v_fc_mes_actual"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_cuenta_codigo_fkey"
+            columns: ["cuenta_codigo"]
+            isOneToOne: false
+            referencedRelation: "v_gyp_mes_actual"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
     }
     Functions: {
       aplicar_anticipo_a_factura: {
