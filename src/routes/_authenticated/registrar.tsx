@@ -431,6 +431,7 @@ function VentasForm() {
             notas: `Bono ${centroOff} (off-balance) por factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}`,
             modo: "off_balance" as any,
             pareja_off_balance_id: txVenta.id,
+            grupo_transaccion_id: grupoOffId,
             created_by: user.id,
           } as any).select().single();
           if (e2 || !txB) {
