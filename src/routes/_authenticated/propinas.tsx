@@ -78,10 +78,11 @@ function PropinasPage() {
   });
 
   const { data: ventasMensual } = useQuery({
-    queryKey: ["ventas-netas-mensual", anio],
+    queryKey: ["ventas-netas-mensual", anio, mode],
     queryFn: async () => {
+      const view = mode === "bcv" ? "v_transacciones_mensual_bcv" : "v_transacciones_mensual";
       const { data } = await (supabase as any)
-        .from("v_transacciones_mensual")
+        .from(view)
         .select("mes,cuenta_codigo,base_usd")
         .eq("anio", anio)
         .eq("modo", "on_balance")
@@ -89,6 +90,27 @@ function PropinasPage() {
       return (data ?? []) as { mes: number; cuenta_codigo: string; base_usd: number }[];
     },
   });
+
+  const { data: tasasBcv } = useQuery({
+    queryKey: ["tasas-bcv-propinas", anio],
+    queryFn: async () => {
+      const { data } = await supabase.from("tasas_bcv").select("fecha,tasa")
+        .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`);
+      return (data ?? []) as { fecha: string; tasa: number }[];
+    },
+  });
+  const bcvByFecha = useMemo(() => {
+    const m: Record<string, number> = {};
+    (tasasBcv ?? []).forEach((r) => { m[r.fecha] = Number(r.tasa) || 0; });
+    return m;
+  }, [tasasBcv]);
+  const usdOf = (p: Propina) => {
+    if (mode !== "bcv") return Number(p.monto_usd ?? 0);
+    const bs = Number(p.monto_bs ?? 0);
+    const rate = bcvByFecha[p.fecha] || 0;
+    if (rate > 0 && bs > 0) return bs / rate;
+    return Number(p.monto_usd ?? 0);
+  };
 
   const filtered = useMemo(() => {
     return (propinas ?? []).filter((p) => {
@@ -118,16 +140,16 @@ function PropinasPage() {
     return arr;
   }, [filtered, sortKey, sortDir]);
 
-  const total = filtered.reduce((s, p) => s + Number(p.monto_usd ?? 0), 0);
-  const totalYV = filtered.filter((p) => p.centro_costo === "YV").reduce((s, p) => s + Number(p.monto_usd ?? 0), 0);
-  const totalBocu = filtered.filter((p) => p.centro_costo === "Bocu").reduce((s, p) => s + Number(p.monto_usd ?? 0), 0);
+  const total = filtered.reduce((s, p) => s + usdOf(p), 0);
+  const totalYV = filtered.filter((p) => p.centro_costo === "YV").reduce((s, p) => s + usdOf(p), 0);
+  const totalBocu = filtered.filter((p) => p.centro_costo === "Bocu").reduce((s, p) => s + usdOf(p), 0);
   const dias = new Set(filtered.map((p) => p.fecha)).size;
   const promedio = dias > 0 ? total / dias : 0;
 
   // Pendientes de distribuir = todas las del año (no del filtro) sin transacción de salida
   const pendientesUsd = (propinas ?? [])
     .filter((p) => !p.transaccion_salida_id)
-    .reduce((s, p) => s + Number(p.monto_usd ?? 0), 0);
+    .reduce((s, p) => s + usdOf(p), 0);
   const pendientesCount = (propinas ?? []).filter((p) => !p.transaccion_salida_id).length;
 
   const chartData = useMemo(() => {
@@ -137,7 +159,7 @@ function PropinasPage() {
     }
     (propinas ?? []).forEach((p) => {
       const m = Number(p.fecha.slice(5, 7));
-      const amt = Number(p.monto_usd ?? 0);
+      const amt = usdOf(p);
       const c = p.centro_costo === "YV" ? "YV" : p.centro_costo === "Bocu" ? "Bocu" : "Otros";
       out[m][c] += amt;
       out[m].total += amt;
@@ -152,7 +174,7 @@ function PropinasPage() {
       const pct = ventas > 0 ? (r.total / ventas) * 100 : 0;
       return { ...r, ventas, pctVentas: Number(pct.toFixed(2)) };
     });
-  }, [propinas, ventasMensual]);
+  }, [propinas, ventasMensual, mode, bcvByFecha]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
