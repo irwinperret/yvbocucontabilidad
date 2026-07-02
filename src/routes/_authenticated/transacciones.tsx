@@ -81,6 +81,19 @@ const defaultState = (initialDesde: string): FilterState => ({
   pageSize: 50,
 });
 
+function usdParaleloVisual(t: any) {
+  const montoBs = Number(t.monto_bs) || 0;
+  const tasaParalela = Number(t.tasa_paralela) || 0;
+  if (tasaParalela > 0) return montoBs / tasaParalela;
+  return Number(t.monto_usd) || 0;
+}
+
+function usdBcvVisual(t: any) {
+  const montoBs = Number(t.monto_bs) || 0;
+  const tasaBcv = Number(t.tasa_bcv) || 0;
+  return tasaBcv > 0 ? montoBs / tasaBcv : null;
+}
+
 function loadState(): Partial<FilterState> | null {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
@@ -418,6 +431,8 @@ function TransaccionesPage() {
         const montoBs = Number(t.monto_bs) || 0;
         const tasaBcvRaw = Number(t.tasa_bcv) || 0;
         const tieneBcv = tasaBcvRaw > 0;
+        const usdParalelo = usdParaleloVisual(t);
+        const usdBcv = usdBcvVisual(t);
         const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
         const r = ws.addRow({
           numero: t.numero ?? "",
@@ -434,8 +449,8 @@ function TransaccionesPage() {
           iva: Number(t.iva_bs) || 0,
           tasa: tasaBcvRaw,
           tasaPar: tieneParalela ? tasaParRaw : "N/A",
-          usd: tieneParalela ? montoBs / tasaParRaw! : "N/A",
-          usdBcv: tieneBcv ? montoBs / tasaBcvRaw : "N/A",
+          usd: tieneParalela ? usdParalelo : Number(t.monto_usd) || "N/A",
+          usdBcv: tieneBcv ? usdBcv : "N/A",
           metodo: t.metodo_pago ?? "",
           modo: t.modo,
           notas: t.notas ?? "",
@@ -736,8 +751,8 @@ function TransaccionesPage() {
                       </div>
                     </ThSort>
                     <ThSort onClick={() => toggleSort("monto_usd")} arrow={sortArrow("monto_usd")} align="right"
-                            title="Neto sin IVA · el + IVA aparece debajo cuando aplica. En COGS/inventario (2.x y 12.5) se muestra a valor BCV">
-                      USD (neto)
+                            title="USD calculado a tasa paralela. Neto sin IVA; el + IVA aparece debajo cuando aplica.">
+                      USD paralelo
                       <RangeFilter
                         min={usdMin} max={usdMax}
                         onChange={(mn, mx) => { upd("usdMin", mn); upd("usdMax", mx); }}
@@ -779,9 +794,8 @@ function TransaccionesPage() {
                 <tbody>
                   {paginadas.map((t: any) => {
                     const totalBs = Number(t.monto_bs) || 0;
-                    const totalUsdParalelo = Number(t.monto_usd) || 0;
-                    const tasaBcv = Number(t.tasa_bcv) || 0;
-                    const bcvUsdTotal = tasaBcv > 0 ? totalBs / tasaBcv : null;
+                    const totalUsdParalelo = usdParaleloVisual(t);
+                    const bcvUsdTotal = usdBcvVisual(t);
                     const ivaBs = Number(t.iva_bs) || 0;
                     const baseBs = Number(t.monto_base_bs) || 0;
                     const showSplit = ivaBs > 0 && baseBs > 0 && totalBs > 0;
