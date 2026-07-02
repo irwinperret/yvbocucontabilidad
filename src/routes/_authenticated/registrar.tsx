@@ -3128,9 +3128,9 @@ function CierreForm() {
                     <th className="text-right">Neto Bs (sin IVA)</th>
                     <th className="text-right">IVA Bs</th>
                     <th className="text-right">Total Bs</th>
-                    <th className="text-right" title="Monto neto sin IVA — este es el valor que alimenta el COGS">Monto neto USD (sin IVA)</th>
-                    <th className="text-right">IVA USD</th>
-                    <th className="text-right">Total USD (neto + IVA)</th>
+                    <th className="text-right" title="Monto neto sin IVA a valor BCV — solo visualización, no afecta la contabilidad">Neto USD BCV (sin IVA)</th>
+                    <th className="text-right" title="IVA a valor BCV — solo visualización">IVA USD BCV</th>
+                    <th className="text-right" title="Total neto + IVA a valor BCV — solo visualización">Total USD BCV</th>
                     <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
