@@ -120,18 +120,23 @@ function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {ultimas.map((t: any) => (
-                    <tr key={t.id} className="border-b last:border-0">
-                      <td className="py-2 px-2 mono">{fmtDate(t.fecha)}</td>
-                      <td className="py-2 px-2">{t.cuenta_codigo}</td>
-                      <td className="py-2 px-2">{t.centro_costo}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtUsd(t.monto_usd)}</td>
-                      <td className="py-2 px-2">
-                        {t.modo === "off_balance" ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge> : <Badge variant="outline" className="text-green-700 border-green-300">on</Badge>}
-                      </td>
-                    </tr>
-                  ))}
+                  {ultimas.map((t: any) => {
+                    const tasaBcv = Number(t.tasa_bcv) || 0;
+                    const isCogs = t.cuenta_codigo?.startsWith("2.") || t.cuenta_codigo === "12.5";
+                    const usd = isCogs && tasaBcv > 0 ? Number(t.monto_bs) / tasaBcv : Number(t.monto_usd);
+                    return (
+                      <tr key={t.id} className="border-b last:border-0">
+                        <td className="py-2 px-2 mono">{fmtDate(t.fecha)}</td>
+                        <td className="py-2 px-2">{t.cuenta_codigo}</td>
+                        <td className="py-2 px-2">{t.centro_costo}</td>
+                        <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
+                        <td className="py-2 px-2 text-right mono">{fmtUsd(usd)}</td>
+                        <td className="py-2 px-2">
+                          {t.modo === "off_balance" ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge> : <Badge variant="outline" className="text-green-700 border-green-300">on</Badge>}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
