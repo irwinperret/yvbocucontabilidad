@@ -136,13 +136,17 @@ function AnticiposProveedoresPage() {
       let cmp = 0;
       if (sortKey === "fecha") cmp = a.fecha.localeCompare(b.fecha);
       else if (sortKey === "proveedor") cmp = a.proveedor.localeCompare(b.proveedor);
-      else if (sortKey === "monto_usd") cmp = a.monto_usd_bcv - b.monto_usd_bcv;
-      else if (sortKey === "saldo") cmp = (a.monto_usd_bcv - a.aplicado_usd_bcv) - (b.monto_usd_bcv - b.aplicado_usd_bcv);
+      else if (sortKey === "monto_usd") cmp = (mode === "bcv" ? a.monto_usd_bcv : a.monto_usd) - (mode === "bcv" ? b.monto_usd_bcv : b.monto_usd);
+      else if (sortKey === "saldo") {
+        const sa = (mode === "bcv" ? a.monto_usd_bcv - a.aplicado_usd_bcv : a.monto_usd - a.anticipo_aplicado_usd);
+        const sb = (mode === "bcv" ? b.monto_usd_bcv - b.aplicado_usd_bcv : b.monto_usd - b.anticipo_aplicado_usd);
+        cmp = sa - sb;
+      }
       else if (sortKey === "estado") cmp = (a.anticipo_estado ?? "").localeCompare(b.anticipo_estado ?? "");
       return sortDir === "asc" ? cmp : -cmp;
     });
     return sorted;
-  }, [anticipos, filtroProv, filtroEstado, sortKey, sortDir]);
+  }, [anticipos, filtroProv, filtroEstado, sortKey, sortDir, mode]);
 
   const primaryUsd = (r: Row) => (mode === "bcv" ? r.monto_usd_bcv : r.monto_usd);
   const primaryAplicado = (r: Row) => (mode === "bcv" ? r.aplicado_usd_bcv : r.anticipo_aplicado_usd);
