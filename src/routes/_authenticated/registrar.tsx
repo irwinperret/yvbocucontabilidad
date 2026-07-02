@@ -2621,6 +2621,22 @@ function CierreForm() {
   );
   const totalComprasUsd = totalComprasNetoUsd + totalComprasIvaUsd;
 
+  // Visualización en USD a valor BCV (sin tocar la contabilidad en paralelo)
+  const totalComprasNetoUsdBcv = comprasOn.reduce((s: number, c: any) => {
+    const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+    const tasa = Number(c.tasa_bcv) || 0;
+    if (tasa > 0) return s + +(netoBs / tasa).toFixed(2);
+    const neto = Number(c.monto_base_usd);
+    return s + (Number.isFinite(neto) && neto !== 0 ? neto : Number(c.monto_usd) || 0);
+  }, 0);
+  const totalComprasIvaUsdBcv = comprasOn.reduce((s: number, c: any) => {
+    const ivaBs = Number(c.iva_bs) || 0;
+    const tasa = Number(c.tasa_bcv) || 0;
+    return s + (tasa > 0 ? +(ivaBs / tasa).toFixed(2) : Number(c.iva_usd) || 0);
+  }, 0);
+  const totalComprasUsdBcv = totalComprasNetoUsdBcv + totalComprasIvaUsdBcv;
+
+
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
   const cogsUsd = iniUsd + totalComprasNetoUsd - finUsd;
@@ -3112,9 +3128,9 @@ function CierreForm() {
                     <th className="text-right">Neto Bs (sin IVA)</th>
                     <th className="text-right">IVA Bs</th>
                     <th className="text-right">Total Bs</th>
-                    <th className="text-right" title="Monto neto sin IVA — este es el valor que alimenta el COGS">Monto neto USD (sin IVA)</th>
-                    <th className="text-right">IVA USD</th>
-                    <th className="text-right">Total USD (neto + IVA)</th>
+                    <th className="text-right" title="Monto neto sin IVA a valor BCV — solo visualización, no afecta la contabilidad">Neto USD BCV (sin IVA)</th>
+                    <th className="text-right" title="IVA a valor BCV — solo visualización">IVA USD BCV</th>
+                    <th className="text-right" title="Total neto + IVA a valor BCV — solo visualización">Total USD BCV</th>
                     <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
@@ -3125,12 +3141,17 @@ function CierreForm() {
                     const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
                     const ivaBs = Number(c.iva_bs) || 0;
                     const totalBs = Number(c.monto_bs) || (netoBs + ivaBs);
-                    const totalUsd = Number(c.monto_usd) || 0;
-                    const ivaUsd = Number(c.iva_usd) || 0;
+                    const tasaBcv = Number(c.tasa_bcv) || 0;
+                    // Visualización en USD a valor BCV (la contabilidad sigue en paralelo)
+                    const totalUsdParalelo = Number(c.monto_usd) || 0;
+                    const ivaUsdParalelo = Number(c.iva_usd) || 0;
                     const netoUsdRaw = Number(c.monto_base_usd);
-                    const netoUsd = Number.isFinite(netoUsdRaw) && netoUsdRaw !== 0
+                    const netoUsdParalelo = Number.isFinite(netoUsdRaw) && netoUsdRaw !== 0
                       ? netoUsdRaw
-                      : Math.max(0, totalUsd - ivaUsd);
+                      : Math.max(0, totalUsdParalelo - ivaUsdParalelo);
+                    const netoUsd = tasaBcv > 0 ? +(netoBs / tasaBcv).toFixed(2) : netoUsdParalelo;
+                    const ivaUsd = tasaBcv > 0 ? +(ivaBs / tasaBcv).toFixed(2) : ivaUsdParalelo;
+                    const totalUsd = tasaBcv > 0 ? +(totalBs / tasaBcv).toFixed(2) : totalUsdParalelo;
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
@@ -3179,9 +3200,9 @@ function CierreForm() {
                     <td className="text-right mono">{fmtBs(totalComprasNetoBs)}</td>
                     <td className="text-right mono text-muted-foreground">{fmtBs(totalComprasIvaBs)}</td>
                     <td className="text-right mono">{fmtBs(totalCompras)}</td>
-                    <td className="text-right mono">{fmtUsd(totalComprasNetoUsd)}</td>
-                    <td className="text-right mono text-muted-foreground">{fmtUsd(totalComprasIvaUsd)}</td>
-                    <td className="text-right mono">{fmtUsd(totalComprasUsd)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasNetoUsdBcv)}</td>
+                    <td className="text-right mono text-muted-foreground">{fmtUsd(totalComprasIvaUsdBcv)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasUsdBcv)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
@@ -3198,13 +3219,13 @@ function CierreForm() {
           <div><Label>Inventario final USD</Label><Input type="number" step="0.01" value={invFinUsd} onChange={(e) => setInvFinUsd(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex flex-col gap-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Compras del mes (auto) · neto sin IVA</span>
-              <span className="mono font-semibold">{fmtBs(totalComprasNetoBs)} · {fmtUsd(totalComprasNetoUsd)}</span>
+              <span className="text-muted-foreground">Compras del mes (auto) · neto sin IVA · <span className="text-[10px]">USD BCV</span></span>
+              <span className="mono font-semibold">{fmtBs(totalComprasNetoBs)} · {fmtUsd(totalComprasNetoUsdBcv)}</span>
             </div>
-            {(totalComprasIvaUsd > 0.005 || totalComprasIvaBs > 0.005) && (
+            {(totalComprasIvaUsdBcv > 0.005 || totalComprasIvaBs > 0.005) && (
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>IVA · Total con IVA</span>
-                <span className="mono">{fmtUsd(totalComprasIvaUsd)} · {fmtUsd(totalComprasUsd)}</span>
+                <span>IVA USD BCV · Total con IVA USD BCV</span>
+                <span className="mono">{fmtUsd(totalComprasIvaUsdBcv)} · {fmtUsd(totalComprasUsdBcv)}</span>
               </div>
             )}
           </div>

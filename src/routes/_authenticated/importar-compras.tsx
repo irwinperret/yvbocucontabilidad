@@ -485,8 +485,9 @@ function ImportarComprasPage() {
                       <th className="p-2 bg-muted">RIF</th>
                       <th className="p-2 bg-muted">Tipo</th>
                       <th className="p-2 bg-muted">N° Documento</th>
-                      <th className="p-2 bg-muted text-right">USD</th>
+                      <th className="p-2 bg-muted text-right">Neto USD</th>
                       <th className="p-2 bg-muted text-right">IVA USD</th>
+                      <th className="p-2 bg-muted text-right">Total USD</th>
                       <th className="p-2 bg-muted">Prov.</th>
                     </tr>
                   </thead>
@@ -503,8 +504,9 @@ function ImportarComprasPage() {
                           <td className="p-2 font-mono text-[10px]">{r.tipo_rif}-{r.rif}</td>
                           <td className="p-2"><Badge variant="outline" className="text-[10px]">{r.tipo}</Badge></td>
                           <td className="p-2 font-mono">{r.numero_factura}</td>
-                          <td className="p-2 text-right mono">{fmtUsd(r.total_usd)}</td>
+                          <td className="p-2 text-right mono">{fmtUsd(r.neto_usd)}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.iva_usd)}</td>
+                          <td className="p-2 text-right mono">{fmtUsd(r.total_usd)}</td>
                           <td className="p-2">
                             {existe ? <Badge variant="outline" className="text-emerald-700 border-emerald-300 text-[10px]">existe</Badge>
                                     : <Badge variant="outline" className="text-amber-700 border-amber-300 text-[10px]">nuevo</Badge>}
