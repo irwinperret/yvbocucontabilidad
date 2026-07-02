@@ -200,7 +200,25 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
     if (cobroUsdBcv > pendienteUsdBcv + 0.01) return toast.error("Excede el pendiente");
     if (!cuentaBancariaId) return toast.error("Selecciona cuenta bancaria");
     setBusy(true);
-    const grupoId = crypto.randomUUID();
+    // Heredar grupo de la venta original (para cascada de borrado/edición).
+    // Si la venta aún no tenía grupo, se lo asignamos para vincularla.
+    let grupoId = crypto.randomUUID();
+    if (cxc.transaccion_id) {
+      const { data: origen } = await supabase
+        .from("transacciones")
+        .select("grupo_transaccion_id")
+        .eq("id", cxc.transaccion_id)
+        .maybeSingle();
+      const origenGrupo = (origen as any)?.grupo_transaccion_id;
+      if (origenGrupo) {
+        grupoId = origenGrupo;
+      } else {
+        await supabase
+          .from("transacciones")
+          .update({ grupo_transaccion_id: grupoId } as any)
+          .eq("id", cxc.transaccion_id);
+      }
+    }
 
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha,
