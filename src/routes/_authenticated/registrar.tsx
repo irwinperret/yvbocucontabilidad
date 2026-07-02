@@ -2874,10 +2874,18 @@ function CierreForm() {
     if (c.cxp_id) {
       await supabase.from("cuentas_por_pagar").delete().eq("id", c.cxp_id);
     }
+    // Borrar transacciones enlazadas (2.1 compra + 12.5 IVA)
+    if (c.grupo_transaccion_id) {
+      await supabase.from("transacciones")
+        .delete()
+        .eq("grupo_transaccion_id", c.grupo_transaccion_id)
+        .in("cuenta_codigo", ["2.1", "12.5"]);
+    }
     const { error } = await supabase.from("inventario_snapshots").delete().eq("id", c.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
     qc.invalidateQueries({ queryKey: ["cxp"] });
+    qc.invalidateQueries({ queryKey: ["transacciones"] });
   };
 
   const submit = async (e: React.FormEvent) => {
