@@ -585,6 +585,7 @@ function VentasForm() {
             metodo_pago: "transferencia" as any,
             notas: `Dif. cambiaria cobro CxC ${cxcSel.cliente} — paralela orig ${tasaOrigCxc.toFixed(4)} → paralela hoy ${paralelaHoy.toFixed(4)} (${fxUsd > 0 ? "ganancia" : "pérdida"})`,
             modo: "on_balance" as any, created_by: user.id,
+            grupo_transaccion_id: grupoId,
           } as any).select().single();
           if (errFx) toast.error("Cobro OK, pero falló el ajuste cambiario: " + errFx.message);
           else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
