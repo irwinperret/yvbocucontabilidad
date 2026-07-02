@@ -177,12 +177,12 @@ function LiquidacionesHistorialPage() {
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total {anioActual} (USD)</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total {anioActual} ({label})</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold mono">{fmtUsd(totalYearUsd)}</div></CardContent>
         </Card>
         {SECCIONES.map((s) => (
           <Card key={s.key}>
-            <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{s.key} (USD)</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">{s.key} ({label})</CardTitle></CardHeader>
             <CardContent>
               <div className="text-xl font-bold mono" style={{ color: s.color }}>{fmtUsd(totalesPorSeccion[s.key] || 0)}</div>
               <div className="text-[10px] text-muted-foreground">cuenta {s.cuenta}</div>
@@ -243,11 +243,11 @@ function LiquidacionesHistorialPage() {
                   ["cuenta_codigo","Cuenta"],
                   ["monto_bs","Monto Bs"],
                   ["tasa_paralela","Tasa paralela"],
-                  ["monto_usd","Monto USD"],
+                  ["monto_usd", `Monto ${label}`],
                   ["banco","Banco"],
-                ] as [SortKey, string][]).map(([k, label]) => (
+                ] as [SortKey, string][]).map(([k, hdr]) => (
                   <th key={k} className="py-2 px-2 cursor-pointer select-none" onClick={() => toggleSort(k)}>
-                    {label} {sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                    {hdr} {sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : ""}
                   </th>
                 ))}
                 <th className="py-2 px-2">Notas</th>
@@ -266,7 +266,7 @@ function LiquidacionesHistorialPage() {
                   <td className="py-1.5 px-2 mono">{r.cuenta_codigo}</td>
                   <td className="py-1.5 px-2 mono text-right">{fmtBs(Number(r.monto_bs))}</td>
                   <td className="py-1.5 px-2 mono text-right">{r.tasa_paralela ? Number(r.tasa_paralela).toFixed(4) : "—"}</td>
-                  <td className="py-1.5 px-2 mono text-right font-semibold">{fmtUsd(Number(r.monto_usd))}</td>
+                  <td className="py-1.5 px-2 mono text-right font-semibold">{fmtUsd(usdVisual(r, mode) ?? 0)}</td>
                   <td className="py-1.5 px-2 text-xs">{r.banco_nombre}</td>
                   <td className="py-1.5 px-2 text-xs text-muted-foreground max-w-[220px] truncate" title={r.notas}>{r.notas}</td>
                   <td className="py-1.5 px-2 text-right whitespace-nowrap">
