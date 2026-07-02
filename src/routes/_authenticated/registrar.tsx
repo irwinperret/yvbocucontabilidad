@@ -3129,7 +3129,362 @@ function CierreForm() {
           </div>
         </form>
       </CardContent>
+      {editingCompra && (
+        <EditCompraDialog
+          compra={editingCompra}
+          terceros={(terceros ?? []) as any}
+          onClose={() => setEditingCompra(null)}
+          onSaved={() => {
+            setEditingCompra(null);
+            qc.invalidateQueries({ queryKey: ["compras-periodo"] });
+            qc.invalidateQueries({ queryKey: ["cxp"] });
+            qc.invalidateQueries({ queryKey: ["anticipos-abiertos"] });
+            qc.invalidateQueries({ queryKey: ["anticipos-proveedor"] });
+          }}
+        />
+      )}
     </Card>
+  );
+}
+
+/* ---------------- EDITAR COMPRA (COGS) ---------------- */
+function EditCompraDialog({
+  compra,
+  terceros,
+  onClose,
+  onSaved,
+}: {
+  compra: any;
+  terceros: any[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { user } = useAuth();
+
+  const [fecha, setFecha] = useState<string>(compra.fecha ?? new Date(compra.created_at).toISOString().slice(0, 10));
+  const [terceroId, setTerceroId] = useState<string>(compra.tercero_id ?? "");
+  const [numFactura, setNumFactura] = useState<string>(compra.numero_factura ?? "");
+  const [offBalance, setOffBalance] = useState<boolean>(compra.modo === "off_balance");
+  const [pagada, setPagada] = useState<boolean>(!!compra.pagada);
+  const [cuentaBanco, setCuentaBanco] = useState<string>(compra.cuenta_bancaria_id ?? "");
+  const [venc, setVenc] = useState<string>(compra.fecha_vencimiento ?? "");
+  const [notas, setNotas] = useState<string>(compra.notas ?? "");
+  const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
+  const [ivaAplica, setIvaAplica] = useState<boolean>(!!compra.iva_aplica || Number(compra.iva_bs) > 0);
+  const [tasa, setTasa] = useState<string>(String(Number(compra.tasa_bcv) || ""));
+  // Cargar montos originales en Bs (neto e IVA).
+  const initialNetoBs = Number(compra.monto_base_bs) || Number(compra.monto_bs) || 0;
+  const initialIvaBs = Number(compra.iva_bs) || 0;
+  const [monto, setMonto] = useState<string>(initialNetoBs ? String(initialNetoBs) : "");
+  const [ivaMonto, setIvaMonto] = useState<string>(initialIvaBs ? String(initialIvaBs) : "");
+  const [busy, setBusy] = useState(false);
+
+  const { data: tasaSug } = useTasaForDate(fecha);
+  const { data: paralelaSug } = useParalelaForDate(fecha);
+  const tasaParalelaRefN = Number(paralelaSug?.tasa) || Number(compra.tasa_paralela) || 0;
+  // Al cambiar de fecha, sugerir tasa BCV nueva (solo si el usuario no la tocó a mano después)
+  const [tasaTocada, setTasaTocada] = useState(false);
+  useEffect(() => {
+    if (tasaTocada) return;
+    if (tasaSug?.tasa) setTasa(String(tasaSug.tasa));
+  }, [tasaSug?.tasa, tasaTocada]);
+
+  const esUSD = moneda === "USD";
+  const netoInput = Number(monto) || 0;
+  const ivaInput = ivaAplica ? (Number(ivaMonto) || 0) : 0;
+  const tasaN = Number(tasa) || 0;
+  const baseBs = esUSD ? netoInput * tasaN : netoInput;
+  const ivaBs = esUSD ? ivaInput * tasaN : ivaInput;
+  const totalBs = baseBs + ivaBs;
+
+  // Anticipos ya aplicados a esta factura (no se pueden reasignar aquí)
+  const { data: anticipoAplicado } = useQuery({
+    queryKey: ["compra-anticipo-aplicado", compra.grupo_transaccion_id],
+    enabled: !!compra.grupo_transaccion_id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("monto_bs, monto_usd, notas")
+        .eq("grupo_transaccion_id", compra.grupo_transaccion_id)
+        .eq("cuenta_codigo", "14.2");
+      const bs = (data ?? []).reduce((s, r: any) => s + Math.abs(Number(r.monto_bs) || 0), 0);
+      const usd = (data ?? []).reduce((s, r: any) => s + Math.abs(Number(r.monto_usd) || 0), 0);
+      return { bs, usd };
+    },
+  });
+
+  // Pagos parciales ya efectuados contra la CxP
+  const { data: pagosPrevios } = useQuery({
+    queryKey: ["compra-pagos-previos", compra.grupo_transaccion_id],
+    enabled: !!compra.grupo_transaccion_id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("monto_bs, monto_usd")
+        .eq("grupo_transaccion_id", compra.grupo_transaccion_id)
+        .eq("cuenta_codigo", CUENTA_PAGO_CXP);
+      const bs = (data ?? []).reduce((s, r: any) => s + Math.abs(Number(r.monto_bs) || 0), 0);
+      const usd = (data ?? []).reduce((s, r: any) => s + Math.abs(Number(r.monto_usd) || 0), 0);
+      return { bs, usd };
+    },
+  });
+
+  const aplicadoBs = Number(anticipoAplicado?.bs) || 0;
+  const aplicadoUsd = Number(anticipoAplicado?.usd) || 0;
+  const pagadoBs = Number(pagosPrevios?.bs) || 0;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!tasaN) return toast.error("Tasa requerida");
+    if (!netoInput) return toast.error("Monto neto requerido");
+    if (!terceroId) return toast.error("Selecciona proveedor");
+    if (!numFactura) return toast.error("N° factura requerido");
+    if (!offBalance && pagada && !cuentaBanco && aplicadoBs <= 0.01) {
+      return toast.error("Indica cuenta bancaria");
+    }
+    setBusy(true);
+
+    const nuevoPeriodo = fecha.slice(0, 7);
+
+    // Bloquear si periodo actual o nuevo están cerrados
+    const periodosACheckear = new Set([compra.periodo, nuevoPeriodo]);
+    for (const p of periodosACheckear) {
+      const { data: cierre } = await supabase
+        .from("cierres_de_mes")
+        .select("id, estado")
+        .eq("periodo", p)
+        .maybeSingle();
+      if (cierre && (cierre as any).estado === "cerrado") {
+        setBusy(false);
+        return toast.error(`Mes ${p} cerrado — reabre para editar`);
+      }
+    }
+
+    // Duplicado (mismo tercero + N° factura, distinto id)
+    const { data: dup } = await supabase
+      .from("inventario_snapshots")
+      .select("id")
+      .eq("tipo", "compra")
+      .eq("tercero_id", terceroId)
+      .eq("numero_factura", numFactura)
+      .neq("id", compra.id)
+      .limit(1);
+    if (dup && dup.length > 0) {
+      setBusy(false);
+      return toast.error(`Factura duplicada: ya existe N° ${numFactura} para este proveedor`);
+    }
+
+    const bcvN = tasaN;
+    const paralelaN = tasaParalelaRefN;
+    const tasaContable = paralelaN || bcvN;
+    const montoUsdContable = tasaContable > 0 ? +(totalBs / tasaContable).toFixed(2) : 0;
+    const baseUsdContable = tasaContable > 0 ? +(baseBs / tasaContable).toFixed(2) : 0;
+    const ivaUsdContable = tasaContable > 0 ? +(ivaBs / tasaContable).toFixed(2) : 0;
+    const montoUsdBcv = bcvN > 0 ? +(totalBs / bcvN).toFixed(2) : montoUsdContable;
+
+    // Saldo tras anticipo (los anticipos aplicados no se re-asignan)
+    const cxpSaldoBs = Math.max(0, +(totalBs - aplicadoBs).toFixed(2));
+    const cxpSaldoUsdBcv = bcvN > 0 ? +(cxpSaldoBs / bcvN).toFixed(2) : 0;
+    const cxpSaldoUsdPar = paralelaN > 0 ? +(cxpSaldoBs / paralelaN).toFixed(2) : cxpSaldoUsdBcv;
+
+    const tieneAnticipo = aplicadoBs > 0.01;
+    const snapshotPagada = offBalance
+      ? true
+      : (tieneAnticipo ? cxpSaldoBs <= 0.01 : (pagada || cxpSaldoBs <= 0.01));
+    const snapshotBanco = !offBalance && pagada && !tieneAnticipo ? (cuentaBanco || null) : null;
+
+    // 1) UPDATE snapshot
+    const { error: upErr } = await supabase
+      .from("inventario_snapshots")
+      .update({
+        periodo: nuevoPeriodo,
+        fecha,
+        tercero_id: terceroId,
+        numero_factura: numFactura,
+        monto_bs: totalBs,
+        monto_base_bs: baseBs,
+        iva_bs: ivaBs,
+        iva_aplica: ivaAplica,
+        monto_usd: montoUsdContable,
+        monto_base_usd: baseUsdContable,
+        iva_usd: ivaUsdContable,
+        tasa_bcv: bcvN,
+        tasa_paralela: paralelaN || null,
+        modo: offBalance ? "off_balance" : "on_balance",
+        pagada: snapshotPagada,
+        cuenta_bancaria_id: snapshotBanco,
+        fecha_vencimiento: !offBalance && !snapshotPagada ? (venc || null) : null,
+        notas: notas || null,
+      } as any)
+      .eq("id", compra.id);
+    if (upErr) { setBusy(false); return toast.error(upErr.message); }
+
+    // 2) Sincronizar CxP asociada
+    const prov = terceros.find((t) => t.id === terceroId);
+    if (compra.cxp_id) {
+      if (snapshotPagada || cxpSaldoBs <= 0.01) {
+        // Ya no debería existir CxP abierta
+        await supabase.from("cuentas_por_pagar").delete().eq("id", compra.cxp_id);
+        await supabase.from("inventario_snapshots").update({ cxp_id: null }).eq("id", compra.id);
+      } else {
+        await supabase
+          .from("cuentas_por_pagar")
+          .update({
+            proveedor: prov?.razon_social ?? "Proveedor",
+            numero_factura: numFactura,
+            tercero_id: terceroId,
+            monto_bs: cxpSaldoBs,
+            monto_usd: cxpSaldoUsdBcv,
+            monto_pendiente_bs: Math.max(0, cxpSaldoBs - pagadoBs),
+            monto_pendiente_usd_bcv: bcvN > 0 ? +(Math.max(0, cxpSaldoBs - pagadoBs) / bcvN).toFixed(2) : cxpSaldoUsdBcv,
+            usd_bcv_factura: cxpSaldoUsdBcv,
+            usd_paralelo_factura: cxpSaldoUsdPar,
+            tasa_bcv_factura: bcvN || null,
+            tasa_paralela_factura: paralelaN || null,
+            fecha_vencimiento: venc || null,
+          } as any)
+          .eq("id", compra.cxp_id);
+      }
+    } else if (!offBalance && !snapshotPagada && cxpSaldoBs > 0.01) {
+      const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
+        proveedor: prov?.razon_social ?? "Proveedor",
+        numero_factura: numFactura,
+        tercero_id: terceroId,
+        centro_costo: "Compartido" as any,
+        monto_bs: cxpSaldoBs,
+        monto_usd: cxpSaldoUsdBcv,
+        monto_pendiente_bs: cxpSaldoBs,
+        monto_pendiente_usd_bcv: cxpSaldoUsdBcv,
+        usd_bcv_factura: cxpSaldoUsdBcv,
+        usd_paralelo_factura: cxpSaldoUsdPar,
+        tasa_bcv_factura: bcvN || null,
+        tasa_paralela_factura: paralelaN || null,
+        fecha_vencimiento: venc || null,
+        estado: "pendiente",
+      } as any).select().single();
+      if (cxpErr) { setBusy(false); return toast.error(cxpErr.message); }
+      if (cxp?.id) {
+        await supabase.from("inventario_snapshots").update({ cxp_id: cxp.id }).eq("id", compra.id);
+      }
+    }
+
+    // 3) Aviso si hay pagos previos
+    if (pagadoBs > 0.01) {
+      toast.warning(`Revisa pagos ya efectuados: ${fmtBs(pagadoBs)} pagados antes de la edición. Ajústalos manualmente si corresponde.`);
+    }
+    if (aplicadoBs > 0.01) {
+      toast.info(`Esta compra tiene ${fmtUsd(aplicadoUsd)} en anticipos aplicados — no se pudieron reasignar automáticamente.`);
+    }
+
+    setBusy(false);
+    toast.success("Compra actualizada");
+    onSaved();
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar compra — {compra.numero_factura ?? "sin N°"}</DialogTitle>
+        </DialogHeader>
+        {aplicadoBs > 0.01 && (
+          <div className="rounded border border-amber-300 bg-amber-50 text-amber-900 text-xs p-2">
+            Esta compra tiene <strong className="mono">{fmtUsd(aplicadoUsd)}</strong> en anticipos aplicados. No se pueden reasignar desde aquí — bórrala y recréala si necesitas cambiar la aplicación.
+          </div>
+        )}
+        {pagadoBs > 0.01 && (
+          <div className="rounded border border-blue-300 bg-blue-50 text-blue-900 text-xs p-2">
+            Ya se pagaron <strong className="mono">{fmtBs(pagadoBs)}</strong> contra la CxP. Los pagos previos no se recalculan automáticamente.
+          </div>
+        )}
+        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Fecha</Label>
+            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
+          </div>
+          <div>
+            <Label className="text-xs">Tasa BCV</Label>
+            <Input
+              type="number"
+              step="0.0001"
+              value={tasa}
+              onChange={(e) => { setTasa(e.target.value); setTasaTocada(true); }}
+              required
+              className="mono"
+            />
+            {tasaParalelaRefN > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Tasa paralela (ref): <span className="mono">{tasaParalelaRefN.toFixed(4)}</span>
+              </p>
+            )}
+          </div>
+          <div className="md:col-span-2">
+            <TerceroSelect value={terceroId} onChange={setTerceroId} terceros={terceros as any} />
+          </div>
+          <div>
+            <Label className="text-xs">N° factura</Label>
+            <Input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} required />
+          </div>
+          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+            <Label className="text-xs">Off-balance</Label>
+            <Switch checked={offBalance} onCheckedChange={setOffBalance} />
+          </div>
+          {!offBalance && (
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <div>
+                <Label className="text-xs">¿Ya fue pagada?</Label>
+                <p className="text-xs text-muted-foreground">Si no, se creará/actualizará una Cuenta por Pagar.</p>
+              </div>
+              <Switch checked={pagada} onCheckedChange={setPagada} />
+            </div>
+          )}
+          {!offBalance && pagada ? (
+            <div className="md:col-span-2">
+              <BankAccountSelect value={cuentaBanco} onChange={setCuentaBanco} label="Cuenta bancaria" required={aplicadoBs <= 0.01} />
+            </div>
+          ) : !offBalance ? (
+            <div className="md:col-span-2">
+              <Label className="text-xs">Fecha vencimiento (opcional)</Label>
+              <Input type="date" value={venc} onChange={(e) => setVenc(e.target.value)} />
+            </div>
+          ) : null}
+          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+            <Label className="text-xs">Moneda de registro</Label>
+            <div className="inline-flex rounded-lg border p-1">
+              <button type="button" onClick={() => setMoneda("BS")} className={`px-3 py-1 text-xs rounded-md ${moneda === "BS" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Bolívares (Bs)</button>
+              <button type="button" onClick={() => setMoneda("USD")} className={`px-3 py-1 text-xs rounded-md ${moneda === "USD" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Dólares (USD)</button>
+            </div>
+          </div>
+          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+            <Label className="text-xs">¿Factura con IVA 16%?</Label>
+            <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
+          </div>
+          <div>
+            <Label className="text-xs">{esUSD ? "Monto neto USD (sin IVA)" : "Monto neto Bs (sin IVA)"}</Label>
+            <Input type="number" step="0.01" value={monto} onChange={(e) => setMonto(e.target.value)} className="mono" required />
+          </div>
+          <div>
+            <Label className="text-xs">{esUSD ? "IVA USD" : "IVA Bs"}</Label>
+            <Input type="number" step="0.01" value={ivaMonto} onChange={(e) => setIvaMonto(e.target.value)} className="mono" disabled={!ivaAplica} />
+          </div>
+          <div className="md:col-span-2 grid grid-cols-2 gap-2 text-xs bg-muted/50 p-3 rounded">
+            <div>Total Bs: <span className="mono font-semibold">{fmtBs(totalBs)}</span></div>
+            <div>USD BCV: <span className="mono font-semibold">{tasaN > 0 ? fmtUsd(totalBs / tasaN) : "—"}</span></div>
+            <div>USD paralelo: <span className="mono font-semibold">{tasaParalelaRefN > 0 ? fmtUsd(totalBs / tasaParalelaRefN) : "—"}</span></div>
+            <div>Neto USD: <span className="mono font-semibold">{tasaParalelaRefN > 0 ? fmtUsd(baseBs / tasaParalelaRefN) : (tasaN > 0 ? fmtUsd(baseBs / tasaN) : "—")}</span></div>
+          </div>
+          <div className="md:col-span-2">
+            <Label className="text-xs">Notas</Label>
+            <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+          </div>
+          <DialogFooter className="md:col-span-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Guardando…" : "Guardar cambios"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
