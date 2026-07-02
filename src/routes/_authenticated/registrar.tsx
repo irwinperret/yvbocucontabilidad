@@ -3415,6 +3415,52 @@ function EditCompraDialog({
       .eq("id", compra.id);
     if (upErr) { setBusy(false); return toast.error(upErr.message); }
 
+    // 1b) Sincronizar transacción 2.1 (+ IVA 12.5) enlazada por grupo_transaccion_id.
+    if (compra.grupo_transaccion_id) {
+      const usdParalela21 = paralelaN > 0 ? +(baseBs / paralelaN).toFixed(2) : baseUsdContable;
+      await supabase.from("transacciones")
+        .update({
+          fecha,
+          centro_costo: "Compartido" as any,
+          modo: offBalance ? "off_balance" : "on_balance",
+          monto_bs: baseBs,
+          monto_base_bs: baseBs,
+          iva_bs: 0,
+          iva_aplica: false,
+          monto_usd: usdParalela21,
+          tasa_bcv: bcvN || null,
+          tasa_paralela: paralelaN || null,
+          cuenta_bancaria_id: snapshotBanco,
+          tercero_id: terceroId,
+          numero_factura: numFactura,
+          notas: notas || null,
+        } as any)
+        .eq("grupo_transaccion_id", compra.grupo_transaccion_id)
+        .eq("cuenta_codigo", "2.1");
+
+      // Recrear pierna IVA 12.5: borrar y (si aplica) volver a insertar
+      const { deleteIvaLegsByGrupo, insertIvaLeg } = await import("@/lib/iva-helpers");
+      await deleteIvaLegsByGrupo(compra.grupo_transaccion_id);
+      if (ivaAplica && ivaBs > 0.005) {
+        const ivaUsdParalela = paralelaN > 0 ? +(ivaBs / paralelaN).toFixed(2) : ivaUsdContable;
+        await insertIvaLeg({
+          fecha,
+          centro_costo: "Compartido" as any,
+          modo: offBalance ? "off_balance" : "on_balance",
+          monto_bs_iva: ivaBs,
+          monto_usd_iva: ivaUsdParalela,
+          tasa_bcv: bcvN || null,
+          tasa_paralela: paralelaN || null,
+          tercero_id: terceroId,
+          numero_factura: numFactura,
+          notas: notas || null,
+          created_by: user.id,
+          grupo_transaccion_id: compra.grupo_transaccion_id,
+          tipo: "credito",
+        });
+      }
+    }
+
     // 2) Sincronizar CxP asociada
     const prov = terceros.find((t) => t.id === terceroId);
     if (compra.cxp_id) {
