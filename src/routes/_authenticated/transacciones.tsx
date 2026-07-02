@@ -816,7 +816,7 @@ function TransaccionesPage() {
                 <tbody>
                   {paginadas.map((t: any) => {
                     const totalBs = Number(t.monto_bs) || 0;
-                    const totalUsdParalelo = usdParaleloVisual(t);
+                    const totalUsdParalelo = usdParaleloVisual(t, paralelaByFecha[t.fecha]);
                     const bcvUsdTotal = usdBcvVisual(t);
                     const ivaBs = Number(t.iva_bs) || 0;
                     const baseBs = Number(t.monto_base_bs) || 0;
