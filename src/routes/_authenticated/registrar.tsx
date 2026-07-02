@@ -2562,24 +2562,41 @@ function CierreForm() {
     (tasasMes ?? []).forEach((p: any) => m.set(p.fecha, Number(p.tasa)));
     return m;
   }, [tasasMes]);
+  void bcvByFecha;
 
   // (Paralela ya no se usa para COGS — los egresos se valoran a BCV.)
   const paralelaPromedio = 0;
 
-  const totalCompras = (compras ?? [])
-    .filter((c: any) => c.modo !== "off_balance")
-    .reduce((s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
-  const totalComprasUsdBcv = (compras ?? [])
-    .filter((c: any) => c.modo !== "off_balance")
-    .reduce((s: number, c: any) => {
-      const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
-      const tb = Number(c.tasa_bcv) || bcvByFecha.get(c.fecha) || tasaPromedio;
-      return s + (tb ? base / tb : 0);
-    }, 0);
+  // Totales del período: sumar directamente los USD ya almacenados en cada snapshot.
+  // NO recalcular monto_bs / tasa: el monto_usd fue fijado al importar/registrar la compra
+  // usando la tasa correcta de esa fecha y no debe reconvertirse aquí.
+  const comprasOn = (compras ?? []).filter((c: any) => c.modo !== "off_balance");
+  const totalCompras = comprasOn.reduce(
+    (s: number, c: any) => s + (Number(c.monto_bs) || 0),
+    0,
+  );
+  const totalComprasNetoBs = comprasOn.reduce(
+    (s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0),
+    0,
+  );
+  const totalComprasIvaBs = comprasOn.reduce(
+    (s: number, c: any) => s + (Number(c.iva_bs) || 0),
+    0,
+  );
+  const totalComprasNetoUsd = comprasOn.reduce((s: number, c: any) => {
+    const neto = Number(c.monto_base_usd);
+    if (Number.isFinite(neto) && neto !== 0) return s + neto;
+    return s + (Number(c.monto_usd) || 0);
+  }, 0);
+  const totalComprasIvaUsd = comprasOn.reduce(
+    (s: number, c: any) => s + (Number(c.iva_usd) || 0),
+    0,
+  );
+  const totalComprasUsd = totalComprasNetoUsd + totalComprasIvaUsd;
 
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
-  const cogsUsd = iniUsd + totalComprasUsdBcv - finUsd;
+  const cogsUsd = iniUsd + totalComprasNetoUsd - finUsd;
   const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
 
   const addCompra = async (e: React.FormEvent) => {
