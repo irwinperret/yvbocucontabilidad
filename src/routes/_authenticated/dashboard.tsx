@@ -122,20 +122,20 @@ function Dashboard() {
                     <th className="text-left py-2 px-2">Cuenta</th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-right py-2 px-2">Bs</th>
-                    <th className="text-right py-2 px-2">USD</th>
+                    <th className="text-right py-2 px-2">{label}</th>
                     <th className="text-left py-2 px-2">Modo</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ultimas.map((t: any) => {
-                    const usd = Number(t.monto_usd);
+                    const usd = usdVisual(t, mode);
                     return (
                       <tr key={t.id} className="border-b last:border-0">
                         <td className="py-2 px-2 mono">{fmtDate(t.fecha)}</td>
                         <td className="py-2 px-2">{t.cuenta_codigo}</td>
                         <td className="py-2 px-2">{t.centro_costo}</td>
                         <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
-                        <td className="py-2 px-2 text-right mono">{fmtUsd(usd)}</td>
+                        <td className="py-2 px-2 text-right mono">{usd == null ? "—" : fmtUsd(usd)}</td>
                         <td className="py-2 px-2">
                           {t.modo === "off_balance" ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge> : <Badge variant="outline" className="text-green-700 border-green-300">on</Badge>}
                         </td>
