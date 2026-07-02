@@ -81,10 +81,12 @@ const defaultState = (initialDesde: string): FilterState => ({
   pageSize: 50,
 });
 
-function usdParaleloVisual(t: any) {
+function usdParaleloVisual(t: any, tasaParalelaFallback?: number | null) {
   const montoBs = Number(t.monto_bs) || 0;
   const tasaParalela = Number(t.tasa_paralela) || 0;
   if (tasaParalela > 0) return montoBs / tasaParalela;
+  const fb = Number(tasaParalelaFallback) || 0;
+  if (fb > 0) return montoBs / fb;
   return Number(t.monto_usd) || 0;
 }
 
@@ -203,6 +205,26 @@ function TransaccionesPage() {
       return data ?? [];
     },
   });
+
+  // Tasas paralelas por fecha — se usan como fallback visual cuando una transacción
+  // no tiene tasa_paralela guardada (p. ej. ajustes de cierre que solo capturaron BCV).
+  const { data: tasasParalelaRango } = useQuery({
+    enabled: !!desde,
+    queryKey: ["tasas-paralela-rango", desde, hasta],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasas_paralela")
+        .select("fecha, tasa")
+        .gte("fecha", desde)
+        .lte("fecha", hasta);
+      return data ?? [];
+    },
+  });
+  const paralelaByFecha = useMemo(() => {
+    const m: Record<string, number> = {};
+    (tasasParalelaRango ?? []).forEach((r: any) => { m[r.fecha] = Number(r.tasa) || 0; });
+    return m;
+  }, [tasasParalelaRango]);
 
   const cuentaNombre = useMemo(() => {
     const m: Record<string, string> = {};
@@ -431,7 +453,7 @@ function TransaccionesPage() {
         const montoBs = Number(t.monto_bs) || 0;
         const tasaBcvRaw = Number(t.tasa_bcv) || 0;
         const tieneBcv = tasaBcvRaw > 0;
-        const usdParalelo = usdParaleloVisual(t);
+        const usdParalelo = usdParaleloVisual(t, paralelaByFecha[t.fecha]);
         const usdBcv = usdBcvVisual(t);
         const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
         const r = ws.addRow({
@@ -794,7 +816,7 @@ function TransaccionesPage() {
                 <tbody>
                   {paginadas.map((t: any) => {
                     const totalBs = Number(t.monto_bs) || 0;
-                    const totalUsdParalelo = usdParaleloVisual(t);
+                    const totalUsdParalelo = usdParaleloVisual(t, paralelaByFecha[t.fecha]);
                     const bcvUsdTotal = usdBcvVisual(t);
                     const ivaBs = Number(t.iva_bs) || 0;
                     const baseBs = Number(t.monto_base_bs) || 0;
