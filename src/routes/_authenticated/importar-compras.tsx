@@ -223,10 +223,10 @@ function ImportarComprasPage() {
         const terceroId = await ensureTercero(r);
         if (!terceroId) { fail++; continue; }
 
-        // Dedup por (tercero, numero_factura) — busca en TODOS los meses
-        const { data: existeArr } = await supabase.from("inventario_snapshots")
-          .select("id, monto_bs, monto_usd, monto_base_bs, iva_bs, fecha, periodo, cxp_id, pagada")
-          .eq("tipo", "compra")
+        // Dedup por (tercero, numero_factura) sobre transacciones 2.1 (fuente de verdad)
+        const { data: existeArr } = await supabase.from("transacciones")
+          .select("id, monto_bs, monto_base_bs, fecha, grupo_transaccion_id")
+          .eq("cuenta_codigo", "2.1")
           .eq("tercero_id", terceroId).eq("numero_factura", r.numero_factura).limit(1);
         const existe = existeArr && existeArr.length > 0 ? existeArr[0] : null;
 
@@ -239,17 +239,14 @@ function ImportarComprasPage() {
         const totalUsdParalelo = +(totalBs / tasaParaUsd).toFixed(2);
         const baseUsdParalelo = +(baseBs / tasaParaUsd).toFixed(2);
         const ivaUsdParalelo = +(ivaBs / tasaParaUsd).toFixed(2);
-        const periodo = r.fecha.slice(0, 7);
+        void totalUsdParalelo; void baseUsdParalelo; void ivaUsdParalelo;
 
         const offBal = offBalance;
-        const pagada = true; // Xetux: siempre asumir pagada
 
         const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
 
         // Helper para insertar par (2.1 compra + 12.5 IVA) enlazadas por grupo_transaccion_id
         const insertCompraTransacciones = async (grupoId: string) => {
-          // 1) Cuenta 2.1 — Compras de mercancía (principal)
-          // pagada=true → monto_usd usa tasa paralela (regla de pago inmediato)
           const usdParalela = tasas.paralela > 0 ? +(baseBs / tasas.paralela).toFixed(2) : baseUsd;
           const { data: txCompra, error: eCompra } = await supabase.from("transacciones").insert({
             fecha: r.fecha,
@@ -275,7 +272,6 @@ function ImportarComprasPage() {
           } as any).select().single();
           if (eCompra) throw new Error(`2.1 ${r.numero_factura}: ${eCompra.message}`);
 
-          // 2) Pierna IVA crédito (12.5) — solo si hay IVA; nunca sin la 2.1
           if (ivaAplica && r.iva_usd > 0) {
             const { insertIvaLeg } = await import("@/lib/iva-helpers");
             const ivaUsdParalela = tasas.paralela > 0 ? +(ivaBs / tasas.paralela).toFixed(2) : r.iva_usd;
@@ -296,7 +292,6 @@ function ImportarComprasPage() {
               tipo: "credito",
             });
             if (!ivaRes) {
-              // Rollback de la 2.1 para no dejar la compra huérfana del IVA
               await supabase.from("transacciones").delete().eq("id", (txCompra as any).id);
               throw new Error(`12.5 ${r.numero_factura}: no se pudo registrar IVA, se revirtió la compra`);
             }
@@ -305,32 +300,21 @@ function ImportarComprasPage() {
         };
 
         if (existe) {
-          // Duplicado: comparamos por Bs (re-calculado con tasa BCV). Si no cambió, saltar.
-          const sameAmount = Math.abs(Number(existe.monto_bs || 0) - totalBs) < 0.01;
+          const sameAmount = Math.abs(Number(existe.monto_base_bs || existe.monto_bs || 0) - baseBs) < 0.01;
           if (sameAmount) {
             dup++;
-            toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
+            toast.warning(`Duplicada (${existe.fecha}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
             continue;
           }
-          const { error: updErr } = await supabase.from("inventario_snapshots").update({
-            monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
-            monto_usd: totalUsdParalelo, monto_base_usd: baseUsdParalelo, iva_usd: ivaUsdParalelo,
-            tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
-            fecha: r.fecha, periodo,
-            pagada: true, cuenta_bancaria_id: null,
-            notas: notaBase + " · actualizada por reimportación",
-          } as any).eq("id", existe.id);
-          if (updErr) { fail++; toast.error(`${r.numero_factura}: ${updErr.message}`); continue; }
-          if (existe.cxp_id) {
-            await supabase.from("cuentas_por_pagar").update({
-              estado: "pagada", monto_pendiente_bs: 0,
-              monto_bs: totalBs, monto_usd: totalUsdParalelo,
-            } as any).eq("id", existe.cxp_id);
+          // Distinto monto → borrar par (2.1 + 12.5) y reinsertar
+          if (existe.grupo_transaccion_id) {
+            await supabase.from("transacciones")
+              .delete()
+              .eq("grupo_transaccion_id", existe.grupo_transaccion_id)
+              .in("cuenta_codigo", ["2.1", "12.5"]);
+          } else {
+            await supabase.from("transacciones").delete().eq("id", existe.id);
           }
-          // Resync par de transacciones (2.1 + 12.5) — borrar ambas y reinsertar
-          await supabase.from("transacciones").delete()
-            .eq("numero_factura", r.numero_factura)
-            .in("referencia", ["xetux", "xetux-iva"]);
           try {
             await insertCompraTransacciones(crypto.randomUUID());
           } catch (e: any) {
@@ -338,35 +322,15 @@ function ImportarComprasPage() {
             continue;
           }
           upd++;
-          toast.warning(`Duplicada (${existe.periodo}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
+          toast.warning(`Duplicada (${existe.fecha}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
           continue;
         }
 
-        const grupoId = crypto.randomUUID();
-        const { error } = await supabase.from("inventario_snapshots").insert({
-          periodo, tipo: "compra",
-          monto_bs: totalBs, monto_base_bs: baseBs, iva_bs: ivaBs, iva_aplica: ivaAplica,
-          monto_usd: totalUsdParalelo, monto_base_usd: baseUsdParalelo, iva_usd: ivaUsdParalelo,
-          modo: offBal ? "off_balance" : "on_balance",
-          fecha: r.fecha, tasa_bcv: tasas.bcv || null, tasa_paralela: tasas.paralela || null,
-          tercero_id: terceroId, numero_factura: r.numero_factura,
-          pagada,
-          cuenta_bancaria_id: null,
-          cxp_id: null,
-          notas: notaBase,
-          registrado_por: user.id,
-          grupo_transaccion_id: grupoId,
-        } as any);
-
-        if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
-
-        // Insertar par 2.1 + 12.5 enlazados. Si falla la 2.1, no se inserta el IVA.
         try {
-          await insertCompraTransacciones(grupoId);
+          await insertCompraTransacciones(crypto.randomUUID());
         } catch (e: any) {
           fail++;
           toast.error(e?.message ?? "error registrando compra en transacciones");
-          // No revertimos el snapshot — el inventario queda registrado; el usuario puede reimportar.
           continue;
         }
         ok++;
