@@ -26,6 +26,8 @@ import {
   Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
 } from "recharts";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/propinas")({ component: PropinasPage });
 
@@ -48,6 +50,7 @@ type Propina = {
 type SortKey = "fecha" | "centro_costo" | "monto_usd" | "concepto" | "estado";
 
 function PropinasPage() {
+  const { mode, label } = useUsdView();
   const now = new Date();
   const [anio, setAnio] = useState(now.getFullYear());
   const [mes, setMes] = useState<number | "all">(now.getMonth() + 1);
