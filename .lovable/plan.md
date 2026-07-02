@@ -1,94 +1,54 @@
-## Bugs
+## Objetivo
 
-**Bug 1** — In `src/routes/_authenticated/registrar.tsx` (cierre de mes / COGS):
-- `totalComprasUsdBcv` (used in "Compras del mes (auto)" and in `cogsUsd = iniUsd + totalComprasUsdBcv - finUsd`) is recomputed as `sum(monto_base_bs / tasa_bcv)`. That's why a compra with stored `monto_usd = $428.22` shows up as ~$496.64 in the total.
+Añadir un botón "Editar" (ícono lápiz) a cada fila del listado de compras en la pestaña **COGS e Inventario** (`src/routes/_authenticated/registrar.tsx`), abriendo un diálogo con **todos** los campos editables. Al guardar, se recalculan los USD (neto, IVA, total, USD BCV) usando las tasas de la fecha, y se sincronizan las filas dependientes (CxP y `periodo` si cambia la fecha).
 
-**Bug 2** — Net USD (sin IVA) is never shown as its own column:
-- Cierre de mes compras table has "USD base" but it's actually `monto_base_usd ?? monto_usd`, ambiguous; there is no dedicated IVA USD / Total USD split.
-- Main Transacciones table shows only a single "USD" (= `monto_usd`, total incl. IVA).
-- G&P view `v_transacciones_mensual.base_usd` is recomputed as `sum(monto_base_bs / tasa_paralela)` — same "redivide by a rate" pattern, drifts from the stored per-row `monto_usd`.
+Los anticipos aplicados a la factura permanecen intactos — se recalcula el saldo de CxP asumiendo que la porción cubierta por anticipos no cambia.
 
-## Fix
+## Diálogo de edición
 
-### 1. Cierre de mes (`src/routes/_authenticated/registrar.tsx`)
+Componente nuevo `EditCompraDialog` (local en `registrar.tsx`), reutilizando los mismos controles que el formulario de alta:
 
-Replace the recomputation with sums of the already-stored per-row values from `inventario_snapshots`:
+- **Fecha** (`date`) → recalcula `periodo`, `tasa_bcv`, `tasa_paralela` sugeridas de esa fecha.
+- **Proveedor** (autocomplete de terceros).
+- **N° factura** (con verificación de duplicado excluyendo el propio `id`).
+- **Moneda** de entrada (Bs / USD), **Monto neto**, **IVA aplica** + **Monto IVA**, **Tasa BCV** (editable), sugerida por fecha.
+- **Off-balance** (switch).
+- **Pagada / CxP** (radio) y, si pagada, **Cuenta bancaria**.
+- **Vencimiento** (solo si CxP).
+- **Notas**.
 
-```ts
-// Net USD (sin IVA) — feeds COGS
-const totalComprasNetoUsd = compras
-  .filter(c => c.modo !== "off_balance")
-  .reduce((s, c) => s + (Number(c.monto_base_usd) ?? Number(c.monto_usd) ?? 0), 0);
+Deshabilitados: aplicación de anticipos (los aplicados no se pueden reasignar desde este diálogo; para eso, borrar y recrear). Se muestra un aviso `"Esta compra tiene $X en anticipos aplicados — no se pueden reasignar desde aquí"` cuando corresponda.
 
-// IVA USD
-const totalComprasIvaUsd = compras
-  .filter(c => c.modo !== "off_balance")
-  .reduce((s, c) => s + (Number(c.iva_usd) || 0), 0);
+## Guardado (`updateCompra`)
 
-// Total USD (neto + IVA)
-const totalComprasUsd = totalComprasNetoUsd + totalComprasIvaUsd;
-```
+1. **Validaciones**: mismos toasts que el alta (monto, tasa, proveedor, N° factura, banco si pagada). Bloquear si el mes del `periodo` actual o el nuevo `periodo` ya está cerrado (`cierres_de_mes` con `estado = 'cerrado'`).
+2. **Duplicado**: rechazar si otro `inventario_snapshots` distinto tiene el mismo `tercero_id + numero_factura`.
+3. **Recalcular** con la lógica actual de `addCompra`:
+   - `montoBs`, `montoBase`, `montoIva`, `montoUsd` (paralela con fallback BCV), `montoUsdBcv`, `baseUsd`, `ivaUsd`, `periodo`.
+4. **Anticipos ya aplicados**: leer `aplicado_usd_bcv_total` = suma de reversos negativos en `transacciones` (cuenta `14.2`) con `grupo_transaccion_id = snap.grupo_transaccion_id`. Ese monto no se toca.
+5. **Saldo CxP nuevo**: `cxpSaldoBs = max(0, montoBsNuevo - aplicadoBsAntic)`, `cxpSaldoUsdBcv`, `cxpSaldoUsdPar`.
+6. **Snapshot**: `UPDATE inventario_snapshots` con todos los campos recalculados; `pagada` = booleano según el estado + saldo; `cuenta_bancaria_id` solo si pagada sin CxP.
+7. **CxP asociada** (`snap.cxp_id`):
+   - Si existía y ahora queda pagada (saldo ≤ 0.01 o usuario marcó "pagada"): borrar CxP.
+   - Si existía y sigue abierta: `UPDATE` con nuevos `monto_bs`, `monto_pendiente_bs`, `usd_bcv_factura`, `usd_paralelo_factura`, `tasa_*`, `fecha_vencimiento`, `proveedor`.
+   - Si no existía y ahora debe crearse: `INSERT` (misma forma que `addCompra`).
+8. **Aviso**: si había pagos parciales de la CxP (transacciones `Pago CxP` con el mismo `grupo_transaccion_id`), mostrar toast informativo `"Revisar pagos ya efectuados: $X pagado antes de la edición"` — no se auto-ajustan.
+9. Invalidar queries: `compras-periodo`, `cxp`, `anticipos-abiertos`, `anticipos-proveedor`.
 
-- `cogsUsd = iniUsd + totalComprasNetoUsd - finUsd` (net, no IVA — as today conceptually but sourced from stored USD).
-- "Compras del mes (auto)" tile now shows `fmtBs(totalCompras)` · `fmtUsd(totalComprasNetoUsd)` and adds a sub-line "IVA: $X · Total con IVA: $Y" when IVA > 0.
-- Remove the `bcvByFecha` / `tasa_bcv` re-division block for these totals.
-- `cogs` (Bs) keeps using `tasaPromedio` for the DB record (`cogs_bs`), that's a Bs valuation not the bug.
+## UI del listado
 
-### 2. Compras table inside cierre de mes
+En la tabla de compras dentro del cierre (`src/routes/_authenticated/registrar.tsx`, sección `{(compras ?? []).length > 0 && ...}`):
 
-Replace the current "Monto Bs / USD base" columns with three explicit USD columns:
+- Añadir botón lápiz (`<Pencil className="h-3.5 w-3.5" />`) a la izquierda del botón "×" existente, mismo estilo ghost.
+- Deshabilitar ambos botones (editar y borrar) si el mes está cerrado (`cierreActual?.estado === 'cerrado'`), con tooltip "Mes cerrado, reabrir para editar".
+- Al hacer click abre `EditCompraDialog` con el snapshot precargado.
 
-| Fecha | Proveedor | N° fact. | Monto neto Bs | IVA Bs | Total Bs | **Monto neto USD (sin IVA)** | **IVA USD** | **Total USD (neto + IVA)** | Estado |
+## Fuera de alcance
 
-- Per row: `monto_base_bs`, `iva_bs`, `monto_bs`, `monto_base_usd ?? monto_usd`, `iva_usd`, `monto_usd`.
-- `tfoot` totals for each of the three USD columns.
-- When `iva_bs === 0` the row still fills IVA USD = $0.00 and Net USD = Total USD, removing the ambiguity called out in the bug report.
+- Reasignación de anticipos aplicados (requiere flujo distinto — borrar y recrear).
+- Ajuste retroactivo de pagos CxP ya efectuados (solo se avisa, no se recalculan).
+- Edición desde la tabla principal de Transacciones (esas son las 2.2 auto-generadas por cierre; ya se manejan con "Reabrir mes").
 
-### 3. Main Transacciones table (`src/routes/_authenticated/transacciones.tsx`)
+## Archivos
 
-Currently one "USD" column (total) plus reference "USD (BCV)". Add net split so cuenta 2.1 rows show the net figure that actually feeds COGS. To keep the layout digestible, render the USD column the same way the Bs column already renders when IVA > 0:
-
-- If `iva_bs > 0`: show `Monto neto USD` on top and `+ IVA USD` in the small line under it (same visual pattern as the Bs column at line 559-564). Net USD = `monto_usd − iva_bs / tasa_paralela` (fallback to `tasa_bcv`), or `monto_base_bs / monto_bs * monto_usd` (equivalent, avoids re-division by rate); we'll use the ratio form so it's derived from the stored USD, not a re-conversion.
-- If `iva_bs === 0`: show `monto_usd` alone (unchanged).
-- Column header changes to "USD (neto)" with tooltip "Neto sin IVA · el `+ IVA` aparece debajo cuando aplica".
-- "USD (BCV)" reference column is unchanged.
-
-This applies to every row (not just 2.1) so numbers stay consistent everywhere; 2.1 rows are the ones the bug report cares about but the treatment is universal and there is no regression for rows without IVA.
-
-### 4. G&P report — `v_transacciones_mensual.base_usd`
-
-New migration replaces the `base_usd` expression so it is derived from the already-stored per-row `monto_usd` (which was written at import/registration time at the correct rate) instead of re-dividing `monto_base_bs / tasa_paralela`:
-
-```sql
-CREATE OR REPLACE VIEW public.v_transacciones_mensual AS
-SELECT
-  ...
-  sum(
-    CASE
-      WHEN cuenta_codigo = '13.2' OR notas ILIKE 'Pago CxP%' THEN 0::numeric
-      WHEN COALESCE(monto_bs,0) = 0 THEN 0::numeric
-      ELSE monto_usd * (monto_base_bs / monto_bs)          -- net share of the stored USD
-    END
-  ) AS base_usd,
-  sum(
-    CASE
-      WHEN metodo_pago = 'pendiente' THEN 0::numeric
-      ELSE monto_usd                                       -- stored total USD, no re-division
-    END
-  ) AS total_usd,
-  ...
-```
-
-Effect on the G&P COGS section: cuenta 2.1 aggregates now equal `sum(monto_usd_net_per_row)`, matching what the transacciones and cierre views show. Rows with `iva_bs = 0` collapse to `monto_usd` directly.
-
-## Out of scope
-
-- No schema change to `transacciones` (we derive net USD from stored fields per row).
-- No change to how `monto_usd` is written at insert time (already correct per project memory: paralela with BCV fallback).
-- No retroactive rewriting of old rows.
-
-## Files touched
-
-- `src/routes/_authenticated/registrar.tsx` — cierre totals + compras table columns.
-- `src/routes/_authenticated/transacciones.tsx` — USD column split when IVA > 0.
-- `supabase/migrations/<new>.sql` — replace `v_transacciones_mensual` definition.
+- `src/routes/_authenticated/registrar.tsx` — nuevo `EditCompraDialog`, `updateCompra`, botón en el `<tfoot>` del listado.
