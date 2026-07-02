@@ -11,6 +11,8 @@ import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
 const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
   { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
@@ -36,6 +38,7 @@ const CAT_COLORS: Record<string, string> = {
 };
 
 function CapExPage() {
+  const { mode, label } = useUsdView();
   const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState<number>(anioActual);
   const [centro, setCentro] = useState<string>("Todos");
@@ -46,7 +49,7 @@ function CapExPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, centro_costo, monto_bs, monto_usd, notas, numero_factura, referencia, metodo_pago, modo, tercero_id, capex_categoria")
+        .select("id, fecha, centro_costo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, notas, numero_factura, referencia, metodo_pago, modo, tercero_id, capex_categoria")
         .eq("cuenta_codigo", "10.6")
         .order("fecha", { ascending: false });
       return data ?? [];
@@ -60,7 +63,7 @@ function CapExPage() {
       const hasta = `${anio}-12-31`;
       const { data } = await supabase
         .from("transacciones")
-        .select("fecha, cuenta_codigo, monto_usd")
+        .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela")
         .gte("fecha", desde).lte("fecha", hasta)
         .eq("modo", "on_balance");
       return data ?? [];
@@ -111,7 +114,7 @@ function CapExPage() {
     return map;
   }, [filtered]);
 
-  const totalUsd = filtered.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0);
+  const totalUsd = filtered.reduce((s: number, t: any) => s + (usdVisual(t, mode) ?? 0), 0);
   const totalBs = filtered.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0);
 
   const opexChartData = useMemo(() => {
@@ -125,10 +128,10 @@ function CapExPage() {
       const g = OPEX_GROUPS.find((x) => code.startsWith(x.prefix));
       if (!g) return;
       const i = new Date(t.fecha).getUTCMonth();
-      buckets[i][g.label] += Number(t.monto_usd) || 0;
+      buckets[i][g.label] += usdVisual(t, mode) ?? 0;
     });
     return buckets;
-  }, [opexTxs]);
+  }, [opexTxs, mode]);
 
   return (
     <div className="space-y-6">
@@ -136,9 +139,10 @@ function CapExPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CapEx</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-          <p className="text-sm text-muted-foreground">Inversiones en activo fijo (cuenta 10.6)</p>
+          <p className="text-sm text-muted-foreground">Inversiones en activo fijo (cuenta 10.6) · {label}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <UsdViewToggle />
           <Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}>
             <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
             <SelectContent>{anios.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
@@ -248,7 +252,7 @@ function CapExPage() {
                     <th className="text-left py-2 px-2">N° Factura</th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-right py-2 px-2">Bs</th>
-                    <th className="text-right py-2 px-2">USD</th>
+                    <th className="text-right py-2 px-2">{label}</th>
                     <th className="text-left py-2 px-2">Modo</th>
                   </tr>
                 </thead>
@@ -268,7 +272,7 @@ function CapExPage() {
                         <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
                         <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
                         <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
-                        <td className="py-2 px-2 text-right mono">{fmtUsd(t.monto_usd)}</td>
+                        <td className="py-2 px-2 text-right mono">{fmtUsd(usdVisual(t, mode) ?? 0)}</td>
                         <td className="py-2 px-2">
                           {t.modo === "off_balance"
                             ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge>

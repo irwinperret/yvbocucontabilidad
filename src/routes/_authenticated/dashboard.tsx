@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -50,12 +52,17 @@ function Dashboard() {
 
   const tasaVencida = tasa && tasa.fecha !== todayISO();
 
+  const { mode, label } = useUsdView();
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-        <p className="text-sm text-muted-foreground">Período {currentPeriod()}</p>
+          <p className="text-sm text-muted-foreground">Período {currentPeriod()}</p>
+        </div>
+        <UsdViewToggle />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -115,20 +122,20 @@ function Dashboard() {
                     <th className="text-left py-2 px-2">Cuenta</th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-right py-2 px-2">Bs</th>
-                    <th className="text-right py-2 px-2">USD</th>
+                    <th className="text-right py-2 px-2">{label}</th>
                     <th className="text-left py-2 px-2">Modo</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ultimas.map((t: any) => {
-                    const usd = Number(t.monto_usd);
+                    const usd = usdVisual(t, mode);
                     return (
                       <tr key={t.id} className="border-b last:border-0">
                         <td className="py-2 px-2 mono">{fmtDate(t.fecha)}</td>
                         <td className="py-2 px-2">{t.cuenta_codigo}</td>
                         <td className="py-2 px-2">{t.centro_costo}</td>
                         <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
-                        <td className="py-2 px-2 text-right mono">{fmtUsd(usd)}</td>
+                        <td className="py-2 px-2 text-right mono">{usd == null ? "—" : fmtUsd(usd)}</td>
                         <td className="py-2 px-2">
                           {t.modo === "off_balance" ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge> : <Badge variant="outline" className="text-green-700 border-green-300">on</Badge>}
                         </td>

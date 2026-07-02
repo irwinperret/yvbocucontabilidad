@@ -16,6 +16,8 @@ import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
 import { ArrowUpDown, AlertTriangle, Pencil, Trash2, X, Check } from "lucide-react";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/anticipos-proveedores")({
   component: AnticiposProveedoresPage,
@@ -42,6 +44,7 @@ type Row = {
 type SortKey = "fecha" | "proveedor" | "monto_usd" | "saldo" | "estado";
 
 function AnticiposProveedoresPage() {
+  const { mode, label } = useUsdView();
   const qc = useQueryClient();
   const today = new Date();
   const defaultDesde = `${today.getFullYear()}-01-01`;
@@ -133,21 +136,29 @@ function AnticiposProveedoresPage() {
       let cmp = 0;
       if (sortKey === "fecha") cmp = a.fecha.localeCompare(b.fecha);
       else if (sortKey === "proveedor") cmp = a.proveedor.localeCompare(b.proveedor);
-      else if (sortKey === "monto_usd") cmp = a.monto_usd_bcv - b.monto_usd_bcv;
-      else if (sortKey === "saldo") cmp = (a.monto_usd_bcv - a.aplicado_usd_bcv) - (b.monto_usd_bcv - b.aplicado_usd_bcv);
+      else if (sortKey === "monto_usd") cmp = (mode === "bcv" ? a.monto_usd_bcv : a.monto_usd) - (mode === "bcv" ? b.monto_usd_bcv : b.monto_usd);
+      else if (sortKey === "saldo") {
+        const sa = (mode === "bcv" ? a.monto_usd_bcv - a.aplicado_usd_bcv : a.monto_usd - a.anticipo_aplicado_usd);
+        const sb = (mode === "bcv" ? b.monto_usd_bcv - b.aplicado_usd_bcv : b.monto_usd - b.anticipo_aplicado_usd);
+        cmp = sa - sb;
+      }
       else if (sortKey === "estado") cmp = (a.anticipo_estado ?? "").localeCompare(b.anticipo_estado ?? "");
       return sortDir === "asc" ? cmp : -cmp;
     });
     return sorted;
-  }, [anticipos, filtroProv, filtroEstado, sortKey, sortDir]);
+  }, [anticipos, filtroProv, filtroEstado, sortKey, sortDir, mode]);
+
+  const primaryUsd = (r: Row) => (mode === "bcv" ? r.monto_usd_bcv : r.monto_usd);
+  const primaryAplicado = (r: Row) => (mode === "bcv" ? r.aplicado_usd_bcv : r.anticipo_aplicado_usd);
+  const primarySaldo = (r: Row) => +(primaryUsd(r) - primaryAplicado(r)).toFixed(2);
 
   const kpis = useMemo(() => {
     const rows = anticipos ?? [];
-    const total = rows.reduce((s, r) => s + r.monto_usd_bcv, 0);
-    const aplicado = rows.reduce((s, r) => s + r.aplicado_usd_bcv, 0);
+    const total = rows.reduce((s, r) => s + primaryUsd(r), 0);
+    const aplicado = rows.reduce((s, r) => s + primaryAplicado(r), 0);
     const saldo = total - aplicado;
     return { total, aplicado, saldo };
-  }, [anticipos]);
+  }, [anticipos, mode]);
 
   const diasAbierto = (fecha: string) => {
     const d = new Date(fecha);
@@ -223,12 +234,15 @@ function AnticiposProveedoresPage() {
           <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-xs text-muted-foreground">Detalles contables — anticipos emitidos a proveedores y su aplicación.</p>
         </div>
-        {alertaVencidos > 0 && (
-          <Badge className="bg-destructive hover:bg-destructive flex gap-1">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {alertaVencidos} anticipo(s) abiertos &gt; 30 días
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {alertaVencidos > 0 && (
+            <Badge className="bg-destructive hover:bg-destructive flex gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {alertaVencidos} anticipo(s) abiertos &gt; 30 días
+            </Badge>
+          )}
+          <UsdViewToggle />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -296,18 +310,20 @@ function AnticiposProveedoresPage() {
                     <SortableTh label="Proveedor" k="proveedor" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="py-2 px-2 text-right">Monto Bs</th>
                     <th className="py-2 px-2 text-right">Tasa BCV</th>
-                    <SortableTh label="USD BCV (deuda)" k="monto_usd" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
-                    <th className="py-2 px-2 text-right">USD paralelo</th>
+                    <SortableTh label={`${label} (deuda)`} k="monto_usd" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <th className="py-2 px-2 text-right text-muted-foreground">{mode === "bcv" ? "USD paralelo" : "USD BCV"}</th>
                     <SortableTh label="Estado" k="estado" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="py-2 px-2">Factura</th>
-                    <SortableTh label="Saldo USD BCV" k="saldo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableTh label={`Saldo ${label}`} k="saldo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <th className="py-2 px-2">Notas</th>
                     <th className="py-2 px-2 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => {
-                    const saldo = +(r.monto_usd_bcv - r.aplicado_usd_bcv).toFixed(2);
+                    const saldo = primarySaldo(r);
+                    const primary = primaryUsd(r);
+                    const alt = mode === "bcv" ? r.monto_usd : r.monto_usd_bcv;
                     const dias = diasAbierto(r.fecha);
                     const isEditing = editId === r.id;
                     const puedeEditar = (r.anticipo_estado ?? "abierto") === "abierto";
@@ -336,8 +352,8 @@ function AnticiposProveedoresPage() {
                             <Input type="number" step="0.0001" className="h-7 text-xs text-right mono" value={editVals.tasa_bcv} onChange={(e) => setEditVals({ ...editVals, tasa_bcv: e.target.value })} />
                           ) : (r.tasa_bcv != null ? r.tasa_bcv.toFixed(2) : "—")}
                         </td>
-                        <td className="py-1.5 px-2 mono text-right">{fmtUsd(r.monto_usd_bcv)}</td>
-                        <td className="py-1.5 px-2 mono text-right text-muted-foreground">{fmtUsd(r.monto_usd)}</td>
+                        <td className="py-1.5 px-2 mono text-right">{fmtUsd(primary)}</td>
+                        <td className="py-1.5 px-2 mono text-right text-muted-foreground">{fmtUsd(alt)}</td>
                         <td className="py-1.5 px-2">{estadoBadge(r.anticipo_estado)}</td>
                         <td className="py-1.5 px-2 mono">{r.factura_vinculada ?? "—"}</td>
                         <td className="py-1.5 px-2 mono text-right">{fmtUsd(saldo)}</td>

@@ -14,12 +14,15 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { exportFC } from "@/lib/excel-export";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, mensualView } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
 
 type Row = { anio: number; mes: number; cuenta_codigo: string; centro_costo: string; modo: string; total_usd: number };
 
 function FCPage() {
+  const { mode, label } = useUsdView();
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(false);
@@ -38,12 +41,12 @@ function FCPage() {
   });
 
   const { data: rows } = useQuery({
-    queryKey: ["fc-rows", anio, centro, incluirOff, cuentaBancariaId],
+    queryKey: ["fc-rows", anio, centro, incluirOff, cuentaBancariaId, mode],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
       if (cuentaBancariaId !== "todas") {
         const data = await fetchAllRows<any>(async (from, to) => {
-          let q = supabase.from("transacciones").select("fecha, cuenta_codigo, centro_costo, modo, monto_usd")
+          let q = supabase.from("transacciones").select("fecha, cuenta_codigo, centro_costo, modo, monto_bs, monto_usd, tasa_bcv")
             .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`)
             .eq("cuenta_bancaria_id" as any, cuentaBancariaId)
             .range(from, to);
@@ -55,14 +58,19 @@ function FCPage() {
         for (const t of data) {
           const d = new Date(t.fecha);
           const k = `${d.getFullYear()}-${d.getMonth()+1}-${t.cuenta_codigo}-${t.centro_costo}-${t.modo}`;
+          const bs = Number(t.monto_bs || 0);
+          const tbcv = Number(t.tasa_bcv || 0);
+          const usd = mode === "bcv"
+            ? (tbcv > 0 ? bs / tbcv : 0)
+            : Number(t.monto_usd || 0);
           const existing = map.get(k);
-          if (existing) existing.total_usd += Number(t.monto_usd || 0);
-          else map.set(k, { anio: d.getFullYear(), mes: d.getMonth()+1, cuenta_codigo: t.cuenta_codigo, centro_costo: t.centro_costo, modo: t.modo, total_usd: Number(t.monto_usd || 0) });
+          if (existing) existing.total_usd += usd;
+          else map.set(k, { anio: d.getFullYear(), mes: d.getMonth()+1, cuenta_codigo: t.cuenta_codigo, centro_costo: t.centro_costo, modo: t.modo, total_usd: usd });
         }
         return Array.from(map.values());
       }
       const rows = await fetchAllRows<Row>(async (from, to) => {
-        let q = supabase.from("v_transacciones_mensual").select("*").eq("anio", anio).range(from, to);
+        let q = (supabase as any).from(mensualView(mode)).select("*").eq("anio", anio).range(from, to);
         if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
         if (!incluirOff) q = q.eq("modo", "on_balance");
         return await q;
@@ -73,10 +81,13 @@ function FCPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Flujo de caja</h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Flujo de caja</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-        <p className="text-sm text-muted-foreground">Movimientos efectivos en USD</p>
+          <p className="text-sm text-muted-foreground">Movimientos efectivos en {label}</p>
+        </div>
+        <UsdViewToggle />
       </div>
 
       <Card>
