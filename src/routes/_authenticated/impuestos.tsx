@@ -260,7 +260,7 @@ function ImpuestosPage() {
                   <th className="text-left py-2 px-2">N° Factura</th>
                   <th className="text-left py-2 px-2">Ref</th>
                   <th className="text-right py-2 px-2">Monto Bs</th>
-                  <th className="text-right py-2 px-2">Monto USD</th>
+                  <th className="text-right py-2 px-2">Monto {label}</th>
                   <th className="text-left py-2 px-2">Notas</th>
                 </tr>
               </thead>
@@ -268,7 +268,7 @@ function ImpuestosPage() {
                 {filtered.map((r) => {
                    const isDeb = r.cuenta_codigo === "12.4";
                    const bs = Number(r.monto_bs ?? 0);
-                   const usd = Number(r.monto_usd ?? 0);
+                   const usd = usdVisual(r as any, mode) ?? 0;
                   return (
                     <tr key={r.id} className="border-b last:border-0">
                       <td className="py-1.5 px-2 mono">{fmtDate(r.fecha)}</td>
