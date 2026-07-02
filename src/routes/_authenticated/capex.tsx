@@ -114,7 +114,7 @@ function CapExPage() {
     return map;
   }, [filtered]);
 
-  const totalUsd = filtered.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0);
+  const totalUsd = filtered.reduce((s: number, t: any) => s + (usdVisual(t, mode) ?? 0), 0);
   const totalBs = filtered.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0);
 
   const opexChartData = useMemo(() => {
@@ -139,9 +139,10 @@ function CapExPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CapEx</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-          <p className="text-sm text-muted-foreground">Inversiones en activo fijo (cuenta 10.6)</p>
+          <p className="text-sm text-muted-foreground">Inversiones en activo fijo (cuenta 10.6) · {label}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <UsdViewToggle />
           <Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}>
             <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
             <SelectContent>{anios.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
