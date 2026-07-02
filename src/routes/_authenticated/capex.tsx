@@ -252,7 +252,7 @@ function CapExPage() {
                     <th className="text-left py-2 px-2">N° Factura</th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-right py-2 px-2">Bs</th>
-                    <th className="text-right py-2 px-2">USD</th>
+                    <th className="text-right py-2 px-2">{label}</th>
                     <th className="text-left py-2 px-2">Modo</th>
                   </tr>
                 </thead>
