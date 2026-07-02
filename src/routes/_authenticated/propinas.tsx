@@ -302,7 +302,7 @@ function PropinasPage() {
                   {([
                     ["fecha", "Fecha"],
                     ["centro_costo", "Centro"],
-                    ["monto_usd", "Monto USD"],
+                    ["monto_usd", `Monto ${label}`],
                     ["concepto", "Método/Concepto"],
                     ["estado", "Estado"],
                   ] as [SortKey, string][]).map(([k, lbl]) => (
@@ -321,7 +321,7 @@ function PropinasPage() {
                     <tr key={p.id} className="border-b last:border-0">
                       <td className="py-1.5 px-2 mono">{fmtDate(p.fecha)}</td>
                       <td className="py-1.5 px-2">{p.centro_costo ?? "—"}</td>
-                      <td className="py-1.5 px-2 mono">{fmtUsd(p.monto_usd)}</td>
+                      <td className="py-1.5 px-2 mono">{fmtUsd(usdOf(p))}</td>
                       <td className="py-1.5 px-2">{p.concepto ?? "—"}</td>
                       <td className="py-1.5 px-2">
                         {distribuida ? (
