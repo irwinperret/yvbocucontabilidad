@@ -12,7 +12,6 @@ import { CENTROS, MESES } from "@/lib/account-helpers";
 import { Button } from "@/components/ui/button";
 import { Download, ChevronRight, ChevronDown } from "lucide-react";
 import { exportGyP } from "@/lib/excel-export";
-import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 
@@ -96,7 +95,6 @@ function GyPPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Ganancias y Pérdidas</h1>
-          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">Todos los montos en {label} · base sin IVA</p>
         </div>
         <UsdViewToggle />

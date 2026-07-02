@@ -10,7 +10,6 @@ import { MESES, CAPEX_CATEGORIAS } from "@/lib/account-helpers";
 import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
@@ -138,7 +137,6 @@ function CapExPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CapEx</h1>
-          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">Inversiones en activo fijo (cuenta 10.6) · {label}</p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
