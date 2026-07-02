@@ -16,6 +16,8 @@ import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
 import { ArrowUpDown, AlertTriangle, Pencil, Trash2, X, Check } from "lucide-react";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/anticipos-proveedores")({
   component: AnticiposProveedoresPage,
@@ -42,6 +44,7 @@ type Row = {
 type SortKey = "fecha" | "proveedor" | "monto_usd" | "saldo" | "estado";
 
 function AnticiposProveedoresPage() {
+  const { mode, label } = useUsdView();
   const qc = useQueryClient();
   const today = new Date();
   const defaultDesde = `${today.getFullYear()}-01-01`;
