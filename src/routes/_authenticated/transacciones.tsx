@@ -736,7 +736,7 @@ function TransaccionesPage() {
                       </div>
                     </ThSort>
                     <ThSort onClick={() => toggleSort("monto_usd")} arrow={sortArrow("monto_usd")} align="right"
-                            title="Neto sin IVA · el + IVA aparece debajo cuando aplica">
+                            title="Neto sin IVA · el + IVA aparece debajo cuando aplica. En COGS/inventario (2.x y 12.5) se muestra a valor BCV">
                       USD (neto)
                       <RangeFilter
                         min={usdMin} max={usdMax}
