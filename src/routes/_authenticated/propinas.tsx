@@ -189,9 +189,12 @@ function PropinasPage() {
           <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">Control de propinas adicionales · entrada y distribución al personal</p>
         </div>
-        <Button onClick={() => setRegistrando(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Registrar propina
-        </Button>
+        <div className="flex items-center gap-2">
+          <UsdViewToggle />
+          <Button onClick={() => setRegistrando(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Registrar propina
+          </Button>
+        </div>
       </div>
 
       <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
