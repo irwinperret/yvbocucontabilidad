@@ -144,13 +144,17 @@ function AnticiposProveedoresPage() {
     return sorted;
   }, [anticipos, filtroProv, filtroEstado, sortKey, sortDir]);
 
+  const primaryUsd = (r: Row) => (mode === "bcv" ? r.monto_usd_bcv : r.monto_usd);
+  const primaryAplicado = (r: Row) => (mode === "bcv" ? r.aplicado_usd_bcv : r.anticipo_aplicado_usd);
+  const primarySaldo = (r: Row) => +(primaryUsd(r) - primaryAplicado(r)).toFixed(2);
+
   const kpis = useMemo(() => {
     const rows = anticipos ?? [];
-    const total = rows.reduce((s, r) => s + r.monto_usd_bcv, 0);
-    const aplicado = rows.reduce((s, r) => s + r.aplicado_usd_bcv, 0);
+    const total = rows.reduce((s, r) => s + primaryUsd(r), 0);
+    const aplicado = rows.reduce((s, r) => s + primaryAplicado(r), 0);
     const saldo = total - aplicado;
     return { total, aplicado, saldo };
-  }, [anticipos]);
+  }, [anticipos, mode]);
 
   const diasAbierto = (fecha: string) => {
     const d = new Date(fecha);
@@ -226,12 +230,15 @@ function AnticiposProveedoresPage() {
           <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-xs text-muted-foreground">Detalles contables — anticipos emitidos a proveedores y su aplicación.</p>
         </div>
-        {alertaVencidos > 0 && (
-          <Badge className="bg-destructive hover:bg-destructive flex gap-1">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {alertaVencidos} anticipo(s) abiertos &gt; 30 días
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {alertaVencidos > 0 && (
+            <Badge className="bg-destructive hover:bg-destructive flex gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {alertaVencidos} anticipo(s) abiertos &gt; 30 días
+            </Badge>
+          )}
+          <UsdViewToggle />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
