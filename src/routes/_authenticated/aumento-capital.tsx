@@ -15,12 +15,15 @@ import {
   PieChart, Pie,
 } from "recharts";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/aumento-capital")({ component: AumentoCapitalPage });
 
 const PALETTE = ["#534AB7", "#0F6E56", "#E8A87C", "#C38D9E", "#41B3A3", "#F39C12", "#3498DB", "#E74C3C", "#16A085", "#9B59B6", "#34495E", "#D35400"];
 
 function AumentoCapitalPage() {
+  const { mode, label } = useUsdView();
   const qc = useQueryClient();
   const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState<string>("Todos");
@@ -32,7 +35,7 @@ function AumentoCapitalPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, centro_costo, monto_bs, monto_usd, detalle, notas, metodo_pago, modo")
+        .select("id, fecha, centro_costo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, detalle, notas, metodo_pago, modo")
         .eq("cuenta_codigo", "10.5")
         .order("fecha", { ascending: false });
       return data ?? [];
@@ -54,12 +57,12 @@ function AumentoCapitalPage() {
     const m = new Map<string, number>();
     filtered.forEach((t: any) => {
       const k = (t.detalle?.trim() || "—Sin nombre—");
-      m.set(k, (m.get(k) ?? 0) + (Number(t.monto_usd) || 0));
+      m.set(k, (m.get(k) ?? 0) + (usdVisual(t, mode) ?? 0));
     });
     return Array.from(m, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [filtered]);
+  }, [filtered, mode]);
 
-  const totalUsd = filtered.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0);
+  const totalUsd = filtered.reduce((s: number, t: any) => s + (usdVisual(t, mode) ?? 0), 0);
   const totalBs = filtered.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0);
 
   const startEdit = (t: any) => {
@@ -103,19 +106,22 @@ function AumentoCapitalPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Aumento de capital</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-          <p className="text-sm text-muted-foreground">Aportes de capital social (cuenta 10.5)</p>
+          <p className="text-sm text-muted-foreground">Aportes de capital social (cuenta 10.5) · {label}</p>
         </div>
-        <Select value={anio} onValueChange={setAnio}>
-          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Todos">Todos los años</SelectItem>
-            {anios.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <UsdViewToggle />
+          <Select value={anio} onValueChange={setAnio}>
+            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todos">Todos los años</SelectItem>
+              {anios.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total USD</CardTitle></CardHeader>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total {label}</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold mono">{fmtUsd(totalUsd)}</div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total Bs</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold mono">{fmtBs(totalBs)}</div></CardContent></Card>
@@ -174,7 +180,7 @@ function AumentoCapitalPage() {
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">Aportante</th>
                     <th className="text-left py-2 px-2">Notas</th>
-                    <th className="text-right py-2 px-2">USD</th>
+                    <th className="text-right py-2 px-2">{label}</th>
                     <th className="text-right py-2 px-2">Bs</th>
                     <th className="text-center py-2 px-2 w-24">Acciones</th>
                   </tr>
@@ -206,7 +212,7 @@ function AumentoCapitalPage() {
                           {isEd ? <Input value={draft.notas} onChange={(e) => setDraft({ ...draft, notas: e.target.value })} className="h-7 text-xs" /> : (t.notas ?? "—")}
                         </td>
                         <td className="py-2 px-2 text-right mono">
-                          {isEd ? <Input type="number" step="0.01" value={draft.monto_usd} onChange={(e) => setDraft({ ...draft, monto_usd: e.target.value })} className="h-7 text-xs text-right w-28" /> : fmtUsd(t.monto_usd)}
+                          {isEd ? <Input type="number" step="0.01" value={draft.monto_usd} onChange={(e) => setDraft({ ...draft, monto_usd: e.target.value })} className="h-7 text-xs text-right w-28" /> : fmtUsd(usdVisual(t, mode) ?? 0)}
                         </td>
                         <td className="py-2 px-2 text-right mono text-xs text-muted-foreground">{fmtBs(t.monto_bs)}</td>
                         <td className="py-2 px-2 text-center">
