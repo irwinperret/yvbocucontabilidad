@@ -11,6 +11,8 @@ import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
 const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
   { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
@@ -36,6 +38,7 @@ const CAT_COLORS: Record<string, string> = {
 };
 
 function CapExPage() {
+  const { mode, label } = useUsdView();
   const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState<number>(anioActual);
   const [centro, setCentro] = useState<string>("Todos");
@@ -46,7 +49,7 @@ function CapExPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, centro_costo, monto_bs, monto_usd, notas, numero_factura, referencia, metodo_pago, modo, tercero_id, capex_categoria")
+        .select("id, fecha, centro_costo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, notas, numero_factura, referencia, metodo_pago, modo, tercero_id, capex_categoria")
         .eq("cuenta_codigo", "10.6")
         .order("fecha", { ascending: false });
       return data ?? [];
@@ -60,7 +63,7 @@ function CapExPage() {
       const hasta = `${anio}-12-31`;
       const { data } = await supabase
         .from("transacciones")
-        .select("fecha, cuenta_codigo, monto_usd")
+        .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela")
         .gte("fecha", desde).lte("fecha", hasta)
         .eq("modo", "on_balance");
       return data ?? [];
@@ -125,10 +128,10 @@ function CapExPage() {
       const g = OPEX_GROUPS.find((x) => code.startsWith(x.prefix));
       if (!g) return;
       const i = new Date(t.fecha).getUTCMonth();
-      buckets[i][g.label] += Number(t.monto_usd) || 0;
+      buckets[i][g.label] += usdVisual(t, mode) ?? 0;
     });
     return buckets;
-  }, [opexTxs]);
+  }, [opexTxs, mode]);
 
   return (
     <div className="space-y-6">
