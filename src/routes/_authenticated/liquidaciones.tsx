@@ -23,6 +23,8 @@ import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
 const SECCIONES = [
   { key: "Cocina",         cuenta: "3.3",  centro: "Compartido", color: "#0F6E56" },
@@ -56,6 +58,7 @@ function empleadoFromRow(row: any): string {
 }
 
 function LiquidacionesHistorialPage() {
+  const { mode, label } = useUsdView();
   const qc = useQueryClient();
   const anioActual = new Date().getFullYear();
   const [seccionFiltro, setSeccionFiltro] = useState<string>("Todos");
@@ -118,16 +121,16 @@ function LiquidacionesHistorialPage() {
   const totalYearUsd = useMemo(() => {
     return enriched
       .filter((r) => new Date(r.fecha).getUTCFullYear() === anioActual)
-      .reduce((s, r) => s + Number(r.monto_usd || 0), 0);
-  }, [enriched, anioActual]);
+      .reduce((s, r) => s + (usdVisual(r as any, mode) ?? 0), 0);
+  }, [enriched, anioActual, mode]);
 
   const totalesPorSeccion = useMemo(() => {
     const m: Record<string, number> = {};
     enriched
       .filter((r) => new Date(r.fecha).getUTCFullYear() === anioActual)
-      .forEach((r) => { m[r.seccion] = (m[r.seccion] || 0) + Number(r.monto_usd || 0); });
+      .forEach((r) => { m[r.seccion] = (m[r.seccion] || 0) + (usdVisual(r as any, mode) ?? 0); });
     return m;
-  }, [enriched, anioActual]);
+  }, [enriched, anioActual, mode]);
 
   const chartData = useMemo(() => {
     const meses = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
@@ -140,10 +143,10 @@ function LiquidacionesHistorialPage() {
       const d = new Date(r.fecha);
       if (d.getUTCFullYear() !== anioActual) return;
       const idx = d.getUTCMonth();
-      base[idx][r.seccion] = (base[idx][r.seccion] || 0) + Number(r.monto_usd || 0);
+      base[idx][r.seccion] = (base[idx][r.seccion] || 0) + (usdVisual(r, mode) ?? 0);
     });
     return base;
-  }, [enriched, anioActual]);
+  }, [enriched, anioActual, mode]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -162,10 +165,13 @@ function LiquidacionesHistorialPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Liquidaciones</h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Liquidaciones</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-        <p className="text-sm text-muted-foreground">Historial de liquidaciones de personal</p>
+          <p className="text-sm text-muted-foreground">Historial de liquidaciones de personal · {label}</p>
+        </div>
+        <UsdViewToggle />
       </div>
 
       {/* KPIs */}
