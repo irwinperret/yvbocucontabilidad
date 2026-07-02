@@ -3141,12 +3141,17 @@ function CierreForm() {
                     const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
                     const ivaBs = Number(c.iva_bs) || 0;
                     const totalBs = Number(c.monto_bs) || (netoBs + ivaBs);
-                    const totalUsd = Number(c.monto_usd) || 0;
-                    const ivaUsd = Number(c.iva_usd) || 0;
+                    const tasaBcv = Number(c.tasa_bcv) || 0;
+                    // Visualización en USD a valor BCV (la contabilidad sigue en paralelo)
+                    const totalUsdParalelo = Number(c.monto_usd) || 0;
+                    const ivaUsdParalelo = Number(c.iva_usd) || 0;
                     const netoUsdRaw = Number(c.monto_base_usd);
-                    const netoUsd = Number.isFinite(netoUsdRaw) && netoUsdRaw !== 0
+                    const netoUsdParalelo = Number.isFinite(netoUsdRaw) && netoUsdRaw !== 0
                       ? netoUsdRaw
-                      : Math.max(0, totalUsd - ivaUsd);
+                      : Math.max(0, totalUsdParalelo - ivaUsdParalelo);
+                    const netoUsd = tasaBcv > 0 ? +(netoBs / tasaBcv).toFixed(2) : netoUsdParalelo;
+                    const ivaUsd = tasaBcv > 0 ? +(ivaBs / tasaBcv).toFixed(2) : ivaUsdParalelo;
+                    const totalUsd = tasaBcv > 0 ? +(totalBs / tasaBcv).toFixed(2) : totalUsdParalelo;
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
