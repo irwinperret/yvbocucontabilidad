@@ -607,6 +607,7 @@ function VentasForm() {
           numero_orden: numOrden || null,
           notas: `Bono servicio 10% por venta ${tipo === "credito" ? "a crédito" : "contado"}${cliente ? ` · ${cliente}` : ""}`,
           modo: offBalance ? "off_balance" : "on_balance",
+          grupo_transaccion_id: grupoId,
           created_by: user.id,
         } as any).select().single();
         if (eBs) toast.error("Venta OK, pero falló registrar bono servicio: " + eBs.message);
