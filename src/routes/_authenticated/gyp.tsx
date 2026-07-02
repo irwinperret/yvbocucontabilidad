@@ -13,12 +13,15 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { exportGyP } from "@/lib/excel-export";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, mensualView } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
 type Row = { periodo: string; anio: number; mes: number; cuenta_codigo: string; centro_costo: string; modo: string; base_usd: number };
 
 function GyPPage() {
+  const { mode, label } = useUsdView();
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(false);
@@ -34,11 +37,11 @@ function GyPPage() {
   });
 
   const { data: rows } = useQuery({
-    queryKey: ["gyp-rows", anio, centro, incluirOff],
+    queryKey: ["gyp-rows", anio, centro, incluirOff, mode],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
       return await fetchAllRows<Row>(async (from, to) => {
-        let q = supabase.from("v_transacciones_mensual").select("*").eq("anio", anio).range(from, to);
+        let q = (supabase as any).from(mensualView(mode)).select("*").eq("anio", anio).range(from, to);
         if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
         if (!incluirOff) q = q.eq("modo", "on_balance");
         return await q;
@@ -48,10 +51,13 @@ function GyPPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Ganancias y Pérdidas</h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Ganancias y Pérdidas</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-        <p className="text-sm text-muted-foreground">Todos los montos en USD · base sin IVA</p>
+          <p className="text-sm text-muted-foreground">Todos los montos en {label} · base sin IVA</p>
+        </div>
+        <UsdViewToggle />
       </div>
 
       <Card>
