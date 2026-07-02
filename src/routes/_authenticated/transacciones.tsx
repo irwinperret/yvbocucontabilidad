@@ -785,9 +785,7 @@ function TransaccionesPage() {
                     const ivaBs = Number(t.iva_bs) || 0;
                     const baseBs = Number(t.monto_base_bs) || 0;
                     const showSplit = ivaBs > 0 && baseBs > 0 && totalBs > 0;
-                    // En COGS e inventario (2.x y 12.5) mostrar USD a valor BCV en lugar de paralelo
-                    const isCogs = t.cuenta_codigo?.startsWith("2.") || t.cuenta_codigo === "12.5";
-                    const totalUsd = isCogs && bcvUsdTotal != null ? bcvUsdTotal : totalUsdParalelo;
+                    const totalUsd = totalUsdParalelo;
                     const netoUsd = showSplit ? totalUsd * (baseBs / totalBs) : totalUsd;
                     const ivaUsd = showSplit ? Math.max(0, totalUsd - netoUsd) : 0;
                     const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
