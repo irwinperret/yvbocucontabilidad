@@ -3562,11 +3562,11 @@ function EditCompraDialog({
       }
     }
 
-    // Duplicado (mismo tercero + N° factura, distinto id)
+    // Duplicado (mismo tercero + N° factura, distinta transacción)
     const { data: dup } = await supabase
-      .from("inventario_snapshots")
+      .from("transacciones")
       .select("id")
-      .eq("tipo", "compra")
+      .eq("cuenta_codigo", "2.1")
       .eq("tercero_id", terceroId)
       .eq("numero_factura", numFactura)
       .neq("id", compra.id)
@@ -3583,48 +3583,23 @@ function EditCompraDialog({
     const baseUsdContable = tasaContable > 0 ? +(baseBs / tasaContable).toFixed(2) : 0;
     const ivaUsdContable = tasaContable > 0 ? +(ivaBs / tasaContable).toFixed(2) : 0;
     const montoUsdBcv = bcvN > 0 ? +(totalBs / bcvN).toFixed(2) : montoUsdContable;
+    void montoUsdContable; void montoUsdBcv; void nuevoPeriodo;
 
-    // Saldo tras anticipo (los anticipos aplicados no se re-asignan)
+    // Saldo tras anticipo
     const cxpSaldoBs = Math.max(0, +(totalBs - aplicadoBs).toFixed(2));
     const cxpSaldoUsdBcv = bcvN > 0 ? +(cxpSaldoBs / bcvN).toFixed(2) : 0;
     const cxpSaldoUsdPar = paralelaN > 0 ? +(cxpSaldoBs / paralelaN).toFixed(2) : cxpSaldoUsdBcv;
 
     const tieneAnticipo = aplicadoBs > 0.01;
-    const snapshotPagada = offBalance
+    const compraPagadaFinal = offBalance
       ? true
       : (tieneAnticipo ? cxpSaldoBs <= 0.01 : (pagada || cxpSaldoBs <= 0.01));
-    const snapshotBanco = !offBalance && pagada && !tieneAnticipo ? (cuentaBanco || null) : null;
+    const compraBanco = !offBalance && pagada && !tieneAnticipo ? (cuentaBanco || null) : null;
 
-    // 1) UPDATE snapshot
-    const { error: upErr } = await supabase
-      .from("inventario_snapshots")
-      .update({
-        periodo: nuevoPeriodo,
-        fecha,
-        tercero_id: terceroId,
-        numero_factura: numFactura,
-        monto_bs: totalBs,
-        monto_base_bs: baseBs,
-        iva_bs: ivaBs,
-        iva_aplica: ivaAplica,
-        monto_usd: montoUsdContable,
-        monto_base_usd: baseUsdContable,
-        iva_usd: ivaUsdContable,
-        tasa_bcv: bcvN,
-        tasa_paralela: paralelaN || null,
-        modo: offBalance ? "off_balance" : "on_balance",
-        pagada: snapshotPagada,
-        cuenta_bancaria_id: snapshotBanco,
-        fecha_vencimiento: !offBalance && !snapshotPagada ? (venc || null) : null,
-        notas: notas || null,
-      } as any)
-      .eq("id", compra.id);
-    if (upErr) { setBusy(false); return toast.error(upErr.message); }
-
-    // 1b) Sincronizar transacción 2.1 (+ IVA 12.5) enlazada por grupo_transaccion_id.
+    // 1) Sincronizar transacción 2.1 (+ IVA 12.5) enlazada por grupo_transaccion_id.
     if (compra.grupo_transaccion_id) {
       const usdParalela21 = paralelaN > 0 ? +(baseBs / paralelaN).toFixed(2) : baseUsdContable;
-      await supabase.from("transacciones")
+      const { error: upTxErr } = await supabase.from("transacciones")
         .update({
           fecha,
           centro_costo: "Compartido" as any,
@@ -3636,15 +3611,16 @@ function EditCompraDialog({
           monto_usd: usdParalela21,
           tasa_bcv: bcvN || null,
           tasa_paralela: paralelaN || null,
-          cuenta_bancaria_id: snapshotBanco,
+          cuenta_bancaria_id: compraBanco,
           tercero_id: terceroId,
           numero_factura: numFactura,
           notas: notas || null,
         } as any)
         .eq("grupo_transaccion_id", compra.grupo_transaccion_id)
         .eq("cuenta_codigo", "2.1");
+      if (upTxErr) { setBusy(false); return toast.error(upTxErr.message); }
 
-      // Recrear pierna IVA 12.5: borrar y (si aplica) volver a insertar
+      // Recrear pierna IVA 12.5
       const { deleteIvaLegsByGrupo, insertIvaLeg } = await import("@/lib/iva-helpers");
       await deleteIvaLegsByGrupo(compra.grupo_transaccion_id);
       if (ivaAplica && ivaBs > 0.005) {
@@ -3665,15 +3641,24 @@ function EditCompraDialog({
           tipo: "credito",
         });
       }
+    } else {
+      // Legacy: transacción sin grupo — actualizar por id
+      await supabase.from("transacciones").update({
+        fecha, centro_costo: "Compartido" as any,
+        modo: offBalance ? "off_balance" : "on_balance",
+        monto_bs: baseBs, monto_base_bs: baseBs, iva_bs: 0, iva_aplica: false,
+        monto_usd: paralelaN > 0 ? +(baseBs / paralelaN).toFixed(2) : baseUsdContable,
+        tasa_bcv: bcvN || null, tasa_paralela: paralelaN || null,
+        cuenta_bancaria_id: compraBanco,
+        tercero_id: terceroId, numero_factura: numFactura, notas: notas || null,
+      } as any).eq("id", compra.id);
     }
 
     // 2) Sincronizar CxP asociada
     const prov = terceros.find((t) => t.id === terceroId);
     if (compra.cxp_id) {
-      if (snapshotPagada || cxpSaldoBs <= 0.01) {
-        // Ya no debería existir CxP abierta
+      if (compraPagadaFinal || cxpSaldoBs <= 0.01) {
         await supabase.from("cuentas_por_pagar").delete().eq("id", compra.cxp_id);
-        await supabase.from("inventario_snapshots").update({ cxp_id: null }).eq("id", compra.id);
       } else {
         await supabase
           .from("cuentas_por_pagar")
@@ -3693,8 +3678,8 @@ function EditCompraDialog({
           } as any)
           .eq("id", compra.cxp_id);
       }
-    } else if (!offBalance && !snapshotPagada && cxpSaldoBs > 0.01) {
-      const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
+    } else if (!offBalance && !compraPagadaFinal && cxpSaldoBs > 0.01) {
+      const { error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
         numero_factura: numFactura,
         tercero_id: terceroId,
@@ -3709,12 +3694,10 @@ function EditCompraDialog({
         tasa_paralela_factura: paralelaN || null,
         fecha_vencimiento: venc || null,
         estado: "pendiente",
-      } as any).select().single();
+      } as any);
       if (cxpErr) { setBusy(false); return toast.error(cxpErr.message); }
-      if (cxp?.id) {
-        await supabase.from("inventario_snapshots").update({ cxp_id: cxp.id }).eq("id", compra.id);
-      }
     }
+
 
     // 3) Aviso si hay pagos previos
     if (pagadoBs > 0.01) {
