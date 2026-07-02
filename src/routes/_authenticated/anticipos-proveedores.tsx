@@ -306,18 +306,20 @@ function AnticiposProveedoresPage() {
                     <SortableTh label="Proveedor" k="proveedor" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="py-2 px-2 text-right">Monto Bs</th>
                     <th className="py-2 px-2 text-right">Tasa BCV</th>
-                    <SortableTh label="USD BCV (deuda)" k="monto_usd" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
-                    <th className="py-2 px-2 text-right">USD paralelo</th>
+                    <SortableTh label={`${label} (deuda)`} k="monto_usd" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <th className="py-2 px-2 text-right text-muted-foreground">{mode === "bcv" ? "USD paralelo" : "USD BCV"}</th>
                     <SortableTh label="Estado" k="estado" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="py-2 px-2">Factura</th>
-                    <SortableTh label="Saldo USD BCV" k="saldo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableTh label={`Saldo ${label}`} k="saldo" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                     <th className="py-2 px-2">Notas</th>
                     <th className="py-2 px-2 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => {
-                    const saldo = +(r.monto_usd_bcv - r.aplicado_usd_bcv).toFixed(2);
+                    const saldo = primarySaldo(r);
+                    const primary = primaryUsd(r);
+                    const alt = mode === "bcv" ? r.monto_usd : r.monto_usd_bcv;
                     const dias = diasAbierto(r.fecha);
                     const isEditing = editId === r.id;
                     const puedeEditar = (r.anticipo_estado ?? "abierto") === "abierto";
@@ -346,8 +348,8 @@ function AnticiposProveedoresPage() {
                             <Input type="number" step="0.0001" className="h-7 text-xs text-right mono" value={editVals.tasa_bcv} onChange={(e) => setEditVals({ ...editVals, tasa_bcv: e.target.value })} />
                           ) : (r.tasa_bcv != null ? r.tasa_bcv.toFixed(2) : "—")}
                         </td>
-                        <td className="py-1.5 px-2 mono text-right">{fmtUsd(r.monto_usd_bcv)}</td>
-                        <td className="py-1.5 px-2 mono text-right text-muted-foreground">{fmtUsd(r.monto_usd)}</td>
+                        <td className="py-1.5 px-2 mono text-right">{fmtUsd(primary)}</td>
+                        <td className="py-1.5 px-2 mono text-right text-muted-foreground">{fmtUsd(alt)}</td>
                         <td className="py-1.5 px-2">{estadoBadge(r.anticipo_estado)}</td>
                         <td className="py-1.5 px-2 mono">{r.factura_vinculada ?? "—"}</td>
                         <td className="py-1.5 px-2 mono text-right">{fmtUsd(saldo)}</td>
