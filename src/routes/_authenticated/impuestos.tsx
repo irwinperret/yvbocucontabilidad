@@ -16,6 +16,8 @@ import {
 } from "recharts";
 import { fetchAllRows } from "@/lib/fetch-all";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/impuestos")({ component: ImpuestosPage });
 
@@ -39,6 +41,7 @@ type Row = {
 };
 
 function ImpuestosPage() {
+  const { mode, label } = useUsdView();
   const now = new Date();
   const [anio, setAnio] = useState(now.getFullYear());
   const [mes, setMes] = useState<number | "all">(now.getMonth() + 1);
@@ -75,7 +78,7 @@ function ImpuestosPage() {
     let debUsd = 0, debBs = 0, credUsd = 0, credBs = 0;
     filtered.forEach((r) => {
       const bs = Number(r.monto_bs ?? 0);
-      const usd = Number(r.monto_usd ?? 0);
+      const usd = usdVisual(r as any, mode) ?? 0;
       if (r.cuenta_codigo === "12.4") { debUsd += usd; debBs += bs; }
       else if (r.cuenta_codigo === "12.5") { credUsd += usd; credBs += bs; }
     });
@@ -84,7 +87,7 @@ function ImpuestosPage() {
       netoUsd: debUsd - credUsd,
       netoBs: debBs - credBs,
     };
-  }, [filtered]);
+  }, [filtered, mode]);
 
   const chartData = useMemo(() => {
     const out: Record<number, { mes: number; mesLabel: string; debito: number; credito: number; neto: number }> = {};
@@ -94,13 +97,13 @@ function ImpuestosPage() {
     (rows ?? []).forEach((r) => {
       if (centroFiltro !== "Consolidado" && (r.centro_costo ?? "") !== centroFiltro) return;
       const m = Number(r.fecha.slice(5, 7));
-      const usd = Number(r.monto_usd ?? 0);
+      const usd = usdVisual(r as any, mode) ?? 0;
       if (r.cuenta_codigo === "12.4") out[m].debito += usd;
       else if (r.cuenta_codigo === "12.5") out[m].credito += usd;
     });
     Object.values(out).forEach((r) => { r.neto = r.debito - r.credito; });
     return Object.values(out);
-  }, [rows, centroFiltro]);
+  }, [rows, centroFiltro, mode]);
 
   const exportCsv = () => {
     const headers = ["Fecha", "Tipo", "Centro", "N° Factura", "Referencia", "Monto Bs", "Monto USD", "Tasa BCV", "Notas"];
@@ -133,12 +136,15 @@ function ImpuestosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Impuestos · IVA</h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Impuestos · IVA</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-        <p className="text-sm text-muted-foreground">
-          Movimientos de IVA débito (ventas, cuenta 12.4) y crédito (compras, cuenta 12.5) · neto a declarar
-        </p>
+          <p className="text-sm text-muted-foreground">
+            Movimientos de IVA débito (ventas, cuenta 12.4) y crédito (compras, cuenta 12.5) · neto a declarar · {label}
+          </p>
+        </div>
+        <UsdViewToggle />
       </div>
 
       <Alert>
