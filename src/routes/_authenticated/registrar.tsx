@@ -388,6 +388,7 @@ function VentasForm() {
         const bonoBs = bonoUsdN * tasaOffN;
         const refFactura = facturaTx.numero_factura || facturaTx.numero_orden || "";
         const cuentaOffVenta = cuentaVenta(centroOff, "contado");
+        const grupoOffId = crypto.randomUUID();
 
         // 1) Insert venta off-balance
         const { data: txVenta, error: e1 } = await supabase.from("transacciones").insert({
@@ -405,6 +406,7 @@ function VentasForm() {
           numero_orden: facturaTx.numero_orden || null,
           notas: `${offFiar ? "Ajuste off-balance A CRÉDITO" : "Ajuste off-balance"} de factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}${notas ? ` · ${notas}` : ""}`,
           modo: "off_balance" as any,
+          grupo_transaccion_id: grupoOffId,
           created_by: user.id,
         } as any).select().single();
         if (e1 || !txVenta) throw new Error(e1?.message ?? "No se pudo registrar la venta off-balance");
@@ -429,6 +431,7 @@ function VentasForm() {
             notas: `Bono ${centroOff} (off-balance) por factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}`,
             modo: "off_balance" as any,
             pareja_off_balance_id: txVenta.id,
+            grupo_transaccion_id: grupoOffId,
             created_by: user.id,
           } as any).select().single();
           if (e2 || !txB) {
@@ -480,7 +483,25 @@ function VentasForm() {
     if (tipo === "cobro" && usdCobrado > pendienteUsdCxc + 0.01) return toast.error(`El cobro no puede exceder el saldo pendiente (${fmtUsd(pendienteUsdCxc)})`);
     if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
-    const grupoId = crypto.randomUUID();
+    // Grupo transaccional compartido por venta/cobro + IVA + bono + propina + ajuste FX.
+    // En cobro heredamos el grupo de la venta original (o lo asignamos si aún no lo tenía).
+    let grupoId = crypto.randomUUID();
+    if (tipo === "cobro" && cxcSel?.transaccion_id) {
+      const { data: origen } = await supabase
+        .from("transacciones")
+        .select("grupo_transaccion_id")
+        .eq("id", cxcSel.transaccion_id)
+        .maybeSingle();
+      const origenGrupo = (origen as any)?.grupo_transaccion_id;
+      if (origenGrupo) {
+        grupoId = origenGrupo;
+      } else {
+        await supabase
+          .from("transacciones")
+          .update({ grupo_transaccion_id: grupoId } as any)
+          .eq("id", cxcSel.transaccion_id);
+      }
+    }
     const ivaUsd = ivaAplica ? (tasaParalelaN ? +(iva / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0)) : 0;
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
@@ -494,7 +515,7 @@ function VentasForm() {
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
-      grupo_transaccion_id: ivaAplica ? grupoId : null,
+      grupo_transaccion_id: grupoId,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
@@ -564,6 +585,7 @@ function VentasForm() {
             metodo_pago: "transferencia" as any,
             notas: `Dif. cambiaria cobro CxC ${cxcSel.cliente} — paralela orig ${tasaOrigCxc.toFixed(4)} → paralela hoy ${paralelaHoy.toFixed(4)} (${fxUsd > 0 ? "ganancia" : "pérdida"})`,
             modo: "on_balance" as any, created_by: user.id,
+            grupo_transaccion_id: grupoId,
           } as any).select().single();
           if (errFx) toast.error("Cobro OK, pero falló el ajuste cambiario: " + errFx.message);
           else if (txFx) await logAudit("transacciones", "INSERT", txFx.id, null, txFx);
@@ -585,6 +607,7 @@ function VentasForm() {
           numero_orden: numOrden || null,
           notas: `Bono servicio 10% por venta ${tipo === "credito" ? "a crédito" : "contado"}${cliente ? ` · ${cliente}` : ""}`,
           modo: offBalance ? "off_balance" : "on_balance",
+          grupo_transaccion_id: grupoId,
           created_by: user.id,
         } as any).select().single();
         if (eBs) toast.error("Venta OK, pero falló registrar bono servicio: " + eBs.message);
@@ -592,7 +615,8 @@ function VentasForm() {
       }
       if (propinaUsdN > 0) {
         // 1) 13.1 entry transaction (propina recibida), afecta FC, no G&P
-        const grupoPropina = crypto.randomUUID();
+        // Propina 13.1 comparte el grupo de la venta para permitir cascada de borrado.
+        const grupoPropina = grupoId;
         let entradaId: string | null = null;
         const { data: txProp, error: eTxProp } = await supabase.from("transacciones").insert({
           fecha, cuenta_codigo: "13.1", centro_costo: centro as any,
