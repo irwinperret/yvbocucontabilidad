@@ -3049,7 +3049,30 @@ function CierreForm() {
                         <td className="text-right mono">{fmtUsd(totalUsd)}</td>
                         <td className="text-center">{c.pagada ? <span className="text-green-700">Pagada</span> : <span className="text-orange-700">CxP</span>}</td>
                         <td>
-                          <Button type="button" variant="ghost" size="sm" onClick={() => delCompra(c)} className="text-destructive h-7">×</Button>
+                          <div className="flex items-center justify-end gap-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={!!cierreActual}
+                              title={cierreActual ? "Mes cerrado — reabre para editar" : "Editar compra"}
+                              onClick={() => setEditingCompra(c)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={!!cierreActual}
+                              title={cierreActual ? "Mes cerrado — reabre para borrar" : "Eliminar compra"}
+                              onClick={() => delCompra(c)}
+                              className="text-destructive h-7"
+                            >
+                              ×
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
