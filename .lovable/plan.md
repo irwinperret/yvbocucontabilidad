@@ -1,39 +1,38 @@
-## Problema
+## Diagnóstico
 
-El parser de "Lista de Facturas" de Xetux (`src/routes/_authenticated/importar-compras.tsx`) usa columnas incorrectas para IVA y neto:
+El diseño contable actual es **correcto**: 2.1 (Compras) afecta Flujo de Caja pero no G&P; 2.2 (Ajuste COGS) se crea en el cierre y afecta G&P. Después del fix del turno anterior, **ambos flujos (manual y Xetux)** insertan `inventario_snapshots` + transacción 2.1 + IVA 12.5 idénticamente.
 
-- **IVA actual**: solo columna M (`row[12]` – Impuestos). Falta N (`ImpAdic`) y O (`ImpRet`).
-- **Neto actual**: columna I (`row[8]` – "Neto" pre-descuentos) con fallback a `total − iva`. No aplica descuento global ni suma cargos adicionales.
-- **Total actual**: columna R (`row[17]` – TotalConCargos), con fallback a P (`row[15]` – Total).
+Pero la DB confirma un problema real: solo existe **1 transacción 2.1** en toda la base (la de Xetux, factura 90655 creada hoy 15:38 UTC) y **cero 2.1 de compras manuales**. Eso significa que el `addCompra` de "COGS e Inventario" no está dejando la pierna 2.1 en la tabla `transacciones` aunque el código dice que sí lo hace.
 
-## Cambios
+Hipótesis a validar (en orden de probabilidad):
 
-En `onFile` (líneas ~88-105) reemplazar la lógica de cálculo por lo que el usuario especificó (todos los valores ya vienen en USD BCV):
+1. La compra manual se registró **antes del fix** y el usuario lo recuerda como "después" — la data vieja solo tiene `inventario_snapshots`.
+2. El `insert` de 2.1 está fallando silenciosamente por RLS/policy y solo se ve el toast rojo un instante.
+3. El botón que usa el usuario en "COGS e Inventario" no es `addCompra` sino otra ruta (`snapshots` viejos, "Pagar factura", etc.) que nunca creaba 2.1.
 
-```ts
-// Columnas 0-indexadas (Excel → índice):
-// K=10 DescGlobal · L=11 Subtotal · M=12 Impuestos · N=13 ImpAdic · O=14 ImpRet · Q=16 CargosAdic
-const descGlobal  = numFromCell(row[10]);
-const subtotal    = numFromCell(row[11]);
-const impuestos   = numFromCell(row[12]);
-const impAdic     = numFromCell(row[13]);
-const impRet      = numFromCell(row[14]);
-const cargosAdic  = numFromCell(row[16]);
+## Plan
 
-const iva   = impuestos + impAdic + impRet;      // M + N + O
-const neto  = Math.max(0, subtotal + cargosAdic - descGlobal); // L + Q − K
-const total = neto + iva;
-```
+### Paso 1 — Reproducir en vivo
+- Pedir al usuario que registre **una compra manual nueva** ahora (proveedor cualquiera, N° factura de prueba, monto pequeño, on-balance).
+- Justo después, consultar `SELECT id, cuenta_codigo, numero_factura, created_at FROM transacciones WHERE numero_factura = '<el nuevo>'` y `SELECT id FROM inventario_snapshots WHERE numero_factura = '<el nuevo>'`.
+- Si aparece el snapshot pero NO la 2.1 → hay bug real y vamos al Paso 2. Si aparecen ambos → la percepción venía de data vieja y vamos al Paso 3.
 
-Actualizar también el comentario de mapeo de columnas para que refleje que ahora se usan K, L, M, N, O y Q.
+### Paso 2 — Si hay bug real
+- Revisar RLS de `transacciones` para INSERT con `cuenta_codigo='2.1'`.
+- Revisar el bloque `try/catch` alrededor de `insertCompraTransacciones` en `registrar.tsx` para asegurar que un error de la 2.1 no se está tragando después del snapshot exitoso.
+- Corregir y reintentar.
 
-Mantener sin cambios: `total <= 0` como filtro de fila vacía, dedup por `(tercero, numero_factura)`, cálculo de USD paralelo (`Bs = usd_bcv × tasa_bcv`, luego `Bs / tasa_paralela` para el USD contable) — todo eso sigue funcionando; solo cambian los tres valores base leídos de la fila.
+### Paso 3 — Backfill de compras manuales viejas (opcional pero recomendado)
+Para que la lista de Transacciones y el reporte de FC reflejen compras manuales previas al fix:
 
-## No incluye
+- Escanear `inventario_snapshots` de tipo `compra` que **no** tengan una transacción 2.1 asociada por `grupo_transaccion_id`.
+- Mostrar la lista al usuario para decidir: backfill masivo o revisión caso a caso.
+- Generar las 2.1 (y 12.5 si tenían IVA) con los mismos montos, tasas y `grupo_transaccion_id` del snapshot.
 
-- **Backfill retroactivo** de compras Xetux ya importadas con la fórmula antigua. Si el usuario lo necesita, es un paso aparte (re-importar el reporte del período o migración SQL) — puedo abordarlo después de confirmar el fix con una prueba real.
-- **Cierre de mes / cuenta 2.1 / 2.2**: la corrección anterior sigue vigente. Solo se corrige el parser.
+### Confirmación del diseño (respuesta directa a la pregunta)
 
-## Verificación sugerida
+**Sí está bien** que la compra aparezca en la lista de Transacciones al instante como 2.1 (es lo que hace Xetux). La compra manual **debe** comportarse igual — si no lo está haciendo, es un bug de datos, no de diseño. El "ajuste de inventario 2.2" que ves en el cierre es una entrada **adicional** al G&P, no un reemplazo: la 2.1 vive en Flujo de Caja/CxP, la 2.2 vive en G&P.
 
-Después del cambio: subir un reporte reciente y comparar en la tabla de vista previa que `neto_usd + iva_usd = total_usd = columna R` para 2-3 filas, y que el IVA coincida con M+N+O.
+## Fuera de alcance
+- Cambiar el esquema contable 2.1 vs 2.2.
+- Reescribir el importador Xetux o el formulario manual (ya están alineados).
