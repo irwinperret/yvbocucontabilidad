@@ -3219,13 +3219,13 @@ function CierreForm() {
           <div><Label>Inventario final USD</Label><Input type="number" step="0.01" value={invFinUsd} onChange={(e) => setInvFinUsd(e.target.value)} className="mono" /></div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex flex-col gap-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Compras del mes (auto) · neto sin IVA</span>
-              <span className="mono font-semibold">{fmtBs(totalComprasNetoBs)} · {fmtUsd(totalComprasNetoUsd)}</span>
+              <span className="text-muted-foreground">Compras del mes (auto) · neto sin IVA · <span className="text-[10px]">USD BCV</span></span>
+              <span className="mono font-semibold">{fmtBs(totalComprasNetoBs)} · {fmtUsd(totalComprasNetoUsdBcv)}</span>
             </div>
-            {(totalComprasIvaUsd > 0.005 || totalComprasIvaBs > 0.005) && (
+            {(totalComprasIvaUsdBcv > 0.005 || totalComprasIvaBs > 0.005) && (
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>IVA · Total con IVA</span>
-                <span className="mono">{fmtUsd(totalComprasIvaUsd)} · {fmtUsd(totalComprasUsd)}</span>
+                <span>IVA USD BCV · Total con IVA USD BCV</span>
+                <span className="mono">{fmtUsd(totalComprasIvaUsdBcv)} · {fmtUsd(totalComprasUsdBcv)}</span>
               </div>
             )}
           </div>
