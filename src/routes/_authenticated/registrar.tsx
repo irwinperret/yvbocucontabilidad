@@ -615,7 +615,8 @@ function VentasForm() {
       }
       if (propinaUsdN > 0) {
         // 1) 13.1 entry transaction (propina recibida), afecta FC, no G&P
-        const grupoPropina = crypto.randomUUID();
+        // Propina 13.1 comparte el grupo de la venta para permitir cascada de borrado.
+        const grupoPropina = grupoId;
         let entradaId: string | null = null;
         const { data: txProp, error: eTxProp } = await supabase.from("transacciones").insert({
           fecha, cuenta_codigo: "13.1", centro_costo: centro as any,
