@@ -81,10 +81,12 @@ const defaultState = (initialDesde: string): FilterState => ({
   pageSize: 50,
 });
 
-function usdParaleloVisual(t: any) {
+function usdParaleloVisual(t: any, tasaParalelaFallback?: number | null) {
   const montoBs = Number(t.monto_bs) || 0;
   const tasaParalela = Number(t.tasa_paralela) || 0;
   if (tasaParalela > 0) return montoBs / tasaParalela;
+  const fb = Number(tasaParalelaFallback) || 0;
+  if (fb > 0) return montoBs / fb;
   return Number(t.monto_usd) || 0;
 }
 
