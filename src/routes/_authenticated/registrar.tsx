@@ -483,7 +483,25 @@ function VentasForm() {
     if (tipo === "cobro" && usdCobrado > pendienteUsdCxc + 0.01) return toast.error(`El cobro no puede exceder el saldo pendiente (${fmtUsd(pendienteUsdCxc)})`);
     if (tipo !== "credito" && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
-    const grupoId = crypto.randomUUID();
+    // Grupo transaccional compartido por venta/cobro + IVA + bono + propina + ajuste FX.
+    // En cobro heredamos el grupo de la venta original (o lo asignamos si aún no lo tenía).
+    let grupoId = crypto.randomUUID();
+    if (tipo === "cobro" && cxcSel?.transaccion_id) {
+      const { data: origen } = await supabase
+        .from("transacciones")
+        .select("grupo_transaccion_id")
+        .eq("id", cxcSel.transaccion_id)
+        .maybeSingle();
+      const origenGrupo = (origen as any)?.grupo_transaccion_id;
+      if (origenGrupo) {
+        grupoId = origenGrupo;
+      } else {
+        await supabase
+          .from("transacciones")
+          .update({ grupo_transaccion_id: grupoId } as any)
+          .eq("id", cxcSel.transaccion_id);
+      }
+    }
     const ivaUsd = ivaAplica ? (tasaParalelaN ? +(iva / tasaParalelaN).toFixed(2) : (tasaN > 0 ? +(iva / tasaN).toFixed(2) : 0)) : 0;
     const { data: tx, error } = await supabase.from("transacciones").insert({
       fecha, cuenta_codigo: cuenta, centro_costo: centro as any,
@@ -497,7 +515,7 @@ function VentasForm() {
       modo: offBalance ? "off_balance" : "on_balance",
       cuenta_bancaria_id: tipo !== "credito" && cuentaBancariaId ? cuentaBancariaId : null,
       created_by: user.id,
-      grupo_transaccion_id: ivaAplica ? grupoId : null,
+      grupo_transaccion_id: grupoId,
     } as any).select().single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
