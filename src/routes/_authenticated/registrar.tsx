@@ -3011,8 +3011,12 @@ function CierreForm() {
                     <th className="py-1">Fecha</th>
                     <th>Proveedor</th>
                     <th>N° fact.</th>
-                    <th className="text-right">Monto Bs</th>
-                    <th className="text-right">USD base</th>
+                    <th className="text-right">Neto Bs (sin IVA)</th>
+                    <th className="text-right">IVA Bs</th>
+                    <th className="text-right">Total Bs</th>
+                    <th className="text-right" title="Monto neto sin IVA — este es el valor que alimenta el COGS">Monto neto USD (sin IVA)</th>
+                    <th className="text-right">IVA USD</th>
+                    <th className="text-right">Total USD (neto + IVA)</th>
                     <th className="text-center">Estado</th>
                     <th></th>
                   </tr>
@@ -3020,15 +3024,26 @@ function CierreForm() {
                 <tbody>
                   {(compras ?? []).map((c: any) => {
                     const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
-                    const base = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
-                    const usdPar = Number(c.monto_base_usd ?? c.monto_usd) || null;
+                    const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+                    const ivaBs = Number(c.iva_bs) || 0;
+                    const totalBs = Number(c.monto_bs) || (netoBs + ivaBs);
+                    const totalUsd = Number(c.monto_usd) || 0;
+                    const ivaUsd = Number(c.iva_usd) || 0;
+                    const netoUsdRaw = Number(c.monto_base_usd);
+                    const netoUsd = Number.isFinite(netoUsdRaw) && netoUsdRaw !== 0
+                      ? netoUsdRaw
+                      : Math.max(0, totalUsd - ivaUsd);
                     return (
                       <tr key={c.id} className="border-t">
                         <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0,10)}</td>
                         <td>{prov?.razon_social ?? "—"}</td>
                         <td>{c.numero_factura ?? "—"}</td>
-                        <td className="text-right mono">{fmtBs(Number(c.monto_bs))}</td>
-                        <td className="text-right mono">{usdPar != null ? fmtUsd(usdPar) : "—"}</td>
+                        <td className="text-right mono">{fmtBs(netoBs)}</td>
+                        <td className="text-right mono text-muted-foreground">{fmtBs(ivaBs)}</td>
+                        <td className="text-right mono">{fmtBs(totalBs)}</td>
+                        <td className="text-right mono font-semibold">{fmtUsd(netoUsd)}</td>
+                        <td className="text-right mono text-muted-foreground">{fmtUsd(ivaUsd)}</td>
+                        <td className="text-right mono">{fmtUsd(totalUsd)}</td>
                         <td className="text-center">{c.pagada ? <span className="text-green-700">Pagada</span> : <span className="text-orange-700">CxP</span>}</td>
                         <td>
                           <Button type="button" variant="ghost" size="sm" onClick={() => delCompra(c)} className="text-destructive h-7">×</Button>
@@ -3040,8 +3055,12 @@ function CierreForm() {
                 <tfoot>
                   <tr className="border-t font-semibold">
                     <td colSpan={3} className="py-2">Total compras del período</td>
+                    <td className="text-right mono">{fmtBs(totalComprasNetoBs)}</td>
+                    <td className="text-right mono text-muted-foreground">{fmtBs(totalComprasIvaBs)}</td>
                     <td className="text-right mono">{fmtBs(totalCompras)}</td>
-                    <td className="text-right mono">{fmtUsd(totalComprasUsdBcv)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasNetoUsd)}</td>
+                    <td className="text-right mono text-muted-foreground">{fmtUsd(totalComprasIvaUsd)}</td>
+                    <td className="text-right mono">{fmtUsd(totalComprasUsd)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
@@ -3056,10 +3075,19 @@ function CierreForm() {
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div><Label>Inventario inicial USD</Label><Input type="number" step="0.01" value={invIniUsd} onChange={(e) => setInvIniUsd(e.target.value)} className="mono" /></div>
           <div><Label>Inventario final USD</Label><Input type="number" step="0.01" value={invFinUsd} onChange={(e) => setInvFinUsd(e.target.value)} className="mono" /></div>
-          <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex justify-between text-sm">
-            <span className="text-muted-foreground">Compras del mes (auto)</span>
-            <span className="mono font-semibold">{fmtBs(totalCompras)} · {fmtUsd(totalComprasUsdBcv)}</span>
+          <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex flex-col gap-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Compras del mes (auto) · neto sin IVA</span>
+              <span className="mono font-semibold">{fmtBs(totalComprasNetoBs)} · {fmtUsd(totalComprasNetoUsd)}</span>
+            </div>
+            {(totalComprasIvaUsd > 0.005 || totalComprasIvaBs > 0.005) && (
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>IVA · Total con IVA</span>
+                <span className="mono">{fmtUsd(totalComprasIvaUsd)} · {fmtUsd(totalComprasUsd)}</span>
+              </div>
+            )}
           </div>
+
           <div className="rounded-md bg-muted/50 p-3">
             <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
             <div className="text-base font-bold mono">{tasaPromedio ? tasaPromedio.toFixed(4) : "—"}</div>
