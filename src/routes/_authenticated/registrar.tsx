@@ -388,6 +388,7 @@ function VentasForm() {
         const bonoBs = bonoUsdN * tasaOffN;
         const refFactura = facturaTx.numero_factura || facturaTx.numero_orden || "";
         const cuentaOffVenta = cuentaVenta(centroOff, "contado");
+        const grupoOffId = crypto.randomUUID();
 
         // 1) Insert venta off-balance
         const { data: txVenta, error: e1 } = await supabase.from("transacciones").insert({
@@ -405,6 +406,7 @@ function VentasForm() {
           numero_orden: facturaTx.numero_orden || null,
           notas: `${offFiar ? "Ajuste off-balance A CRÉDITO" : "Ajuste off-balance"} de factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}${notas ? ` · ${notas}` : ""}`,
           modo: "off_balance" as any,
+          grupo_transaccion_id: grupoOffId,
           created_by: user.id,
         } as any).select().single();
         if (e1 || !txVenta) throw new Error(e1?.message ?? "No se pudo registrar la venta off-balance");
