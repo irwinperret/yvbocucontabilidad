@@ -3094,7 +3094,7 @@ function CierreForm() {
             <div className="text-xs text-muted-foreground">{(tasasMes ?? []).length} tasa(s) registradas</div>
           </div>
           <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
-            <span className="text-xs text-muted-foreground">COGS estimado</span>
+            <span className="text-xs text-muted-foreground">COGS estimado (USD neto sin IVA)</span>
             <span className="text-base font-bold mono">{fmtUsd(cogsUsd)} · {fmtBs(cogs)}</span>
           </div>
           <div className="md:col-span-2"><Label>Notas</Label><Textarea value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
