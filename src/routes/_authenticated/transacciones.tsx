@@ -513,8 +513,8 @@ function TransaccionesPage() {
                     <th className="text-right py-2 px-2">
                       <button type="button" onClick={() => toggleSort("monto_bs")} className="hover:text-foreground">Bs{sortArrow("monto_bs")}</button>
                     </th>
-                    <th className="text-right py-2 px-2">
-                      <button type="button" onClick={() => toggleSort("monto_usd")} className="hover:text-foreground">USD{sortArrow("monto_usd")}</button>
+                    <th className="text-right py-2 px-2" title="Neto sin IVA · el + IVA aparece debajo cuando aplica">
+                      <button type="button" onClick={() => toggleSort("monto_usd")} className="hover:text-foreground">USD (neto){sortArrow("monto_usd")}</button>
                     </th>
                     <th className="text-right py-2 px-2" title="Equivalente USD calculado a tasa BCV — solo referencia, no impacta G&P ni FC">USD (BCV)</th>
                     <th className="text-left py-2 px-2">Método</th>
@@ -552,7 +552,11 @@ function TransaccionesPage() {
                         const bcvUsdTotal = Number(t.tasa_bcv) > 0 ? totalBs / Number(t.tasa_bcv) : null;
                         const ivaBs = Number(t.iva_bs) || 0;
                         const baseBs = Number(t.monto_base_bs) || 0;
-                        const showSplit = ivaBs > 0 && baseBs > 0;
+                        const showSplit = ivaBs > 0 && baseBs > 0 && totalBs > 0;
+                        // USD neto derivado de los USD ya almacenados (no se reconvierte por tasa):
+                        // se toma la proporción base/total en Bs y se aplica al monto_usd guardado.
+                        const netoUsd = showSplit ? totalUsd * (baseBs / totalBs) : totalUsd;
+                        const ivaUsd = showSplit ? Math.max(0, totalUsd - netoUsd) : 0;
                         return (
                           <>
                             <td className="py-2 px-2 text-right mono">
@@ -563,7 +567,14 @@ function TransaccionesPage() {
                                 </div>
                               ) : fmtBs(totalBs)}
                             </td>
-                            <td className="py-2 px-2 text-right mono">{fmtUsd(totalUsd)}</td>
+                            <td className="py-2 px-2 text-right mono">
+                              {showSplit ? (
+                                <div className="leading-tight">
+                                  <div>{fmtUsd(netoUsd)}</div>
+                                  <div className="text-[10px] text-muted-foreground font-normal">+ IVA {fmtUsd(ivaUsd)}</div>
+                                </div>
+                              ) : fmtUsd(totalUsd)}
+                            </td>
                             <td className="py-2 px-2 text-right mono text-muted-foreground">
                               {bcvUsdTotal == null ? "—" : fmtUsd(bcvUsdTotal)}
                             </td>
