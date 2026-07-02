@@ -453,7 +453,7 @@ function TransaccionesPage() {
         const montoBs = Number(t.monto_bs) || 0;
         const tasaBcvRaw = Number(t.tasa_bcv) || 0;
         const tieneBcv = tasaBcvRaw > 0;
-        const usdParalelo = usdParaleloVisual(t);
+        const usdParalelo = usdParaleloVisual(t, paralelaByFecha[t.fecha]);
         const usdBcv = usdBcvVisual(t);
         const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
         const r = ws.addRow({
