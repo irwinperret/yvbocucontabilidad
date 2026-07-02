@@ -1,75 +1,39 @@
+## Problema
 
-## Alcance
+El parser de "Lista de Facturas" de Xetux (`src/routes/_authenticated/importar-compras.tsx`) usa columnas incorrectas para IVA y neto:
 
-Solo **Fase 1** — flujos de registro nuevo. No hay backfill ni cambios de borrado/edición todavía; esos vienen después.
+- **IVA actual**: solo columna M (`row[12]` – Impuestos). Falta N (`ImpAdic`) y O (`ImpRet`).
+- **Neto actual**: columna I (`row[8]` – "Neto" pre-descuentos) con fallback a `total − iva`. No aplica descuento global ni suma cargos adicionales.
+- **Total actual**: columna R (`row[17]` – TotalConCargos), con fallback a P (`row[15]` – Total).
 
-## Estado actual (auditado)
+## Cambios
 
-La columna `grupo_transaccion_id` existe hace tiempo y **muchos** flujos ya la usan bien: IVA vía `iva-helpers.ts`, `pagar-cxp.tsx`, `propinas.tsx` (par entrada/salida), nómina en `registrar.tsx`, gastos con CxP, importar-compras, aumento capital, préstamos.
-
-Los **huecos reales** están concentrados en el flujo manual de ventas y en algunos derivados sueltos. Los 116 registros actuales en BD son todos flujos de una sola línea (CapEx, aumento capital, financiamiento), por eso `grupo_transaccion_id` está 100% NULL — no es un bug de escritura, es que no hay data multi-línea todavía.
-
-## Huecos a corregir
-
-### 1. Venta manual (registrar.tsx, líneas ~483–625)
-
-Un solo `grupoId` generado al inicio debe enlazar **todo**:
-
-- Venta principal (1.x): siempre `grupo_transaccion_id = grupoId` (hoy: solo si hay IVA).
-- IVA débito fiscal (12.4): ya lo hace vía `insertIvaLeg`. Confirmar.
-- Bono servicio 10% (3.5/3.10/3.14): añadir `grupo_transaccion_id: grupoId`.
-- Propina — la transacción 13.1 hoy usa `grupoPropina` distinto. Reusar `grupoId` en su lugar, y guardar `grupo_transaccion_id = grupoId` también en la fila de `propinas` para poder rastrearla. La salida (13.1 pago a mesero) sigue generando su propio grupo cuando se pague, pero mantiene una referencia a la entrada.
-- Cobro CxC — si existe venta a crédito original con grupo, el cobro (1.5) hereda ese grupo. Ajuste FX (11.1/11.2) del cobro también.
-
-### 2. Venta off-balance (registrar.tsx, líneas ~385–457)
-
-- `grupoId = crypto.randomUUID()` compartido entre venta off-balance (1.x) y bono off-balance. Se mantiene `pareja_off_balance_id` como antes; el grupo es un enlace adicional para permitir borrado en cascada.
-
-### 3. CxC — cobro estándar (cxc.tsx línea ~205)
-
-Al insertar la transacción de cobro (1.5), leer el `grupo_transaccion_id` de la venta original (via `cxc.transaccion_id → transacciones.grupo_transaccion_id`) y reutilizarlo; si la venta no tenía grupo, generar uno nuevo y **actualizar la venta original** para que ambos queden enlazados (mismo patrón que ya usa `pagar-cxp.tsx` línea 253).
-
-### 4. Xetux Ventas (importar-ventas.tsx)
-
-- Venta 1.x (línea 535): ya usa `grupoId`. Confirmar.
-- Bono automatico (línea 267 `bonoPayload`): añadir `grupo_transaccion_id: grupoId` al payload.
-- Propina (línea 313 `propTxPayload`): añadir `grupo_transaccion_id: grupoId`.
-- Deduplicación (línea 511): ya toma `grupoExistente` de la fila dup o crea uno; asegurar que el bono/propina de esa venta duplicada también lo reciba.
-
-### 5. Xetux Compras (importar-compras.tsx línea ~245)
-
-Compra 2.1 + IVA 12.5 ya comparten `grupoId` (línea 265, 286). Confirmar que sigue así después del cambio.
-
-### 6. Ajuste FX en cobro CxC (registrar.tsx línea 558)
-
-Añadir `grupo_transaccion_id: grupoIdCobro` (heredado de la venta o generado en el cobro).
-
-### 7. Otros inserts sueltos revisados
-
-- `registrar.tsx` 1941 (cuenta 1.8), 2085, 2824 (2.2 cierre), 3548: son flujos de una sola línea o cierres automáticos — dejar sin grupo, no aplica.
-- `activos-transitorios.tsx`, `anticipos-proveedores.tsx`: ya usan grupo o son ediciones de estado. Confirmar en la lectura final.
-
-## Regla general para el código
-
-Cada handler que cree ≥2 transacciones relacionadas debe empezar con:
+En `onFile` (líneas ~88-105) reemplazar la lógica de cálculo por lo que el usuario especificó (todos los valores ya vienen en USD BCV):
 
 ```ts
-const grupoId = crypto.randomUUID();
-// ...luego, en cada insert relacionado:
-grupo_transaccion_id: grupoId,
+// Columnas 0-indexadas (Excel → índice):
+// K=10 DescGlobal · L=11 Subtotal · M=12 Impuestos · N=13 ImpAdic · O=14 ImpRet · Q=16 CargosAdic
+const descGlobal  = numFromCell(row[10]);
+const subtotal    = numFromCell(row[11]);
+const impuestos   = numFromCell(row[12]);
+const impAdic     = numFromCell(row[13]);
+const impRet      = numFromCell(row[14]);
+const cargosAdic  = numFromCell(row[16]);
+
+const iva   = impuestos + impAdic + impRet;      // M + N + O
+const neto  = Math.max(0, subtotal + cargosAdic - descGlobal); // L + Q − K
+const total = neto + iva;
 ```
 
-Nunca `grupo_transaccion_id: cond ? grupoId : null` cuando la relación existe — si el flujo insertó más de una fila, todas comparten grupo, punto.
+Actualizar también el comentario de mapeo de columnas para que refleje que ahora se usan K, L, M, N, O y Q.
 
-## Archivos a tocar
+Mantener sin cambios: `total <= 0` como filtro de fila vacía, dedup por `(tercero, numero_factura)`, cálculo de USD paralelo (`Bs = usd_bcv × tasa_bcv`, luego `Bs / tasa_paralela` para el USD contable) — todo eso sigue funcionando; solo cambian los tres valores base leídos de la fila.
 
-- `src/routes/_authenticated/registrar.tsx` — flujo venta manual (contado/crédito/cobro), venta off-balance, ajuste FX.
-- `src/routes/_authenticated/cxc.tsx` — cobro.
-- `src/routes/_authenticated/importar-ventas.tsx` — bono y propina Xetux.
-- (verificación, probable no-op) `src/routes/_authenticated/importar-compras.tsx`, `src/routes/_authenticated/propinas.tsx`, `src/lib/iva-helpers.ts`.
+## No incluye
 
-## Fuera de alcance (fases siguientes)
+- **Backfill retroactivo** de compras Xetux ya importadas con la fórmula antigua. Si el usuario lo necesita, es un paso aparte (re-importar el reporte del período o migración SQL) — puedo abordarlo después de confirmar el fix con una prueba real.
+- **Cierre de mes / cuenta 2.1 / 2.2**: la corrección anterior sigue vigente. Solo se corrige el parser.
 
-- Cascada de borrado por grupo (Fase 2).
-- Edición con propagación via checkbox (Fase 2).
-- Backfill retroactivo de registros existentes (Fase 3) — el auto-apply de casos seguros lo haré por migración cuando llegue el turno.
+## Verificación sugerida
+
+Después del cambio: subir un reporte reciente y comparar en la tabla de vista previa que `neto_usd + iva_usd = total_usd = columna R` para 2-3 filas, y que el IVA coincida con M+N+O.

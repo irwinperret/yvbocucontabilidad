@@ -87,8 +87,12 @@ function ImportarComprasPage() {
 
     // Columnas 0-indexadas según "Lista de Facturas":
     // 0:# 1:RIF 2:Proveedor 3:CodRecepcion 4:NoOrden 5:NoDoc 6:Tipo 7:NumControl
-    // 8:Neto 9:DescArt 10:DescGlobal 11:Subtotal 12:Impuestos 13:ImpAdic 14:ImpRet
-    // 15:Total 16:CargosAdic 17:TotalConCargos 18:FRecepcion 19:FDocumento
+    // 8:Neto 9:DescArt 10:DescGlobal(K) 11:Subtotal(L) 12:Impuestos(M) 13:ImpAdic(N)
+    // 14:ImpRet(O) 15:Total 16:CargosAdic(Q) 17:TotalConCargos 18:FRecepcion 19:FDocumento
+    // Fórmulas (todos los valores están en USD BCV):
+    //   IVA  = M + N + O                 (Impuestos + ImpAdic + ImpRet)
+    //   Neto = L + Q − K                 (Subtotal + CargosAdic − DescGlobal)
+    //   Total = Neto + IVA
     const parsed: ParsedCompra[] = [];
     for (let i = 1; i < aoa.length; i++) {
       const row = aoa[i] || [];
@@ -98,10 +102,15 @@ function ImportarComprasPage() {
       const numero_factura = String(row[5] ?? "").trim();
       const tipo = String(row[6] ?? "").trim();
       const numero_control = String(row[7] ?? "").trim();
-      const iva = numFromCell(row[12]);
-      const totalConCargos = numFromCell(row[17]);
-      const total = totalConCargos || numFromCell(row[15]);
-      const neto = numFromCell(row[8]) || Math.max(0, total - iva);
+      const descGlobal = numFromCell(row[10]);
+      const subtotal   = numFromCell(row[11]);
+      const impuestos  = numFromCell(row[12]);
+      const impAdic    = numFromCell(row[13]);
+      const impRet     = numFromCell(row[14]);
+      const cargosAdic = numFromCell(row[16]);
+      const iva   = +(impuestos + impAdic + impRet).toFixed(2);
+      const neto  = +Math.max(0, subtotal + cargosAdic - descGlobal).toFixed(2);
+      const total = +(neto + iva).toFixed(2);
       const fecha = parseDateCell(row[19]) || parseDateCell(row[18]);
 
       if (!proveedor && !rifRaw) continue;
