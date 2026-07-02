@@ -272,7 +272,7 @@ function CapExPage() {
                         <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
                         <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
                         <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
-                        <td className="py-2 px-2 text-right mono">{fmtUsd(t.monto_usd)}</td>
+                        <td className="py-2 px-2 text-right mono">{fmtUsd(usdVisual(t, mode) ?? 0)}</td>
                         <td className="py-2 px-2">
                           {t.modo === "off_balance"
                             ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge>
