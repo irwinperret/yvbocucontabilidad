@@ -52,12 +52,17 @@ function Dashboard() {
 
   const tasaVencida = tasa && tasa.fecha !== todayISO();
 
+  const { mode, label } = useUsdView();
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
           <div className="mt-1"><UsdRateBadge /></div>
-        <p className="text-sm text-muted-foreground">Período {currentPeriod()}</p>
+          <p className="text-sm text-muted-foreground">Período {currentPeriod()}</p>
+        </div>
+        <UsdViewToggle />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
