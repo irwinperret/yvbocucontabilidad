@@ -2674,7 +2674,8 @@ function CierreForm() {
     }
 
 
-    const grupoId = tieneAnticipoCompra ? crypto.randomUUID() : null;
+    // Siempre generamos grupoId para enlazar snapshot ↔ transacción 2.1 (+ IVA 12.5)
+    const grupoId = crypto.randomUUID();
 
     // 1) Insertar snapshot de compra (COGS) primero
     const compraEsPendiente = !compraOffBalance && !snapshotPagada;
@@ -2701,6 +2702,68 @@ function CierreForm() {
       grupo_transaccion_id: grupoId,
     } as any).select().single();
     if (error) { setCompraBusy(false); return toast.error(error.message); }
+
+    // 1b) Insertar transacción cuenta 2.1 (Compras de mercancía) + pierna IVA 12.5.
+    //     Mismo patrón que la importación Xetux — así G&P/FC y el auto-sum de cierre
+    //     recogen tanto compras Xetux como manuales.
+    {
+      const usdParalelaCompra = compraTasaParalelaRefN > 0
+        ? +(compraBase / compraTasaParalelaRefN).toFixed(2)
+        : baseUsdContableCompra;
+      const { error: eCompra21 } = await supabase.from("transacciones").insert({
+        fecha: compraFecha,
+        cuenta_codigo: "2.1",
+        centro_costo: "Compartido" as any,
+        modo: compraOffBalance ? "off_balance" : "on_balance",
+        monto_bs: compraBase,
+        monto_base_bs: compraBase,
+        iva_bs: 0,
+        iva_aplica: false,
+        tipo_iva: null,
+        monto_usd: usdParalelaCompra,
+        tasa_bcv: bcvCompraN || tasaN || null,
+        tasa_paralela: compraTasaParalelaRefN || null,
+        metodo_pago: "transferencia" as any,
+        cuenta_bancaria_id: snapshotBanco,
+        tercero_id: compraTerceroId,
+        numero_factura: compraNumFactura,
+        notas: compraNotas || null,
+        created_by: user.id,
+        grupo_transaccion_id: grupoId,
+      } as any);
+      if (eCompra21) {
+        await supabase.from("inventario_snapshots").delete().eq("id", snap!.id);
+        setCompraBusy(false);
+        return toast.error(`2.1 ${compraNumFactura}: ${eCompra21.message}`);
+      }
+      if (compraIvaAplica && compraIva > 0.005) {
+        const { insertIvaLeg } = await import("@/lib/iva-helpers");
+        const ivaUsdParalela = compraTasaParalelaRefN > 0
+          ? +(compraIva / compraTasaParalelaRefN).toFixed(2)
+          : ivaUsdContableCompra;
+        const ivaRes = await insertIvaLeg({
+          fecha: compraFecha,
+          centro_costo: "Compartido" as any,
+          modo: compraOffBalance ? "off_balance" : "on_balance",
+          monto_bs_iva: compraIva,
+          monto_usd_iva: ivaUsdParalela,
+          tasa_bcv: bcvCompraN || tasaN || null,
+          tasa_paralela: compraTasaParalelaRefN || null,
+          tercero_id: compraTerceroId,
+          numero_factura: compraNumFactura,
+          notas: compraNotas || null,
+          created_by: user.id,
+          grupo_transaccion_id: grupoId,
+          tipo: "credito",
+        });
+        if (!ivaRes) {
+          await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId).eq("cuenta_codigo", "2.1");
+          await supabase.from("inventario_snapshots").delete().eq("id", snap!.id);
+          setCompraBusy(false);
+          return toast.error(`IVA 12.5 ${compraNumFactura}: no se pudo registrar`);
+        }
+      }
+    }
 
     // 2) Crear CxP por el saldo neto si corresponde (siempre que haya anticipo o factura pendiente)
     let cxpRowId: string | null = null;
