@@ -2506,15 +2506,75 @@ function CierreForm() {
   const { data: compras } = useQuery({
     queryKey: ["compras-periodo", periodo],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("inventario_snapshots")
+      const ini = `${periodo}-01`;
+      const finDate = new Date(`${periodo}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      const fin = finDate.toISOString().slice(0, 10);
+      const { data: txs } = await supabase
+        .from("transacciones")
         .select("*")
-        .eq("periodo", periodo)
-        .eq("tipo", "compra")
+        .eq("cuenta_codigo", "2.1")
+        .gte("fecha", ini)
+        .lt("fecha", fin)
         .order("fecha", { ascending: false });
-      return data ?? [];
+      const rows = (txs ?? []) as any[];
+      if (!rows.length) return [] as any[];
+
+      // Enriquecer con IVA (12.5, mismo grupo) y CxP (mismo grupo)
+      const grupos = Array.from(new Set(rows.map((r) => r.grupo_transaccion_id).filter(Boolean)));
+      const pares = rows
+        .filter((r) => r.tercero_id && r.numero_factura)
+        .map((r) => ({ t: r.tercero_id as string, n: r.numero_factura as string }));
+      const [ivaLegs, cxps] = await Promise.all([
+        grupos.length
+          ? supabase.from("transacciones").select("grupo_transaccion_id, monto_bs, monto_usd")
+              .in("grupo_transaccion_id", grupos).eq("cuenta_codigo", "12.5")
+          : Promise.resolve({ data: [] as any[] }),
+        pares.length
+          ? supabase.from("cuentas_por_pagar").select("id, tercero_id, numero_factura, estado, fecha_vencimiento, monto_pendiente_bs")
+              .in("tercero_id", Array.from(new Set(pares.map((p) => p.t))))
+              .in("numero_factura", Array.from(new Set(pares.map((p) => p.n))))
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const ivaByGrupo: Record<string, { bs: number; usd: number }> = {};
+      ((ivaLegs as any).data ?? []).forEach((r: any) => {
+        const g = r.grupo_transaccion_id;
+        if (!g) return;
+        ivaByGrupo[g] = ivaByGrupo[g] ?? { bs: 0, usd: 0 };
+        ivaByGrupo[g].bs += Number(r.monto_bs) || 0;
+        ivaByGrupo[g].usd += Number(r.monto_usd) || 0;
+      });
+      const cxpByPar: Record<string, any> = {};
+      ((cxps as any).data ?? []).forEach((r: any) => {
+        if (r.tercero_id && r.numero_factura) cxpByPar[`${r.tercero_id}::${r.numero_factura}`] = r;
+      });
+
+      return rows.map((r) => {
+        const baseBs = Number(r.monto_base_bs) || Number(r.monto_bs) || 0;
+        const iva = r.grupo_transaccion_id ? ivaByGrupo[r.grupo_transaccion_id] : null;
+        const ivaBs = iva?.bs ?? 0;
+        const ivaUsd = iva?.usd ?? 0;
+        const baseUsd = Number(r.monto_usd) || 0;
+        const cxp = r.tercero_id && r.numero_factura ? cxpByPar[`${r.tercero_id}::${r.numero_factura}`] : null;
+        return {
+          ...r,
+          periodo: (r.fecha ?? "").slice(0, 7),
+          tipo: "compra",
+          monto_bs: baseBs + ivaBs,
+          monto_base_bs: baseBs,
+          iva_bs: ivaBs,
+          iva_aplica: ivaBs > 0.005,
+          monto_usd: baseUsd + ivaUsd,
+          monto_base_usd: baseUsd,
+          iva_usd: ivaUsd,
+          cxp_id: cxp?.id ?? null,
+          fecha_vencimiento: cxp?.fecha_vencimiento ?? null,
+          pagada: !cxp || cxp.estado === "pagada" || Number(cxp.monto_pendiente_bs) <= 0.01,
+        };
+      });
     },
   });
+
 
   const { data: cierreActual } = useQuery({
     queryKey: ["cierre-actual", periodo],
@@ -2544,11 +2604,52 @@ function CierreForm() {
   const { data: comprasAnteriorCount } = useQuery({
     queryKey: ["compras-periodo-count", periodoAnterior],
     queryFn: async () => {
-      const { count } = await supabase.from("inventario_snapshots").select("id", { count: "exact", head: true })
-        .eq("tipo", "compra").eq("periodo", periodoAnterior);
+      const ini = `${periodoAnterior}-01`;
+      const finDate = new Date(`${periodoAnterior}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      const fin = finDate.toISOString().slice(0, 10);
+      const { count } = await supabase.from("transacciones").select("id", { count: "exact", head: true })
+        .eq("cuenta_codigo", "2.1").gte("fecha", ini).lt("fecha", fin);
       return count ?? 0;
     },
   });
+
+  // Inventario final del mes anterior — para prefill del inventario inicial actual
+  const { data: prevMonthFinal } = useQuery({
+    queryKey: ["inv-snapshot-final", periodoAnterior],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("inventario_snapshots")
+        .select("id, monto_bs, monto_usd, tasa_bcv")
+        .eq("periodo", periodoAnterior)
+        .eq("tipo", "final")
+        .maybeSingle();
+      return data;
+    },
+  });
+  const prevFinalUsd = useMemo(() => {
+    if (!prevMonthFinal) return null;
+    const usd = Number((prevMonthFinal as any).monto_usd);
+    if (Number.isFinite(usd) && usd > 0) return usd;
+    const bs = Number((prevMonthFinal as any).monto_bs) || 0;
+    const tasa = Number((prevMonthFinal as any).tasa_bcv) || 0;
+    return tasa > 0 ? +(bs / tasa).toFixed(2) : null;
+  }, [prevMonthFinal]);
+
+  // Prefill inventario inicial cuando cambia el período (solo si el usuario no tocó el campo aún)
+  const [invIniTocado, setInvIniTocado] = useState(false);
+  useEffect(() => {
+    if (invIniTocado) return;
+    if (cierreActual) return;
+    if (prevFinalUsd != null) setInvIniUsd(String(prevFinalUsd));
+    else setInvIniUsd("");
+    // No tocar invFinUsd — siempre en blanco al abrir el período.
+    setInvFinUsd("");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, prevFinalUsd, cierreActual]);
+  // Reset "tocado" al cambiar de período
+  useEffect(() => { setInvIniTocado(false); }, [periodo]);
+
   const mostrarRecordatorioAnterior = !cierreAnterior && (comprasAnteriorCount ?? 0) > 0 && (compras?.length ?? 0) > 0;
 
   const reabrirMes = async () => {
@@ -2675,53 +2776,30 @@ function CierreForm() {
           : (compraPagada || cxpSaldoBsCompra <= 0.01));
     const snapshotBanco = !compraOffBalance && compraPagada && !tieneAnticipoCompra ? compraCuentaBanco : null;
 
-    // Evitar facturas duplicadas (mismo proveedor + mismo N° factura), incluso en otros meses
+    // Evitar facturas duplicadas (mismo proveedor + mismo N° factura) sobre transacciones 2.1
     const { data: dup } = await supabase
-      .from("inventario_snapshots")
-      .select("id, periodo, fecha")
-      .eq("tipo", "compra")
+      .from("transacciones")
+      .select("id, fecha")
+      .eq("cuenta_codigo", "2.1")
       .eq("tercero_id", compraTerceroId)
       .eq("numero_factura", compraNumFactura)
       .limit(1);
     if (dup && dup.length > 0) {
       setCompraBusy(false);
       const d: any = dup[0];
-      return toast.error(`Factura duplicada: ya existe N° ${compraNumFactura} de este proveedor (período ${d.periodo ?? d.fecha})`);
+      return toast.error(`Factura duplicada: ya existe N° ${compraNumFactura} de este proveedor (fecha ${d.fecha})`);
     }
 
-
-    // Siempre generamos grupoId para enlazar snapshot ↔ transacción 2.1 (+ IVA 12.5)
+    // Grupo transacción que enlaza 2.1 ↔ 12.5 IVA ↔ CxP ↔ pagos
     const grupoId = crypto.randomUUID();
 
-    // 1) Insertar snapshot de compra (COGS) primero
-    const compraEsPendiente = !compraOffBalance && !snapshotPagada;
-    // monto_usd contable SIEMPRE a tasa paralela (con BCV como fallback).
-    // El valor en USD BCV (deuda) se preserva en cuentas_por_pagar.usd_bcv_factura.
+    // monto_usd contable a tasa paralela (con BCV como fallback)
     const tasaParaContableCompra = compraTasaParalelaRefN || bcvCompraN || tasaN;
-    const montoUsdContable = tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : montoUsd;
     const baseUsdContableCompra = tasaParaContableCompra > 0 ? +(compraBase / tasaParaContableCompra).toFixed(2) : 0;
     const ivaUsdContableCompra = tasaParaContableCompra > 0 ? +(compraIva / tasaParaContableCompra).toFixed(2) : 0;
-    const { data: snap, error } = await supabase.from("inventario_snapshots").insert({
-      periodo, tipo: "compra", monto_bs: montoBs,
-      monto_base_bs: compraBase, iva_bs: compraIva, iva_aplica: compraIvaAplica,
-      monto_usd: montoUsdContable, monto_base_usd: baseUsdContableCompra, iva_usd: ivaUsdContableCompra,
-      modo: compraOffBalance ? "off_balance" : "on_balance",
-      fecha: compraFecha, tasa_bcv: bcvCompraN || tasaN,
-      tasa_paralela: compraTasaParalelaRefN || null,
-      tercero_id: compraTerceroId, numero_factura: compraNumFactura,
-      pagada: snapshotPagada,
-      cuenta_bancaria_id: snapshotBanco,
-      fecha_vencimiento: !compraOffBalance && !snapshotPagada ? (compraVenc || null) : null,
-      cxp_id: null,
-      notas: compraNotas || null,
-      registrado_por: user.id,
-      grupo_transaccion_id: grupoId,
-    } as any).select().single();
-    if (error) { setCompraBusy(false); return toast.error(error.message); }
+    void montoUsdBcv;
 
-    // 1b) Insertar transacción cuenta 2.1 (Compras de mercancía) + pierna IVA 12.5.
-    //     Mismo patrón que la importación Xetux — así G&P/FC y el auto-sum de cierre
-    //     recogen tanto compras Xetux como manuales.
+    // 1) Insertar transacción 2.1 (Compras) + pierna IVA 12.5 (si aplica)
     {
       const usdParalelaCompra = compraTasaParalelaRefN > 0
         ? +(compraBase / compraTasaParalelaRefN).toFixed(2)
@@ -2748,7 +2826,6 @@ function CierreForm() {
         grupo_transaccion_id: grupoId,
       } as any);
       if (eCompra21) {
-        await supabase.from("inventario_snapshots").delete().eq("id", snap!.id);
         setCompraBusy(false);
         return toast.error(`2.1 ${compraNumFactura}: ${eCompra21.message}`);
       }
@@ -2774,14 +2851,13 @@ function CierreForm() {
         });
         if (!ivaRes) {
           await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId).eq("cuenta_codigo", "2.1");
-          await supabase.from("inventario_snapshots").delete().eq("id", snap!.id);
           setCompraBusy(false);
           return toast.error(`IVA 12.5 ${compraNumFactura}: no se pudo registrar`);
         }
       }
     }
 
-    // 2) Crear CxP por el saldo neto si corresponde (siempre que haya anticipo o factura pendiente)
+    // 2) Crear CxP por el saldo neto si corresponde
     let cxpRowId: string | null = null;
     const debeCrearCxp = !compraOffBalance && !snapshotPagada && cxpSaldoBsCompra > 0.01;
     if (debeCrearCxp) {
@@ -2804,13 +2880,10 @@ function CierreForm() {
         estado: "pendiente",
       } as any).select().single();
       if (cxpErr) {
-        if (snap?.id) await supabase.from("inventario_snapshots").delete().eq("id", snap.id);
+        await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId).in("cuenta_codigo", ["2.1", "12.5"]);
         setCompraBusy(false); return toast.error(cxpErr.message);
       }
       cxpRowId = cxp?.id ?? null;
-      if (cxp?.id && snap?.id) {
-        await supabase.from("inventario_snapshots").update({ cxp_id: cxp.id }).eq("id", snap.id);
-      }
     }
 
     // 3) Aplicar anticipos contra la factura
@@ -2827,13 +2900,13 @@ function CierreForm() {
       });
       if (!res.ok) {
         if (cxpRowId) await supabase.from("cuentas_por_pagar").delete().eq("id", cxpRowId);
-        if (snap?.id) await supabase.from("inventario_snapshots").delete().eq("id", snap.id);
+        await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId).in("cuenta_codigo", ["2.1", "12.5"]);
         setCompraBusy(false);
         return toast.error(`Anticipo: ${res.error}`);
       }
     }
 
-    // 4) Si el usuario marcó "pagada" y hay remanente tras anticipo, pagarlo de inmediato
+    // 4) Pago inmediato del remanente si aplica
     if (efectivoTrasAnticipoCompra && cxpRowId) {
       if (!compraCuentaBanco) {
         setCompraBusy(false);
@@ -2864,10 +2937,8 @@ function CierreForm() {
         pagada_at: new Date().toISOString(),
         monto_pendiente_bs: 0,
       }).eq("id", cxpRowId);
-      await supabase.from("inventario_snapshots").update({
-        pagada: true, cuenta_bancaria_id: compraCuentaBanco,
-      }).eq("id", snap!.id);
     }
+
 
     setCompraBusy(false);
     toast.success(
@@ -2890,15 +2961,16 @@ function CierreForm() {
     if (c.cxp_id) {
       await supabase.from("cuentas_por_pagar").delete().eq("id", c.cxp_id);
     }
-    // Borrar transacciones enlazadas (2.1 compra + 12.5 IVA)
     if (c.grupo_transaccion_id) {
-      await supabase.from("transacciones")
+      const { error } = await supabase.from("transacciones")
         .delete()
         .eq("grupo_transaccion_id", c.grupo_transaccion_id)
         .in("cuenta_codigo", ["2.1", "12.5"]);
+      if (error) return toast.error(error.message);
+    } else {
+      const { error } = await supabase.from("transacciones").delete().eq("id", c.id);
+      if (error) return toast.error(error.message);
     }
-    const { error } = await supabase.from("inventario_snapshots").delete().eq("id", c.id);
-    if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["compras-periodo", periodo] });
     qc.invalidateQueries({ queryKey: ["cxp"] });
     qc.invalidateQueries({ queryKey: ["transacciones"] });
@@ -2909,6 +2981,18 @@ function CierreForm() {
     if (!user) return;
     const tasaConv = paralelaPromedio || tasaPromedio;
     if (!tasaConv) return toast.error("No hay tasas registradas en el período");
+    if (!invIniUsd) return toast.error("Ingresa el inventario inicial USD");
+    if (!invFinUsd) return toast.error("Ingresa el inventario final USD");
+
+    // Cascade: si cambió el inv inicial vs el final del mes anterior, avisar y actualizar el anterior.
+    const cambiaInvIni = prevFinalUsd != null && Math.abs(iniUsd - prevFinalUsd) > 0.01;
+    if (cambiaInvIni) {
+      const msg =
+        `El inventario inicial que ingresaste (${fmtUsd(iniUsd)}) no coincide con el inventario final del mes anterior (${fmtUsd(prevFinalUsd!)}).\n\n` +
+        `Si continúas, se actualizará el cierre de ${periodoAnterior} para que su inventario final = ${fmtUsd(iniUsd)}, y se recalculará su COGS.\n\n¿Deseas continuar?`;
+      if (!confirm(msg)) return;
+    }
+
     setBusy(true);
     const { error } = await supabase.from("cierres_de_mes").insert({
       periodo,
@@ -2923,14 +3007,36 @@ function CierreForm() {
     } as any);
     if (error) { setBusy(false); return toast.error(error.message); }
 
-    // Postear COGS como transacción para que se refleje en G&P y FC
-    // Fecha = último día del período. Cuenta 2.2 (Ajuste COGS por inventario, afecta G&P).
+    // Upsert snapshots inicial/final del período
+    const tasaSnap = tasaPromedio || tasaConv;
+    const iniBs = iniUsd * tasaSnap;
+    const finBs = finUsd * tasaSnap;
+    await supabase.from("inventario_snapshots")
+      .upsert({
+        periodo, tipo: "inicial",
+        monto_bs: iniBs, monto_usd: iniUsd,
+        tasa_bcv: tasaSnap || null,
+        registrado_por: user.id,
+        fecha: `${periodo}-01`,
+      } as any, { onConflict: "periodo,tipo" });
+    const finDateSnap = new Date(`${periodo}-01T00:00:00`);
+    finDateSnap.setMonth(finDateSnap.getMonth() + 1);
+    finDateSnap.setDate(0);
+    await supabase.from("inventario_snapshots")
+      .upsert({
+        periodo, tipo: "final",
+        monto_bs: finBs, monto_usd: finUsd,
+        tasa_bcv: tasaSnap || null,
+        registrado_por: user.id,
+        fecha: finDateSnap.toISOString().slice(0, 10),
+      } as any, { onConflict: "periodo,tipo" });
+
+    // Postear COGS como transacción 2.2
     if (cogs && Math.abs(cogs) > 0.01) {
       const finDate = new Date(`${periodo}-01T00:00:00`);
       finDate.setMonth(finDate.getMonth() + 1);
       finDate.setDate(0);
       const fechaCierre = finDate.toISOString().slice(0, 10);
-      // Borrar cualquier transacción residual del cierre anterior para este período
       await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
       await supabase.from("transacciones").insert({
         fecha: fechaCierre, cuenta_codigo: "2.2", centro_costo: "Compartido" as any,
@@ -2942,6 +3048,64 @@ function CierreForm() {
         notas: `COGS automático del cierre de ${periodo}`,
         created_by: user.id,
       } as any);
+    }
+
+    // Cascade: si el usuario cambió el inv inicial, actualizar el mes anterior
+    if (cambiaInvIni) {
+      const newPrevFinalUsd = iniUsd;
+      const iniDatePrev = `${periodoAnterior}-01`;
+      const finDatePrev = new Date(`${periodoAnterior}-01T00:00:00`);
+      finDatePrev.setMonth(finDatePrev.getMonth() + 1);
+      const finDatePrevBoundary = finDatePrev.toISOString().slice(0, 10);
+      finDatePrev.setDate(0);
+      const finDatePrevStr = finDatePrev.toISOString().slice(0, 10);
+
+      // Actualizar snapshot final del mes anterior
+      await supabase.from("inventario_snapshots")
+        .upsert({
+          periodo: periodoAnterior, tipo: "final",
+          monto_bs: newPrevFinalUsd * tasaSnap, monto_usd: newPrevFinalUsd,
+          tasa_bcv: tasaSnap || null,
+          registrado_por: user.id,
+          fecha: finDatePrevStr,
+        } as any, { onConflict: "periodo,tipo" });
+
+      // Recalcular COGS del mes anterior: iniAnt + comprasAnt - newPrevFinal
+      const [{ data: iniSnapAnt }, { data: comprasAnt }] = await Promise.all([
+        supabase.from("inventario_snapshots").select("monto_usd, monto_bs, tasa_bcv")
+          .eq("periodo", periodoAnterior).eq("tipo", "inicial").maybeSingle(),
+        supabase.from("transacciones").select("monto_usd, monto_base_bs, monto_bs, tasa_bcv")
+          .eq("cuenta_codigo", "2.1").gte("fecha", iniDatePrev).lt("fecha", finDatePrevBoundary),
+      ]);
+      const iniUsdAnt = Number((iniSnapAnt as any)?.monto_usd) || 0;
+      const comprasUsdAnt = (comprasAnt ?? []).reduce((s: number, r: any) => s + (Number(r.monto_usd) || 0), 0);
+      const newCogsUsdAnt = iniUsdAnt + comprasUsdAnt - newPrevFinalUsd;
+
+      // Actualizar cierres_de_mes anterior si existe
+      const { data: cierrePrev } = await supabase.from("cierres_de_mes").select("id, tasa_bcv_promedio").eq("periodo", periodoAnterior).maybeSingle();
+      if (cierrePrev) {
+        const tasaAnt = Number((cierrePrev as any).tasa_bcv_promedio) || tasaSnap;
+        await supabase.from("cierres_de_mes").update({
+          inventario_final_bs: newPrevFinalUsd * tasaAnt,
+          cogs_usd: newCogsUsdAnt,
+          cogs_bs: newCogsUsdAnt * tasaAnt,
+        } as any).eq("id", (cierrePrev as any).id);
+
+        // Regenerar transacción 2.2 del mes anterior
+        await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodoAnterior}`);
+        if (Math.abs(newCogsUsdAnt) > 0.01) {
+          await supabase.from("transacciones").insert({
+            fecha: finDatePrevStr, cuenta_codigo: "2.2", centro_costo: "Compartido" as any,
+            monto_bs: newCogsUsdAnt * tasaAnt, monto_base_bs: newCogsUsdAnt * tasaAnt, iva_bs: 0,
+            tasa_bcv: tasaAnt, monto_usd: newCogsUsdAnt,
+            metodo_pago: "transferencia" as any, modo: "on_balance" as any,
+            referencia: `CIERRE-${periodoAnterior}`,
+            notas: `COGS recalculado tras ajuste de inventario inicial de ${periodo}`,
+            created_by: user.id,
+          } as any);
+        }
+        toast.success(`Cierre de ${periodoAnterior} actualizado. COGS recalculado: ${fmtUsd(newCogsUsdAnt)}`);
+      }
     }
 
     setBusy(false);
@@ -3215,8 +3379,29 @@ function CierreForm() {
 
         {/* Cierre */}
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><Label>Inventario inicial USD</Label><Input type="number" step="0.01" value={invIniUsd} onChange={(e) => setInvIniUsd(e.target.value)} className="mono" /></div>
-          <div><Label>Inventario final USD</Label><Input type="number" step="0.01" value={invFinUsd} onChange={(e) => setInvFinUsd(e.target.value)} className="mono" /></div>
+          <div className="md:col-span-2">
+            {prevFinalUsd != null ? (
+              <div className="rounded-md border border-blue-300 bg-blue-50 text-blue-900 text-xs p-2.5">
+                ℹ Inventario inicial cargado automáticamente del cierre de <strong>{periodoAnterior}</strong>: <span className="mono font-semibold">{fmtUsd(prevFinalUsd)}</span>. Si lo modificas, el mes anterior deberá ser actualizado también.
+              </div>
+            ) : (
+              <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 text-xs p-2.5">
+                ⚠ No se encontró inventario final del mes anterior ({periodoAnterior}). Ingresa el valor manualmente.
+              </div>
+            )}
+          </div>
+          <div>
+            <Label>Inventario inicial USD</Label>
+            <Input type="number" step="0.01" value={invIniUsd}
+              onChange={(e) => { setInvIniTocado(true); setInvIniUsd(e.target.value); }}
+              className="mono" placeholder="0.00" />
+          </div>
+          <div>
+            <Label>Inventario final USD</Label>
+            <Input type="number" step="0.01" value={invFinUsd}
+              onChange={(e) => setInvFinUsd(e.target.value)}
+              className="mono" placeholder="0.00" />
+          </div>
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex flex-col gap-1 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Compras del mes (auto) · neto sin IVA · <span className="text-[10px]">USD BCV</span></span>
@@ -3377,11 +3562,11 @@ function EditCompraDialog({
       }
     }
 
-    // Duplicado (mismo tercero + N° factura, distinto id)
+    // Duplicado (mismo tercero + N° factura, distinta transacción)
     const { data: dup } = await supabase
-      .from("inventario_snapshots")
+      .from("transacciones")
       .select("id")
-      .eq("tipo", "compra")
+      .eq("cuenta_codigo", "2.1")
       .eq("tercero_id", terceroId)
       .eq("numero_factura", numFactura)
       .neq("id", compra.id)
@@ -3398,48 +3583,23 @@ function EditCompraDialog({
     const baseUsdContable = tasaContable > 0 ? +(baseBs / tasaContable).toFixed(2) : 0;
     const ivaUsdContable = tasaContable > 0 ? +(ivaBs / tasaContable).toFixed(2) : 0;
     const montoUsdBcv = bcvN > 0 ? +(totalBs / bcvN).toFixed(2) : montoUsdContable;
+    void montoUsdContable; void montoUsdBcv; void nuevoPeriodo;
 
-    // Saldo tras anticipo (los anticipos aplicados no se re-asignan)
+    // Saldo tras anticipo
     const cxpSaldoBs = Math.max(0, +(totalBs - aplicadoBs).toFixed(2));
     const cxpSaldoUsdBcv = bcvN > 0 ? +(cxpSaldoBs / bcvN).toFixed(2) : 0;
     const cxpSaldoUsdPar = paralelaN > 0 ? +(cxpSaldoBs / paralelaN).toFixed(2) : cxpSaldoUsdBcv;
 
     const tieneAnticipo = aplicadoBs > 0.01;
-    const snapshotPagada = offBalance
+    const compraPagadaFinal = offBalance
       ? true
       : (tieneAnticipo ? cxpSaldoBs <= 0.01 : (pagada || cxpSaldoBs <= 0.01));
-    const snapshotBanco = !offBalance && pagada && !tieneAnticipo ? (cuentaBanco || null) : null;
+    const compraBanco = !offBalance && pagada && !tieneAnticipo ? (cuentaBanco || null) : null;
 
-    // 1) UPDATE snapshot
-    const { error: upErr } = await supabase
-      .from("inventario_snapshots")
-      .update({
-        periodo: nuevoPeriodo,
-        fecha,
-        tercero_id: terceroId,
-        numero_factura: numFactura,
-        monto_bs: totalBs,
-        monto_base_bs: baseBs,
-        iva_bs: ivaBs,
-        iva_aplica: ivaAplica,
-        monto_usd: montoUsdContable,
-        monto_base_usd: baseUsdContable,
-        iva_usd: ivaUsdContable,
-        tasa_bcv: bcvN,
-        tasa_paralela: paralelaN || null,
-        modo: offBalance ? "off_balance" : "on_balance",
-        pagada: snapshotPagada,
-        cuenta_bancaria_id: snapshotBanco,
-        fecha_vencimiento: !offBalance && !snapshotPagada ? (venc || null) : null,
-        notas: notas || null,
-      } as any)
-      .eq("id", compra.id);
-    if (upErr) { setBusy(false); return toast.error(upErr.message); }
-
-    // 1b) Sincronizar transacción 2.1 (+ IVA 12.5) enlazada por grupo_transaccion_id.
+    // 1) Sincronizar transacción 2.1 (+ IVA 12.5) enlazada por grupo_transaccion_id.
     if (compra.grupo_transaccion_id) {
       const usdParalela21 = paralelaN > 0 ? +(baseBs / paralelaN).toFixed(2) : baseUsdContable;
-      await supabase.from("transacciones")
+      const { error: upTxErr } = await supabase.from("transacciones")
         .update({
           fecha,
           centro_costo: "Compartido" as any,
@@ -3451,15 +3611,16 @@ function EditCompraDialog({
           monto_usd: usdParalela21,
           tasa_bcv: bcvN || null,
           tasa_paralela: paralelaN || null,
-          cuenta_bancaria_id: snapshotBanco,
+          cuenta_bancaria_id: compraBanco,
           tercero_id: terceroId,
           numero_factura: numFactura,
           notas: notas || null,
         } as any)
         .eq("grupo_transaccion_id", compra.grupo_transaccion_id)
         .eq("cuenta_codigo", "2.1");
+      if (upTxErr) { setBusy(false); return toast.error(upTxErr.message); }
 
-      // Recrear pierna IVA 12.5: borrar y (si aplica) volver a insertar
+      // Recrear pierna IVA 12.5
       const { deleteIvaLegsByGrupo, insertIvaLeg } = await import("@/lib/iva-helpers");
       await deleteIvaLegsByGrupo(compra.grupo_transaccion_id);
       if (ivaAplica && ivaBs > 0.005) {
@@ -3480,15 +3641,24 @@ function EditCompraDialog({
           tipo: "credito",
         });
       }
+    } else {
+      // Legacy: transacción sin grupo — actualizar por id
+      await supabase.from("transacciones").update({
+        fecha, centro_costo: "Compartido" as any,
+        modo: offBalance ? "off_balance" : "on_balance",
+        monto_bs: baseBs, monto_base_bs: baseBs, iva_bs: 0, iva_aplica: false,
+        monto_usd: paralelaN > 0 ? +(baseBs / paralelaN).toFixed(2) : baseUsdContable,
+        tasa_bcv: bcvN || null, tasa_paralela: paralelaN || null,
+        cuenta_bancaria_id: compraBanco,
+        tercero_id: terceroId, numero_factura: numFactura, notas: notas || null,
+      } as any).eq("id", compra.id);
     }
 
     // 2) Sincronizar CxP asociada
     const prov = terceros.find((t) => t.id === terceroId);
     if (compra.cxp_id) {
-      if (snapshotPagada || cxpSaldoBs <= 0.01) {
-        // Ya no debería existir CxP abierta
+      if (compraPagadaFinal || cxpSaldoBs <= 0.01) {
         await supabase.from("cuentas_por_pagar").delete().eq("id", compra.cxp_id);
-        await supabase.from("inventario_snapshots").update({ cxp_id: null }).eq("id", compra.id);
       } else {
         await supabase
           .from("cuentas_por_pagar")
@@ -3508,8 +3678,8 @@ function EditCompraDialog({
           } as any)
           .eq("id", compra.cxp_id);
       }
-    } else if (!offBalance && !snapshotPagada && cxpSaldoBs > 0.01) {
-      const { data: cxp, error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
+    } else if (!offBalance && !compraPagadaFinal && cxpSaldoBs > 0.01) {
+      const { error: cxpErr } = await supabase.from("cuentas_por_pagar").insert({
         proveedor: prov?.razon_social ?? "Proveedor",
         numero_factura: numFactura,
         tercero_id: terceroId,
@@ -3524,12 +3694,10 @@ function EditCompraDialog({
         tasa_paralela_factura: paralelaN || null,
         fecha_vencimiento: venc || null,
         estado: "pendiente",
-      } as any).select().single();
+      } as any);
       if (cxpErr) { setBusy(false); return toast.error(cxpErr.message); }
-      if (cxp?.id) {
-        await supabase.from("inventario_snapshots").update({ cxp_id: cxp.id }).eq("id", compra.id);
-      }
     }
+
 
     // 3) Aviso si hay pagos previos
     if (pagadoBs > 0.01) {
