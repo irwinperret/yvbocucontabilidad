@@ -206,6 +206,26 @@ function TransaccionesPage() {
     },
   });
 
+  // Tasas paralelas por fecha — se usan como fallback visual cuando una transacción
+  // no tiene tasa_paralela guardada (p. ej. ajustes de cierre que solo capturaron BCV).
+  const { data: tasasParalelaRango } = useQuery({
+    enabled: !!desde,
+    queryKey: ["tasas-paralela-rango", desde, hasta],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasas_paralela")
+        .select("fecha, tasa")
+        .gte("fecha", desde)
+        .lte("fecha", hasta);
+      return data ?? [];
+    },
+  });
+  const paralelaByFecha = useMemo(() => {
+    const m: Record<string, number> = {};
+    (tasasParalelaRango ?? []).forEach((r: any) => { m[r.fecha] = Number(r.tasa) || 0; });
+    return m;
+  }, [tasasParalelaRango]);
+
   const cuentaNombre = useMemo(() => {
     const m: Record<string, string> = {};
     (cuentas ?? []).forEach((c: any) => { m[c.codigo] = c.nombre; });
