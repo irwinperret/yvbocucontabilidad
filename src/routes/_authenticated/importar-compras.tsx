@@ -355,6 +355,7 @@ function ImportarComprasPage() {
           cxp_id: null,
           notas: notaBase,
           registrado_por: user.id,
+          grupo_transaccion_id: grupoId,
         } as any);
 
         if (error) { fail++; toast.error(`${r.numero_factura}: ${error.message}`); continue; }
