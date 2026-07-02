@@ -121,9 +121,7 @@ function Dashboard() {
                 </thead>
                 <tbody>
                   {ultimas.map((t: any) => {
-                    const tasaBcv = Number(t.tasa_bcv) || 0;
-                    const isCogs = t.cuenta_codigo?.startsWith("2.") || t.cuenta_codigo === "12.5";
-                    const usd = isCogs && tasaBcv > 0 ? Number(t.monto_bs) / tasaBcv : Number(t.monto_usd);
+                    const usd = Number(t.monto_usd);
                     return (
                       <tr key={t.id} className="border-b last:border-0">
                         <td className="py-2 px-2 mono">{fmtDate(t.fecha)}</td>
