@@ -1073,6 +1073,21 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
   const [busy, setBusy] = useState(false);
 
+  // Hermanos del grupo: se cargan al abrir el diálogo.
+  const [hermanos, setHermanos] = useState<any[]>([]);
+  const [propagar, setPropagar] = useState(true);
+  useEffect(() => {
+    if (!tx.grupo_transaccion_id) { setHermanos([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("id, fecha, cuenta_codigo, centro_costo, monto_bs, monto_usd, tasa_bcv, tasa_paralela")
+        .eq("grupo_transaccion_id", tx.grupo_transaccion_id)
+        .neq("id", tx.id);
+      setHermanos(data ?? []);
+    })();
+  }, [tx.id, tx.grupo_transaccion_id]);
+
   const usdN = Number(montoUsd) || 0;
   const tasaN = Number(tasa) || 0;
   // Bs se recalcula desde USD usando la tasa paralela registrada (o BCV como fallback).
@@ -1083,6 +1098,10 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const base = baseUsd * tasaConvN;          // base Bs sin IVA
   const iva = tx.iva_aplica ? total - base : 0;
 
+  // Detecta qué campos de propagación cambiaron respecto al original.
+  const fechaCambio = fecha !== tx.fecha;
+  const centroCambio = centro !== tx.centro_costo;
+  const tasaCambio = tasaN !== Number(tx.tasa_bcv ?? 0);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1115,12 +1134,49 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       .eq("id", tx.id)
       .select()
       .single();
-    setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) { setBusy(false); return toast.error(error.message); }
     if (updated) await logAudit("transacciones", "UPDATE", tx.id, tx, updated);
-    toast.success("Movimiento actualizado");
+
+    // Propagación a hermanos del grupo (solo campos seguros: fecha, centro, tasas).
+    let propagados = 0;
+    if (propagar && hermanos.length > 0 && (fechaCambio || centroCambio || tasaCambio)) {
+      // Validar mes cerrado en la fecha destino de los hermanos (usan la nueva fecha si se propaga).
+      const fechaDestino = fechaCambio ? fecha : null;
+      if (fechaDestino && await isPeriodClosed(fechaDestino)) {
+        toast.warning("La nueva fecha cae en un mes cerrado — se guardó la transacción pero no se propagó al grupo.");
+      } else {
+        for (const h of hermanos) {
+          const hPatch: any = {};
+          if (fechaCambio) hPatch.fecha = fecha;
+          if (centroCambio) hPatch.centro_costo = centro;
+          if (tasaCambio) {
+            hPatch.tasa_bcv = tasaN;
+            // Recalcular monto_usd del hermano preservando su monto_bs.
+            const hBs = Number(h.monto_bs) || 0;
+            const hTasaPar = Number(h.tasa_paralela) || 0;
+            const conv = hTasaPar || tasaN;
+            if (conv > 0) hPatch.monto_usd = +(hBs / conv).toFixed(2);
+          }
+          const { error: eH } = await supabase
+            .from("transacciones")
+            .update(hPatch)
+            .eq("id", h.id);
+          if (!eH) {
+            await logAudit("transacciones", "UPDATE", h.id, h, { ...h, ...hPatch });
+            propagados++;
+          }
+        }
+      }
+    }
+    setBusy(false);
+    toast.success(
+      propagados > 0
+        ? `Movimiento actualizado · ${propagados} transacción(es) del grupo propagadas`
+        : "Movimiento actualizado",
+    );
     onSaved();
   };
+
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
