@@ -14,7 +14,6 @@ import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell,
   PieChart, Pie,
 } from "recharts";
-import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
@@ -105,7 +104,6 @@ function AumentoCapitalPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Aumento de capital</h1>
-          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">Aportes de capital social (cuenta 10.5) · {label}</p>
         </div>
         <div className="flex items-center gap-2">

@@ -22,7 +22,6 @@ import { logAudit } from "@/lib/audit";
 import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
@@ -168,7 +167,6 @@ function LiquidacionesHistorialPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Liquidaciones</h1>
-          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">Historial de liquidaciones de personal · {label}</p>
         </div>
         <UsdViewToggle />

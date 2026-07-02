@@ -15,7 +15,6 @@ import {
   Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, Line,
 } from "recharts";
 import { fetchAllRows } from "@/lib/fetch-all";
-import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
@@ -139,7 +138,6 @@ function ImpuestosPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Impuestos · IVA</h1>
-          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-sm text-muted-foreground">
             Movimientos de IVA débito (ventas, cuenta 12.4) y crédito (compras, cuenta 12.5) · neto a declarar · {label}
           </p>

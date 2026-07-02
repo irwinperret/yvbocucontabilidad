@@ -15,7 +15,6 @@ import {
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
 import { ArrowUpDown, AlertTriangle, Pencil, Trash2, X, Check } from "lucide-react";
-import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView } from "@/lib/usd-view-context";
 
@@ -231,7 +230,6 @@ function AnticiposProveedoresPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-semibold">Anticipos a proveedores (14.2)</h1>
-          <div className="mt-1"><UsdRateBadge /></div>
           <p className="text-xs text-muted-foreground">Detalles contables — anticipos emitidos a proveedores y su aplicación.</p>
         </div>
         <div className="flex items-center gap-2">
