@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
