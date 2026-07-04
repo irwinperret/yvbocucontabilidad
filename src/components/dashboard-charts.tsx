@@ -26,6 +26,7 @@ export function DashboardCharts() {
   const [anio, setAnio] = useState(anioActual);
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(false);
+  const { mode } = useUsdView();
 
   const { data: cuentas } = useQuery({
     queryKey: ["dash-cuentas"],
@@ -36,9 +37,9 @@ export function DashboardCharts() {
   });
 
   const { data: rows } = useQuery({
-    queryKey: ["dash-rows", anio, centro, incluirOff],
+    queryKey: ["dash-rows", anio, centro, incluirOff, mode],
     queryFn: async () => {
-      let q = supabase.from("v_transacciones_mensual").select("*").eq("anio", anio);
+      let q = supabase.from(mensualView(mode) as any).select("*").eq("anio", anio);
       if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
       if (!incluirOff) q = q.eq("modo", "on_balance");
       const { data } = await q;
