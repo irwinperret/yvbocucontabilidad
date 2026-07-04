@@ -43,7 +43,7 @@ export function DashboardCharts() {
       if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
       if (!incluirOff) q = q.eq("modo", "on_balance");
       const { data } = await q;
-      return (data ?? []) as Row[];
+      return (data ?? []) as unknown as Row[];
     },
   });
 
