@@ -16,6 +16,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { useAuth } from "@/lib/auth-context";
 import { logAudit } from "@/lib/audit";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { Info, X } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/saldos-bancarios")({ component: SaldosBancariosPage });
 
