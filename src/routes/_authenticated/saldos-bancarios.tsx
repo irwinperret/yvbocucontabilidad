@@ -63,6 +63,7 @@ function SaldosBancariosPage() {
   const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10));
   const [ajustando, setAjustando] = useState<Cuenta | null>(null);
   const [verAjustesDe, setVerAjustesDe] = useState<Cuenta | null>(null);
+  const [showBanner, setShowBanner] = useState(true);
 
   const { data: cuentas } = useQuery({
     queryKey: ["saldos-bancarios-cuentas"],
