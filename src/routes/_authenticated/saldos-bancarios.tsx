@@ -167,6 +167,27 @@ function SaldosBancariosPage() {
         </div>
       </div>
 
+      {showBanner && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 flex items-start gap-3">
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">
+              Esta sección puede no reflejar información actualizada. Los saldos bancarios están siendo configurados.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 -mr-2 -mt-2 text-amber-700 hover:bg-amber-100 hover:text-amber-900"
+            onClick={() => setShowBanner(false)}
+            aria-label="Cerrar aviso"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       <Card>
         <CardHeader><CardTitle className="text-base">Por cuenta</CardTitle></CardHeader>
         <CardContent>
