@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { fmtUsd } from "@/lib/format";
+import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { CENTROS, MESES } from "@/lib/account-helpers";
 import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
