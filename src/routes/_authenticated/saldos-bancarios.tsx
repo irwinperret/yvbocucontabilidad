@@ -16,6 +16,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { useAuth } from "@/lib/auth-context";
 import { logAudit } from "@/lib/audit";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { Info, X } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/saldos-bancarios")({ component: SaldosBancariosPage });
 
@@ -62,6 +63,7 @@ function SaldosBancariosPage() {
   const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10));
   const [ajustando, setAjustando] = useState<Cuenta | null>(null);
   const [verAjustesDe, setVerAjustesDe] = useState<Cuenta | null>(null);
+  const [showBanner, setShowBanner] = useState(true);
 
   const { data: cuentas } = useQuery({
     queryKey: ["saldos-bancarios-cuentas"],
@@ -164,6 +166,27 @@ function SaldosBancariosPage() {
           <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
         </div>
       </div>
+
+      {showBanner && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 flex items-start gap-3">
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">
+              Esta sección puede no reflejar información actualizada. Los saldos bancarios están siendo configurados.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 -mr-2 -mt-2 text-amber-700 hover:bg-amber-100 hover:text-amber-900"
+            onClick={() => setShowBanner(false)}
+            aria-label="Cerrar aviso"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Por cuenta</CardTitle></CardHeader>
