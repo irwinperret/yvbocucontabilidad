@@ -86,15 +86,19 @@ export async function deleteIvaLegsByGrupo(grupoId: string | null | undefined) {
 export async function calcularSplitIvaPagoCxp(
   grupoId: string | null | undefined,
   montoBsPago: number,
+  hasIva?: boolean,
 ): Promise<{ monto_base_bs: number; iva_bs: number; iva_ratio: number }> {
   const fallback = { monto_base_bs: +Number(montoBsPago || 0).toFixed(2), iva_bs: 0, iva_ratio: 0 };
   if (!grupoId || !(montoBsPago > 0)) return fallback;
+  // Si el caller ya sabe que la factura NO tiene IVA, cortocircuitamos.
+  // Nunca inventamos IVA en el pago si la factura original no lo tenía.
+  if (hasIva === false) return fallback;
   const { data } = await supabase
     .from("transacciones")
     .select("cuenta_codigo, monto_bs, monto_base_bs, iva_bs")
     .eq("grupo_transaccion_id", grupoId);
   if (!data || data.length === 0) return fallback;
-  const ivaLeg = data.find((r: any) => r.cuenta_codigo === "12.5");
+  const ivaLeg = data.find((r: any) => r.cuenta_codigo === "12.5" && Number(r.monto_bs) > 0);
   if (!ivaLeg) return fallback;
   const principal = data.find(
     (r: any) => r.cuenta_codigo !== "12.5" && r.cuenta_codigo !== "13.2"
@@ -109,5 +113,6 @@ export async function calcularSplitIvaPagoCxp(
   const baseBs = +(montoBsPago - ivaBs).toFixed(2);
   return { monto_base_bs: baseBs, iva_bs: ivaBs, iva_ratio: ratio };
 }
+
 
 

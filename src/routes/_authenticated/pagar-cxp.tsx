@@ -260,7 +260,17 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
     if (total > 0) {
       const usdPago = tasaParalelaN > 0 ? +(total / tasaParalelaN).toFixed(2) : (tasaN ? +(total / tasaN).toFixed(2) : 0);
       const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
-      const split = await calcularSplitIvaPagoCxp(grupoId, total);
+      // Detectar si la factura original tenía IVA (existe una fila 12.5 con monto positivo en el grupo)
+      const { data: ivaLegs } = await supabase
+        .from("transacciones")
+        .select("id, monto_bs")
+        .eq("grupo_transaccion_id", grupoId)
+        .eq("cuenta_codigo", "12.5")
+        .gt("monto_bs", 0)
+        .limit(1);
+      const hasIva = (ivaLegs?.length ?? 0) > 0;
+      const split = await calcularSplitIvaPagoCxp(grupoId, total, hasIva);
+
       const { data: tx, error } = await supabase.from("transacciones").insert({
         fecha,
         cuenta_codigo: CUENTA_PAGO_CXP,
