@@ -2916,7 +2916,7 @@ function CierreForm() {
         ? +(cxpSaldoBsCompra / compraTasaParalelaRefN).toFixed(2)
         : (tasaN > 0 ? +(cxpSaldoBsCompra / tasaN).toFixed(2) : cxpSaldoUsdCompra);
       const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
-      const split = await calcularSplitIvaPagoCxp(grupoId, cxpSaldoBsCompra);
+      const split = await calcularSplitIvaPagoCxp(grupoId, cxpSaldoBsCompra, compraIvaAplica && compraIva > 0.005);
       const { error: ePago } = await supabase.from("transacciones").insert({
         fecha: compraFecha, cuenta_codigo: CUENTA_PAGO_CXP, centro_costo: "Compartido" as any,
         monto_bs: cxpSaldoBsCompra, monto_base_bs: split.monto_base_bs, iva_bs: split.iva_bs,
