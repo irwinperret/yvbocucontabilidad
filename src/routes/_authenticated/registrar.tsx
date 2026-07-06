@@ -1297,7 +1297,7 @@ function GastosFacturaForm() {
     if (efectivoTrasAnticipo && tx && cxpId) {
       const usdPago = tasaParaContable > 0 ? +(cxpSaldoBs / tasaParaContable).toFixed(2) : cxpSaldoUsd;
       const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
-      const split = await calcularSplitIvaPagoCxp(grupoIdGasto, cxpSaldoBs);
+      const split = await calcularSplitIvaPagoCxp(grupoIdGasto, cxpSaldoBs, tieneIva);
       const { data: txPago, error: ePago } = await supabase.from("transacciones").insert({
         fecha, cuenta_codigo: CUENTA_PAGO_CXP, centro_costo: centro as any,
         monto_bs: cxpSaldoBs, monto_base_bs: split.monto_base_bs, iva_bs: split.iva_bs,
