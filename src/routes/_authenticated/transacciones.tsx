@@ -25,6 +25,9 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { AdjuntoCell } from "@/components/adjunto-cell";
 import { fetchAllRows } from "@/lib/fetch-all";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { useAuth } from "@/lib/auth-context";
+
+const WIPE_ALLOWED_EMAILS = ["irwinperret@hotmail.com", "irwinperret@gmail.com"];
 
 export const Route = createFileRoute("/_authenticated/transacciones")({
   component: TransaccionesPage,
