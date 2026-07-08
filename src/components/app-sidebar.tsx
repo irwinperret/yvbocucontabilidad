@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Home, PlusCircle, DollarSign, FileText, TrendingUp, Users, FileInput, FileOutput,
-  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark, ListChecks, ArrowLeftRight, Wallet, Upload, Building2, Receipt,
+  LogOut, Settings, ChevronDown, ChevronRight, BookOpen, Layers, AlertTriangle, LayoutDashboard, Landmark, ListChecks, ArrowLeftRight, Wallet, Upload, Building2, Receipt, Sparkles,
 
 } from "lucide-react";
 import {
@@ -33,6 +33,7 @@ const registroGestion = [
 
 const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Análisis AI", url: "/analisis-ai", icon: Sparkles },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
   { title: "Flujo de caja", url: "/fc", icon: FileText },
   { title: "Impuestos", url: "/impuestos", icon: Receipt },
