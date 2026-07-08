@@ -506,6 +506,7 @@ function TransaccionesPage() {
   };
 
   const borrarTodo = async () => {
+    if (!canWipeAll) return toast.error("No autorizado");
     if (wipePwd !== "12345678") return toast.error("Contraseña incorrecta");
     setWipeBusy(true);
     try {
