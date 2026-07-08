@@ -685,10 +685,12 @@ function TransaccionesPage() {
                 <Download className="h-4 w-4 mr-1.5" />
                 {exporting ? "Exportando…" : "Exportar a Excel"}
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => setWipeOpen(true)}>
-                <Trash2 className="h-4 w-4 mr-1.5" />
-                Borrar todo
-              </Button>
+              {canWipeAll && (
+                <Button variant="destructive" size="sm" onClick={() => setWipeOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Borrar todo
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
