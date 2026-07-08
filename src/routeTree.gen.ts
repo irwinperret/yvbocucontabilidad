@@ -38,6 +38,7 @@ import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_aut
 import { Route as AuthenticatedCapexRouteImport } from './routes/_authenticated/capex'
 import { Route as AuthenticatedAumentoCapitalRouteImport } from './routes/_authenticated/aumento-capital'
 import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/_authenticated/anticipos-proveedores'
+import { Route as AuthenticatedAnalisisAiRouteImport } from './routes/_authenticated/analisis-ai'
 import { Route as AuthenticatedActivosTransitoriosRouteImport } from './routes/_authenticated/activos-transitorios'
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
@@ -198,6 +199,11 @@ const AuthenticatedAnticiposProveedoresRoute =
     path: '/anticipos-proveedores',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAnalisisAiRoute = AuthenticatedAnalisisAiRouteImport.update({
+  id: '/analisis-ai',
+  path: '/analisis-ai',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedActivosTransitoriosRoute =
   AuthenticatedActivosTransitoriosRouteImport.update({
     id: '/activos-transitorios',
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/capex': typeof AuthenticatedCapexRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/capex': typeof AuthenticatedCapexRoute
@@ -288,6 +296,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/_authenticated/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/_authenticated/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/_authenticated/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/_authenticated/capex': typeof AuthenticatedCapexRoute
@@ -323,6 +332,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/activos-transitorios'
+    | '/analisis-ai'
     | '/anticipos-proveedores'
     | '/aumento-capital'
     | '/capex'
@@ -356,6 +366,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/activos-transitorios'
+    | '/analisis-ai'
     | '/anticipos-proveedores'
     | '/aumento-capital'
     | '/capex'
@@ -390,6 +401,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/activos-transitorios'
+    | '/_authenticated/analisis-ai'
     | '/_authenticated/anticipos-proveedores'
     | '/_authenticated/aumento-capital'
     | '/_authenticated/capex'
@@ -633,6 +645,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnticiposProveedoresRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/analisis-ai': {
+      id: '/_authenticated/analisis-ai'
+      path: '/analisis-ai'
+      fullPath: '/analisis-ai'
+      preLoaderRoute: typeof AuthenticatedAnalisisAiRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/activos-transitorios': {
       id: '/_authenticated/activos-transitorios'
       path: '/activos-transitorios'
@@ -659,6 +678,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedActivosTransitoriosRoute: typeof AuthenticatedActivosTransitoriosRoute
+  AuthenticatedAnalisisAiRoute: typeof AuthenticatedAnalisisAiRoute
   AuthenticatedAnticiposProveedoresRoute: typeof AuthenticatedAnticiposProveedoresRoute
   AuthenticatedAumentoCapitalRoute: typeof AuthenticatedAumentoCapitalRoute
   AuthenticatedCapexRoute: typeof AuthenticatedCapexRoute
@@ -689,6 +709,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedActivosTransitoriosRoute: AuthenticatedActivosTransitoriosRoute,
+  AuthenticatedAnalisisAiRoute: AuthenticatedAnalisisAiRoute,
   AuthenticatedAnticiposProveedoresRoute:
     AuthenticatedAnticiposProveedoresRoute,
   AuthenticatedAumentoCapitalRoute: AuthenticatedAumentoCapitalRoute,
