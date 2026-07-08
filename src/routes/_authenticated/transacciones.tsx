@@ -108,6 +108,8 @@ function loadState(): Partial<FilterState> | null {
 
 function TransaccionesPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canWipeAll = !!user?.email && WIPE_ALLOWED_EMAILS.includes(user.email.toLowerCase());
 
   const { data: minFecha, isSuccess: minFechaReady } = useQuery({
     queryKey: ["transacciones-min-fecha"],
