@@ -25,6 +25,9 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { AdjuntoCell } from "@/components/adjunto-cell";
 import { fetchAllRows } from "@/lib/fetch-all";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { useAuth } from "@/lib/auth-context";
+
+const WIPE_ALLOWED_EMAILS = ["irwinperret@hotmail.com", "irwinperret@gmail.com"];
 
 export const Route = createFileRoute("/_authenticated/transacciones")({
   component: TransaccionesPage,
@@ -105,6 +108,8 @@ function loadState(): Partial<FilterState> | null {
 
 function TransaccionesPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canWipeAll = !!user?.email && WIPE_ALLOWED_EMAILS.includes(user.email.toLowerCase());
 
   const { data: minFecha, isSuccess: minFechaReady } = useQuery({
     queryKey: ["transacciones-min-fecha"],
@@ -501,6 +506,7 @@ function TransaccionesPage() {
   };
 
   const borrarTodo = async () => {
+    if (!canWipeAll) return toast.error("No autorizado");
     if (wipePwd !== "12345678") return toast.error("Contraseña incorrecta");
     setWipeBusy(true);
     try {
@@ -680,10 +686,12 @@ function TransaccionesPage() {
                 <Download className="h-4 w-4 mr-1.5" />
                 {exporting ? "Exportando…" : "Exportar a Excel"}
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => setWipeOpen(true)}>
-                <Trash2 className="h-4 w-4 mr-1.5" />
-                Borrar todo
-              </Button>
+              {canWipeAll && (
+                <Button variant="destructive" size="sm" onClick={() => setWipeOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Borrar todo
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
