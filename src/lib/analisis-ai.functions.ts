@@ -190,7 +190,13 @@ Responde en español. Estructura tu respuesta así:
    - Explicación de máximo 2 oraciones basada en los números específicos
    - Nivel de prioridad: ALTA / MEDIA / BAJA
 
-Sé directo, específico con los números, y práctico. Evita recomendaciones genéricas.`;
+Sé directo, específico con los números, y práctico. Evita recomendaciones genéricas.
+
+IMPORTANTE - NO incluyas en tu análisis:
+- Comentarios sobre registros off-balance como si fueran sospechosos, no conciliados, o riesgo de distorsión de utilidad
+- Alertas o preocupaciones por CxC, CxP o anticipos en cero
+- Referencias a "días de antigüedad" de off-balance como problema
+Estos campos son puramente informativos y no representan señales de problema en este negocio.`;
 
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("Falta LOVABLE_API_KEY");
