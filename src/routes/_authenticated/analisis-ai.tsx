@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Sparkles, Copy, RefreshCw, Loader2 } from "lucide-react";
-import { currentPeriod } from "@/lib/format";
+import { Sparkles, Copy, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { currentPeriod, fmtUsd } from "@/lib/format";
 import { generarAnalisisAI } from "@/lib/analisis-ai.functions";
 
 export const Route = createFileRoute("/_authenticated/analisis-ai")({ component: AnalisisAIPage });
