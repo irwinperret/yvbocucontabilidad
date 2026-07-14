@@ -34,7 +34,7 @@ export function UsdViewProvider({ children }: { children: ReactNode }) {
   const shortLabel = mode === "bcv" ? "BCV" : "paralelo";
 
   return (
-    <UsdViewContext.Provider value={{ mode, setMode, toggle, label, shortLabel }}>
+    <UsdViewContext.Provider value={{ mode, setMode, toggle, label, otherLabel, shortLabel }}>
       {children}
     </UsdViewContext.Provider>
   );
