@@ -28,8 +28,9 @@ export function UsdViewProvider({ children }: { children: ReactNode }) {
   };
   const toggle = () => setMode(mode === "paralela" ? "bcv" : "paralela");
 
-  const label = mode === "bcv" ? "USD BCV" : "USD Paralelo";
-  const shortLabel = mode === "bcv" ? "BCV" : "Paralelo";
+  const label = mode === "bcv" ? "USD BCV" : "USD paralelo";
+  const otherLabel = mode === "bcv" ? "USD paralelo" : "USD BCV";
+  const shortLabel = mode === "bcv" ? "BCV" : "paralelo";
 
   return (
     <UsdViewContext.Provider value={{ mode, setMode, toggle, label, shortLabel }}>
