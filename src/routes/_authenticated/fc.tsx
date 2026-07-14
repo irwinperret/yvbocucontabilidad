@@ -160,28 +160,91 @@ function FCPage() {
 }
 
 function ReporteFC({ rows, cuentas }: { rows: Row[]; cuentas: any[] }) {
-  const sum = (filter: (c: any) => boolean) => cuentas.filter(filter).reduce((s, c) => s + rows.filter((r) => r.cuenta_codigo === c.codigo).reduce((a, r) => a + Number(r.total_usd || 0), 0), 0);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = useCallback((k: string) => {
+    setExpanded((prev) => {
+      const s = new Set(prev);
+      if (s.has(k)) s.delete(k); else s.add(k);
+      return s;
+    });
+  }, []);
 
-  const entOp = sum((c) => c.codigo.startsWith("1."));
-  const salOp = sum((c) => /^[2-9]\./.test(c.codigo));
+  const totalCuenta = (codigo: string) =>
+    rows.filter((r) => r.cuenta_codigo === codigo).reduce((a, r) => a + Number(r.total_usd || 0), 0);
+
+  const buildItems = (filter: (c: any) => boolean) =>
+    cuentas
+      .filter(filter)
+      .map((c) => ({ cuenta: c, total: totalCuenta(c.codigo) }))
+      .filter((x) => x.total !== 0);
+
+  const entOpItems = buildItems((c) => c.codigo.startsWith("1."));
+  const salOpItems = buildItems((c) => /^[2-9]\./.test(c.codigo));
+  const entFinItems = buildItems((c) => ["10.1", "10.5"].includes(c.codigo));
+  const salFinItems = buildItems((c) => ["10.2", "10.4", "10.6"].includes(c.codigo));
+
+  const entOp = entOpItems.reduce((s, i) => s + i.total, 0);
+  const salOp = salOpItems.reduce((s, i) => s + i.total, 0);
+  const entFin = entFinItems.reduce((s, i) => s + i.total, 0);
+  const salFin = salFinItems.reduce((s, i) => s + i.total, 0);
   const flujoOp = entOp - salOp;
-  const entFin = sum((c) => ["10.1", "10.5"].includes(c.codigo));
-  const salFin = sum((c) => ["10.2", "10.4", "10.6"].includes(c.codigo));
   const flujoFin = entFin - salFin;
   const neto = flujoOp + flujoFin;
 
   return (
     <Card>
-      <CardContent className="pt-4 space-y-2">
-        <Linea label="Actividades operativas — Entradas" v={entOp} positive />
-        <Linea label="Actividades operativas — Salidas" v={-salOp} />
+      <CardContent className="pt-4 space-y-1">
+        <Grupo k="entOp" label="Actividades operativas — Entradas" total={entOp} items={entOpItems} expanded={expanded} toggle={toggle} positive />
+        <Grupo k="salOp" label="Actividades operativas — Salidas" total={-salOp} items={salOpItems} negativoItems expanded={expanded} toggle={toggle} />
         <Total label="Flujo operativo neto" v={flujoOp} />
-        <Linea label="Financiamiento — Entradas" v={entFin} positive />
-        <Linea label="Financiamiento — Salidas" v={-salFin} />
+        <Grupo k="entFin" label="Financiamiento — Entradas" total={entFin} items={entFinItems} expanded={expanded} toggle={toggle} positive />
+        <Grupo k="salFin" label="Financiamiento — Salidas" total={-salFin} items={salFinItems} negativoItems expanded={expanded} toggle={toggle} />
         <Total label="Flujo financiamiento neto" v={flujoFin} />
         <Total label="VARIACIÓN NETA DE CAJA" v={neto} big />
       </CardContent>
     </Card>
+  );
+}
+
+function Grupo({ k, label, total, items, expanded, toggle, positive, negativoItems }: {
+  k: string; label: string; total: number;
+  items: { cuenta: any; total: number }[];
+  expanded: Set<string>; toggle: (k: string) => void;
+  positive?: boolean; negativoItems?: boolean;
+}) {
+  const isOpen = expanded.has(k);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => toggle(k)}
+        className="w-full flex justify-between items-center py-1.5 px-2 text-sm border-b bg-muted/20 hover:bg-muted/40 transition-colors"
+      >
+        <span className="flex items-center gap-1.5">
+          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          {label}
+        </span>
+        <span className={`mono ${total >= 0 ? "positive" : "negative"}`}>
+          {total >= 0 ? fmtUsd(total) : `(${fmtUsd(Math.abs(total)).replace("$ ", "")})`}
+        </span>
+      </button>
+      {isOpen && items.map((it) => {
+        const signed = negativoItems ? -it.total : it.total;
+        return (
+          <div key={it.cuenta.codigo} className="flex justify-between items-center py-1 pr-2 pl-10 text-sm border-b last:border-0">
+            <span>
+              <span className="text-muted-foreground mono text-xs">{it.cuenta.codigo}</span> {it.cuenta.nombre}
+            </span>
+            <span className={`mono ${signed >= 0 ? (positive ? "positive" : "") : "negative"}`}>
+              {signed >= 0 ? fmtUsd(signed) : `(${fmtUsd(Math.abs(signed)).replace("$ ", "")})`}
+            </span>
+          </div>
+        );
+      })}
+      {isOpen && items.length === 0 && (
+        <div className="py-1 pl-10 text-xs text-muted-foreground">Sin movimientos</div>
+      )}
+    </div>
   );
 }
 
