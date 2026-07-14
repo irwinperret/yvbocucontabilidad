@@ -277,32 +277,29 @@ function Seccion({ titulo, grupos, totalIng, negativo, ctx, sumFn }: {
       <div className="bg-muted/50 px-2 py-1.5 text-xs font-semibold uppercase tracking-wide rounded">{titulo}</div>
       {grupos.map((g) => {
         const key = `grp::${g.grupo}`;
-        const single = g.items.length === 1;
-        const isOpen = single || ctx.isExpanded(key);
+        const isOpen = ctx.isExpanded(key);
         return (
           <div key={g.grupo}>
-            {/* Group header row */}
-            {!single ? (
-              <button
-                type="button"
-                onClick={() => ctx.toggle(key)}
-                className="w-full flex items-center justify-between py-1.5 px-2 text-sm border-b last:border-0 bg-muted/20 hover:bg-muted/40 transition-colors"
-              >
-                <span className="flex items-center gap-1.5 font-medium">
-                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  {g.grupo}
+            {/* Group header row — siempre visible, colapsable */}
+            <button
+              type="button"
+              onClick={() => ctx.toggle(key)}
+              className="w-full flex items-center justify-between py-1.5 px-2 text-sm border-b last:border-0 bg-muted/20 hover:bg-muted/40 transition-colors"
+            >
+              <span className="flex items-center gap-1.5 font-medium">
+                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                {g.grupo}
+              </span>
+              <span className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground mono">{pctIng(g.subtotal, totalIng)}</span>
+                <span className={`mono font-medium ${negativo || g.subtotal < 0 ? "negative" : "positive"}`}>
+                  {fmtSigned(g.subtotal, negativo)}
                 </span>
-                <span className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground mono">{pctIng(g.subtotal, totalIng)}</span>
-                  <span className={`mono font-medium ${negativo || g.subtotal < 0 ? "negative" : "positive"}`}>
-                    {fmtSigned(g.subtotal, negativo)}
-                  </span>
-                </span>
-              </button>
-            ) : null}
+              </span>
+            </button>
             {/* Account rows */}
             {isOpen && g.items.map((i) => (
-              <CuentaRow key={i.cuenta.codigo} cuenta={i.cuenta} total={i.total} totalIng={totalIng} negativo={negativo} ctx={ctx} sumFn={sumFn} single={single} />
+              <CuentaRow key={i.cuenta.codigo} cuenta={i.cuenta} total={i.total} totalIng={totalIng} negativo={negativo} ctx={ctx} sumFn={sumFn} single={false} />
             ))}
           </div>
         );
@@ -402,27 +399,24 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
           <tbody>
             {grupos.map((g) => {
               const key = `grp::${g.grupo}`;
-              const single = g.items.length === 1;
-              const isOpen = single || ctx.isExpanded(key);
+              const isOpen = ctx.isExpanded(key);
               return (
                 <>
-                  {!single && (
-                    <tr key={`h-${g.grupo}`} className="bg-muted/30">
-                      <td className="py-1.5 px-2 sticky left-0 bg-muted/30 z-10 font-medium border-b">
-                        <button type="button" onClick={() => ctx.toggle(key)} className="flex items-center gap-1.5 w-full text-left">
-                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          {g.grupo}
-                        </button>
-                      </td>
-                      {g.subtotales.map((v, i) => (
-                        <td key={i} className={`${cellCls(i, v)} font-medium border-b`}>{v === 0 ? "—" : fmtUsd(v)}</td>
-                      ))}
-                      <td className="py-1.5 px-2 text-right mono font-semibold border-b">{fmtUsd(g.totalAnio)}</td>
-                    </tr>
-                  )}
+                  <tr key={`h-${g.grupo}`} className="bg-muted/30">
+                    <td className="py-1.5 px-2 sticky left-0 bg-muted/30 z-10 font-medium border-b">
+                      <button type="button" onClick={() => ctx.toggle(key)} className="flex items-center gap-1.5 w-full text-left">
+                        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        {g.grupo}
+                      </button>
+                    </td>
+                    {g.subtotales.map((v, i) => (
+                      <td key={i} className={`${cellCls(i, v)} font-medium border-b`}>{v === 0 ? "—" : fmtUsd(v)}</td>
+                    ))}
+                    <td className="py-1.5 px-2 text-right mono font-semibold border-b">{fmtUsd(g.totalAnio)}</td>
+                  </tr>
                   {isOpen && g.items.map((it) => (
                     <tr key={it.cuenta.codigo} className="hover:bg-muted/10">
-                      <td className={`py-1.5 px-2 sticky left-0 bg-background z-10 border-b ${single ? "" : "pl-8"}`}>
+                      <td className="py-1.5 px-2 sticky left-0 bg-background z-10 border-b pl-8">
                         <span className="text-muted-foreground">{it.cuenta.codigo}</span> {it.cuenta.nombre}
                       </td>
                       {it.valores.map((v, i) => (

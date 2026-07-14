@@ -6,8 +6,9 @@ type Ctx = {
   mode: UsdViewMode;
   setMode: (m: UsdViewMode) => void;
   toggle: () => void;
-  label: string; // "USD Paralelo" | "USD BCV"
-  shortLabel: string; // "Paralelo" | "BCV"
+  label: string; // "USD paralelo" | "USD BCV"
+  otherLabel: string; // el opuesto al actual
+  shortLabel: string; // "paralelo" | "BCV"
 };
 
 const UsdViewContext = createContext<Ctx | null>(null);
@@ -28,11 +29,12 @@ export function UsdViewProvider({ children }: { children: ReactNode }) {
   };
   const toggle = () => setMode(mode === "paralela" ? "bcv" : "paralela");
 
-  const label = mode === "bcv" ? "USD BCV" : "USD Paralelo";
-  const shortLabel = mode === "bcv" ? "BCV" : "Paralelo";
+  const label = mode === "bcv" ? "USD BCV" : "USD paralelo";
+  const otherLabel = mode === "bcv" ? "USD paralelo" : "USD BCV";
+  const shortLabel = mode === "bcv" ? "BCV" : "paralelo";
 
   return (
-    <UsdViewContext.Provider value={{ mode, setMode, toggle, label, shortLabel }}>
+    <UsdViewContext.Provider value={{ mode, setMode, toggle, label, otherLabel, shortLabel }}>
       {children}
     </UsdViewContext.Provider>
   );

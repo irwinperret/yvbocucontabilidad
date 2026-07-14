@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Sparkles, Copy, RefreshCw, Loader2 } from "lucide-react";
-import { currentPeriod } from "@/lib/format";
+import { Sparkles, Copy, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { currentPeriod, fmtUsd } from "@/lib/format";
 import { generarAnalisisAI } from "@/lib/analisis-ai.functions";
 
 export const Route = createFileRoute("/_authenticated/analisis-ai")({ component: AnalisisAIPage });
@@ -118,15 +118,20 @@ function AnalisisAIPage() {
       )}
 
       {!m.isPending && result?.empty && (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No hay suficientes datos para este período.
-          </CardContent>
-        </Card>
+        <>
+          <KpiRow snapshot={result.snapshot} empty />
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              No hay suficientes datos para este período.
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {!m.isPending && result && !result.empty && parsed && (
         <>
+          <KpiRow snapshot={result.snapshot} />
+
           <Card className="border-primary/30 bg-primary/5">
             <CardHeader>
               <CardTitle className="text-base">Diagnóstico general</CardTitle>
@@ -166,3 +171,108 @@ function AnalisisAIPage() {
     </div>
   );
 }
+
+type Snapshot = {
+  ingresos_usd: number; cogs_usd: number; nomina_usd: number;
+  gastos_admin_usd: number; gastos_operativos_usd: number;
+  gastos_mercadeo_usd: number; gastos_generales_usd: number;
+  utilidad_neta_usd: number; off_balance_count: number;
+  ingresos_mes_anterior: number; gastos_mes_anterior: number;
+};
+
+function Trend({ curr, prev, higherIsBetter = true }: { curr: number; prev: number; higherIsBetter?: boolean }) {
+  if (!prev) return null;
+  const diff = curr - prev;
+  if (Math.abs(diff) < 0.01) return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
+  const up = diff > 0;
+  const better = higherIsBetter ? up : !up;
+  const cls = better ? "text-green-600" : "text-red-600";
+  return up
+    ? <TrendingUp className={`h-3.5 w-3.5 ${cls}`} />
+    : <TrendingDown className={`h-3.5 w-3.5 ${cls}`} />;
+}
+
+function KpiCard({
+  label, value, valueClass, trend, badge, empty,
+}: {
+  label: string; value: string; valueClass?: string;
+  trend?: React.ReactNode; badge?: React.ReactNode; empty?: boolean;
+}) {
+  return (
+    <Card className="min-w-[150px] flex-1">
+      <CardContent className="py-3 px-4">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+          {label}
+          {trend}
+        </div>
+        <div className={`text-lg font-bold mt-1 flex items-center gap-2 ${valueClass ?? ""}`}>
+          {empty ? <span className="text-sm font-normal text-muted-foreground">Sin datos</span> : value}
+          {!empty && badge}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
+  const ingresos = snapshot.ingresos_usd;
+  const cogs = snapshot.cogs_usd;
+  const nomina = snapshot.nomina_usd;
+  const gastosTotales = cogs + nomina + snapshot.gastos_admin_usd + snapshot.gastos_operativos_usd + snapshot.gastos_mercadeo_usd + snapshot.gastos_generales_usd;
+  const utilidad = ingresos - gastosTotales;
+  const margenBruto = ingresos > 0 ? ((ingresos - cogs) / ingresos) * 100 : 0;
+
+  const margenColor =
+    margenBruto > 50 ? "text-green-600" : margenBruto >= 20 ? "text-yellow-600" : "text-red-600";
+  const utilidadColor = utilidad >= 0 ? "text-green-600" : "text-red-600";
+
+  const prevIngresos = snapshot.ingresos_mes_anterior;
+  const prevUtilidad = snapshot.ingresos_mes_anterior - snapshot.gastos_mes_anterior;
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      <KpiCard
+        label="Ingresos"
+        value={fmtUsd(ingresos)}
+        valueClass="text-green-600"
+        trend={<Trend curr={ingresos} prev={prevIngresos} />}
+        empty={empty}
+      />
+      <KpiCard
+        label="COGS"
+        value={fmtUsd(cogs)}
+        valueClass="text-red-600"
+        empty={empty}
+      />
+      <KpiCard
+        label="Margen bruto"
+        value={`${margenBruto.toFixed(1)}%`}
+        valueClass={margenColor}
+        empty={empty}
+      />
+      <KpiCard
+        label="Utilidad neta"
+        value={fmtUsd(utilidad)}
+        valueClass={utilidadColor}
+        trend={<Trend curr={utilidad} prev={prevUtilidad} />}
+        empty={empty}
+      />
+      <KpiCard
+        label="Nómina"
+        value={fmtUsd(nomina)}
+        empty={empty}
+      />
+      <KpiCard
+        label="Off-balance pendientes"
+        value={String(snapshot.off_balance_count)}
+        badge={
+          snapshot.off_balance_count > 0
+            ? <Badge className="bg-orange-500 text-white">{snapshot.off_balance_count}</Badge>
+            : null
+        }
+        empty={empty}
+      />
+    </div>
+  );
+}
+
