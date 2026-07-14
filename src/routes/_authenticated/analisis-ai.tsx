@@ -118,15 +118,20 @@ function AnalisisAIPage() {
       )}
 
       {!m.isPending && result?.empty && (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No hay suficientes datos para este período.
-          </CardContent>
-        </Card>
+        <>
+          <KpiRow snapshot={result.snapshot} empty />
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              No hay suficientes datos para este período.
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {!m.isPending && result && !result.empty && parsed && (
         <>
+          <KpiRow snapshot={result.snapshot} />
+
           <Card className="border-primary/30 bg-primary/5">
             <CardHeader>
               <CardTitle className="text-base">Diagnóstico general</CardTitle>
