@@ -6,8 +6,9 @@ type Ctx = {
   mode: UsdViewMode;
   setMode: (m: UsdViewMode) => void;
   toggle: () => void;
-  label: string; // "USD Paralelo" | "USD BCV"
-  shortLabel: string; // "Paralelo" | "BCV"
+  label: string; // "USD paralelo" | "USD BCV"
+  otherLabel: string; // el opuesto al actual
+  shortLabel: string; // "paralelo" | "BCV"
 };
 
 const UsdViewContext = createContext<Ctx | null>(null);
