@@ -4,7 +4,7 @@ import { z } from "zod";
 
 const InputSchema = z.object({ periodo: z.string().regex(/^\d{4}-\d{2}$/) });
 
-function monthRange(periodo: string) {
+function monthRange(periodo: string) 
   const [y, m] = periodo.split("-").map(Number);
   const first = new Date(Date.UTC(y, m - 1, 1));
   const last = new Date(Date.UTC(y, m, 0));
@@ -23,7 +23,8 @@ async function fetchTxs(supabase: any, from: string, to: string) {
     .from("transacciones")
     .select("cuenta_codigo, monto_usd, modo, centro_costo, fecha")
     .gte("fecha", from)
-    .lte("fecha", to);
+    .lte("fecha", to)
+    .limit(10000);
   if (error) throw error;
   return data ?? [];
 }
@@ -116,7 +117,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     // Tasas
     const { data: tasaRow } = await supabase
       .from("tasas_bcv")
-      .select("tasa, tasa_paralela")
+      .select("tasa_bs_usd, tasa_paralela")
       .order("fecha", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -143,7 +144,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       ingresos_mes_anterior: round(ingresos_prev),
       gastos_mes_anterior: round(gastos_prev),
       ingresos_hace_2_meses: round(ingresos_prev2),
-      tasa_bcv_hoy: tasaRow?.tasa ?? null,
+      tasa_bcv_hoy: tasaRow?.tasa_bs_usd ?? null,
       tasa_paralela_hoy: tasaRow?.tasa_paralela ?? null,
     };
 
