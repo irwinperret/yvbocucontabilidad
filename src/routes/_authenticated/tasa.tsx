@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { syncTasaBcv } from "@/lib/bcv-sync.functions";
 import { RefreshCw } from "lucide-react";
+import { TasaTimeSeriesChart } from "@/components/tasa-time-series-chart";
 
 export const Route = createFileRoute("/_authenticated/tasa")({ component: TasaPage });
 
