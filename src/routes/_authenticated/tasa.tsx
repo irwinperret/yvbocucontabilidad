@@ -98,6 +98,18 @@ function TasaPage() {
         </CardContent>
       </Card>
 
+      <TasaTimeSeriesChart
+        title="Evolución de la tasa BCV"
+        series={[
+          {
+            key: "bcv",
+            label: "Tasa BCV",
+            color: "hsl(142 71% 45%)",
+            data: (tasas ?? []).map((t: any) => ({ fecha: t.fecha, value: Number(t.tasa) })),
+          },
+        ]}
+      />
+
       <Card>
         <CardHeader><CardTitle className="text-base">Todas las tasas registradas ({tasas?.length ?? 0})</CardTitle></CardHeader>
         <CardContent>
