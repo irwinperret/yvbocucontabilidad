@@ -24,6 +24,7 @@ import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenti
 import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticated/pagar-cxp'
 import { Route as AuthenticatedOffBalanceRouteImport } from './routes/_authenticated/off-balance'
 import { Route as AuthenticatedLiquidacionesRouteImport } from './routes/_authenticated/liquidaciones'
+import { Route as AuthenticatedInventariosRouteImport } from './routes/_authenticated/inventarios'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedImpuestosRouteImport } from './routes/_authenticated/impuestos'
 import { Route as AuthenticatedImportarVentasRouteImport } from './routes/_authenticated/importar-ventas'
@@ -121,6 +122,12 @@ const AuthenticatedLiquidacionesRoute =
   AuthenticatedLiquidacionesRouteImport.update({
     id: '/liquidaciones',
     path: '/liquidaciones',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedInventariosRoute =
+  AuthenticatedInventariosRouteImport.update({
+    id: '/inventarios',
+    path: '/inventarios',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedInicioRoute = AuthenticatedInicioRouteImport.update({
@@ -241,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/impuestos': typeof AuthenticatedImpuestosRoute
   '/inicio': typeof AuthenticatedInicioRoute
+  '/inventarios': typeof AuthenticatedInventariosRoute
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
@@ -275,6 +283,7 @@ export interface FileRoutesByTo {
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/impuestos': typeof AuthenticatedImpuestosRoute
   '/inicio': typeof AuthenticatedInicioRoute
+  '/inventarios': typeof AuthenticatedInventariosRoute
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
@@ -311,6 +320,7 @@ export interface FileRoutesById {
   '/_authenticated/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/_authenticated/impuestos': typeof AuthenticatedImpuestosRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
+  '/_authenticated/inventarios': typeof AuthenticatedInventariosRoute
   '/_authenticated/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/_authenticated/off-balance': typeof AuthenticatedOffBalanceRoute
   '/_authenticated/pagar-cxp': typeof AuthenticatedPagarCxpRoute
@@ -347,6 +357,7 @@ export interface FileRouteTypes {
     | '/importar-ventas'
     | '/impuestos'
     | '/inicio'
+    | '/inventarios'
     | '/liquidaciones'
     | '/off-balance'
     | '/pagar-cxp'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/importar-ventas'
     | '/impuestos'
     | '/inicio'
+    | '/inventarios'
     | '/liquidaciones'
     | '/off-balance'
     | '/pagar-cxp'
@@ -416,6 +428,7 @@ export interface FileRouteTypes {
     | '/_authenticated/importar-ventas'
     | '/_authenticated/impuestos'
     | '/_authenticated/inicio'
+    | '/_authenticated/inventarios'
     | '/_authenticated/liquidaciones'
     | '/_authenticated/off-balance'
     | '/_authenticated/pagar-cxp'
@@ -545,6 +558,13 @@ declare module '@tanstack/react-router' {
       path: '/liquidaciones'
       fullPath: '/liquidaciones'
       preLoaderRoute: typeof AuthenticatedLiquidacionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/inventarios': {
+      id: '/_authenticated/inventarios'
+      path: '/inventarios'
+      fullPath: '/inventarios'
+      preLoaderRoute: typeof AuthenticatedInventariosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/inicio': {
@@ -693,6 +713,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedImportarVentasRoute: typeof AuthenticatedImportarVentasRoute
   AuthenticatedImpuestosRoute: typeof AuthenticatedImpuestosRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
+  AuthenticatedInventariosRoute: typeof AuthenticatedInventariosRoute
   AuthenticatedLiquidacionesRoute: typeof AuthenticatedLiquidacionesRoute
   AuthenticatedOffBalanceRoute: typeof AuthenticatedOffBalanceRoute
   AuthenticatedPagarCxpRoute: typeof AuthenticatedPagarCxpRoute
@@ -726,6 +747,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedImportarVentasRoute: AuthenticatedImportarVentasRoute,
   AuthenticatedImpuestosRoute: AuthenticatedImpuestosRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
+  AuthenticatedInventariosRoute: AuthenticatedInventariosRoute,
   AuthenticatedLiquidacionesRoute: AuthenticatedLiquidacionesRoute,
   AuthenticatedOffBalanceRoute: AuthenticatedOffBalanceRoute,
   AuthenticatedPagarCxpRoute: AuthenticatedPagarCxpRoute,
