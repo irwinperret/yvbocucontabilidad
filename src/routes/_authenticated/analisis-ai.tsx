@@ -263,16 +263,7 @@ function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
         value={fmtUsd(nomina)}
         empty={empty}
       />
-      <KpiCard
-        label="Off-balance pendientes"
-        value={String(snapshot.off_balance_count)}
-        badge={
-          snapshot.off_balance_count > 0
-            ? <Badge className="bg-orange-500 text-white">{snapshot.off_balance_count}</Badge>
-            : null
-        }
-        empty={empty}
-      />
+
     </div>
   );
 }
