@@ -137,6 +137,30 @@ function TasaParalelaPage() {
         </CardContent>
       </Card>
 
+      <TasaTimeSeriesChart
+        title="Evolución de tasa paralela vs BCV"
+        series={[
+          {
+            key: "paralela",
+            label: "Tasa paralela",
+            color: "hsl(142 71% 45%)",
+            data: (tasas ?? []).map((t: any) => ({
+              fecha: t.fecha,
+              value: t.tasa == null ? null : Number(t.tasa),
+            })),
+          },
+          {
+            key: "bcv",
+            label: "Tasa BCV",
+            color: "hsl(215 20% 55%)",
+            data: (bcvHoy ?? []).map((b: any) => ({
+              fecha: b.fecha,
+              value: b.tasa == null ? null : Number(b.tasa),
+            })),
+          },
+        ]}
+      />
+
       <Card>
         <CardHeader><CardTitle className="text-base">Todas las tasas paralelas ({tasas?.length ?? 0})</CardTitle></CardHeader>
         <CardContent>
