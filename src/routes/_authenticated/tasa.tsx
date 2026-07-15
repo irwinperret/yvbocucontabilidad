@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { syncTasaBcv } from "@/lib/bcv-sync.functions";
 import { RefreshCw } from "lucide-react";
+import { TasaTimeSeriesChart } from "@/components/tasa-time-series-chart";
 
 export const Route = createFileRoute("/_authenticated/tasa")({ component: TasaPage });
 
@@ -96,6 +97,18 @@ function TasaPage() {
           </form>
         </CardContent>
       </Card>
+
+      <TasaTimeSeriesChart
+        title="Evolución de la tasa BCV"
+        series={[
+          {
+            key: "bcv",
+            label: "Tasa BCV",
+            color: "hsl(142 71% 45%)",
+            data: (tasas ?? []).map((t: any) => ({ fecha: t.fecha, value: Number(t.tasa) })),
+          },
+        ]}
+      />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Todas las tasas registradas ({tasas?.length ?? 0})</CardTitle></CardHeader>

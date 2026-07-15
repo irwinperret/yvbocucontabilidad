@@ -176,7 +176,8 @@ type Snapshot = {
   ingresos_usd: number; cogs_usd: number; nomina_usd: number;
   gastos_admin_usd: number; gastos_operativos_usd: number;
   gastos_mercadeo_usd: number; gastos_generales_usd: number;
-  utilidad_neta_usd: number; off_balance_count: number;
+  otros_gastos_gyp_usd?: number;
+  utilidad_neta_usd: number;
   ingresos_mes_anterior: number; gastos_mes_anterior: number;
 };
 
@@ -262,16 +263,7 @@ function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
         value={fmtUsd(nomina)}
         empty={empty}
       />
-      <KpiCard
-        label="Off-balance pendientes"
-        value={String(snapshot.off_balance_count)}
-        badge={
-          snapshot.off_balance_count > 0
-            ? <Badge className="bg-orange-500 text-white">{snapshot.off_balance_count}</Badge>
-            : null
-        }
-        empty={empty}
-      />
+
     </div>
   );
 }

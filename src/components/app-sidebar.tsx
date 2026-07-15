@@ -78,6 +78,7 @@ const analisisDetalles = [
   { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
   { title: "Anticipos a proveedores", url: "/anticipos-proveedores", icon: Users },
   { title: "Activos transitorios", url: "/activos-transitorios", icon: Wallet },
+  { title: "Inventarios", url: "/inventarios", icon: BookOpen },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },

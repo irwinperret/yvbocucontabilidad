@@ -15,6 +15,7 @@ import { syncTasaParalela } from "@/lib/paralela-sync.functions";
 import { backfillTasaParalela } from "@/lib/paralela-backfill.functions";
 import { recalcParalelaPorFecha } from "@/lib/recalc-paralela.functions";
 import { RefreshCw, History } from "lucide-react";
+import { TasaTimeSeriesChart } from "@/components/tasa-time-series-chart";
 
 export const Route = createFileRoute("/_authenticated/tasa-paralela")({ component: TasaParalelaPage });
 
@@ -135,6 +136,30 @@ function TasaParalelaPage() {
           </form>
         </CardContent>
       </Card>
+
+      <TasaTimeSeriesChart
+        title="Evolución de tasa paralela vs BCV"
+        series={[
+          {
+            key: "paralela",
+            label: "Tasa paralela",
+            color: "hsl(142 71% 45%)",
+            data: (tasas ?? []).map((t: any) => ({
+              fecha: t.fecha,
+              value: t.tasa == null ? null : Number(t.tasa),
+            })),
+          },
+          {
+            key: "bcv",
+            label: "Tasa BCV",
+            color: "hsl(215 20% 55%)",
+            data: (bcvHoy ?? []).map((b: any) => ({
+              fecha: b.fecha,
+              value: b.tasa == null ? null : Number(b.tasa),
+            })),
+          },
+        ]}
+      />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Todas las tasas paralelas ({tasas?.length ?? 0})</CardTitle></CardHeader>
