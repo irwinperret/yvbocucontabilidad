@@ -39,6 +39,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const prev = monthRange(shiftMonth(periodo, -1));
     const prev2 = monthRange(shiftMonth(periodo, -2));
 
+    // Cuentas G&P: fuente de verdad = plan_de_cuentas.afecta_gyp
     const { data: cuentasPlan, error: planErr } = await supabase.from("plan_de_cuentas").select("codigo, afecta_gyp");
     if (planErr) throw planErr;
     const gyp = new Set<string>((cuentasPlan ?? []).filter((c: any) => c.afecta_gyp).map((c: any) => c.codigo));
@@ -52,8 +53,10 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const sum = (arr: any[], pred: (t: any) => boolean) =>
       arr.filter(pred).reduce((s, t) => s + Number(t.monto_usd || 0), 0);
 
+    // Ingresos: cuentas 1.x en G&P, on_balance
     const isIngreso = (t: any) =>
       String(t.cuenta_codigo || "").startsWith("1.") && gyp.has(t.cuenta_codigo) && t.modo === "on_balance";
+    // COGS: EXCLUSIVAMENTE cuenta 2.2. 2.1 pertenece a FC.
     const isCogs = (t: any) => t.cuenta_codigo === "2.2";
     const byPrefixGyp = (p: string) => (t: any) =>
       String(t.cuenta_codigo || "").startsWith(p) && gyp.has(t.cuenta_codigo);
@@ -65,6 +68,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const operativos = sum(txsCur, byPrefixGyp("5."));
     const mercadeo = sum(txsCur, byPrefixGyp("6."));
     const generales = sum(txsCur, byPrefixGyp("9."));
+    // Otros gastos G&P (7.x financieros, 8.x I+D, 10.3/10.7, 11.x, 12.1/12.3, etc.)
     const otros_gyp = sum(
       txsCur,
       (t) =>
@@ -87,6 +91,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const utilidad_neta_usd = ingresos - gastos_totales;
     const margen_neto_pct = ingresos > 0 ? utilidad_neta_usd / ingresos : null;
 
+    // CxC / CxP
     const [{ data: cxcData }, { data: cxpData }] = await Promise.all([
       supabase.from("cuentas_por_cobrar").select("estado, monto_pendiente_usd"),
       supabase.from("cuentas_por_pagar").select("estado, monto_pendiente_usd_bcv, monto_pendiente_bs"),
@@ -104,6 +109,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       .filter((r: any) => r.estado !== "pagada")
       .reduce((s: number, r: any) => s + Number(r.monto_pendiente_usd_bcv || 0), 0);
 
+    // Tasas
     const { data: tasaRow } = await supabase
       .from("tasas_bcv")
       .select("tasa_bs_usd, tasa_paralela")
