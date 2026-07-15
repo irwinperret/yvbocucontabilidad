@@ -4,7 +4,7 @@ import { z } from "zod";
 
 const InputSchema = z.object({ periodo: z.string().regex(/^\d{4}-\d{2}$/) });
 
-function monthRange(periodo: string) {
+function monthRange(periodo: string) 
   const [y, m] = periodo.split("-").map(Number);
   const first = new Date(Date.UTC(y, m - 1, 1));
   const last = new Date(Date.UTC(y, m, 0));
@@ -40,9 +40,13 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const prev2 = monthRange(shiftMonth(periodo, -2));
 
     // Cuentas G&P: fuente de verdad = plan_de_cuentas.afecta_gyp
-    const { data: cuentasPlan, error: planErr } = await supabase.from("plan_de_cuentas").select("codigo, afecta_gyp");
+    const { data: cuentasPlan, error: planErr } = await supabase
+      .from("plan_de_cuentas")
+      .select("codigo, afecta_gyp");
     if (planErr) throw planErr;
-    const gyp = new Set<string>((cuentasPlan ?? []).filter((c: any) => c.afecta_gyp).map((c: any) => c.codigo));
+    const gyp = new Set<string>(
+      (cuentasPlan ?? []).filter((c: any) => c.afecta_gyp).map((c: any) => c.codigo),
+    );
 
     const [txsCur, txsPrev, txsPrev2] = await Promise.all([
       fetchTxs(supabase, cur.from, cur.to),
@@ -85,7 +89,8 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const ingresos_prev = sum(txsPrev, isIngreso);
     const ingresos_prev2 = sum(txsPrev2, isIngreso);
     const gastos_prev =
-      sum(txsPrev, isCogs) + sum(txsPrev, (t) => !isIngreso(t) && !isCogs(t) && gyp.has(t.cuenta_codigo));
+      sum(txsPrev, isCogs) +
+      sum(txsPrev, (t) => !isIngreso(t) && !isCogs(t) && gyp.has(t.cuenta_codigo));
 
     const gastos_totales = cogs + nomina + admin + operativos + mercadeo + generales + otros_gyp;
     const utilidad_neta_usd = ingresos - gastos_totales;
@@ -143,7 +148,12 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       tasa_paralela_hoy: tasaRow?.tasa_paralela ?? null,
     };
 
-    if (businessSnapshot.ingresos_usd === 0 && gastos_totales === 0 && cxc_total_usd === 0 && cxp_total_usd === 0) {
+    if (
+      businessSnapshot.ingresos_usd === 0 &&
+      gastos_totales === 0 &&
+      cxc_total_usd === 0 &&
+      cxp_total_usd === 0
+    ) {
       return { empty: true as const, snapshot: businessSnapshot };
     }
 
