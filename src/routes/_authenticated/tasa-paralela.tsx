@@ -15,6 +15,7 @@ import { syncTasaParalela } from "@/lib/paralela-sync.functions";
 import { backfillTasaParalela } from "@/lib/paralela-backfill.functions";
 import { recalcParalelaPorFecha } from "@/lib/recalc-paralela.functions";
 import { RefreshCw, History } from "lucide-react";
+import { TasaTimeSeriesChart } from "@/components/tasa-time-series-chart";
 
 export const Route = createFileRoute("/_authenticated/tasa-paralela")({ component: TasaParalelaPage });
 
