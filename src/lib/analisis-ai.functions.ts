@@ -72,8 +72,8 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       ingresos_mes_anterior: round(snap.ingresos_mes_anterior ?? 0),
       gastos_mes_anterior: 0,
       ingresos_hace_2_meses: round(snap.ingresos_hace_2_meses ?? 0),
-      tasa_bcv_hoy: tasaRow?.tasa_bs_usd ?? null,
-      tasa_paralela_hoy: tasaRow?.tasa_paralela ?? null,
+      tasa_bcv_hoy: bcvRow?.tasa ?? null,
+      tasa_paralela_hoy: parRow?.tasa ?? null,
     };
 
     if (businessSnapshot.ingresos_usd === 0 && gastos_totales === 0 && cxc_total_usd === 0 && cxp_total_usd === 0) {
