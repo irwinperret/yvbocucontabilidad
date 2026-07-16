@@ -12,8 +12,9 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const { periodo } = data;
 
     // Use DB-side aggregation to avoid Supabase 1000-row limit
-    const { data: snap, error: snapErr } = await supabase.rpc("get_analisis_snapshot", { p_periodo: periodo });
+    const { data: snapRaw, error: snapErr } = await supabase.rpc("get_analisis_snapshot", { p_periodo: periodo });
     if (snapErr) throw snapErr;
+    const snap = (snapRaw ?? {}) as any;
 
     const gastos_totales =
       (snap.cogs_usd ?? 0) +
