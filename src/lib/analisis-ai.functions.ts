@@ -45,12 +45,10 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       .reduce((s: number, r: any) => s + Number(r.monto_pendiente_usd_bcv || 0), 0);
 
     // Tasas
-    const { data: tasaRow } = await supabase
-      .from("tasas_bcv")
-      .select("tasa_bs_usd, tasa_paralela")
-      .order("fecha", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [{ data: bcvRow }, { data: parRow }] = await Promise.all([
+      supabase.from("tasas_bcv").select("tasa").order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("tasas_paralela").select("tasa").order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    ]);
 
     const businessSnapshot = {
       periodo,
