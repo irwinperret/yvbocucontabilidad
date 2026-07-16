@@ -12,8 +12,9 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const { periodo } = data;
 
     // Use DB-side aggregation to avoid Supabase 1000-row limit
-    const { data: snap, error: snapErr } = await supabase.rpc("get_analisis_snapshot", { p_periodo: periodo });
+    const { data: snapRaw, error: snapErr } = await supabase.rpc("get_analisis_snapshot", { p_periodo: periodo });
     if (snapErr) throw snapErr;
+    const snap = (snapRaw ?? {}) as any;
 
     const gastos_totales =
       (snap.cogs_usd ?? 0) +
@@ -44,12 +45,10 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       .reduce((s: number, r: any) => s + Number(r.monto_pendiente_usd_bcv || 0), 0);
 
     // Tasas
-    const { data: tasaRow } = await supabase
-      .from("tasas_bcv")
-      .select("tasa_bs_usd, tasa_paralela")
-      .order("fecha", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [{ data: bcvRow }, { data: parRow }] = await Promise.all([
+      supabase.from("tasas_bcv").select("tasa").order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("tasas_paralela").select("tasa").order("fecha", { ascending: false }).limit(1).maybeSingle(),
+    ]);
 
     const businessSnapshot = {
       periodo,
@@ -73,8 +72,8 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       ingresos_mes_anterior: round(snap.ingresos_mes_anterior ?? 0),
       gastos_mes_anterior: 0,
       ingresos_hace_2_meses: round(snap.ingresos_hace_2_meses ?? 0),
-      tasa_bcv_hoy: tasaRow?.tasa_bs_usd ?? null,
-      tasa_paralela_hoy: tasaRow?.tasa_paralela ?? null,
+      tasa_bcv_hoy: bcvRow?.tasa ?? null,
+      tasa_paralela_hoy: parRow?.tasa ?? null,
     };
 
     if (businessSnapshot.ingresos_usd === 0 && gastos_totales === 0 && cxc_total_usd === 0 && cxp_total_usd === 0) {
