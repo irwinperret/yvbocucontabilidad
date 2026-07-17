@@ -3842,8 +3842,9 @@ function CierreForm() {
 
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
-  const cogsUsd = iniUsd + totalComprasNetoUsd - finUsd;
-  const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
+  // COGS en Bs (a tasa BCV promedio) y luego expresado en USD paralelo para G&P.
+  const cogs = tasaPromedio ? (iniUsd + totalComprasNetoUsd - finUsd) * tasaPromedio : 0;
+  const cogsUsd = paralelaPromedio > 0 ? cogs / paralelaPromedio : 0;
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
