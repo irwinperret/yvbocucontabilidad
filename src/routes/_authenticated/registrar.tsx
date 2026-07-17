@@ -4770,6 +4770,11 @@ function CierreForm() {
             <div className="text-base font-bold mono">{tasaPromedio ? tasaPromedio.toFixed(4) : "—"}</div>
             <div className="text-xs text-muted-foreground">{(tasasMes ?? []).length} tasa(s) registradas</div>
           </div>
+          <div className="rounded-md bg-muted/50 p-3">
+            <div className="text-xs text-muted-foreground">Tasa paralela promedio del mes (auto)</div>
+            <div className="text-base font-bold mono">{paralelaPromedio ? paralelaPromedio.toFixed(4) : "—"}</div>
+            <div className="text-xs text-muted-foreground">{(paralelasMes ?? []).length} tasa(s) registradas · usada para USD del COGS</div>
+          </div>
           <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
             <span className="text-xs text-muted-foreground">COGS estimado (USD neto sin IVA)</span>
             <span className="text-base font-bold mono">
