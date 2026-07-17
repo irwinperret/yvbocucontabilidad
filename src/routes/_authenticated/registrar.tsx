@@ -3784,8 +3784,28 @@ function CierreForm() {
   }, [tasasMes]);
   void bcvByFecha;
 
-  // (Paralela ya no se usa para COGS — los egresos se valoran a BCV.)
-  const paralelaPromedio = 0;
+  // Paralela promedio del período: se usa para expresar el COGS en USD paralelo
+  // (mismo criterio que el resto de la contabilidad de G&P).
+  const { data: paralelasMes } = useQuery({
+    queryKey: ["paralelas-periodo", periodo],
+    queryFn: async () => {
+      const ini = `${periodo}-01`;
+      const finDate = new Date(`${periodo}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      const fin = finDate.toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from("tasas_paralela")
+        .select("fecha, tasa")
+        .gte("fecha", ini)
+        .lt("fecha", fin);
+      return data ?? [];
+    },
+  });
+  const paralelaPromedio = useMemo(() => {
+    const arr = (paralelasMes ?? []) as any[];
+    if (!arr.length) return 0;
+    return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
+  }, [paralelasMes]);
 
   // Totales del período: sumar directamente los USD ya almacenados en cada snapshot.
   // NO recalcular monto_bs / tasa: el monto_usd fue fijado al importar/registrar la compra
