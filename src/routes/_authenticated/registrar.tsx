@@ -3784,8 +3784,28 @@ function CierreForm() {
   }, [tasasMes]);
   void bcvByFecha;
 
-  // (Paralela ya no se usa para COGS — los egresos se valoran a BCV.)
-  const paralelaPromedio = 0;
+  // Paralela promedio del período: se usa para expresar el COGS en USD paralelo
+  // (mismo criterio que el resto de la contabilidad de G&P).
+  const { data: paralelasMes } = useQuery({
+    queryKey: ["paralelas-periodo", periodo],
+    queryFn: async () => {
+      const ini = `${periodo}-01`;
+      const finDate = new Date(`${periodo}-01T00:00:00`);
+      finDate.setMonth(finDate.getMonth() + 1);
+      const fin = finDate.toISOString().slice(0, 10);
+      const { data } = await supabase
+        .from("tasas_paralela")
+        .select("fecha, tasa")
+        .gte("fecha", ini)
+        .lt("fecha", fin);
+      return data ?? [];
+    },
+  });
+  const paralelaPromedio = useMemo(() => {
+    const arr = (paralelasMes ?? []) as any[];
+    if (!arr.length) return 0;
+    return arr.reduce((s, t) => s + Number(t.tasa || 0), 0) / arr.length;
+  }, [paralelasMes]);
 
   // Totales del período: sumar directamente los USD ya almacenados en cada snapshot.
   // NO recalcular monto_bs / tasa: el monto_usd fue fijado al importar/registrar la compra
@@ -3822,8 +3842,9 @@ function CierreForm() {
 
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
-  const cogsUsd = iniUsd + totalComprasNetoUsd - finUsd;
-  const cogs = tasaPromedio ? cogsUsd * tasaPromedio : 0;
+  // COGS en Bs (a tasa BCV promedio) y luego expresado en USD paralelo para G&P.
+  const cogs = tasaPromedio ? (iniUsd + totalComprasNetoUsd - finUsd) * tasaPromedio : 0;
+  const cogsUsd = paralelaPromedio > 0 ? cogs / paralelaPromedio : 0;
 
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -4748,6 +4769,11 @@ function CierreForm() {
             <div className="text-xs text-muted-foreground">Tasa BCV promedio del mes (auto)</div>
             <div className="text-base font-bold mono">{tasaPromedio ? tasaPromedio.toFixed(4) : "—"}</div>
             <div className="text-xs text-muted-foreground">{(tasasMes ?? []).length} tasa(s) registradas</div>
+          </div>
+          <div className="rounded-md bg-muted/50 p-3">
+            <div className="text-xs text-muted-foreground">Tasa paralela promedio del mes (auto)</div>
+            <div className="text-base font-bold mono">{paralelaPromedio ? paralelaPromedio.toFixed(4) : "—"}</div>
+            <div className="text-xs text-muted-foreground">{(paralelasMes ?? []).length} tasa(s) registradas · usada para USD del COGS</div>
           </div>
           <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
             <span className="text-xs text-muted-foreground">COGS estimado (USD neto sin IVA)</span>
