@@ -334,14 +334,31 @@ function InventariosPage() {
                         {row.inicial?.tasa_bcv != null ? Number(row.inicial.tasa_bcv).toFixed(4) : <span className="text-muted-foreground/60">—</span>}
                       </td>
                       <td className="py-2 text-right pr-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openEdit(row.inicial)}
-                          disabled={!row.inicial}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEdit(row.inicial)}
+                            disabled={!row.inicial}
+                            title="Editar"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDelete(row.inicial)}
+                            disabled={!row.inicial || isPeriodoCerrado(row.periodo) || busy}
+                            title={
+                              isPeriodoCerrado(row.periodo)
+                                ? "Mes cerrado: reábrelo primero"
+                                : "Borrar"
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
 
                       {/* Final */}
