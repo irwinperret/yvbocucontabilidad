@@ -186,6 +186,57 @@ function InventariosPage() {
     }
   };
 
+  const handleDelete = async (s: Snap | null) => {
+    if (!s) return;
+    if (isPeriodoCerrado(s.periodo)) {
+      toast.error(`El cierre de ${periodoLabel(s.periodo)} está cerrado. Reábrelo primero.`);
+      return;
+    }
+    let cascade = false;
+    if (s.tipo === "final") {
+      const next = shiftPeriodo(s.periodo, 1);
+      const nextIniExiste = (snapshots ?? []).some(
+        (x) => x.periodo === next && x.tipo === "inicial",
+      );
+      if (nextIniExiste) {
+        if (isPeriodoCerrado(next)) {
+          toast.error(
+            `No se puede borrar: el inicial del mes siguiente (${periodoLabel(next)}) está en un cierre cerrado.`,
+          );
+          return;
+        }
+        cascade = confirm(
+          `¿Borrar también el inventario INICIAL del mes siguiente (${periodoLabel(next)})?\n\nEstán sincronizados. Recomendado: Aceptar.`,
+        );
+      }
+    }
+    const montoTxt = fmtUsd(Number(s.monto_usd) || 0);
+    if (
+      !confirm(
+        `Borrar inventario ${s.tipo.toUpperCase()} de ${periodoLabel(s.periodo)} (${montoTxt}).\n\n¿Continuar?`,
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const r = await borrar({
+        data: { snapshot_id: s.id, cascade_next_month_inicial: cascade },
+      });
+      toast.success(
+        `Inventario ${r.tipo} de ${periodoLabel(r.deleted_periodo)} borrado.` +
+          (r.cascaded_periodo
+            ? ` También se borró el inicial de ${periodoLabel(r.cascaded_periodo)}.`
+            : ""),
+      );
+      qc.invalidateQueries({ queryKey: ["inventario-snapshots"] });
+      qc.invalidateQueries();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error borrando inventario");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
