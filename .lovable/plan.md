@@ -1,32 +1,61 @@
-Pivotar la tabla de snapshots de inventarios para mostrar **una fila por período** con columnas separadas de inicial/final, y mover la edición a un panel modal (Sheet).
+## Objetivo
 
-## Cambios
+Agregar la posibilidad de **borrar snapshots de inventario** desde la pestaña de Inventarios, para casos como julio donde hay snapshot pero el mes aún no está cerrado.
 
-**src/routes/_authenticated/inventarios.tsx**
+## Alcance
 
-1. **Agrupar snapshots por período**: reemplazar el map actual por una estructura `{ periodo, inicial, final }` donde cada lado contiene el snapshot completo (id, monto_usd, monto_bs, tasa_bcv, notas, fecha) o `null`.
+En `src/routes/_authenticated/inventarios.tsx`, agregar un botón de eliminar (ícono `Trash2`) en cada celda de "Acciones" (inicial y final) al lado del botón de editar.
 
-2. **Nueva estructura de tabla** (una fila por mes):
-   ```
-   Período | Inicial USD | Inicial Bs | Tasa BCV | Final USD | Final Bs | Tasa BCV | Acciones
-   ```
-   - Mostrar la tasa BCV de cada snapshot (inicial y final por separado, como pidió el usuario).
-   - Si no existe un snapshot para ese lado, mostrar "—".
-   - Botones de acción por lado: "Editar inicial" / "Editar final" (deshabilitado si no existe).
+### Reglas de borrado
 
-3. **Panel de edición (Sheet lateral)**:
-   - Reemplazar la edición inline por un `<Sheet>` de shadcn.
-   - Al abrir, cargar el snapshot seleccionado (período + tipo) en el formulario.
-   - Campos: Monto USD, Tasa BCV, Monto Bs, Notas.
-   - Header del panel: "Editar inventario {inicial|final} — {mes año}".
-   - Mostrar el mismo aviso de cascada (reabre cierre, recalcula COGS, sincroniza mes siguiente si es final) dentro del panel.
-   - Botones Guardar / Cancelar; misma lógica actual (`editar` server fn, toasts, invalidaciones).
+1. **Solo se permite borrar si el período NO tiene cierre `cerrado`.**
+   - Si existe fila en `cierres_de_mes` para ese período con `estado = 'cerrado'`, deshabilitar el botón y mostrar tooltip: "No se puede borrar: el mes está cerrado. Reabre el cierre primero."
+   - Si no hay cierre o está `abierto`, permitir borrar.
 
-4. **Mantener sin cambios**: gráfica de evolución, tarjeta de advertencia inferior, lógica del server function `editarInventarioSnapshot`.
+2. **Cascada al borrar un inventario final:**
+   - Si borras el final del mes N y existe el inicial del mes N+1, preguntar si también quiere borrarse (por defecto sí), porque están sincronizados.
+   - No recalcular COGS automáticamente porque el mes no está cerrado (si lo estuviera, el borrado estaría bloqueado).
 
-## Detalles técnicos
+3. **Confirmación explícita** con `confirm()` antes de borrar, mostrando período, tipo y monto USD.
 
-- Usar `Sheet`, `SheetContent`, `SheetHeader`, `SheetTitle`, `SheetDescription`, `SheetFooter` de `@/components/ui/sheet`.
-- State: `editing: { snapshot, tipo } | null` en vez de `editId`.
-- Confirmación (`confirm(...)`) se conserva antes de guardar.
-- Orden de filas: períodos descendentes (más reciente primero), igual que hoy.
+## Implementación
+
+### 1. Nueva server function `borrarInventarioSnapshot`
+
+Archivo nuevo: `src/lib/inventario-delete.functions.ts` (o agregar al existente `inventario.functions.ts`).
+
+- Input: `{ snapshot_id: uuid, cascade_next_month_inicial?: boolean }`
+- Middleware: `requireSupabaseAuth`
+- Lógica:
+  1. Lee snapshot (`id, periodo, tipo`).
+  2. Verifica que el cierre del período NO esté `cerrado` — si lo está, lanza error.
+  3. Si `tipo = 'final'` y `cascade_next_month_inicial = true`: verifica cierre del mes N+1 tampoco esté cerrado, y borra el inicial del mes N+1 si existe.
+  4. Borra el snapshot principal.
+  5. Retorna `{ deleted_periodo, cascaded_periodo | null }`.
+
+### 2. UI en `inventarios.tsx`
+
+- Agregar botón `<Trash2>` en cada celda de acciones al lado del `Pencil`.
+- Consultar `cierres_de_mes` (id, periodo, estado) junto con snapshots para saber qué filas se pueden borrar.
+- Handler `handleDelete(snap)`:
+  - Verifica que el período no esté cerrado.
+  - Si es final, pregunta si también borrar el inicial del siguiente mes.
+  - `confirm(...)` con detalle.
+  - Llama la server fn, invalida queries, `toast.success`.
+
+### 3. Comportamiento visual
+
+- Botón habilitado solo si `cierre?.estado !== 'cerrado'`.
+- Estilo `variant="ghost"` con ícono rojo (`text-destructive`).
+- Mismo tamaño que el botón de editar.
+
+## Archivos afectados
+
+- `src/lib/inventario.functions.ts` — agregar `borrarInventarioSnapshot` (o archivo nuevo).
+- `src/routes/_authenticated/inventarios.tsx` — botón, query de cierres, handler.
+
+## Fuera de alcance
+
+- Recalcular COGS al borrar (no aplica porque solo se permite si el mes no está cerrado).
+- Borrar cierres de mes.
+- Borrado masivo por período.
