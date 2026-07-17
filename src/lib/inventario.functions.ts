@@ -11,6 +11,11 @@ const InputSchema = z.object({
   cascade_next_month: z.boolean().default(false),
 });
 
+const DeleteInputSchema = z.object({
+  snapshot_id: z.string().uuid(),
+  cascade_next_month_inicial: z.boolean().default(false),
+});
+
 function shiftPeriodo(periodo: string, delta: number) {
   const [y, m] = periodo.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 1 + delta, 1));
