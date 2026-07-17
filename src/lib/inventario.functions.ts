@@ -11,6 +11,11 @@ const InputSchema = z.object({
   cascade_next_month: z.boolean().default(false),
 });
 
+const DeleteInputSchema = z.object({
+  snapshot_id: z.string().uuid(),
+  cascade_next_month_inicial: z.boolean().default(false),
+});
+
 function shiftPeriodo(periodo: string, delta: number) {
   const [y, m] = periodo.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 1 + delta, 1));
@@ -171,3 +176,65 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
 
     return { primary, cascaded };
   });
+
+async function assertPeriodoNotClosed(supabase: any, periodo: string) {
+  const { data: cierre } = await supabase
+    .from("cierres_de_mes")
+    .select("estado")
+    .eq("periodo", periodo)
+    .maybeSingle();
+  if (cierre && (cierre as any).estado === "cerrado") {
+    throw new Error(
+      `No se puede borrar: el cierre de ${periodo} está cerrado. Reábrelo primero.`,
+    );
+  }
+}
+
+export const borrarInventarioSnapshot = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => DeleteInputSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+
+    const { data: snap, error: snapErr } = await supabase
+      .from("inventario_snapshots")
+      .select("id, periodo, tipo")
+      .eq("id", data.snapshot_id)
+      .maybeSingle();
+    if (snapErr) throw snapErr;
+    if (!snap) throw new Error("Snapshot no encontrado");
+
+    const periodo = (snap as any).periodo as string;
+    const tipo = (snap as any).tipo as "inicial" | "final";
+
+    await assertPeriodoNotClosed(supabase, periodo);
+
+    let cascadedPeriodo: string | null = null;
+    if (tipo === "final" && data.cascade_next_month_inicial) {
+      const nextPeriodo = shiftPeriodo(periodo, 1);
+      await assertPeriodoNotClosed(supabase, nextPeriodo);
+      const { data: nextIni } = await supabase
+        .from("inventario_snapshots")
+        .select("id")
+        .eq("periodo", nextPeriodo)
+        .eq("tipo", "inicial")
+        .maybeSingle();
+      if (nextIni) {
+        const { error: delNextErr } = await supabase
+          .from("inventario_snapshots")
+          .delete()
+          .eq("id", (nextIni as any).id);
+        if (delNextErr) throw delNextErr;
+        cascadedPeriodo = nextPeriodo;
+      }
+    }
+
+    const { error: delErr } = await supabase
+      .from("inventario_snapshots")
+      .delete()
+      .eq("id", data.snapshot_id);
+    if (delErr) throw delErr;
+
+    return { deleted_periodo: periodo, tipo, cascaded_periodo: cascadedPeriodo };
+  });
+

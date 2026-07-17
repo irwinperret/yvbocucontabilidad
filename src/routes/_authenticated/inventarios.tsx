@@ -17,9 +17,9 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { Pencil, AlertTriangle } from "lucide-react";
+import { Pencil, AlertTriangle, Trash2 } from "lucide-react";
 import { fmtUsd, fmtBs } from "@/lib/format";
-import { editarInventarioSnapshot } from "@/lib/inventario.functions";
+import { editarInventarioSnapshot, borrarInventarioSnapshot } from "@/lib/inventario.functions";
 import {
   CartesianGrid,
   Line,
@@ -54,6 +54,30 @@ type Snap = {
 function InventariosPage() {
   const qc = useQueryClient();
   const editar = useServerFn(editarInventarioSnapshot);
+  const borrar = useServerFn(borrarInventarioSnapshot);
+
+  const { data: cierres } = useQuery({
+    queryKey: ["cierres-de-mes-estado"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cierres_de_mes")
+        .select("periodo, estado");
+      if (error) throw error;
+      return (data ?? []) as { periodo: string; estado: string }[];
+    },
+  });
+  const cierresMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (cierres ?? []).forEach((c) => m.set(c.periodo, c.estado));
+    return m;
+  }, [cierres]);
+  const isPeriodoCerrado = (periodo: string) => cierresMap.get(periodo) === "cerrado";
+
+  function shiftPeriodo(periodo: string, delta: number) {
+    const [y, m] = periodo.split("-").map(Number);
+    const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
 
   const { data: snapshots, isLoading } = useQuery({
     queryKey: ["inventario-snapshots"],
@@ -162,6 +186,57 @@ function InventariosPage() {
     }
   };
 
+  const handleDelete = async (s: Snap | null) => {
+    if (!s) return;
+    if (isPeriodoCerrado(s.periodo)) {
+      toast.error(`El cierre de ${periodoLabel(s.periodo)} está cerrado. Reábrelo primero.`);
+      return;
+    }
+    let cascade = false;
+    if (s.tipo === "final") {
+      const next = shiftPeriodo(s.periodo, 1);
+      const nextIniExiste = (snapshots ?? []).some(
+        (x) => x.periodo === next && x.tipo === "inicial",
+      );
+      if (nextIniExiste) {
+        if (isPeriodoCerrado(next)) {
+          toast.error(
+            `No se puede borrar: el inicial del mes siguiente (${periodoLabel(next)}) está en un cierre cerrado.`,
+          );
+          return;
+        }
+        cascade = confirm(
+          `¿Borrar también el inventario INICIAL del mes siguiente (${periodoLabel(next)})?\n\nEstán sincronizados. Recomendado: Aceptar.`,
+        );
+      }
+    }
+    const montoTxt = fmtUsd(Number(s.monto_usd) || 0);
+    if (
+      !confirm(
+        `Borrar inventario ${s.tipo.toUpperCase()} de ${periodoLabel(s.periodo)} (${montoTxt}).\n\n¿Continuar?`,
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const r = await borrar({
+        data: { snapshot_id: s.id, cascade_next_month_inicial: cascade },
+      });
+      toast.success(
+        `Inventario ${r.tipo} de ${periodoLabel(r.deleted_periodo)} borrado.` +
+          (r.cascaded_periodo
+            ? ` También se borró el inicial de ${periodoLabel(r.cascaded_periodo)}.`
+            : ""),
+      );
+      qc.invalidateQueries({ queryKey: ["inventario-snapshots"] });
+      qc.invalidateQueries();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error borrando inventario");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -259,14 +334,31 @@ function InventariosPage() {
                         {row.inicial?.tasa_bcv != null ? Number(row.inicial.tasa_bcv).toFixed(4) : <span className="text-muted-foreground/60">—</span>}
                       </td>
                       <td className="py-2 text-right pr-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openEdit(row.inicial)}
-                          disabled={!row.inicial}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEdit(row.inicial)}
+                            disabled={!row.inicial}
+                            title="Editar"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDelete(row.inicial)}
+                            disabled={!row.inicial || isPeriodoCerrado(row.periodo) || busy}
+                            title={
+                              isPeriodoCerrado(row.periodo)
+                                ? "Mes cerrado: reábrelo primero"
+                                : "Borrar"
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
 
                       {/* Final */}
@@ -280,14 +372,31 @@ function InventariosPage() {
                         {row.final?.tasa_bcv != null ? Number(row.final.tasa_bcv).toFixed(4) : <span className="text-muted-foreground/60">—</span>}
                       </td>
                       <td className="py-2 text-right pr-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openEdit(row.final)}
-                          disabled={!row.final}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEdit(row.final)}
+                            disabled={!row.final}
+                            title="Editar"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDelete(row.final)}
+                            disabled={!row.final || isPeriodoCerrado(row.periodo) || busy}
+                            title={
+                              isPeriodoCerrado(row.periodo)
+                                ? "Mes cerrado: reábrelo primero"
+                                : "Borrar"
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
