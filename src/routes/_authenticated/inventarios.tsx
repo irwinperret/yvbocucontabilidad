@@ -54,6 +54,30 @@ type Snap = {
 function InventariosPage() {
   const qc = useQueryClient();
   const editar = useServerFn(editarInventarioSnapshot);
+  const borrar = useServerFn(borrarInventarioSnapshot);
+
+  const { data: cierres } = useQuery({
+    queryKey: ["cierres-de-mes-estado"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("cierres_de_mes")
+        .select("periodo, estado");
+      if (error) throw error;
+      return (data ?? []) as { periodo: string; estado: string }[];
+    },
+  });
+  const cierresMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (cierres ?? []).forEach((c) => m.set(c.periodo, c.estado));
+    return m;
+  }, [cierres]);
+  const isPeriodoCerrado = (periodo: string) => cierresMap.get(periodo) === "cerrado";
+
+  function shiftPeriodo(periodo: string, delta: number) {
+    const [y, m] = periodo.split("-").map(Number);
+    const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
 
   const { data: snapshots, isLoading } = useQuery({
     queryKey: ["inventario-snapshots"],
