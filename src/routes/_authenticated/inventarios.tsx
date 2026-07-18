@@ -147,12 +147,15 @@ function InventariosPage() {
       montoBs = Math.round(montoUsd * tasa * 100) / 100;
     }
 
-    const cascade = s.tipo === "final";
+    const cascadeNext = s.tipo === "final";
+    const cascadePrev = s.tipo === "inicial";
+    const vecino = cascadeNext ? shiftPeriodo(s.periodo, 1) : shiftPeriodo(s.periodo, -1);
+    const cascadeMsg = cascadeNext
+      ? `Al modificar el inventario final de ${periodoLabel(s.periodo)}, se actualizará automáticamente el inventario inicial de ${periodoLabel(vecino)} a ${fmtUsd(montoUsd)}.`
+      : `Al modificar el inventario inicial de ${periodoLabel(s.periodo)}, se actualizará automáticamente el inventario final de ${periodoLabel(vecino)} a ${fmtUsd(montoUsd)}.`;
     const confirmMsg =
-      `Modificar este inventario requiere reabrir el cierre de ${periodoLabel(s.periodo)}, recalcular el COGS y volver a cerrar.` +
-      (cascade
-        ? `\n\nComo es un inventario FINAL, también se actualizará el inventario INICIAL del mes siguiente (si existe) y se recalculará su COGS.`
-        : "") +
+      `Modificar este inventario requiere reabrir el cierre de ${periodoLabel(s.periodo)}, recalcular el COGS y volver a cerrar.\n\n` +
+      cascadeMsg +
       `\n\n¿Deseas continuar?`;
     if (!confirm(confirmMsg)) return;
 
@@ -165,15 +168,19 @@ function InventariosPage() {
           monto_bs: montoBs,
           tasa_bcv: tasa,
           notas: draft.notas || null,
-          cascade_next_month: cascade,
+          cascade_next_month: cascadeNext,
+          cascade_prev_month: cascadePrev,
         },
       });
       const cogs = r.primary?.cogs_usd ?? 0;
       const msgs = [
-        `Inventario actualizado. COGS recalculado: ${fmtUsd(cogs)}. Cierre de ${periodoLabel(s.periodo)} actualizado automáticamente.`,
+        `Inventario actualizado. COGS recalculado: ${fmtUsd(cogs)}. Cierre de ${periodoLabel(s.periodo)} actualizado.`,
       ];
-      if (r.cascaded) {
-        msgs.push(`También se recalculó el cierre de ${periodoLabel(r.cascaded.periodo)} (COGS: ${fmtUsd(r.cascaded.cogs_usd)}).`);
+      if (r.cascaded_next) {
+        msgs.push(`Cierre de ${periodoLabel(r.cascaded_next.periodo)} recalculado (COGS: ${fmtUsd(r.cascaded_next.cogs_usd)}).`);
+      }
+      if (r.cascaded_prev) {
+        msgs.push(`Cierre de ${periodoLabel(r.cascaded_prev.periodo)} recalculado (COGS: ${fmtUsd(r.cascaded_prev.cogs_usd)}).`);
       }
       toast.success(msgs.join(" "));
       close();
@@ -185,6 +192,16 @@ function InventariosPage() {
       setBusy(false);
     }
   };
+
+  const scrollToRow = (periodo: string) => {
+    const el = document.getElementById(`inv-row-${periodo}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("bg-accent/40");
+    setTimeout(() => el.classList.remove("bg-accent/40"), 1500);
+  };
+
+
 
   const handleDelete = async (s: Snap | null) => {
     if (!s) return;
