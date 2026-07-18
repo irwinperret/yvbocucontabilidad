@@ -343,17 +343,40 @@ function InventariosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {grouped.map((row) => (
-                    <tr key={row.periodo} className="border-b last:border-0">
+                  {grouped.map((row) => {
+                    const prev = shiftPeriodo(row.periodo, -1);
+                    const next = shiftPeriodo(row.periodo, 1);
+                    const prevFinal = groupedMap.get(prev)?.final ?? null;
+                    const nextInicial = groupedMap.get(next)?.inicial ?? null;
+                    return (
+                    <tr id={`inv-row-${row.periodo}`} key={row.periodo} className="border-b last:border-0 transition-colors">
                       <td className="py-2 mono">{row.periodo}</td>
 
                       {/* Inicial */}
                       <td className="py-2 text-right mono border-l pl-2">
-                        {row.inicial ? fmtUsd(Number(row.inicial.monto_usd) || 0) : <span className="text-muted-foreground/60">—</span>}
+                        {row.inicial ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            {row.inicial && (
+                              prevFinal ? (
+                                <button
+                                  type="button"
+                                  onClick={() => scrollToRow(prev)}
+                                  className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-muted/40 hover:bg-muted px-1 py-0.5 text-[10px] text-muted-foreground"
+                                  title={`Vinculado con el inventario final de ${periodoLabel(prev)}`}
+                                >
+                                  <LinkIcon className="h-2.5 w-2.5" />← {periodoLabel(prev).split(" de ")[0]}
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 rounded border border-border/40 bg-muted/20 px-1 py-0.5 text-[10px] text-muted-foreground/60" title="Sin snapshot final del mes anterior">
+                                  sin vínculo
+                                </span>
+                              )
+                            )}
+                            <span>{fmtUsd(Number(row.inicial.monto_usd) || 0)}</span>
+                          </div>
+                        ) : <span className="text-muted-foreground/60">—</span>}
                       </td>
-                      <td className="py-2 text-right mono">
-                        {row.inicial ? fmtBs(Number(row.inicial.monto_bs) || 0) : <span className="text-muted-foreground/60">—</span>}
-                      </td>
+
                       <td className="py-2 text-right mono">
                         {row.inicial?.tasa_bcv != null ? Number(row.inicial.tasa_bcv).toFixed(4) : <span className="text-muted-foreground/60">—</span>}
                       </td>
