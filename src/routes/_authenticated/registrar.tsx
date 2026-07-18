@@ -3540,7 +3540,9 @@ function FinanciamientoBaseForm({
 function CierreForm() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const recalcCierre = useServerFn(recalcCierrePeriodo);
   const { data: terceros } = useTerceros();
+
   const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7));
   const [invIniUsd, setInvIniUsd] = useState("");
   const [invFinUsd, setInvFinUsd] = useState("");
