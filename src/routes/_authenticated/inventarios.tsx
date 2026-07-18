@@ -112,6 +112,13 @@ function InventariosPage() {
       }));
   }, [grouped]);
 
+  const groupedMap = useMemo(() => {
+    const m = new Map<string, { inicial: Snap | null; final: Snap | null }>();
+    grouped.forEach((g) => m.set(g.periodo, { inicial: g.inicial, final: g.final }));
+    return m;
+  }, [grouped]);
+
+
   const [editing, setEditing] = useState<Snap | null>(null);
   const [draft, setDraft] = useState({ monto_usd: "", monto_bs: "", tasa_bcv: "", notas: "" });
   const [busy, setBusy] = useState(false);
