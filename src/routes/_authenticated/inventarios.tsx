@@ -410,8 +410,27 @@ function InventariosPage() {
 
                       {/* Final */}
                       <td className="py-2 text-right mono border-l pl-2">
-                        {row.final ? fmtUsd(Number(row.final.monto_usd) || 0) : <span className="text-muted-foreground/60">—</span>}
+                        {row.final ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span>{fmtUsd(Number(row.final.monto_usd) || 0)}</span>
+                            {nextInicial ? (
+                              <button
+                                type="button"
+                                onClick={() => scrollToRow(next)}
+                                className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-muted/40 hover:bg-muted px-1 py-0.5 text-[10px] text-muted-foreground"
+                                title={`Vinculado con el inventario inicial de ${periodoLabel(next)}`}
+                              >
+                                <LinkIcon className="h-2.5 w-2.5" />→ {periodoLabel(next).split(" de ")[0]}
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 rounded border border-border/40 bg-muted/20 px-1 py-0.5 text-[10px] text-muted-foreground/60" title="Sin snapshot inicial del mes siguiente">
+                                sin vínculo
+                              </span>
+                            )}
+                          </div>
+                        ) : <span className="text-muted-foreground/60">—</span>}
                       </td>
+
                       <td className="py-2 text-right mono">
                         {row.final ? fmtBs(Number(row.final.monto_bs) || 0) : <span className="text-muted-foreground/60">—</span>}
                       </td>
