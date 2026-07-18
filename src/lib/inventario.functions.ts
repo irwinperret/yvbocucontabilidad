@@ -9,6 +9,7 @@ const InputSchema = z.object({
   tasa_bcv: z.number().nullable().optional(),
   notas: z.string().nullable().optional(),
   cascade_next_month: z.boolean().default(false),
+  cascade_prev_month: z.boolean().default(false),
 });
 
 const DeleteInputSchema = z.object({
@@ -30,6 +31,36 @@ function periodBoundaries(periodo: string) {
   return { from: iso(first), to: iso(last) };
 }
 
+function r2(n: number) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+async function fetchTasaBcvPromedio(supabase: any, periodo: string): Promise<number> {
+  const { from, to } = periodBoundaries(periodo);
+  const { data } = await supabase
+    .from("tasas_bcv")
+    .select("tasa")
+    .gte("fecha", from)
+    .lte("fecha", to);
+  const arr = (data ?? []) as any[];
+  if (!arr.length) return 0;
+  const sum = arr.reduce((s, r) => s + Number(r.tasa || 0), 0);
+  return sum / arr.length;
+}
+
+async function fetchParalelaPromedio(supabase: any, periodo: string): Promise<number> {
+  const { from, to } = periodBoundaries(periodo);
+  const { data } = await supabase
+    .from("tasas_paralela")
+    .select("tasa")
+    .gte("fecha", from)
+    .lte("fecha", to);
+  const arr = (data ?? []) as any[];
+  if (!arr.length) return 0;
+  const sum = arr.reduce((s, r) => s + Number(r.tasa || 0), 0);
+  return sum / arr.length;
+}
+
 async function recalcCierreForPeriod(
   supabase: any,
   periodo: string,
@@ -42,58 +73,84 @@ async function recalcCierreForPeriod(
     .maybeSingle();
   if (!cierre) return null;
 
-  const { from, to } = periodBoundaries(periodo);
+  const { to } = periodBoundaries(periodo);
+
+  // Tasa BCV promedio: usar la del cierre si existe; si no, promedio real del período.
+  let tasaBcvProm = Number((cierre as any).tasa_bcv_promedio) || 0;
+  if (!tasaBcvProm) tasaBcvProm = await fetchTasaBcvPromedio(supabase, periodo);
+
+  // Paralela promedio del período (para expresar COGS en USD paralelo).
+  const paralelaProm = await fetchParalelaPromedio(supabase, periodo);
 
   const [{ data: iniSnap }, { data: finSnap }, { data: compras }] = await Promise.all([
     supabase
       .from("inventario_snapshots")
-      .select("monto_usd, monto_bs, tasa_bcv")
+      .select("id, monto_usd")
       .eq("periodo", periodo)
       .eq("tipo", "inicial")
       .maybeSingle(),
     supabase
       .from("inventario_snapshots")
-      .select("monto_usd, monto_bs, tasa_bcv")
+      .select("id, monto_usd")
       .eq("periodo", periodo)
       .eq("tipo", "final")
       .maybeSingle(),
     supabase
       .from("transacciones")
-      .select("monto_usd, monto_bs")
+      .select("monto_bs, monto_base_bs")
       .eq("cuenta_codigo", "2.1")
-      .gte("fecha", from)
+      .gte("fecha", periodBoundaries(periodo).from)
       .lte("fecha", to),
   ]);
 
   const iniUsd = Number((iniSnap as any)?.monto_usd) || 0;
   const finUsd = Number((finSnap as any)?.monto_usd) || 0;
-  const iniBs = Number((iniSnap as any)?.monto_bs) || 0;
-  const finBs = Number((finSnap as any)?.monto_bs) || 0;
-  const comprasUsd = (compras ?? []).reduce((s: number, r: any) => s + (Number(r.monto_usd) || 0), 0);
-  const comprasBs = (compras ?? []).reduce((s: number, r: any) => s + (Number(r.monto_bs) || 0), 0);
 
-  const cogsUsd = Math.round((iniUsd + comprasUsd - finUsd) * 100) / 100;
-  const cogsBs = Math.round((iniBs + comprasBs - finBs) * 100) / 100;
-  const tasaProm = Number((cierre as any).tasa_bcv_promedio) || 0;
+  // Bs derivado de USD × tasa BCV promedio del período (invariante).
+  const iniBs = r2(iniUsd * tasaBcvProm);
+  const finBs = r2(finUsd * tasaBcvProm);
 
-  // reopen
+  const comprasNetoBs = (compras ?? []).reduce(
+    (s: number, r: any) => s + (Number(r.monto_base_bs) || Number(r.monto_bs) || 0),
+    0,
+  );
+
+  const cogsBs = r2(iniBs + comprasNetoBs - finBs);
+  const cogsUsd = paralelaProm > 0 ? r2(cogsBs / paralelaProm) : 0;
+
+  // Reabrir cierre
   await supabase.from("cierres_de_mes").update({ estado: "abierto" }).eq("id", (cierre as any).id);
 
-  // Update cierre with new values
+  // Actualizar snapshots.monto_bs para consistencia
+  if (iniSnap) {
+    await supabase
+      .from("inventario_snapshots")
+      .update({ monto_bs: iniBs, tasa_bcv: tasaBcvProm || null } as any)
+      .eq("id", (iniSnap as any).id);
+  }
+  if (finSnap) {
+    await supabase
+      .from("inventario_snapshots")
+      .update({ monto_bs: finBs, tasa_bcv: tasaBcvProm || null } as any)
+      .eq("id", (finSnap as any).id);
+  }
+
+  // Actualizar cierre
   await supabase
     .from("cierres_de_mes")
     .update({
       inventario_inicial_bs: iniBs,
       inventario_final_bs: finBs,
-      compras_mes_bs: comprasBs,
+      compras_mes_bs: r2(comprasNetoBs),
       cogs_bs: cogsBs,
       cogs_usd: cogsUsd,
+      tasa_bcv_promedio: tasaBcvProm || null,
     } as any)
     .eq("id", (cierre as any).id);
 
-  // Regenerate COGS transaction (cuenta 2.2)
+  // Regenerar transacción 2.2
   await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
-  if (Math.abs(cogsUsd) > 0.01) {
+  if (Math.abs(cogsBs) > 0.01) {
     await supabase.from("transacciones").insert({
       fecha: to,
       cuenta_codigo: "2.2",
@@ -101,7 +158,8 @@ async function recalcCierreForPeriod(
       monto_bs: cogsBs,
       monto_base_bs: cogsBs,
       iva_bs: 0,
-      tasa_bcv: tasaProm || null,
+      tasa_bcv: tasaBcvProm || null,
+      tasa_paralela: paralelaProm || null,
       monto_usd: cogsUsd,
       metodo_pago: "transferencia" as any,
       modo: "on_balance" as any,
@@ -111,11 +169,19 @@ async function recalcCierreForPeriod(
     } as any);
   }
 
-  // reclose
+  // Volver a cerrar
   await supabase.from("cierres_de_mes").update({ estado: "cerrado" }).eq("id", (cierre as any).id);
 
   return { periodo, cogs_usd: cogsUsd, cogs_bs: cogsBs };
 }
+
+// Exportado para uso desde otros server functions (registrar.tsx llama vía server fn wrapper).
+export const recalcCierrePeriodo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ periodo: z.string().regex(/^\d{4}-\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => {
+    return await recalcCierreForPeriod(context.supabase, data.periodo, context.userId);
+  });
 
 export const editarInventarioSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -134,7 +200,7 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
     const periodo = (snap as any).periodo as string;
     const tipo = (snap as any).tipo as "inicial" | "final";
 
-    // Update snapshot
+    // Update snapshot (monto_bs se recomputa dentro de recalc; aquí guardamos el input tal cual)
     const { error: updErr } = await supabase
       .from("inventario_snapshots")
       .update({
@@ -146,10 +212,15 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
       .eq("id", data.snapshot_id);
     if (updErr) throw updErr;
 
-    // Cascade: si es final y hay siguiente mes, actualizar su inicial
-    let cascadedPeriodo: string | null = null;
+    let cascadedNextPeriodo: string | null = null;
+    let cascadedPrevPeriodo: string | null = null;
+
+    // Cascada: final → siguiente inicial
     if (tipo === "final" && data.cascade_next_month) {
       const nextPeriodo = shiftPeriodo(periodo, 1);
+      const tasaBcvNext = (await fetchTasaBcvPromedio(supabase, nextPeriodo)) || Number(data.tasa_bcv) || 0;
+      const nextMontoBs = r2(data.monto_usd * tasaBcvNext);
+
       const { data: nextIni } = await supabase
         .from("inventario_snapshots")
         .select("id, tasa_bcv")
@@ -161,20 +232,72 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
           .from("inventario_snapshots")
           .update({
             monto_usd: data.monto_usd,
-            monto_bs: data.monto_bs,
-            tasa_bcv: data.tasa_bcv ?? (nextIni as any).tasa_bcv,
+            monto_bs: nextMontoBs,
+            tasa_bcv: tasaBcvNext || (nextIni as any).tasa_bcv,
           } as any)
           .eq("id", (nextIni as any).id);
-        cascadedPeriodo = nextPeriodo;
+      } else {
+        await supabase.from("inventario_snapshots").insert({
+          periodo: nextPeriodo,
+          tipo: "inicial",
+          monto_usd: data.monto_usd,
+          monto_bs: nextMontoBs,
+          tasa_bcv: tasaBcvNext || null,
+          registrado_por: userId,
+          fecha: `${nextPeriodo}-01`,
+        } as any);
       }
+      cascadedNextPeriodo = nextPeriodo;
+    }
+
+    // Cascada: inicial → mes anterior final
+    if (tipo === "inicial" && data.cascade_prev_month) {
+      const prevPeriodo = shiftPeriodo(periodo, -1);
+      const tasaBcvPrev = (await fetchTasaBcvPromedio(supabase, prevPeriodo)) || Number(data.tasa_bcv) || 0;
+      const prevMontoBs = r2(data.monto_usd * tasaBcvPrev);
+
+      // Fecha = último día del mes anterior
+      const [y, m] = prevPeriodo.split("-").map(Number);
+      const finPrev = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+
+      const { data: prevFin } = await supabase
+        .from("inventario_snapshots")
+        .select("id, tasa_bcv")
+        .eq("periodo", prevPeriodo)
+        .eq("tipo", "final")
+        .maybeSingle();
+      if (prevFin) {
+        await supabase
+          .from("inventario_snapshots")
+          .update({
+            monto_usd: data.monto_usd,
+            monto_bs: prevMontoBs,
+            tasa_bcv: tasaBcvPrev || (prevFin as any).tasa_bcv,
+          } as any)
+          .eq("id", (prevFin as any).id);
+      } else {
+        await supabase.from("inventario_snapshots").insert({
+          periodo: prevPeriodo,
+          tipo: "final",
+          monto_usd: data.monto_usd,
+          monto_bs: prevMontoBs,
+          tasa_bcv: tasaBcvPrev || null,
+          registrado_por: userId,
+          fecha: finPrev,
+        } as any);
+      }
+      cascadedPrevPeriodo = prevPeriodo;
     }
 
     const primary = await recalcCierreForPeriod(supabase, periodo, userId);
-    const cascaded = cascadedPeriodo
-      ? await recalcCierreForPeriod(supabase, cascadedPeriodo, userId)
+    const cascaded_next = cascadedNextPeriodo
+      ? await recalcCierreForPeriod(supabase, cascadedNextPeriodo, userId)
+      : null;
+    const cascaded_prev = cascadedPrevPeriodo
+      ? await recalcCierreForPeriod(supabase, cascadedPrevPeriodo, userId)
       : null;
 
-    return { primary, cascaded };
+    return { primary, cascaded: cascaded_next, cascaded_next, cascaded_prev };
   });
 
 async function assertPeriodoNotClosed(supabase: any, periodo: string) {
@@ -237,4 +360,3 @@ export const borrarInventarioSnapshot = createServerFn({ method: "POST" })
 
     return { deleted_periodo: periodo, tipo, cascaded_periodo: cascadedPeriodo };
   });
-
