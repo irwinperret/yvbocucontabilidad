@@ -465,7 +465,9 @@ function InventariosPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
+
                   {grouped.length === 0 && (
                     <tr>
                       <td colSpan={9} className="py-6 text-center text-muted-foreground">
