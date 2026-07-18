@@ -4125,8 +4125,9 @@ function CierreForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    const tasaConv = paralelaPromedio || tasaPromedio;
-    if (!tasaConv) return toast.error("No hay tasas registradas en el período");
+    const tasaBcv = tasaPromedio;
+    if (!tasaBcv) return toast.error("No hay tasas BCV registradas en el período");
+    if (!paralelaPromedio) return toast.error("No hay tasas paralelas registradas en el período");
     if (!invIniUsd) return toast.error("Ingresa el inventario inicial USD (a tasa BCV)");
     if (!invFinUsd) return toast.error("Ingresa el inventario final USD (a tasa BCV)");
 
@@ -4140,14 +4141,21 @@ function CierreForm() {
     }
 
     setBusy(true);
+
+    // Bs derivado de USD × BCV promedio (invariante).
+    const iniBs = iniUsd * tasaBcv;
+    const finBs = finUsd * tasaBcv;
+    const cogsBs = iniBs + totalComprasNetoBs - finBs;
+    const cogsUsdParalelo = paralelaPromedio > 0 ? cogsBs / paralelaPromedio : 0;
+
     const { error } = await supabase.from("cierres_de_mes").insert({
       periodo,
-      inventario_inicial_bs: iniUsd * tasaConv,
-      inventario_final_bs: finUsd * tasaConv,
-      compras_mes_bs: totalCompras,
-      cogs_bs: cogs,
-      cogs_usd: cogsUsd,
-      tasa_bcv_promedio: tasaPromedio,
+      inventario_inicial_bs: iniBs,
+      inventario_final_bs: finBs,
+      compras_mes_bs: totalComprasNetoBs,
+      cogs_bs: cogsBs,
+      cogs_usd: cogsUsdParalelo,
+      tasa_bcv_promedio: tasaBcv,
 
       pasivos_laborales_bs: 0,
       depreciacion_bs: 0,
@@ -4160,17 +4168,14 @@ function CierreForm() {
       return toast.error(error.message);
     }
 
-    // Upsert snapshots inicial/final del período
-    const tasaSnap = tasaPromedio || tasaConv;
-    const iniBs = iniUsd * tasaSnap;
-    const finBs = finUsd * tasaSnap;
+    // Upsert snapshots inicial/final del período: monto_bs = USD × BCV promedio
     await supabase.from("inventario_snapshots").upsert(
       {
         periodo,
         tipo: "inicial",
         monto_bs: iniBs,
         monto_usd: iniUsd,
-        tasa_bcv: tasaSnap || null,
+        tasa_bcv: tasaBcv || null,
         registrado_por: user.id,
         fecha: `${periodo}-01`,
       } as any,
@@ -4185,7 +4190,7 @@ function CierreForm() {
         tipo: "final",
         monto_bs: finBs,
         monto_usd: finUsd,
-        tasa_bcv: tasaSnap || null,
+        tasa_bcv: tasaBcv || null,
         registrado_por: user.id,
         fecha: finDateSnap.toISOString().slice(0, 10),
       } as any,
@@ -4193,22 +4198,19 @@ function CierreForm() {
     );
 
     // Postear COGS como transacción 2.2
-    if (cogs && Math.abs(cogs) > 0.01) {
-      const finDate = new Date(`${periodo}-01T00:00:00`);
-      finDate.setMonth(finDate.getMonth() + 1);
-      finDate.setDate(0);
-      const fechaCierre = finDate.toISOString().slice(0, 10);
+    if (cogsBs && Math.abs(cogsBs) > 0.01) {
+      const fechaCierre = finDateSnap.toISOString().slice(0, 10);
       await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
       await supabase.from("transacciones").insert({
         fecha: fechaCierre,
         cuenta_codigo: "2.2",
         centro_costo: "Compartido" as any,
-        monto_bs: cogs,
-        monto_base_bs: cogs,
+        monto_bs: cogsBs,
+        monto_base_bs: cogsBs,
         iva_bs: 0,
-        tasa_bcv: tasaPromedio || tasaConv,
+        tasa_bcv: tasaBcv,
         tasa_paralela: paralelaPromedio || null,
-        monto_usd: cogsUsd,
+        monto_usd: cogsUsdParalelo,
         metodo_pago: "transferencia" as any,
         modo: "on_balance" as any,
         referencia: `CIERRE-${periodo}`,
@@ -4217,92 +4219,54 @@ function CierreForm() {
       } as any);
     }
 
-    // Cascade: si el usuario cambió el inv inicial, actualizar el mes anterior
+    // Cascade: si el usuario cambió el inv inicial, actualizar snapshot final del mes anterior
+    // y delegar el recálculo del cierre anterior al server (recalcCierrePeriodo).
     if (cambiaInvIni) {
       const newPrevFinalUsd = iniUsd;
-      const iniDatePrev = `${periodoAnterior}-01`;
       const finDatePrev = new Date(`${periodoAnterior}-01T00:00:00`);
       finDatePrev.setMonth(finDatePrev.getMonth() + 1);
-      const finDatePrevBoundary = finDatePrev.toISOString().slice(0, 10);
       finDatePrev.setDate(0);
       const finDatePrevStr = finDatePrev.toISOString().slice(0, 10);
 
-      // Actualizar snapshot final del mes anterior
+      // Tasa BCV promedio del mes anterior (si tiene cierre, la tomará de ahí; si no, se calculará dentro del recalc).
+      const { data: cierrePrev } = await supabase
+        .from("cierres_de_mes")
+        .select("id, tasa_bcv_promedio")
+        .eq("periodo", periodoAnterior)
+        .maybeSingle();
+      const tasaAnt = Number((cierrePrev as any)?.tasa_bcv_promedio) || tasaBcv;
+
       await supabase.from("inventario_snapshots").upsert(
         {
           periodo: periodoAnterior,
           tipo: "final",
-          monto_bs: newPrevFinalUsd * tasaSnap,
+          monto_bs: newPrevFinalUsd * tasaAnt,
           monto_usd: newPrevFinalUsd,
-          tasa_bcv: tasaSnap || null,
+          tasa_bcv: tasaAnt || null,
           registrado_por: user.id,
           fecha: finDatePrevStr,
         } as any,
         { onConflict: "periodo,tipo" },
       );
 
-      // Recalcular COGS del mes anterior: iniAnt + comprasAnt - newPrevFinal
-      const [{ data: iniSnapAnt }, { data: comprasAnt }] = await Promise.all([
-        supabase
-          .from("inventario_snapshots")
-          .select("monto_usd, monto_bs, tasa_bcv")
-          .eq("periodo", periodoAnterior)
-          .eq("tipo", "inicial")
-          .maybeSingle(),
-        supabase
-          .from("transacciones")
-          .select("monto_usd, monto_base_bs, monto_bs, tasa_bcv")
-          .eq("cuenta_codigo", "2.1")
-          .gte("fecha", iniDatePrev)
-          .lt("fecha", finDatePrevBoundary),
-      ]);
-      const iniUsdAnt = Number((iniSnapAnt as any)?.monto_usd) || 0;
-      const comprasUsdAnt = (comprasAnt ?? []).reduce((s: number, r: any) => s + (Number(r.monto_usd) || 0), 0);
-      const newCogsUsdAnt = iniUsdAnt + comprasUsdAnt - newPrevFinalUsd;
-
-      // Actualizar cierres_de_mes anterior si existe
-      const { data: cierrePrev } = await supabase
-        .from("cierres_de_mes")
-        .select("id, tasa_bcv_promedio")
-        .eq("periodo", periodoAnterior)
-        .maybeSingle();
       if (cierrePrev) {
-        const tasaAnt = Number((cierrePrev as any).tasa_bcv_promedio) || tasaSnap;
-        await supabase
-          .from("cierres_de_mes")
-          .update({
-            inventario_final_bs: newPrevFinalUsd * tasaAnt,
-            cogs_usd: newCogsUsdAnt,
-            cogs_bs: newCogsUsdAnt * tasaAnt,
-          } as any)
-          .eq("id", (cierrePrev as any).id);
-
-        // Regenerar transacción 2.2 del mes anterior
-        await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodoAnterior}`);
-        if (Math.abs(newCogsUsdAnt) > 0.01) {
-          await supabase.from("transacciones").insert({
-            fecha: finDatePrevStr,
-            cuenta_codigo: "2.2",
-            centro_costo: "Compartido" as any,
-            monto_bs: newCogsUsdAnt * tasaAnt,
-            monto_base_bs: newCogsUsdAnt * tasaAnt,
-            iva_bs: 0,
-            tasa_bcv: tasaAnt,
-            monto_usd: newCogsUsdAnt,
-            metodo_pago: "transferencia" as any,
-            modo: "on_balance" as any,
-            referencia: `CIERRE-${periodoAnterior}`,
-            notas: `COGS recalculado tras ajuste de inventario inicial de ${periodo}`,
-            created_by: user.id,
-          } as any);
+        try {
+          const r = await recalcCierre({ data: { periodo: periodoAnterior } });
+          if (r) {
+            toast.success(
+              `Cierre de ${periodoAnterior} recalculado. COGS: ${fmtUsd(r.cogs_usd)}`,
+            );
+          }
+        } catch (err: any) {
+          toast.error(`Error recalculando ${periodoAnterior}: ${err?.message ?? err}`);
         }
-        toast.success(`Cierre de ${periodoAnterior} actualizado. COGS recalculado: ${fmtUsd(newCogsUsdAnt)}`);
       }
     }
 
     setBusy(false);
     toast.success("Mes cerrado");
     qc.invalidateQueries();
+
   };
 
   const tercerosMap = useMemo(() => {
