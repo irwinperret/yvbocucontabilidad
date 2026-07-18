@@ -17,7 +17,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { Pencil, AlertTriangle, Trash2 } from "lucide-react";
+import { Pencil, AlertTriangle, Trash2, Link as LinkIcon } from "lucide-react";
 import { fmtUsd, fmtBs } from "@/lib/format";
 import { editarInventarioSnapshot, borrarInventarioSnapshot } from "@/lib/inventario.functions";
 import {
@@ -112,6 +112,13 @@ function InventariosPage() {
       }));
   }, [grouped]);
 
+  const groupedMap = useMemo(() => {
+    const m = new Map<string, { inicial: Snap | null; final: Snap | null }>();
+    grouped.forEach((g) => m.set(g.periodo, { inicial: g.inicial, final: g.final }));
+    return m;
+  }, [grouped]);
+
+
   const [editing, setEditing] = useState<Snap | null>(null);
   const [draft, setDraft] = useState({ monto_usd: "", monto_bs: "", tasa_bcv: "", notas: "" });
   const [busy, setBusy] = useState(false);
@@ -147,12 +154,15 @@ function InventariosPage() {
       montoBs = Math.round(montoUsd * tasa * 100) / 100;
     }
 
-    const cascade = s.tipo === "final";
+    const cascadeNext = s.tipo === "final";
+    const cascadePrev = s.tipo === "inicial";
+    const vecino = cascadeNext ? shiftPeriodo(s.periodo, 1) : shiftPeriodo(s.periodo, -1);
+    const cascadeMsg = cascadeNext
+      ? `Al modificar el inventario final de ${periodoLabel(s.periodo)}, se actualizará automáticamente el inventario inicial de ${periodoLabel(vecino)} a ${fmtUsd(montoUsd)}.`
+      : `Al modificar el inventario inicial de ${periodoLabel(s.periodo)}, se actualizará automáticamente el inventario final de ${periodoLabel(vecino)} a ${fmtUsd(montoUsd)}.`;
     const confirmMsg =
-      `Modificar este inventario requiere reabrir el cierre de ${periodoLabel(s.periodo)}, recalcular el COGS y volver a cerrar.` +
-      (cascade
-        ? `\n\nComo es un inventario FINAL, también se actualizará el inventario INICIAL del mes siguiente (si existe) y se recalculará su COGS.`
-        : "") +
+      `Modificar este inventario requiere reabrir el cierre de ${periodoLabel(s.periodo)}, recalcular el COGS y volver a cerrar.\n\n` +
+      cascadeMsg +
       `\n\n¿Deseas continuar?`;
     if (!confirm(confirmMsg)) return;
 
@@ -165,15 +175,19 @@ function InventariosPage() {
           monto_bs: montoBs,
           tasa_bcv: tasa,
           notas: draft.notas || null,
-          cascade_next_month: cascade,
+          cascade_next_month: cascadeNext,
+          cascade_prev_month: cascadePrev,
         },
       });
       const cogs = r.primary?.cogs_usd ?? 0;
       const msgs = [
-        `Inventario actualizado. COGS recalculado: ${fmtUsd(cogs)}. Cierre de ${periodoLabel(s.periodo)} actualizado automáticamente.`,
+        `Inventario actualizado. COGS recalculado: ${fmtUsd(cogs)}. Cierre de ${periodoLabel(s.periodo)} actualizado.`,
       ];
-      if (r.cascaded) {
-        msgs.push(`También se recalculó el cierre de ${periodoLabel(r.cascaded.periodo)} (COGS: ${fmtUsd(r.cascaded.cogs_usd)}).`);
+      if (r.cascaded_next) {
+        msgs.push(`Cierre de ${periodoLabel(r.cascaded_next.periodo)} recalculado (COGS: ${fmtUsd(r.cascaded_next.cogs_usd)}).`);
+      }
+      if (r.cascaded_prev) {
+        msgs.push(`Cierre de ${periodoLabel(r.cascaded_prev.periodo)} recalculado (COGS: ${fmtUsd(r.cascaded_prev.cogs_usd)}).`);
       }
       toast.success(msgs.join(" "));
       close();
@@ -185,6 +199,16 @@ function InventariosPage() {
       setBusy(false);
     }
   };
+
+  const scrollToRow = (periodo: string) => {
+    const el = document.getElementById(`inv-row-${periodo}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("bg-accent/40");
+    setTimeout(() => el.classList.remove("bg-accent/40"), 1500);
+  };
+
+
 
   const handleDelete = async (s: Snap | null) => {
     if (!s) return;
@@ -319,17 +343,40 @@ function InventariosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {grouped.map((row) => (
-                    <tr key={row.periodo} className="border-b last:border-0">
+                  {grouped.map((row) => {
+                    const prev = shiftPeriodo(row.periodo, -1);
+                    const next = shiftPeriodo(row.periodo, 1);
+                    const prevFinal = groupedMap.get(prev)?.final ?? null;
+                    const nextInicial = groupedMap.get(next)?.inicial ?? null;
+                    return (
+                    <tr id={`inv-row-${row.periodo}`} key={row.periodo} className="border-b last:border-0 transition-colors">
                       <td className="py-2 mono">{row.periodo}</td>
 
                       {/* Inicial */}
                       <td className="py-2 text-right mono border-l pl-2">
-                        {row.inicial ? fmtUsd(Number(row.inicial.monto_usd) || 0) : <span className="text-muted-foreground/60">—</span>}
+                        {row.inicial ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            {row.inicial && (
+                              prevFinal ? (
+                                <button
+                                  type="button"
+                                  onClick={() => scrollToRow(prev)}
+                                  className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-muted/40 hover:bg-muted px-1 py-0.5 text-[10px] text-muted-foreground"
+                                  title={`Vinculado con el inventario final de ${periodoLabel(prev)}`}
+                                >
+                                  <LinkIcon className="h-2.5 w-2.5" />← {periodoLabel(prev).split(" de ")[0]}
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 rounded border border-border/40 bg-muted/20 px-1 py-0.5 text-[10px] text-muted-foreground/60" title="Sin snapshot final del mes anterior">
+                                  sin vínculo
+                                </span>
+                              )
+                            )}
+                            <span>{fmtUsd(Number(row.inicial.monto_usd) || 0)}</span>
+                          </div>
+                        ) : <span className="text-muted-foreground/60">—</span>}
                       </td>
-                      <td className="py-2 text-right mono">
-                        {row.inicial ? fmtBs(Number(row.inicial.monto_bs) || 0) : <span className="text-muted-foreground/60">—</span>}
-                      </td>
+
                       <td className="py-2 text-right mono">
                         {row.inicial?.tasa_bcv != null ? Number(row.inicial.tasa_bcv).toFixed(4) : <span className="text-muted-foreground/60">—</span>}
                       </td>
@@ -363,8 +410,27 @@ function InventariosPage() {
 
                       {/* Final */}
                       <td className="py-2 text-right mono border-l pl-2">
-                        {row.final ? fmtUsd(Number(row.final.monto_usd) || 0) : <span className="text-muted-foreground/60">—</span>}
+                        {row.final ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span>{fmtUsd(Number(row.final.monto_usd) || 0)}</span>
+                            {nextInicial ? (
+                              <button
+                                type="button"
+                                onClick={() => scrollToRow(next)}
+                                className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-muted/40 hover:bg-muted px-1 py-0.5 text-[10px] text-muted-foreground"
+                                title={`Vinculado con el inventario inicial de ${periodoLabel(next)}`}
+                              >
+                                <LinkIcon className="h-2.5 w-2.5" />→ {periodoLabel(next).split(" de ")[0]}
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 rounded border border-border/40 bg-muted/20 px-1 py-0.5 text-[10px] text-muted-foreground/60" title="Sin snapshot inicial del mes siguiente">
+                                sin vínculo
+                              </span>
+                            )}
+                          </div>
+                        ) : <span className="text-muted-foreground/60">—</span>}
                       </td>
+
                       <td className="py-2 text-right mono">
                         {row.final ? fmtBs(Number(row.final.monto_bs) || 0) : <span className="text-muted-foreground/60">—</span>}
                       </td>
@@ -399,7 +465,9 @@ function InventariosPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
+
                   {grouped.length === 0 && (
                     <tr>
                       <td colSpan={9} className="py-6 text-center text-muted-foreground">
