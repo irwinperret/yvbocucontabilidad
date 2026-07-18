@@ -17,7 +17,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { Pencil, AlertTriangle, Trash2 } from "lucide-react";
+import { Pencil, AlertTriangle, Trash2, Link as LinkIcon } from "lucide-react";
 import { fmtUsd, fmtBs } from "@/lib/format";
 import { editarInventarioSnapshot, borrarInventarioSnapshot } from "@/lib/inventario.functions";
 import {
