@@ -3884,12 +3884,14 @@ function CierreForm() {
 
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
-  // Invariante: monto_bs = monto_usd × tasa BCV promedio del período.
-  // COGS en Bs = iniBs + comprasNetoBs − finBs; USD paralelo = cogsBs / paralelaPromedio.
-  const iniBsCierre = iniUsd * (tasaPromedio || 0);
-  const finBsCierre = finUsd * (tasaPromedio || 0);
-  const cogs = tasaPromedio ? iniBsCierre + totalComprasNetoBs - finBsCierre : 0;
+  // Invariante nueva: monto_bs del inventario inicial usa la tasa BCV del PRIMER día del mes,
+  // y el inventario final usa la tasa BCV del ÚLTIMO día del mes. Las compras se dejan tal
+  // como se registraron. COGS en Bs = iniBs + comprasNetoBs − finBs; USD paralelo = cogsBs / paralelaPromedio.
+  const iniBsCierre = iniUsd * (tasaBcvIniN || 0);
+  const finBsCierre = finUsd * (tasaBcvFinN || 0);
+  const cogs = tasaBcvIniN || tasaBcvFinN ? iniBsCierre + totalComprasNetoBs - finBsCierre : 0;
   const cogsUsd = paralelaPromedio > 0 ? cogs / paralelaPromedio : 0;
+
 
 
   const addCompra = async (e: React.FormEvent) => {
