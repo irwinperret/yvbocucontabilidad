@@ -272,10 +272,17 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
       cascadedNextPeriodo = nextPeriodo;
     }
 
-    // Cascada: inicial → mes anterior final
+    // Cascada: inicial → mes anterior final (usa tasa BCV del último día del mes anterior)
     if (tipo === "inicial" && data.cascade_prev_month) {
       const prevPeriodo = shiftPeriodo(periodo, -1);
-      const tasaBcvPrev = (await fetchTasaBcvPromedio(supabase, prevPeriodo)) || Number(data.tasa_bcv) || 0;
+      // Fecha = último día del mes anterior
+      const [y, m] = prevPeriodo.split("-").map(Number);
+      const finPrev = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+      const tasaBcvPrev =
+        (await fetchTasaBcvOnOrBefore(supabase, finPrev)) ||
+        (await fetchTasaBcvPromedio(supabase, prevPeriodo)) ||
+        Number(data.tasa_bcv) ||
+        0;
       const prevMontoBs = r2(data.monto_usd * tasaBcvPrev);
 
       // Fecha = último día del mes anterior
