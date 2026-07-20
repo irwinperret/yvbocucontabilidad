@@ -48,6 +48,18 @@ async function fetchTasaBcvPromedio(supabase: any, periodo: string): Promise<num
   return sum / arr.length;
 }
 
+// Última tasa BCV registrada en o antes de `fecha` (YYYY-MM-DD).
+async function fetchTasaBcvOnOrBefore(supabase: any, fecha: string): Promise<number> {
+  const { data } = await supabase
+    .from("tasas_bcv")
+    .select("tasa")
+    .lte("fecha", fecha)
+    .order("fecha", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return Number((data as any)?.tasa) || 0;
+}
+
 async function fetchParalelaPromedio(supabase: any, periodo: string): Promise<number> {
   const { from, to } = periodBoundaries(periodo);
   const { data } = await supabase
@@ -73,11 +85,16 @@ async function recalcCierreForPeriod(
     .maybeSingle();
   if (!cierre) return null;
 
-  const { to } = periodBoundaries(periodo);
+  const { from, to } = periodBoundaries(periodo);
 
   // Tasa BCV promedio: usar la del cierre si existe; si no, promedio real del período.
   let tasaBcvProm = Number((cierre as any).tasa_bcv_promedio) || 0;
   if (!tasaBcvProm) tasaBcvProm = await fetchTasaBcvPromedio(supabase, periodo);
+
+  // Tasas BCV específicas: primer día (para inv. inicial) y último día (para inv. final).
+  // Si no hay tasa exacta, usamos la última registrada en o antes de esa fecha.
+  const tasaBcvIni = (await fetchTasaBcvOnOrBefore(supabase, from)) || tasaBcvProm;
+  const tasaBcvFin = (await fetchTasaBcvOnOrBefore(supabase, to)) || tasaBcvProm;
 
   // Paralela promedio del período (para expresar COGS en USD paralelo).
   const paralelaProm = await fetchParalelaPromedio(supabase, periodo);
@@ -99,16 +116,16 @@ async function recalcCierreForPeriod(
       .from("transacciones")
       .select("monto_bs, monto_base_bs")
       .eq("cuenta_codigo", "2.1")
-      .gte("fecha", periodBoundaries(periodo).from)
+      .gte("fecha", from)
       .lte("fecha", to),
   ]);
 
   const iniUsd = Number((iniSnap as any)?.monto_usd) || 0;
   const finUsd = Number((finSnap as any)?.monto_usd) || 0;
 
-  // Bs derivado de USD × tasa BCV promedio del período (invariante).
-  const iniBs = r2(iniUsd * tasaBcvProm);
-  const finBs = r2(finUsd * tasaBcvProm);
+  // Bs derivado de USD × tasa BCV del día específico (primer/último día del mes).
+  const iniBs = r2(iniUsd * tasaBcvIni);
+  const finBs = r2(finUsd * tasaBcvFin);
 
   const comprasNetoBs = (compras ?? []).reduce(
     (s: number, r: any) => s + (Number(r.monto_base_bs) || Number(r.monto_bs) || 0),
@@ -125,13 +142,13 @@ async function recalcCierreForPeriod(
   if (iniSnap) {
     await supabase
       .from("inventario_snapshots")
-      .update({ monto_bs: iniBs, tasa_bcv: tasaBcvProm || null } as any)
+      .update({ monto_bs: iniBs, tasa_bcv: tasaBcvIni || null } as any)
       .eq("id", (iniSnap as any).id);
   }
   if (finSnap) {
     await supabase
       .from("inventario_snapshots")
-      .update({ monto_bs: finBs, tasa_bcv: tasaBcvProm || null } as any)
+      .update({ monto_bs: finBs, tasa_bcv: tasaBcvFin || null } as any)
       .eq("id", (finSnap as any).id);
   }
 
@@ -215,10 +232,15 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
     let cascadedNextPeriodo: string | null = null;
     let cascadedPrevPeriodo: string | null = null;
 
-    // Cascada: final → siguiente inicial
+    // Cascada: final → siguiente inicial (usa tasa BCV del primer día del mes siguiente)
     if (tipo === "final" && data.cascade_next_month) {
       const nextPeriodo = shiftPeriodo(periodo, 1);
-      const tasaBcvNext = (await fetchTasaBcvPromedio(supabase, nextPeriodo)) || Number(data.tasa_bcv) || 0;
+      const nextFirstDay = `${nextPeriodo}-01`;
+      const tasaBcvNext =
+        (await fetchTasaBcvOnOrBefore(supabase, nextFirstDay)) ||
+        (await fetchTasaBcvPromedio(supabase, nextPeriodo)) ||
+        Number(data.tasa_bcv) ||
+        0;
       const nextMontoBs = r2(data.monto_usd * tasaBcvNext);
 
       const { data: nextIni } = await supabase
@@ -244,21 +266,26 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
           monto_bs: nextMontoBs,
           tasa_bcv: tasaBcvNext || null,
           registrado_por: userId,
-          fecha: `${nextPeriodo}-01`,
+          fecha: nextFirstDay,
         } as any);
       }
       cascadedNextPeriodo = nextPeriodo;
     }
 
-    // Cascada: inicial → mes anterior final
+    // Cascada: inicial → mes anterior final (usa tasa BCV del último día del mes anterior)
     if (tipo === "inicial" && data.cascade_prev_month) {
       const prevPeriodo = shiftPeriodo(periodo, -1);
-      const tasaBcvPrev = (await fetchTasaBcvPromedio(supabase, prevPeriodo)) || Number(data.tasa_bcv) || 0;
-      const prevMontoBs = r2(data.monto_usd * tasaBcvPrev);
-
       // Fecha = último día del mes anterior
       const [y, m] = prevPeriodo.split("-").map(Number);
       const finPrev = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+      const tasaBcvPrev =
+        (await fetchTasaBcvOnOrBefore(supabase, finPrev)) ||
+        (await fetchTasaBcvPromedio(supabase, prevPeriodo)) ||
+        Number(data.tasa_bcv) ||
+        0;
+      const prevMontoBs = r2(data.monto_usd * tasaBcvPrev);
+
+
 
       const { data: prevFin } = await supabase
         .from("inventario_snapshots")
