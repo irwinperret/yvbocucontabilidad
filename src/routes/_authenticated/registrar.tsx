@@ -3789,6 +3789,43 @@ function CierreForm() {
   }, [tasasMes]);
   void bcvByFecha;
 
+  // Tasas BCV específicas: primer día del mes (inv. inicial) y último día del mes (inv. final).
+  // Si no hay tasa exacta ese día, tomamos la última registrada en o antes de esa fecha.
+  const primerDiaMes = `${periodo}-01`;
+  const ultimoDiaMes = useMemo(() => {
+    const [y, m] = periodo.split("-").map(Number);
+    return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  }, [periodo]);
+  const { data: tasaBcvIniDia } = useQuery({
+    queryKey: ["tasa-bcv-on-or-before", primerDiaMes],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasas_bcv")
+        .select("fecha, tasa")
+        .lte("fecha", primerDiaMes)
+        .order("fecha", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data as { fecha: string; tasa: number } | null;
+    },
+  });
+  const { data: tasaBcvFinDia } = useQuery({
+    queryKey: ["tasa-bcv-on-or-before", ultimoDiaMes],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasas_bcv")
+        .select("fecha, tasa")
+        .lte("fecha", ultimoDiaMes)
+        .order("fecha", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data as { fecha: string; tasa: number } | null;
+    },
+  });
+  const tasaBcvIniN = Number(tasaBcvIniDia?.tasa) || 0;
+  const tasaBcvFinN = Number(tasaBcvFinDia?.tasa) || 0;
+
+
   // Paralela promedio del período: se usa para expresar el COGS en USD paralelo
   // (mismo criterio que el resto de la contabilidad de G&P).
   const { data: paralelasMes } = useQuery({
