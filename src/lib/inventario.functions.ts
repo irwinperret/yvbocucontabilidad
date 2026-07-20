@@ -232,10 +232,15 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
     let cascadedNextPeriodo: string | null = null;
     let cascadedPrevPeriodo: string | null = null;
 
-    // Cascada: final → siguiente inicial
+    // Cascada: final → siguiente inicial (usa tasa BCV del primer día del mes siguiente)
     if (tipo === "final" && data.cascade_next_month) {
       const nextPeriodo = shiftPeriodo(periodo, 1);
-      const tasaBcvNext = (await fetchTasaBcvPromedio(supabase, nextPeriodo)) || Number(data.tasa_bcv) || 0;
+      const nextFirstDay = `${nextPeriodo}-01`;
+      const tasaBcvNext =
+        (await fetchTasaBcvOnOrBefore(supabase, nextFirstDay)) ||
+        (await fetchTasaBcvPromedio(supabase, nextPeriodo)) ||
+        Number(data.tasa_bcv) ||
+        0;
       const nextMontoBs = r2(data.monto_usd * tasaBcvNext);
 
       const { data: nextIni } = await supabase
@@ -261,7 +266,7 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
           monto_bs: nextMontoBs,
           tasa_bcv: tasaBcvNext || null,
           registrado_por: userId,
-          fecha: `${nextPeriodo}-01`,
+          fecha: nextFirstDay,
         } as any);
       }
       cascadedNextPeriodo = nextPeriodo;
