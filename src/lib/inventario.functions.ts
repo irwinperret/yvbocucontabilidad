@@ -85,11 +85,16 @@ async function recalcCierreForPeriod(
     .maybeSingle();
   if (!cierre) return null;
 
-  const { to } = periodBoundaries(periodo);
+  const { from, to } = periodBoundaries(periodo);
 
   // Tasa BCV promedio: usar la del cierre si existe; si no, promedio real del período.
   let tasaBcvProm = Number((cierre as any).tasa_bcv_promedio) || 0;
   if (!tasaBcvProm) tasaBcvProm = await fetchTasaBcvPromedio(supabase, periodo);
+
+  // Tasas BCV específicas: primer día (para inv. inicial) y último día (para inv. final).
+  // Si no hay tasa exacta, usamos la última registrada en o antes de esa fecha.
+  const tasaBcvIni = (await fetchTasaBcvOnOrBefore(supabase, from)) || tasaBcvProm;
+  const tasaBcvFin = (await fetchTasaBcvOnOrBefore(supabase, to)) || tasaBcvProm;
 
   // Paralela promedio del período (para expresar COGS en USD paralelo).
   const paralelaProm = await fetchParalelaPromedio(supabase, periodo);
@@ -111,16 +116,16 @@ async function recalcCierreForPeriod(
       .from("transacciones")
       .select("monto_bs, monto_base_bs")
       .eq("cuenta_codigo", "2.1")
-      .gte("fecha", periodBoundaries(periodo).from)
+      .gte("fecha", from)
       .lte("fecha", to),
   ]);
 
   const iniUsd = Number((iniSnap as any)?.monto_usd) || 0;
   const finUsd = Number((finSnap as any)?.monto_usd) || 0;
 
-  // Bs derivado de USD × tasa BCV promedio del período (invariante).
-  const iniBs = r2(iniUsd * tasaBcvProm);
-  const finBs = r2(finUsd * tasaBcvProm);
+  // Bs derivado de USD × tasa BCV del día específico (primer/último día del mes).
+  const iniBs = r2(iniUsd * tasaBcvIni);
+  const finBs = r2(finUsd * tasaBcvFin);
 
   const comprasNetoBs = (compras ?? []).reduce(
     (s: number, r: any) => s + (Number(r.monto_base_bs) || Number(r.monto_bs) || 0),
@@ -137,13 +142,13 @@ async function recalcCierreForPeriod(
   if (iniSnap) {
     await supabase
       .from("inventario_snapshots")
-      .update({ monto_bs: iniBs, tasa_bcv: tasaBcvProm || null } as any)
+      .update({ monto_bs: iniBs, tasa_bcv: tasaBcvIni || null } as any)
       .eq("id", (iniSnap as any).id);
   }
   if (finSnap) {
     await supabase
       .from("inventario_snapshots")
-      .update({ monto_bs: finBs, tasa_bcv: tasaBcvProm || null } as any)
+      .update({ monto_bs: finBs, tasa_bcv: tasaBcvFin || null } as any)
       .eq("id", (finSnap as any).id);
   }
 
