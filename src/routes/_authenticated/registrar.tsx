@@ -4167,6 +4167,8 @@ function CierreForm() {
     const tasaBcv = tasaPromedio;
     if (!tasaBcv) return toast.error("No hay tasas BCV registradas en el período");
     if (!paralelaPromedio) return toast.error("No hay tasas paralelas registradas en el período");
+    if (!tasaBcvIniN) return toast.error(`No hay tasa BCV registrada para ${primerDiaMes} o anterior`);
+    if (!tasaBcvFinN) return toast.error(`No hay tasa BCV registrada para ${ultimoDiaMes} o anterior`);
     if (!invIniUsd) return toast.error("Ingresa el inventario inicial USD (a tasa BCV)");
     if (!invFinUsd) return toast.error("Ingresa el inventario final USD (a tasa BCV)");
 
@@ -4181,9 +4183,9 @@ function CierreForm() {
 
     setBusy(true);
 
-    // Bs derivado de USD × BCV promedio (invariante).
-    const iniBs = iniUsd * tasaBcv;
-    const finBs = finUsd * tasaBcv;
+    // Bs derivado de USD × tasa BCV del día específico (primer/último día del mes).
+    const iniBs = iniUsd * tasaBcvIniN;
+    const finBs = finUsd * tasaBcvFinN;
     const cogsBs = iniBs + totalComprasNetoBs - finBs;
     const cogsUsdParalelo = paralelaPromedio > 0 ? cogsBs / paralelaPromedio : 0;
 
@@ -4207,14 +4209,14 @@ function CierreForm() {
       return toast.error(error.message);
     }
 
-    // Upsert snapshots inicial/final del período: monto_bs = USD × BCV promedio
+    // Upsert snapshots inicial/final del período: monto_bs = USD × BCV del día específico
     await supabase.from("inventario_snapshots").upsert(
       {
         periodo,
         tipo: "inicial",
         monto_bs: iniBs,
         monto_usd: iniUsd,
-        tasa_bcv: tasaBcv || null,
+        tasa_bcv: tasaBcvIniN || null,
         registrado_por: user.id,
         fecha: `${periodo}-01`,
       } as any,
@@ -4229,12 +4231,13 @@ function CierreForm() {
         tipo: "final",
         monto_bs: finBs,
         monto_usd: finUsd,
-        tasa_bcv: tasaBcv || null,
+        tasa_bcv: tasaBcvFinN || null,
         registrado_por: user.id,
         fecha: finDateSnap.toISOString().slice(0, 10),
       } as any,
       { onConflict: "periodo,tipo" },
     );
+
 
     // Postear COGS como transacción 2.2
     if (cogsBs && Math.abs(cogsBs) > 0.01) {
