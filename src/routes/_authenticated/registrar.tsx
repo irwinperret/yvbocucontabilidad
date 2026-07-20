@@ -4270,13 +4270,24 @@ function CierreForm() {
       finDatePrev.setDate(0);
       const finDatePrevStr = finDatePrev.toISOString().slice(0, 10);
 
-      // Tasa BCV promedio del mes anterior (si tiene cierre, la tomará de ahí; si no, se calculará dentro del recalc).
+      // Tasa BCV del último día del mes anterior (si no hay, buscamos la última en o antes de esa fecha).
       const { data: cierrePrev } = await supabase
         .from("cierres_de_mes")
         .select("id, tasa_bcv_promedio")
         .eq("periodo", periodoAnterior)
         .maybeSingle();
-      const tasaAnt = Number((cierrePrev as any)?.tasa_bcv_promedio) || tasaBcv;
+      const { data: tasaPrevDia } = await supabase
+        .from("tasas_bcv")
+        .select("tasa")
+        .lte("fecha", finDatePrevStr)
+        .order("fecha", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const tasaAnt =
+        Number((tasaPrevDia as any)?.tasa) ||
+        Number((cierrePrev as any)?.tasa_bcv_promedio) ||
+        tasaBcvFinN ||
+        tasaBcv;
 
       await supabase.from("inventario_snapshots").upsert(
         {
@@ -4290,6 +4301,7 @@ function CierreForm() {
         } as any,
         { onConflict: "periodo,tipo" },
       );
+
 
       if (cierrePrev) {
         try {
