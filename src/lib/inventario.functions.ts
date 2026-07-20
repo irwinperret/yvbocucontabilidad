@@ -285,9 +285,7 @@ export const editarInventarioSnapshot = createServerFn({ method: "POST" })
         0;
       const prevMontoBs = r2(data.monto_usd * tasaBcvPrev);
 
-      // Fecha = último día del mes anterior
-      const [y, m] = prevPeriodo.split("-").map(Number);
-      const finPrev = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+
 
       const { data: prevFin } = await supabase
         .from("inventario_snapshots")
