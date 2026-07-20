@@ -4748,6 +4748,34 @@ function CierreForm() {
               </div>
             )}
           </div>
+          <div className="md:col-span-2 rounded-md border border-blue-300 bg-blue-50 text-blue-900 text-xs p-2.5">
+            💡 <strong>Valoración del inventario:</strong> el inventario <strong>inicial</strong> se valora a la
+            tasa BCV del primer día del mes ({primerDiaMes}
+            {tasaBcvIniN ? (
+              <>
+                {" "}
+                = <span className="mono font-semibold">{tasaBcvIniN.toFixed(4)}</span>
+                {tasaBcvIniDia?.fecha && tasaBcvIniDia.fecha !== primerDiaMes && (
+                  <span className="text-blue-700"> · última disponible: {tasaBcvIniDia.fecha}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-red-700"> · sin tasa registrada</span>
+            )}
+            ) y el inventario <strong>final</strong> a la tasa BCV del último día del mes ({ultimoDiaMes}
+            {tasaBcvFinN ? (
+              <>
+                {" "}
+                = <span className="mono font-semibold">{tasaBcvFinN.toFixed(4)}</span>
+                {tasaBcvFinDia?.fecha && tasaBcvFinDia.fecha !== ultimoDiaMes && (
+                  <span className="text-blue-700"> · última disponible: {tasaBcvFinDia.fecha}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-red-700"> · sin tasa registrada</span>
+            )}
+            ). Las compras del mes conservan la tasa BCV del día en que se registraron.
+          </div>
           <div>
             <Label>Inventario inicial USD (BCV) </Label>
             <Input
@@ -4761,6 +4789,11 @@ function CierreForm() {
               className="mono"
               placeholder="0.00"
             />
+            {tasaBcvIniN > 0 && iniUsd > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                ≈ <span className="mono">{fmtBs(iniUsd * tasaBcvIniN)}</span> @ {tasaBcvIniN.toFixed(4)}
+              </p>
+            )}
           </div>
           <div>
             <Label>Inventario final USD (BCV) </Label>
@@ -4772,7 +4805,13 @@ function CierreForm() {
               className="mono"
               placeholder="0.00"
             />
+            {tasaBcvFinN > 0 && finUsd > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                ≈ <span className="mono">{fmtBs(finUsd * tasaBcvFinN)}</span> @ {tasaBcvFinN.toFixed(4)}
+              </p>
+            )}
           </div>
+
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 flex flex-col gap-1 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">
