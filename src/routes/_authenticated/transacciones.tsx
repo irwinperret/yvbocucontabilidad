@@ -615,6 +615,20 @@ function TransaccionesPage() {
 
   return (
     <div className="space-y-6">
+      <Dialog open={!!reabrirPeriodo} onOpenChange={(o) => { if (!o) setReabrirPeriodo(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reabrir mes {reabrirPeriodo}</DialogTitle>
+            <DialogDescription>
+              Al reabrir el mes podrás editar y borrar transacciones de ese período. Recuerda volver a cerrarlo cuando termines para preservar la integridad contable.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReabrirPeriodo(null)}>Cancelar</Button>
+            <Button onClick={confirmarReabrir}>Reabrir mes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Transacciones</h1>
         <div className="mt-1"><UsdRateBadge /></div>
