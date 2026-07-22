@@ -35,6 +35,7 @@ import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
 import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { PagarCxPInline } from "@/components/pagar-cxp-inline";
+import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 
 const CUENTA_PAGO_CXP = "13.2";
 
@@ -102,6 +103,7 @@ function RegistrarPage() {
   const current = tab ?? "ventas";
 
   return (
+    <MesCerradoProvider>
     <div className="space-y-6 max-w-4xl">
       <CierrePendienteBanner />
       <div>
@@ -155,12 +157,14 @@ function RegistrarPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </MesCerradoProvider>
   );
 }
 
 /* ---------------- VENTAS ---------------- */
 function VentasForm() {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [centro, setCentro] = useState<Centro>("YV");
@@ -441,6 +445,7 @@ function VentasForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
 
     // ====== Rama especial: Ajuste off-balance ======
     if (tipo === "ajuste_off") {
@@ -1357,6 +1362,7 @@ function GastosForm() {
 
 function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const { data: terceros } = useTerceros();
   const [fecha, setFecha] = useState(todayISO());
@@ -1389,6 +1395,7 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!terceroId) return toast.error("Selecciona proveedor");
     if (!montoBsN) return toast.error("Falta monto Bs");
     if (!tasaN) return toast.error("Falta tasa BCV");
@@ -1532,6 +1539,7 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
 
 function GastosFacturaForm() {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const { data: cuentas } = useCuentas();
   const { data: terceros } = useTerceros();
@@ -1654,6 +1662,7 @@ function GastosFacturaForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!cuenta) return toast.error("Selecciona cuenta");
     if (!tasaN) return toast.error("Falta tasa");
     if (!numFactura) return toast.error("N° factura obligatorio");
@@ -2249,6 +2258,7 @@ function NominaForm() {
 
 function NominaRegularForm() {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const today = new Date();
   const [quincena, setQuincena] = useState<"Q1" | "Q2">(today.getDate() <= 15 ? "Q1" : "Q2");
@@ -2328,6 +2338,7 @@ function NominaRegularForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!tasaConvN) return toast.error("No hay tasa paralela ni BCV para esa fecha");
     if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria de pago");
     const lineas = buildLineas();
@@ -2492,6 +2503,7 @@ function NominaRegularForm() {
 
 function NominaChefForm() {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const today = new Date();
   const [quincena, setQuincena] = useState<"Q1" | "Q2">(today.getDate() <= 15 ? "Q1" : "Q2");
@@ -2552,6 +2564,7 @@ function NominaChefForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!tasaConvN) return toast.error("No hay tasa paralela ni BCV para esa fecha");
     if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria de pago");
     const lineas = buildLineas();
@@ -2715,6 +2728,7 @@ function NominaChefForm() {
 /* ---------------- OPS IVA ---------------- */
 function OpsIvaForm() {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [montoBs, setMontoBs] = useState("");
@@ -2742,6 +2756,7 @@ function OpsIvaForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!total) return toast.error("Monto requerido");
     if (!tasaConvN) return toast.error("Falta tasa paralela");
 
@@ -2902,6 +2917,7 @@ type CcoKey = (typeof CCO_AT)[number]["key"];
 
 function ActivosTransitoriosForm({ tipo, setTipo }: { tipo: ActTipo; setTipo: (v: any) => void }) {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const cfg = ACT_TRANS[tipo];
   const [movimiento, setMovimiento] = useState<"salida" | "entrada">("salida");
@@ -2957,6 +2973,7 @@ function ActivosTransitoriosForm({ tipo, setTipo }: { tipo: ActTipo; setTipo: (v
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!empleado.trim()) return toast.error("Falta nombre del empleado");
     if (!montoBsN) return toast.error("Falta monto en Bs");
     if (!tasaN) return toast.error("Falta tasa");
@@ -3200,6 +3217,7 @@ function FinanciamientoBaseForm({
   setTipo: (v: any) => void;
 }) {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [moneda, setMoneda] = useState<"BS" | "USD">("BS");
@@ -3270,6 +3288,7 @@ function FinanciamientoBaseForm({
     e.preventDefault();
     if (!user || !tasaConvN) return toast.error("Falta tasa paralela");
     if (muestraBanco && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
+    if (!(await ensurePeriodoAbierto(fecha))) return;
     setBusy(true);
     try {
       if (tipo === "pago_cuota") {
@@ -3539,6 +3558,7 @@ function FinanciamientoBaseForm({
 /* ---------------- CIERRE DE MES ---------------- */
 function CierreForm() {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const recalcCierre = useServerFn(recalcCierrePeriodo);
   const { data: terceros } = useTerceros();
@@ -3897,6 +3917,7 @@ function CierreForm() {
   const addCompra = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(compraFecha))) return;
     const tasaN = Number(compraTasa) || 0;
     if (!compraNetoInput) return toast.error("Monto neto requerido");
     if (!tasaN) return toast.error("Tasa requerida");
@@ -5336,6 +5357,7 @@ const LIQ_SECCIONES = [
 
 function LiquidacionesForm() {
   const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(todayISO());
   const [empleado, setEmpleado] = useState("");
@@ -5376,6 +5398,7 @@ function LiquidacionesForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!empleado.trim()) return toast.error("Falta nombre del empleado");
     if (!montoBsN) return toast.error("Falta monto en Bs");
     if (!tasaN) return toast.error("Falta tasa paralela");
