@@ -28,6 +28,7 @@ import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { useAuth } from "@/lib/auth-context";
 
 const WIPE_ALLOWED_EMAILS = ["irwinperret@hotmail.com", "irwinperret@gmail.com"];
+const REOPEN_ALLOWED_EMAILS = ["irwinperret@hotmail.com", "irwinperret@gmail.com", "castillo_iris@yahoo.com"];
 
 export const Route = createFileRoute("/_authenticated/transacciones")({
   component: TransaccionesPage,
@@ -110,6 +111,36 @@ function TransaccionesPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const canWipeAll = !!user?.email && WIPE_ALLOWED_EMAILS.includes(user.email.toLowerCase());
+  const canReopen = !!user?.email && REOPEN_ALLOWED_EMAILS.includes(user.email.toLowerCase());
+  const [reabrirPeriodo, setReabrirPeriodo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const per = params.get("reabrir");
+    if (per && /^\d{4}-\d{2}$/.test(per)) {
+      setReabrirPeriodo(per);
+      // Limpiar el query param
+      const url = new URL(window.location.href);
+      url.searchParams.delete("reabrir");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
+
+  const confirmarReabrir = async () => {
+    if (!reabrirPeriodo || !canReopen) { setReabrirPeriodo(null); return; }
+    const { error } = await supabase
+      .from("cierres_de_mes")
+      .update({ estado: "abierto" } as any)
+      .eq("periodo", reabrirPeriodo);
+    if (error) {
+      toast.error("No se pudo reabrir el mes: " + error.message);
+    } else {
+      toast.success(`Mes ${reabrirPeriodo} reabierto`);
+      qc.invalidateQueries();
+    }
+    setReabrirPeriodo(null);
+  };
 
   const { data: minFecha, isSuccess: minFechaReady } = useQuery({
     queryKey: ["transacciones-min-fecha"],
@@ -584,6 +615,20 @@ function TransaccionesPage() {
 
   return (
     <div className="space-y-6">
+      <Dialog open={!!reabrirPeriodo} onOpenChange={(o) => { if (!o) setReabrirPeriodo(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reabrir mes {reabrirPeriodo}</DialogTitle>
+            <DialogDescription>
+              Al reabrir el mes podrás editar y borrar transacciones de ese período. Recuerda volver a cerrarlo cuando termines para preservar la integridad contable.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReabrirPeriodo(null)}>Cancelar</Button>
+            <Button onClick={confirmarReabrir}>Reabrir mes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Transacciones</h1>
         <div className="mt-1"><UsdRateBadge /></div>
