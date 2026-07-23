@@ -92,14 +92,15 @@ function AnalisisAIPage() {
           </h1>
           <p className="text-sm text-muted-foreground">Diagnóstico y recomendaciones generados por IA a partir de tus datos.</p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2 flex-wrap">
+          <UsdViewToggle />
           <div>
             <Label>Período</Label>
             <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
           </div>
-          <Button onClick={() => m.mutate(periodo)} disabled={m.isPending}>
+          <Button onClick={() => m.mutate({ p: periodo, v: mode })} disabled={m.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${m.isPending ? "animate-spin" : ""}`} />
-            Actualizar análisis
+            Actualizar ({label})
           </Button>
         </div>
       </div>
