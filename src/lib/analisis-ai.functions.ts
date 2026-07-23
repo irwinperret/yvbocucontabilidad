@@ -84,7 +84,8 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       return { empty: true as const, snapshot: businessSnapshot };
     }
 
-    const prompt = `Eres un consultor financiero experto en restaurantes venezolanos. Analiza los siguientes datos financieros del restaurante YV/Bocú para el período ${businessSnapshot.periodo} y proporciona entre 3 y 5 recomendaciones concretas y accionables basadas en los números.
+    const vistaLabel = vista === "bcv" ? "USD a tasa BCV" : "USD a tasa paralela";
+    const prompt = `Eres un consultor financiero experto en restaurantes venezolanos. Analiza los siguientes datos financieros del restaurante YV/Bocú para el período ${businessSnapshot.periodo} y proporciona entre 3 y 5 recomendaciones concretas y accionables basadas en los números. Todos los montos USD están expresados en ${vistaLabel}.
 
 DATOS FINANCIEROS:
 ${JSON.stringify(businessSnapshot, null, 2)}
@@ -102,6 +103,7 @@ IMPORTANTE - NO incluyas en tu análisis:
 - Comentarios sobre registros off-balance como si fueran sospechosos, no conciliados, o riesgo de distorsión de utilidad
 - Alertas o preocupaciones por CxC, CxP o anticipos en cero
 - Referencias a "días de antigüedad" de off-balance como problema
+- NO compares los ingresos de YV vs Bocú ni hagas recomendaciones basadas en la diferencia entre ambas unidades de negocio (por ejemplo: "equilibrar", "cerrar la brecha", "Bocú vende menos que YV", "impulsar Bocú al nivel de YV"). Son unidades de escala y modelo distintos por diseño; trátalas como negocios independientes.
 Estos campos son puramente informativos y no representan señales de problema en este negocio.`;
 
     const key = process.env.LOVABLE_API_KEY;
