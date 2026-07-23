@@ -52,10 +52,12 @@ function prioridadColor(p: Reco["prioridad"]) {
 
 function AnalisisAIPage() {
   const [periodo, setPeriodo] = useState(currentPeriod());
+  const { mode, label } = useUsdView();
   const generar = useServerFn(generarAnalisisAI);
 
   const m = useMutation({
-    mutationFn: async (p: string) => generar({ data: { periodo: p } }),
+    mutationFn: async (args: { p: string; v: "paralela" | "bcv" }) =>
+      generar({ data: { periodo: args.p, vista: args.v } }),
     onError: (e: any) => {
       const msg = e?.message || "";
       if (msg.includes("Límite")) toast.error(msg);
@@ -65,9 +67,9 @@ function AnalisisAIPage() {
   });
 
   useEffect(() => {
-    m.mutate(periodo);
+    m.mutate({ p: periodo, v: mode });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo]);
+  }, [periodo, mode]);
 
   const result = m.data;
   const parsed = result && !result.empty ? parseAnalysis(result.texto || "") : null;
