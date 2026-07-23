@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { Sparkles, Copy, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { currentPeriod, fmtUsd } from "@/lib/format";
 import { generarAnalisisAI } from "@/lib/analisis-ai.functions";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/analisis-ai")({ component: AnalisisAIPage });
 
