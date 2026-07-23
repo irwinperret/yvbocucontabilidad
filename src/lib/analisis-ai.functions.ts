@@ -2,17 +2,20 @@ import { createServerFn } from "@tanstack/react-start"; // v3
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const InputSchema = z.object({ periodo: z.string().regex(/^\d{4}-\d{2}$/) });
+const InputSchema = z.object({
+  periodo: z.string().regex(/^\d{4}-\d{2}$/),
+  vista: z.enum(["paralela", "bcv"]).optional().default("paralela"),
+});
 
 export const generarAnalisisAI = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { periodo } = data;
+    const { periodo, vista } = data;
 
     // Use DB-side aggregation to avoid Supabase 1000-row limit
-    const { data: snapRaw, error: snapErr } = await supabase.rpc("get_analisis_snapshot", { p_periodo: periodo });
+    const { data: snapRaw, error: snapErr } = await supabase.rpc("get_analisis_snapshot", { p_periodo: periodo, p_vista: vista } as any);
     if (snapErr) throw snapErr;
     const snap = (snapRaw ?? {}) as any;
 
