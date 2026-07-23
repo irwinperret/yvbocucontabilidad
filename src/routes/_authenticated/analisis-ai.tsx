@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { Sparkles, Copy, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { currentPeriod, fmtUsd } from "@/lib/format";
 import { generarAnalisisAI } from "@/lib/analisis-ai.functions";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
+import { useUsdView } from "@/lib/usd-view-context";
 
 export const Route = createFileRoute("/_authenticated/analisis-ai")({ component: AnalisisAIPage });
 
@@ -50,10 +52,12 @@ function prioridadColor(p: Reco["prioridad"]) {
 
 function AnalisisAIPage() {
   const [periodo, setPeriodo] = useState(currentPeriod());
+  const { mode, label } = useUsdView();
   const generar = useServerFn(generarAnalisisAI);
 
   const m = useMutation({
-    mutationFn: async (p: string) => generar({ data: { periodo: p } }),
+    mutationFn: async (args: { p: string; v: "paralela" | "bcv" }) =>
+      generar({ data: { periodo: args.p, vista: args.v } }),
     onError: (e: any) => {
       const msg = e?.message || "";
       if (msg.includes("Límite")) toast.error(msg);
@@ -63,9 +67,9 @@ function AnalisisAIPage() {
   });
 
   useEffect(() => {
-    m.mutate(periodo);
+    m.mutate({ p: periodo, v: mode });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo]);
+  }, [periodo, mode]);
 
   const result = m.data;
   const parsed = result && !result.empty ? parseAnalysis(result.texto || "") : null;
@@ -88,14 +92,15 @@ function AnalisisAIPage() {
           </h1>
           <p className="text-sm text-muted-foreground">Diagnóstico y recomendaciones generados por IA a partir de tus datos.</p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2 flex-wrap">
+          <UsdViewToggle />
           <div>
             <Label>Período</Label>
             <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
           </div>
-          <Button onClick={() => m.mutate(periodo)} disabled={m.isPending}>
+          <Button onClick={() => m.mutate({ p: periodo, v: mode })} disabled={m.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${m.isPending ? "animate-spin" : ""}`} />
-            Actualizar análisis
+            Actualizar ({label})
           </Button>
         </div>
       </div>
