@@ -55,6 +55,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
 
     const businessSnapshot = {
       periodo,
+      vista_usd: vista, // "paralela" o "bcv"
       ingresos_usd: round(snap.ingresos_usd ?? 0),
       cogs_usd: round(snap.cogs_usd ?? 0),
       nomina_usd: round(snap.nomina_usd ?? 0),
