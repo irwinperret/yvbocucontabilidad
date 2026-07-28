@@ -2697,8 +2697,23 @@ function NominaChefForm() {
         </Select>
       </div>
 
+      <div>
+        <Label>Fecha de pago</Label>
+        <Input
+          type="date"
+          value={fechaPago}
+          onChange={(e) => { setFechaPago(e.target.value); setFechaTocada(true); }}
+          className="mono"
+        />
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Es la fecha en que se pagó la nómina, no la fecha en que se registra en el sistema. Las tasas BCV y paralela
+          se toman de esta fecha.
+        </p>
+      </div>
+
       <div className="text-xs text-muted-foreground">
-        Fecha <span className="font-semibold mono">{fecha}</span> · tasa paralela{" "}
+        Fecha <span className="font-semibold mono">{fecha}</span> · tasa BCV{" "}
+        <span className="mono">{tasaBcvN ? tasaBcvN.toFixed(2) : "—"}</span> · tasa paralela{" "}
         <span className="mono">{tasaParN ? tasaParN.toFixed(2) : "—"}</span>
       </div>
 
