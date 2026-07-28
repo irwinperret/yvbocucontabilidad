@@ -26,6 +26,7 @@ import { AdjuntoCell } from "@/components/adjunto-cell";
 import { fetchAllRows } from "@/lib/fetch-all";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { useAuth } from "@/lib/auth-context";
+import { EditDialog } from "@/components/transaccion-edit-dialog";
 
 const WIPE_ALLOWED_EMAILS = ["irwinperret@hotmail.com", "irwinperret@gmail.com"];
 const REOPEN_ALLOWED_EMAILS = ["irwinperret@hotmail.com", "irwinperret@gmail.com", "castillo_iris@yahoo.com"];
