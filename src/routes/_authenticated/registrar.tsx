@@ -2276,7 +2276,13 @@ function NominaRegularForm() {
   const [busy, setBusy] = useState(false);
 
   const dia = quincena === "Q1" ? 15 : lastDayOfMonth(anio, mes);
-  const fecha = `${anio}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  const fechaSugerida = `${anio}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  const [fechaPago, setFechaPago] = useState<string>(fechaSugerida);
+  const [fechaTocada, setFechaTocada] = useState(false);
+  useEffect(() => {
+    if (!fechaTocada) setFechaPago(fechaSugerida);
+  }, [fechaSugerida, fechaTocada]);
+  const fecha = fechaPago || fechaSugerida;
   const { data: tasaSugerida } = useTasaForDate(fecha);
   const { data: paralelaSugerida } = useParalelaForDate(fecha);
   const tasaBcvN = Number(tasaSugerida?.tasa) || 0;
