@@ -1345,10 +1345,23 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
             <Label>Tasa BCV</Label>
             <Input type="number" step="0.0001" value={tasa} onChange={(e) => setTasa(e.target.value)} required className="mono" />
           </div>
+          <div>
+            <Label>Tasa paralela</Label>
+            <Input type="number" step="0.0001" value={tasaPar} onChange={(e) => setTasaPar(e.target.value)} className="mono" />
+          </div>
+          {fechaCambio && tasasNuevaFecha && (
+            <div className="md:col-span-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+              Se aplicarán las tasas del <span className="mono font-semibold">{fecha}</span> — BCV{" "}
+              <span className="mono">{tasasNuevaFecha.bcv ? tasasNuevaFecha.bcv.toFixed(2) : "—"}</span>, paralela{" "}
+              <span className="mono">{tasasNuevaFecha.par ? tasasNuevaFecha.par.toFixed(2) : "—"}</span>. Puedes
+              ajustarlas manualmente arriba.
+            </div>
+          )}
           <div className="md:col-span-2 rounded-md bg-muted p-2 text-sm flex justify-between">
             <span className="text-muted-foreground">Equivalente Bs {tasaParalelaN ? "(tasa paralela)" : "(tasa BCV)"}</span>
             <span className="mono font-semibold">{fmtBs(total)}</span>
           </div>
+
 
           <div>
             <Label>Método</Label>
