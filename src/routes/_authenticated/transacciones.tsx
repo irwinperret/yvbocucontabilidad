@@ -1180,10 +1180,30 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
     })();
   }, [tx.id, tx.grupo_transaccion_id]);
 
+  // Al cambiar la fecha, traer las tasas (última ≤ fecha) de ese día y precargarlas.
+  const [tasasNuevaFecha, setTasasNuevaFecha] = useState<{ bcv: number; par: number } | null>(null);
+  useEffect(() => {
+    if (fecha === tx.fecha) { setTasasNuevaFecha(null); return; }
+    let cancelado = false;
+    (async () => {
+      const [{ data: b }, { data: p }] = await Promise.all([
+        supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (cancelado) return;
+      const bcv = Number((b as any)?.tasa) || 0;
+      const par = Number((p as any)?.tasa) || 0;
+      setTasasNuevaFecha({ bcv, par });
+      if (bcv > 0) setTasa(String(bcv));
+      if (par > 0) setTasaPar(String(par));
+    })();
+    return () => { cancelado = true; };
+  }, [fecha, tx.fecha]);
+
   const usdN = Number(montoUsd) || 0;
   const tasaN = Number(tasa) || 0;
-  // Bs se recalcula desde USD usando la tasa paralela registrada (o BCV como fallback).
-  const tasaParalelaN = Number(tx.tasa_paralela) || 0;
+  // Bs se recalcula desde USD usando la tasa paralela vigente en el formulario (o BCV como fallback).
+  const tasaParalelaN = Number(tasaPar) || 0;
   const tasaConvN = tasaParalelaN || tasaN;
   const baseUsd = tx.iva_aplica ? usdN / 1.16 : usdN;
   const total = usdN * tasaConvN;            // monto Bs total (con IVA si aplica)
@@ -1193,7 +1213,8 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   // Detecta qué campos de propagación cambiaron respecto al original.
   const fechaCambio = fecha !== tx.fecha;
   const centroCambio = centro !== tx.centro_costo;
-  const tasaCambio = tasaN !== Number(tx.tasa_bcv ?? 0);
+  const tasaCambio =
+    tasaN !== Number(tx.tasa_bcv ?? 0) || tasaParalelaN !== Number(tx.tasa_paralela ?? 0);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
