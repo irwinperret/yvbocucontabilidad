@@ -1154,6 +1154,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
   const [centro, setCentro] = useState<Centro>(tx.centro_costo);
   const [montoUsd, setMontoUsd] = useState<string>(String(tx.monto_usd ?? ""));
   const [tasa, setTasa] = useState<string>(String(tx.tasa_bcv ?? ""));
+  const [tasaPar, setTasaPar] = useState<string>(tx.tasa_paralela == null ? "" : String(tx.tasa_paralela));
   const [metodo, setMetodo] = useState<string>(tx.metodo_pago ?? "transferencia");
   const [numFactura, setNumFactura] = useState<string>(tx.numero_factura ?? "");
   const [numOrden, setNumOrden] = useState<string>(tx.numero_orden ?? "");
