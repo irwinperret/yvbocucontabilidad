@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Pencil } from "lucide-react";
 import { fmtUsd, fmtBs, fmtDate } from "@/lib/format";
 import { MESES, CAPEX_CATEGORIAS } from "@/lib/account-helpers";
 import {
@@ -12,6 +14,7 @@ import {
 } from "recharts";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
+import { EditDialog } from "@/components/transaccion-edit-dialog";
 
 const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
   { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
