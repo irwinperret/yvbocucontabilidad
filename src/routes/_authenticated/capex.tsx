@@ -42,16 +42,18 @@ const CAT_COLORS: Record<string, string> = {
 function CapExPage() {
   const { mode, label } = useUsdView();
   const anioActual = new Date().getFullYear();
+  const qc = useQueryClient();
   const [anio, setAnio] = useState<number>(anioActual);
   const [centro, setCentro] = useState<string>("Todos");
   const [categoria, setCategoria] = useState<string>("Todas");
+  const [editing, setEditing] = useState<any | null>(null);
 
   const { data: txs } = useQuery({
     queryKey: ["capex-list"],
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, centro_costo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, notas, numero_factura, referencia, metodo_pago, modo, tercero_id, capex_categoria")
+        .select("*")
         .eq("cuenta_codigo", "10.6")
         .order("fecha", { ascending: false });
       return data ?? [];
