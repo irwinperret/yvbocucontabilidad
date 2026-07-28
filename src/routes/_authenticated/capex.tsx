@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Pencil } from "lucide-react";
 import { fmtUsd, fmtBs, fmtDate } from "@/lib/format";
 import { MESES, CAPEX_CATEGORIAS } from "@/lib/account-helpers";
 import {
@@ -12,6 +14,7 @@ import {
 } from "recharts";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
+import { EditDialog } from "@/components/transaccion-edit-dialog";
 
 const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
   { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
@@ -39,16 +42,18 @@ const CAT_COLORS: Record<string, string> = {
 function CapExPage() {
   const { mode, label } = useUsdView();
   const anioActual = new Date().getFullYear();
+  const qc = useQueryClient();
   const [anio, setAnio] = useState<number>(anioActual);
   const [centro, setCentro] = useState<string>("Todos");
   const [categoria, setCategoria] = useState<string>("Todas");
+  const [editing, setEditing] = useState<any | null>(null);
 
   const { data: txs } = useQuery({
     queryKey: ["capex-list"],
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, centro_costo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, notas, numero_factura, referencia, metodo_pago, modo, tercero_id, capex_categoria")
+        .select("*")
         .eq("cuenta_codigo", "10.6")
         .order("fecha", { ascending: false });
       return data ?? [];
@@ -252,6 +257,7 @@ function CapExPage() {
                     <th className="text-right py-2 px-2">Bs</th>
                     <th className="text-right py-2 px-2">{label}</th>
                     <th className="text-left py-2 px-2">Modo</th>
+                    <th className="text-right py-2 px-2">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -276,6 +282,17 @@ function CapExPage() {
                             ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge>
                             : <Badge variant="outline">on</Badge>}
                         </td>
+                        <td className="py-2 px-2 text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Editar movimiento"
+                            onClick={() => setEditing(t)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -286,6 +303,7 @@ function CapExPage() {
                     <td className="py-2 px-2 text-right mono">{fmtBs(totalBs)}</td>
                     <td className="py-2 px-2 text-right mono">{fmtUsd(totalUsd)}</td>
                     <td></td>
+                    <td></td>
                   </tr>
                 </tfoot>
               </table>
@@ -293,6 +311,19 @@ function CapExPage() {
           )}
         </CardContent>
       </Card>
+
+      {editing && (
+        <EditDialog
+          tx={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            qc.invalidateQueries({ queryKey: ["capex-list"] });
+            qc.invalidateQueries({ queryKey: ["opex-by-group"] });
+            qc.invalidateQueries({ queryKey: ["transacciones-list"] });
+          }}
+        />
+      )}
     </div>
   );
 }
