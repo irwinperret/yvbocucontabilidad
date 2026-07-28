@@ -1265,10 +1265,10 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
           if (centroCambio) hPatch.centro_costo = centro;
           if (tasaCambio) {
             hPatch.tasa_bcv = tasaN;
+            if (tasaParalelaN > 0) hPatch.tasa_paralela = tasaParalelaN;
             // Recalcular monto_usd del hermano preservando su monto_bs.
             const hBs = Number(h.monto_bs) || 0;
-            const hTasaPar = Number(h.tasa_paralela) || 0;
-            const conv = hTasaPar || tasaN;
+            const conv = tasaParalelaN || Number(h.tasa_paralela) || tasaN;
             if (conv > 0) hPatch.monto_usd = +(hBs / conv).toFixed(2);
           }
           const { error: eH } = await supabase
