@@ -257,6 +257,7 @@ function CapExPage() {
                     <th className="text-right py-2 px-2">Bs</th>
                     <th className="text-right py-2 px-2">{label}</th>
                     <th className="text-left py-2 px-2">Modo</th>
+                    <th className="text-right py-2 px-2">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,6 +282,17 @@ function CapExPage() {
                             ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge>
                             : <Badge variant="outline">on</Badge>}
                         </td>
+                        <td className="py-2 px-2 text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Editar movimiento"
+                            onClick={() => setEditing(t)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -291,6 +303,7 @@ function CapExPage() {
                     <td className="py-2 px-2 text-right mono">{fmtBs(totalBs)}</td>
                     <td className="py-2 px-2 text-right mono">{fmtUsd(totalUsd)}</td>
                     <td></td>
+                    <td></td>
                   </tr>
                 </tfoot>
               </table>
@@ -298,6 +311,19 @@ function CapExPage() {
           )}
         </CardContent>
       </Card>
+
+      {editing && (
+        <EditDialog
+          tx={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            qc.invalidateQueries({ queryKey: ["capex-list"] });
+            qc.invalidateQueries({ queryKey: ["opex-by-group"] });
+            qc.invalidateQueries({ queryKey: ["transacciones-list"] });
+          }}
+        />
+      )}
     </div>
   );
 }
