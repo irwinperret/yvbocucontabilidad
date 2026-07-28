@@ -1231,6 +1231,7 @@ function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; on
       monto_base_bs: base,
       iva_bs: iva,
       tasa_bcv: tasaN,
+      tasa_paralela: tasaParalelaN || null,
       monto_usd: usdN,
       metodo_pago: metodo as any,
       numero_factura: numFactura || null,
