@@ -2798,7 +2798,7 @@ function NominaChefForm() {
             {fmtUsd(totalUsd)} · {fmtBs(totalBs)}
           </div>
         </div>
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || hayNetoNegativo}>
           {busy ? "Guardando…" : `Registrar ${tag}`}
         </Button>
       </div>
