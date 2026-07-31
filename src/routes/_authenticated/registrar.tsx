@@ -2197,6 +2197,41 @@ function NominaSeccionBlock({
             />
           </div>
           <div>
+            <Label className="text-xs">Parafiscales ({moneda})</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={campos.parafiscales}
+              onChange={(e) => onChange("parafiscales", e.target.value)}
+              className="mono"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">Se descuentan del salario base.</p>
+          </div>
+          {(() => {
+            const neto = Number(campos.salario || 0) - Number(campos.parafiscales || 0);
+            const negativo = neto < 0;
+            return (
+              <div className="sm:col-span-2">
+                <Label className="text-xs">Salario neto ({moneda}) — base − parafiscales</Label>
+                <Input
+                  readOnly
+                  disabled
+                  value={
+                    moneda === "Bs"
+                      ? fmtBs(neto)
+                      : fmtUsd(neto)
+                  }
+                  className={`mono font-semibold ${negativo ? "text-destructive" : ""}`}
+                />
+                {negativo && (
+                  <p className="text-[11px] text-destructive mt-1">
+                    Los parafiscales no pueden superar el salario base.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+          <div>
             <Label className="text-xs">Bono alimentación ({moneda})</Label>
             <Input
               type="number"
@@ -2216,21 +2251,12 @@ function NominaSeccionBlock({
               className="mono"
             />
           </div>
-          <div>
-            <Label className="text-xs">Parafiscales ({moneda})</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={campos.parafiscales}
-              onChange={(e) => onChange("parafiscales", e.target.value)}
-              className="mono"
-            />
-          </div>
         </div>
       )}
     </div>
   );
 }
+
 
 function NominaForm() {
   return (
