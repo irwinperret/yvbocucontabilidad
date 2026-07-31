@@ -2378,6 +2378,7 @@ function NominaRegularForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (hayNetoNegativo) return toast.error("Los parafiscales no pueden superar el salario base");
     if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!tasaConvN) return toast.error("No hay tasa paralela ni BCV para esa fecha");
     if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria de pago");
