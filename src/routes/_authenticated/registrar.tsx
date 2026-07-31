@@ -2197,6 +2197,41 @@ function NominaSeccionBlock({
             />
           </div>
           <div>
+            <Label className="text-xs">Parafiscales ({moneda})</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={campos.parafiscales}
+              onChange={(e) => onChange("parafiscales", e.target.value)}
+              className="mono"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">Se descuentan del salario base.</p>
+          </div>
+          {(() => {
+            const neto = Number(campos.salario || 0) - Number(campos.parafiscales || 0);
+            const negativo = neto < 0;
+            return (
+              <div className="sm:col-span-2">
+                <Label className="text-xs">Salario neto ({moneda}) — base − parafiscales</Label>
+                <Input
+                  readOnly
+                  disabled
+                  value={
+                    moneda === "Bs"
+                      ? fmtBs(neto)
+                      : fmtUsd(neto)
+                  }
+                  className={`mono font-semibold ${negativo ? "text-destructive" : ""}`}
+                />
+                {negativo && (
+                  <p className="text-[11px] text-destructive mt-1">
+                    Los parafiscales no pueden superar el salario base.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+          <div>
             <Label className="text-xs">Bono alimentación ({moneda})</Label>
             <Input
               type="number"
@@ -2216,21 +2251,12 @@ function NominaSeccionBlock({
               className="mono"
             />
           </div>
-          <div>
-            <Label className="text-xs">Parafiscales ({moneda})</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={campos.parafiscales}
-              onChange={(e) => onChange("parafiscales", e.target.value)}
-              className="mono"
-            />
-          </div>
         </div>
       )}
     </div>
   );
 }
+
 
 function NominaForm() {
   return (
@@ -2292,10 +2318,16 @@ function NominaRegularForm() {
   const setCampo = (sec: NominaSeccion, k: keyof NominaCampos, v: string) =>
     setSecciones((s) => ({ ...s, [sec]: { ...s[sec], [k]: v } }));
 
+  const netoSec = (sec: NominaSeccion) => {
+    const c = secciones[sec];
+    return Number(c.salario || 0) - Number(c.parafiscales || 0);
+  };
+  const hayNetoNegativo = (["BYV", "BOCU", "BYV-BOCU"] as NominaSeccion[]).some((s) => netoSec(s) < 0);
+
   const totalSecBs = (sec: NominaSeccion) => {
     const c = secciones[sec];
     return (
-      Number(c.salario || 0) + Number(c.alimentacion || 0) + Number(c.compensatorio || 0) + Number(c.parafiscales || 0)
+      netoSec(sec) + Number(c.alimentacion || 0) + Number(c.compensatorio || 0) + Number(c.parafiscales || 0)
     );
   };
   const totalBs = (["BYV", "BOCU", "BYV-BOCU"] as NominaSeccion[]).reduce((s, x) => s + totalSecBs(x), 0);
@@ -2309,16 +2341,17 @@ function NominaRegularForm() {
     const pushIf = (cuenta: string, centro: Centro, bs: number, concepto: string) => {
       if (bs > 0.01) out.push({ cuenta, centro, bs: +bs.toFixed(2), concepto });
     };
+    const NETO = "Salario neto (base − parafiscales)";
     {
       const c = secciones["BYV"];
-      pushIf("3.9", "YV", Number(c.salario || 0), "Salario base");
+      pushIf("3.9", "YV", netoSec("BYV"), NETO);
       pushIf("3.20", "YV", Number(c.alimentacion || 0), "Bono alimentación");
       pushIf("3.14", "YV", Number(c.compensatorio || 0), "Bono compensatorio");
       pushIf("3.15", "YV", Number(c.parafiscales || 0), "Parafiscales");
     }
     {
       const c = secciones["BOCU"];
-      pushIf("3.4", "Bocu", Number(c.salario || 0), "Salario base");
+      pushIf("3.4", "Bocu", netoSec("BOCU"), NETO);
       pushIf("3.20", "Bocu", Number(c.alimentacion || 0), "Bono alimentación");
       pushIf("3.14", "Bocu", Number(c.compensatorio || 0), "Bono compensatorio");
       pushIf("3.15", "Bocu", Number(c.parafiscales || 0), "Parafiscales");
@@ -2333,7 +2366,7 @@ function NominaRegularForm() {
         pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 80%)`);
       };
 
-      split(Number(c.salario || 0), "3.9", "3.4", "Salario base");
+      split(netoSec("BYV-BOCU"), "3.9", "3.4", NETO);
       split(Number(c.alimentacion || 0), "3.20", "3.20", "Bono alimentación");
       split(Number(c.compensatorio || 0), "3.14", "3.14", "Bono compensatorio");
       split(Number(c.parafiscales || 0), "3.15", "3.15", "Parafiscales");
@@ -2341,9 +2374,11 @@ function NominaRegularForm() {
     return out;
   };
 
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (hayNetoNegativo) return toast.error("Los parafiscales no pueden superar el salario base");
     if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!tasaConvN) return toast.error("No hay tasa paralela ni BCV para esa fecha");
     if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria de pago");
@@ -2508,7 +2543,7 @@ function NominaRegularForm() {
             {fmtBs(totalBs)} · {fmtUsd(totalUsd)}
           </div>
         </div>
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || hayNetoNegativo}>
           {busy ? "Guardando…" : `Registrar ${tag}`}
         </Button>
       </div>
@@ -2552,8 +2587,11 @@ function NominaChefForm() {
 
   const setCampo = (k: keyof NominaCampos, v: string) => setCampos((c) => ({ ...c, [k]: v }));
 
+  const netoUsd = Number(campos.salario || 0) - Number(campos.parafiscales || 0);
+  const hayNetoNegativo = netoUsd < 0;
+
   const totalUsd =
-    Number(campos.salario || 0) +
+    netoUsd +
     Number(campos.alimentacion || 0) +
     Number(campos.compensatorio || 0) +
     Number(campos.parafiscales || 0);
@@ -2568,14 +2606,15 @@ function NominaChefForm() {
       if (usd > 0.0001) out.push({ cuenta, centro, usd: +usd.toFixed(2), concepto });
     };
     const fields: { key: keyof NominaCampos; cuentaYV: string; cuentaBocu: string; concepto: string }[] = [
-      { key: "salario", cuentaYV: "3.9", cuentaBocu: "3.4", concepto: "Salario base Chef" },
+      { key: "salario", cuentaYV: "3.9", cuentaBocu: "3.4", concepto: "Salario neto Chef (base − parafiscales)" },
       { key: "alimentacion", cuentaYV: "3.20", cuentaBocu: "3.20", concepto: "Bono alimentación Chef" },
       { key: "compensatorio", cuentaYV: "3.14", cuentaBocu: "3.14", concepto: "Bono compensatorio Chef" },
       { key: "parafiscales", cuentaYV: "3.15", cuentaBocu: "3.15", concepto: "Parafiscales Chef" },
     ];
     for (const f of fields) {
-      const usd = Number(campos[f.key] || 0);
+      const usd = f.key === "salario" ? netoUsd : Number(campos[f.key] || 0);
       if (usd <= 0) continue;
+
       if (centro === "YV") pushIf(f.cuentaYV, "YV", usd, f.concepto);
       else if (centro === "Bocu") pushIf(f.cuentaBocu, "Bocu", usd, f.concepto);
       else {
@@ -2590,6 +2629,7 @@ function NominaChefForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (hayNetoNegativo) return toast.error("Los parafiscales no pueden superar el salario base");
     if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!tasaConvN) return toast.error("No hay tasa paralela ni BCV para esa fecha");
     if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria de pago");
@@ -2758,7 +2798,7 @@ function NominaChefForm() {
             {fmtUsd(totalUsd)} · {fmtBs(totalBs)}
           </div>
         </div>
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || hayNetoNegativo}>
           {busy ? "Guardando…" : `Registrar ${tag}`}
         </Button>
       </div>
