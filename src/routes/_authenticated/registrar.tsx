@@ -2587,8 +2587,11 @@ function NominaChefForm() {
 
   const setCampo = (k: keyof NominaCampos, v: string) => setCampos((c) => ({ ...c, [k]: v }));
 
+  const netoUsd = Number(campos.salario || 0) - Number(campos.parafiscales || 0);
+  const hayNetoNegativo = netoUsd < 0;
+
   const totalUsd =
-    Number(campos.salario || 0) +
+    netoUsd +
     Number(campos.alimentacion || 0) +
     Number(campos.compensatorio || 0) +
     Number(campos.parafiscales || 0);
@@ -2603,14 +2606,15 @@ function NominaChefForm() {
       if (usd > 0.0001) out.push({ cuenta, centro, usd: +usd.toFixed(2), concepto });
     };
     const fields: { key: keyof NominaCampos; cuentaYV: string; cuentaBocu: string; concepto: string }[] = [
-      { key: "salario", cuentaYV: "3.9", cuentaBocu: "3.4", concepto: "Salario base Chef" },
+      { key: "salario", cuentaYV: "3.9", cuentaBocu: "3.4", concepto: "Salario neto Chef (base − parafiscales)" },
       { key: "alimentacion", cuentaYV: "3.20", cuentaBocu: "3.20", concepto: "Bono alimentación Chef" },
       { key: "compensatorio", cuentaYV: "3.14", cuentaBocu: "3.14", concepto: "Bono compensatorio Chef" },
       { key: "parafiscales", cuentaYV: "3.15", cuentaBocu: "3.15", concepto: "Parafiscales Chef" },
     ];
     for (const f of fields) {
-      const usd = Number(campos[f.key] || 0);
+      const usd = f.key === "salario" ? netoUsd : Number(campos[f.key] || 0);
       if (usd <= 0) continue;
+
       if (centro === "YV") pushIf(f.cuentaYV, "YV", usd, f.concepto);
       else if (centro === "Bocu") pushIf(f.cuentaBocu, "Bocu", usd, f.concepto);
       else {
