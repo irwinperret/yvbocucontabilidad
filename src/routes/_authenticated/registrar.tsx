@@ -2318,10 +2318,16 @@ function NominaRegularForm() {
   const setCampo = (sec: NominaSeccion, k: keyof NominaCampos, v: string) =>
     setSecciones((s) => ({ ...s, [sec]: { ...s[sec], [k]: v } }));
 
+  const netoSec = (sec: NominaSeccion) => {
+    const c = secciones[sec];
+    return Number(c.salario || 0) - Number(c.parafiscales || 0);
+  };
+  const hayNetoNegativo = (["BYV", "BOCU", "BYV-BOCU"] as NominaSeccion[]).some((s) => netoSec(s) < 0);
+
   const totalSecBs = (sec: NominaSeccion) => {
     const c = secciones[sec];
     return (
-      Number(c.salario || 0) + Number(c.alimentacion || 0) + Number(c.compensatorio || 0) + Number(c.parafiscales || 0)
+      netoSec(sec) + Number(c.alimentacion || 0) + Number(c.compensatorio || 0) + Number(c.parafiscales || 0)
     );
   };
   const totalBs = (["BYV", "BOCU", "BYV-BOCU"] as NominaSeccion[]).reduce((s, x) => s + totalSecBs(x), 0);
@@ -2335,16 +2341,17 @@ function NominaRegularForm() {
     const pushIf = (cuenta: string, centro: Centro, bs: number, concepto: string) => {
       if (bs > 0.01) out.push({ cuenta, centro, bs: +bs.toFixed(2), concepto });
     };
+    const NETO = "Salario neto (base − parafiscales)";
     {
       const c = secciones["BYV"];
-      pushIf("3.9", "YV", Number(c.salario || 0), "Salario base");
+      pushIf("3.9", "YV", netoSec("BYV"), NETO);
       pushIf("3.20", "YV", Number(c.alimentacion || 0), "Bono alimentación");
       pushIf("3.14", "YV", Number(c.compensatorio || 0), "Bono compensatorio");
       pushIf("3.15", "YV", Number(c.parafiscales || 0), "Parafiscales");
     }
     {
       const c = secciones["BOCU"];
-      pushIf("3.4", "Bocu", Number(c.salario || 0), "Salario base");
+      pushIf("3.4", "Bocu", netoSec("BOCU"), NETO);
       pushIf("3.20", "Bocu", Number(c.alimentacion || 0), "Bono alimentación");
       pushIf("3.14", "Bocu", Number(c.compensatorio || 0), "Bono compensatorio");
       pushIf("3.15", "Bocu", Number(c.parafiscales || 0), "Parafiscales");
@@ -2359,13 +2366,14 @@ function NominaRegularForm() {
         pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 80%)`);
       };
 
-      split(Number(c.salario || 0), "3.9", "3.4", "Salario base");
+      split(netoSec("BYV-BOCU"), "3.9", "3.4", NETO);
       split(Number(c.alimentacion || 0), "3.20", "3.20", "Bono alimentación");
       split(Number(c.compensatorio || 0), "3.14", "3.14", "Bono compensatorio");
       split(Number(c.parafiscales || 0), "3.15", "3.15", "Parafiscales");
     }
     return out;
   };
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
