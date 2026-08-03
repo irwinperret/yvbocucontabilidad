@@ -326,33 +326,36 @@ function ImportarComprasInner() {
             }
           }
 
-          // Crear CxP pendiente vinculada a la compra 2.1
-          const usdBcvTotal = tasas.bcv > 0 ? +(totalBs / tasas.bcv).toFixed(2) : r.total_usd;
-          const usdParTotal = tasas.paralela > 0 ? +(totalBs / tasas.paralela).toFixed(2) : r.total_usd;
-          const { error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
-            proveedor: r.proveedor,
-            numero_factura: r.numero_factura,
-            tercero_id: terceroId,
-            centro_costo: centroDefault as any,
-            monto_bs: totalBs,
-            monto_usd: usdBcvTotal,
-            monto_pendiente_bs: totalBs,
-            monto_pendiente_usd_bcv: usdBcvTotal,
-            usd_bcv_factura: usdBcvTotal,
-            usd_paralelo_factura: usdParTotal,
-            tasa_bcv_factura: tasas.bcv || null,
-            tasa_paralela_factura: tasas.paralela || null,
-            fecha_vencimiento: null,
-            estado: "pendiente",
-            origen: "xetux",
-            transaccion_id: (txCompra as any).id,
-          } as any);
-          if (eCxp) {
-            await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId);
-            throw new Error(`CxP ${r.numero_factura}: ${eCxp.message}`);
+          // Crear CxP pendiente vinculada a la compra 2.1 (solo si es on-balance)
+          if (!offBal) {
+            const usdBcvTotal = tasas.bcv > 0 ? +(totalBs / tasas.bcv).toFixed(2) : r.total_usd;
+            const usdParTotal = tasas.paralela > 0 ? +(totalBs / tasas.paralela).toFixed(2) : r.total_usd;
+            const { error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
+              proveedor: r.proveedor,
+              numero_factura: r.numero_factura,
+              tercero_id: terceroId,
+              centro_costo: centroDefault as any,
+              monto_bs: totalBs,
+              monto_usd: usdBcvTotal,
+              monto_pendiente_bs: totalBs,
+              monto_pendiente_usd_bcv: usdBcvTotal,
+              usd_bcv_factura: usdBcvTotal,
+              usd_paralelo_factura: usdParTotal,
+              tasa_bcv_factura: tasas.bcv || null,
+              tasa_paralela_factura: tasas.paralela || null,
+              fecha_vencimiento: null,
+              estado: "pendiente",
+              origen: "xetux",
+              transaccion_id: (txCompra as any).id,
+            } as any);
+            if (eCxp) {
+              await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId);
+              throw new Error(`CxP ${r.numero_factura}: ${eCxp.message}`);
+            }
           }
           return (txCompra as any).id as string;
         };
+
 
 
         if (existe) {
