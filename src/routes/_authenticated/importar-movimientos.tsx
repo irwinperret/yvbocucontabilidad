@@ -468,6 +468,14 @@ function ImportarMovimientosInner() {
               </table>
             </div>
 
+            {matches.length > visibleCount && (
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <span>Mostrando {visibleCount} de {matches.length} filas</span>
+                <Button variant="outline" size="sm" onClick={() => setVisibleCount((v) => v + 150)}>Mostrar más</Button>
+              </div>
+            )}
+
+
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 {progress ? `Procesando ${progress.done}/${progress.total}...` : `Confirmar ${stats.selected} pagos seleccionados.`}
