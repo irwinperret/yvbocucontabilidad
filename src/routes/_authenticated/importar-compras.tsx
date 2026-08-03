@@ -14,10 +14,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { fmtUsd } from "@/lib/format";
 import { numFromCell, parseDateCell, readSheetAOA } from "@/lib/xetux-parse";
 import { toast } from "sonner";
+import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
+
+
 
 export const Route = createFileRoute("/_authenticated/importar-compras")({
-  component: ImportarComprasPage,
+  component: ImportarCompras,
 });
+
+function ImportarCompras() {
+  return (
+    <MesCerradoProvider>
+      <ImportarComprasInner />
+    </MesCerradoProvider>
+  );
+}
+
 
 type Centro = "YV" | "Bocu" | "Compartido";
 
@@ -44,7 +56,7 @@ function splitRif(raw: string): { tipo_rif: ParsedCompra["tipo_rif"]; rif: strin
   return { tipo_rif: m[1] as ParsedCompra["tipo_rif"], rif: m[2] };
 }
 
-function ImportarComprasPage() {
+function ImportarComprasInner() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [rows, setRows] = useState<ParsedCompra[]>([]);
@@ -195,15 +207,23 @@ function ImportarComprasPage() {
     return data.id;
   };
 
+  const ensurePeriodoAbierto = useMesCerradoGuard();
+
   const importar = async () => {
     if (!user) return;
     const elegibles = visibles.filter((r) => r.include);
     if (!elegibles.length) return toast.error("No hay filas seleccionadas");
+    const firstFecha = elegibles.find((r) => r.fecha)?.fecha;
+    if (firstFecha) {
+      const canContinue = await ensurePeriodoAbierto(firstFecha);
+      if (!canContinue) return;
+    }
 
     setBusy(true);
     setProgress({ done: 0, total: elegibles.length });
     const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
     let ok = 0, dup = 0, fail = 0, upd = 0;
+
 
 
     for (const r of elegibles) {
@@ -223,12 +243,21 @@ function ImportarComprasPage() {
         const terceroId = await ensureTercero(r);
         if (!terceroId) { fail++; continue; }
 
-        // Dedup por (tercero, numero_factura) sobre transacciones 2.1 (fuente de verdad)
+        // Dedup por (tercero, numero_factura) sobre transacciones 2.1 y CxP (fuente de verdad)
         const { data: existeArr } = await supabase.from("transacciones")
           .select("id, monto_bs, monto_base_bs, fecha, grupo_transaccion_id")
           .eq("cuenta_codigo", "2.1")
           .eq("tercero_id", terceroId).eq("numero_factura", r.numero_factura).limit(1);
         const existe = existeArr && existeArr.length > 0 ? existeArr[0] : null;
+
+        const { data: cxpDup } = await supabase.from("cuentas_por_pagar")
+          .select("id, monto_bs, transaccion_id, estado")
+          .eq("tercero_id", terceroId)
+          .eq("numero_factura", r.numero_factura)
+          .eq("origen", "xetux")
+          .limit(1);
+        const cxpExiste = cxpDup && cxpDup.length > 0 ? cxpDup[0] : null;
+
 
         const ivaAplica = r.iva_usd > 0;
         const baseUsd = ivaAplica ? Math.max(0, r.total_usd - r.iva_usd) : r.total_usd;
@@ -245,7 +274,7 @@ function ImportarComprasPage() {
 
         const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
 
-        // Helper para insertar par (2.1 compra + 12.5 IVA) enlazadas por grupo_transaccion_id
+        // Helper para insertar par (2.1 compra + 12.5 IVA) enlazadas por grupo_transaccion_id + CxP pendiente
         const insertCompraTransacciones = async (grupoId: string) => {
           const usdParalela = tasas.paralela > 0 ? +(baseBs / tasas.paralela).toFixed(2) : baseUsd;
           const { data: txCompra, error: eCompra } = await supabase.from("transacciones").insert({
@@ -261,7 +290,7 @@ function ImportarComprasPage() {
             monto_usd: usdParalela,
             tasa_bcv: tasas.bcv || null,
             tasa_paralela: tasas.paralela || null,
-            metodo_pago: "transferencia" as any,
+            metodo_pago: "pendiente" as any,
             tercero_id: terceroId,
             numero_factura: r.numero_factura,
             numero_orden: r.numero_orden || null,
@@ -296,8 +325,38 @@ function ImportarComprasPage() {
               throw new Error(`12.5 ${r.numero_factura}: no se pudo registrar IVA, se revirtió la compra`);
             }
           }
+
+          // Crear CxP pendiente vinculada a la compra 2.1 (solo si es on-balance)
+          if (!offBal) {
+            const usdBcvTotal = tasas.bcv > 0 ? +(totalBs / tasas.bcv).toFixed(2) : r.total_usd;
+            const usdParTotal = tasas.paralela > 0 ? +(totalBs / tasas.paralela).toFixed(2) : r.total_usd;
+            const { error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
+              proveedor: r.proveedor,
+              numero_factura: r.numero_factura,
+              tercero_id: terceroId,
+              centro_costo: centroDefault as any,
+              monto_bs: totalBs,
+              monto_usd: usdBcvTotal,
+              monto_pendiente_bs: totalBs,
+              monto_pendiente_usd_bcv: usdBcvTotal,
+              usd_bcv_factura: usdBcvTotal,
+              usd_paralelo_factura: usdParTotal,
+              tasa_bcv_factura: tasas.bcv || null,
+              tasa_paralela_factura: tasas.paralela || null,
+              fecha_vencimiento: null,
+              estado: "pendiente",
+              origen: "xetux",
+              transaccion_id: (txCompra as any).id,
+            } as any);
+            if (eCxp) {
+              await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId);
+              throw new Error(`CxP ${r.numero_factura}: ${eCxp.message}`);
+            }
+          }
           return (txCompra as any).id as string;
         };
+
+
 
         if (existe) {
           const sameAmount = Math.abs(Number(existe.monto_base_bs || existe.monto_bs || 0) - baseBs) < 0.01;
@@ -306,7 +365,7 @@ function ImportarComprasPage() {
             toast.warning(`Duplicada (${existe.fecha}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
             continue;
           }
-          // Distinto monto → borrar par (2.1 + 12.5) y reinsertar
+          // Distinto monto → borrar par (2.1 + 12.5), CxP y reinsertar
           if (existe.grupo_transaccion_id) {
             await supabase.from("transacciones")
               .delete()
@@ -315,6 +374,7 @@ function ImportarComprasPage() {
           } else {
             await supabase.from("transacciones").delete().eq("id", existe.id);
           }
+          if (cxpExiste) await supabase.from("cuentas_por_pagar").delete().eq("id", cxpExiste.id);
           try {
             await insertCompraTransacciones(crypto.randomUUID());
           } catch (e: any) {
@@ -324,6 +384,11 @@ function ImportarComprasPage() {
           upd++;
           toast.warning(`Duplicada (${existe.fecha}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
           continue;
+        }
+
+        // Si no existe 2.1 pero sí CxP huérfana, limpiarla antes de insertar
+        if (cxpExiste && !existe) {
+          await supabase.from("cuentas_por_pagar").delete().eq("id", cxpExiste.id);
         }
 
         try {
@@ -345,7 +410,7 @@ function ImportarComprasPage() {
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Nuevas: ${ok} · Actualizadas: ${upd} · Duplicadas: ${dup} · Fallidas: ${fail}`);
+    toast.success(`Nuevas CxP: ${ok} · Actualizadas: ${upd} · Duplicadas: ${dup} · Fallidas: ${fail}`);
     if (ok > 0 || upd > 0) {
       const ids = new Set(elegibles.map((r) => r.idx));
       setRows((all) => all.filter((r) => !ids.has(r.idx)));
@@ -410,7 +475,7 @@ function ImportarComprasPage() {
               </div>
 
               <div className="md:col-span-2 text-xs text-muted-foreground border rounded p-2 bg-muted/30">
-                Todas las compras importadas se registran como <strong>pagadas</strong> (sin cuenta bancaria asociada). No se crean cuentas por pagar.
+                Ahora cada compra importada <strong>on-balance</strong> genera una CxP pendiente vinculada a la transacción 2.1. Luego se pagará usando el módulo de conciliación bancaria o “Pagar CxP”. Si usas off-balance, no se crea CxP.
               </div>
 
             </CardContent>

@@ -1,23 +1,32 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+
 
 export const Route = createFileRoute("/_authenticated/cxp")({ component: CxPAnalisisPage });
 
 function CxPAnalisisPage() {
+  const [origenFilter, setOrigenFilter] = useState<string>("todos");
+
   const { data } = useQuery({
-    queryKey: ["cxp-analisis"],
+    queryKey: ["cxp-analisis", origenFilter],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
-      return await fetchAllRows(async (from, to) =>
-        await supabase.from("cuentas_por_pagar").select("*").neq("estado", "pagada").order("fecha_vencimiento", { ascending: true }).range(from, to),
-      );
+      let q = supabase.from("cuentas_por_pagar").select("*").neq("estado", "pagada").order("fecha_vencimiento", { ascending: true });
+      if (origenFilter !== "todos") {
+        q = q.eq("origen", origenFilter);
+      }
+      return await fetchAllRows(async (from, to) => await q.range(from, to));
     },
   });
+
 
   const badge = (c: any) => {
     if (!c.fecha_vencimiento) return <Badge className="bg-green-600">vigente</Badge>;
@@ -47,12 +56,28 @@ function CxPAnalisisPage() {
         <p className="text-sm text-muted-foreground">Vista de obligaciones pendientes (solo lectura)</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Vencidas" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
-        <Kpi label="Por vencer 7d" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
-        <Kpi label="Vigentes" value={fmtUsd(total - totalVencidas - totalPorVencer)} count={items.length - vencidas.length - porVencer.length} color="positive" />
-        <Kpi label="Total" value={fmtUsd(total)} count={items.length} color="" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="grid gap-4 md:grid-cols-4 flex-1">
+          <Kpi label="Vencidas" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
+          <Kpi label="Por vencer 7d" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
+          <Kpi label="Vigentes" value={fmtUsd(total - totalVencidas - totalPorVencer)} count={items.length - vencidas.length - porVencer.length} color="positive" />
+          <Kpi label="Total" value={fmtUsd(total)} count={items.length} color="" />
+        </div>
+        <div className="space-y-1 md:w-[200px]">
+          <Label className="text-xs">Origen</Label>
+          <Select value={origenFilter} onValueChange={setOrigenFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="xetux">Xetux</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Detalle</CardTitle></CardHeader>
@@ -65,10 +90,12 @@ function CxPAnalisisPage() {
                     <th className="text-left py-2 px-2">Proveedor</th>
                     <th className="text-left py-2 px-2">N° factura</th>
                     <th className="text-left py-2 px-2">N° Orden</th>
+                    <th className="text-left py-2 px-2">Origen</th>
                     <th className="text-right py-2 px-2">Pendiente Bs</th>
                     <th className="text-right py-2 px-2">USD</th>
                     <th className="text-left py-2 px-2">Vence</th>
                     <th className="text-left py-2 px-2">Estado</th>
+
                   </tr>
                 </thead>
                 <tbody>
@@ -83,7 +110,13 @@ function CxPAnalisisPage() {
                       <td className="py-2 px-2">{c.proveedor ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{c.numero_factura ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{(c as any).numero_orden ?? "—"}</td>
+                      <td className="py-2 px-2">
+                        <Badge variant="outline" className="text-[10px]">
+                          {c.origen === "xetux" ? "Xetux" : "Manual"}
+                        </Badge>
+                      </td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(pendBs)}</td>
+
                       <td className="py-2 px-2 text-right mono">
                         <div>{fmtUsd(pendUsd)}</div>
                         {tasa > 0 && (

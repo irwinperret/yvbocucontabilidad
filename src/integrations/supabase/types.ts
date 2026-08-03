@@ -327,6 +327,7 @@ export type Database = {
           monto_pendiente_usd_bcv: number | null
           monto_usd: number
           numero_factura: string | null
+          origen: string
           pagada_at: string | null
           proveedor: string | null
           tasa_bcv_factura: number | null
@@ -347,6 +348,7 @@ export type Database = {
           monto_pendiente_usd_bcv?: number | null
           monto_usd: number
           numero_factura?: string | null
+          origen?: string
           pagada_at?: string | null
           proveedor?: string | null
           tasa_bcv_factura?: number | null
@@ -367,6 +369,7 @@ export type Database = {
           monto_pendiente_usd_bcv?: number | null
           monto_usd?: number
           numero_factura?: string | null
+          origen?: string
           pagada_at?: string | null
           proveedor?: string | null
           tasa_bcv_factura?: number | null
