@@ -183,7 +183,7 @@ function TransaccionesPage() {
   }, [minFechaReady, minFecha, state.desde]);
 
   const {
-    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos,
+    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos, soloSinFactura,
     tercero, factura, notas: notasF, referencia, numMin, numMax,
     bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
     sortKey, sortDir, pageSize,
