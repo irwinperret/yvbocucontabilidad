@@ -475,7 +475,7 @@ function ImportarComprasInner() {
               </div>
 
               <div className="md:col-span-2 text-xs text-muted-foreground border rounded p-2 bg-muted/30">
-                Ahora cada compra importada genera una <strong>cuenta por pagar (CxP) pendiente</strong> vinculada a la transacción 2.1. Luego se pagará usando el módulo de conciliación bancaria o “Pagar CxP”.
+                Ahora cada compra importada <strong>on-balance</strong> genera una CxP pendiente vinculada a la transacción 2.1. Luego se pagará usando el módulo de conciliación bancaria o “Pagar CxP”. Si usas off-balance, no se crea CxP.
               </div>
 
             </CardContent>
