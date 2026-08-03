@@ -67,13 +67,17 @@ type CxPRow = {
 
 type Match = {
   bankRow: BankRow;
-  cxp: CxPRow | null;
+  /** Facturas cubiertas por este movimiento, en orden de aplicación. */
+  cxps: CxPRow[];
   manual: boolean;
   selected: boolean;
   montoBs: number;
   cuentaCodigo: string | null;
   duplicado: boolean;
 };
+
+const pendienteBs = (c: CxPRow) => Number(c.monto_pendiente_bs ?? c.monto_bs) || 0;
+const pendienteUsdBcv = (c: CxPRow) => Number(c.monto_pendiente_usd_bcv ?? c.usd_bcv_factura ?? 0) || 0;
 
 function ImportarMovimientos() {
   return (
