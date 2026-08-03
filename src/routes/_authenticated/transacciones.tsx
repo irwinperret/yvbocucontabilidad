@@ -335,6 +335,7 @@ function TransaccionesPage() {
       if (cuentasSel.length && !cuentasSel.includes(t.cuenta_codigo)) return false;
       if (metodosSel.length && !metodosSel.includes(t.metodo_pago ?? "")) return false;
       if (modos.length && !modos.includes(t.modo)) return false;
+      if (soloSinFactura && !esSinFactura(t.detalle)) return false;
 
       if (tN) {
         const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
