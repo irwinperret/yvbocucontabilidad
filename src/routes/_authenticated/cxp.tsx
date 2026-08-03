@@ -110,7 +110,13 @@ function CxPAnalisisPage() {
                       <td className="py-2 px-2">{c.proveedor ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{c.numero_factura ?? "—"}</td>
                       <td className="py-2 px-2 mono text-xs">{(c as any).numero_orden ?? "—"}</td>
+                      <td className="py-2 px-2">
+                        <Badge variant="outline" className="text-[10px]">
+                          {c.origen === "xetux" ? "Xetux" : "Manual"}
+                        </Badge>
+                      </td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(pendBs)}</td>
+
                       <td className="py-2 px-2 text-right mono">
                         <div>{fmtUsd(pendUsd)}</div>
                         {tasa > 0 && (
