@@ -272,7 +272,7 @@ function ImportarMovimientosInner() {
         const cuentaCodigo = cuentaPorFila[i] ?? null;
         return {
           bankRow,
-          cxp: best,
+          cxps: best ? [best] : [],
           manual: false,
           selected: !duplicado && (!!best || !!cuentaCodigo),
           montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd * 1),
@@ -289,15 +289,41 @@ function ImportarMovimientosInner() {
     }
   };
 
+  /** Reemplaza la factura principal (primera) del movimiento. */
   const setMatchCxp = (bankRowId: string, cxpId: string | null) => {
     setMatches((prev) =>
       prev.map((m) => {
         if (m.bankRow.id !== bankRowId) return m;
         const cxp = cxpId ? cxpOptions.find((c) => c.id === cxpId) ?? null : null;
-        return { ...m, cxp, manual: true, selected: !m.duplicado && (!!cxp || !!m.cuentaCodigo) };
+        const cxps = cxp ? [cxp] : [];
+        return { ...m, cxps, manual: true, selected: !m.duplicado && (cxps.length > 0 || !!m.cuentaCodigo) };
       })
     );
   };
+
+  /** Agrega otra factura del mismo proveedor al mismo movimiento. */
+  const addMatchCxp = (bankRowId: string, cxpId: string) => {
+    setMatches((prev) =>
+      prev.map((m) => {
+        if (m.bankRow.id !== bankRowId) return m;
+        if (m.cxps.some((c) => c.id === cxpId)) return m;
+        const cxp = cxpOptions.find((c) => c.id === cxpId);
+        if (!cxp) return m;
+        return { ...m, cxps: [...m.cxps, cxp], manual: true };
+      })
+    );
+  };
+
+  const removeMatchCxp = (bankRowId: string, cxpId: string) => {
+    setMatches((prev) =>
+      prev.map((m) => {
+        if (m.bankRow.id !== bankRowId) return m;
+        const cxps = m.cxps.filter((c) => c.id !== cxpId);
+        return { ...m, cxps, manual: true, selected: !m.duplicado && (cxps.length > 0 || !!m.cuentaCodigo) };
+      })
+    );
+  };
+
 
   const setMatchCuenta = (bankRowId: string, codigo: string | null) => {
     setMatches((prev) =>
