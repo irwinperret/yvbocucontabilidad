@@ -674,6 +674,18 @@ function TransaccionesPage() {
             />
           </div>
 
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="solo-sin-factura"
+              checked={soloSinFactura}
+              onCheckedChange={(v) => upd("soloSinFactura", Boolean(v))}
+            />
+            <Label htmlFor="solo-sin-factura" className="text-sm font-normal cursor-pointer">
+              Solo movimientos sin factura en Xetux
+            </Label>
+          </div>
+
+
           {chips.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               {chips.map((c) => (
