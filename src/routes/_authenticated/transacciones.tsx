@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { esSinFactura } from "@/lib/conciliacion";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -45,6 +46,7 @@ type FilterState = {
   cuentas: string[];
   metodos: string[];
   modos: string[]; // ["on_balance","off_balance"]
+  soloSinFactura: boolean;
   tercero: string;
   factura: string;
   notas: string;
@@ -72,6 +74,7 @@ const defaultState = (initialDesde: string): FilterState => ({
   cuentas: [],
   metodos: [],
   modos: [],
+  soloSinFactura: false,
   tercero: "",
   factura: "",
   notas: "",
@@ -181,7 +184,7 @@ function TransaccionesPage() {
   }, [minFechaReady, minFecha, state.desde]);
 
   const {
-    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos,
+    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos, soloSinFactura,
     tercero, factura, notas: notasF, referencia, numMin, numMax,
     bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
     sortKey, sortDir, pageSize,
@@ -333,6 +336,7 @@ function TransaccionesPage() {
       if (cuentasSel.length && !cuentasSel.includes(t.cuenta_codigo)) return false;
       if (metodosSel.length && !metodosSel.includes(t.metodo_pago ?? "")) return false;
       if (modos.length && !modos.includes(t.modo)) return false;
+      if (soloSinFactura && !esSinFactura(t.detalle)) return false;
 
       if (tN) {
         const ter = t.tercero_id ? terceroById[t.tercero_id] : null;
@@ -394,7 +398,7 @@ function TransaccionesPage() {
       return 0;
     });
     return arr;
-  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos,
+  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos, soloSinFactura,
       numMin, numMax, bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
       sortKey, sortDir, cuentaNombre, terceroById]);
 
@@ -594,6 +598,7 @@ function TransaccionesPage() {
   cuentasSel.forEach((c) => chips.push({ key: `cu-${c}`, label: `Cuenta: ${c}`, clear: () => upd("cuentas", cuentasSel.filter((x) => x !== c)) }));
   metodosSel.forEach((m) => chips.push({ key: `m-${m}`, label: `Método: ${m}`, clear: () => upd("metodos", metodosSel.filter((x) => x !== m)) }));
   modos.forEach((m) => chips.push({ key: `mo-${m}`, label: `Modo: ${m === "on_balance" ? "on" : "off"}`, clear: () => upd("modos", modos.filter((x) => x !== m)) }));
+  if (soloSinFactura) chips.push({ key: "sinfac", label: "Solo sin factura Xetux", clear: () => upd("soloSinFactura", false) });
   if (tercero) chips.push({ key: "ter", label: `Tercero: "${tercero}"`, clear: () => upd("tercero", "") });
   if (factura) chips.push({ key: "fac", label: `Factura: "${factura}"`, clear: () => upd("factura", "") });
   if (notasF) chips.push({ key: "not", label: `Notas: "${notasF}"`, clear: () => upd("notas", "") });
@@ -607,7 +612,7 @@ function TransaccionesPage() {
   const clearAll = () => {
     setState((s) => ({
       ...s,
-      busca: "", centros: [], cuentas: [], metodos: [], modos: [],
+      busca: "", centros: [], cuentas: [], metodos: [], modos: [], soloSinFactura: false,
       tercero: "", factura: "", notas: "", referencia: "",
       numMin: "", numMax: "", bsMin: "", bsMax: "", usdMin: "", usdMax: "",
       netoMin: "", netoMax: "", ivaMin: "", ivaMax: "",
@@ -668,6 +673,18 @@ function TransaccionesPage() {
               onChange={(e) => upd("busca", e.target.value)}
             />
           </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="solo-sin-factura"
+              checked={soloSinFactura}
+              onCheckedChange={(v) => upd("soloSinFactura", Boolean(v))}
+            />
+            <Label htmlFor="solo-sin-factura" className="text-sm font-normal cursor-pointer">
+              Solo movimientos sin factura en Xetux
+            </Label>
+          </div>
+
 
           {chips.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
@@ -895,6 +912,9 @@ function TransaccionesPage() {
                             )}
                             {typeof t.notas === "string" && t.notas.startsWith("Pago CxP") && (
                               <Badge className="text-[9px] bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-300">Pago CxP</Badge>
+                            )}
+                            {esSinFactura(t.detalle) && (
+                              <Badge className="text-[9px] bg-orange-100 text-orange-800 hover:bg-orange-100 border-orange-300">Sin factura</Badge>
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
