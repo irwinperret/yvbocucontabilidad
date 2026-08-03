@@ -612,7 +612,7 @@ function TransaccionesPage() {
   const clearAll = () => {
     setState((s) => ({
       ...s,
-      busca: "", centros: [], cuentas: [], metodos: [], modos: [],
+      busca: "", centros: [], cuentas: [], metodos: [], modos: [], soloSinFactura: false,
       tercero: "", factura: "", notas: "", referencia: "",
       numMin: "", numMax: "", bsMin: "", bsMax: "", usdMin: "", usdMax: "",
       netoMin: "", netoMax: "", ivaMin: "", ivaMax: "",
