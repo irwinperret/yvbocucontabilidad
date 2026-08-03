@@ -79,6 +79,8 @@ function ImportarMovimientosInner() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [visibleCount, setVisibleCount] = useState(150);
+
 
   const { data: banks } = useQuery({
     queryKey: ["cuentas-bancarias-activas"],
