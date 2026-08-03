@@ -611,19 +611,33 @@ function ImportarMovimientosInner() {
                     <th className="p-2 bg-muted text-right">Monto Bs</th>
                     <th className="p-2 bg-muted text-right">Monto USD</th>
                     <th className="p-2 bg-muted">Cuenta destino</th>
-                    <th className="p-2 bg-muted">CxP emparejada</th>
+                    <th className="p-2 bg-muted">CxP emparejadas</th>
+                    <th className="p-2 bg-muted text-right">Dif. Bs</th>
                     <th className="p-2 bg-muted">Cuenta contable (sin factura)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {matches.slice(0, visibleCount).map((m) => (
+                  {matches.slice(0, visibleCount).map((m) => {
+                    const dif = difBs(m);
+                    const proveedorRef = m.cxps[0];
+                    const candidatas = proveedorRef
+                      ? cxpOptions
+                          .filter((c) =>
+                            !m.cxps.some((x) => x.id === c.id) &&
+                            (proveedorRef.tercero_id
+                              ? c.tercero_id === proveedorRef.tercero_id
+                              : c.proveedor === proveedorRef.proveedor),
+                          )
+                          .slice(0, 50)
+                      : [];
+                    return (
                     <tr
                       key={m.bankRow.id}
                       className={
                         "border-t " +
                         (m.duplicado
                           ? "opacity-50"
-                          : !m.cxp && !m.cuentaCodigo
+                          : m.cxps.length === 0 && !m.cuentaCodigo
                             ? "bg-destructive/5"
                             : "")
                       }
@@ -632,7 +646,7 @@ function ImportarMovimientosInner() {
                         <Checkbox
                           checked={m.selected && !m.duplicado}
                           onCheckedChange={(v) => setMatchSelected(m.bankRow.id, Boolean(v))}
-                          disabled={m.duplicado || !m.bankRow.cuentaBancariaId || (!m.cxp && !m.cuentaCodigo)}
+                          disabled={m.duplicado || !m.bankRow.cuentaBancariaId || (m.cxps.length === 0 && !m.cuentaCodigo)}
                         />
                       </td>
                       <td className="p-2">{fmtDate(m.bankRow.fecha)}</td>
@@ -648,8 +662,11 @@ function ImportarMovimientosInner() {
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{m.bankRow.categoria}</Badge>
                           )}
                           {m.duplicado && <Badge variant="secondary" className="text-[9px] px-1 py-0">Ya importado</Badge>}
-                          {!m.duplicado && !m.cxp && m.cuentaCodigo && (
+                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && (
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
+                          )}
+                          {!m.duplicado && dif !== null && dif > 0.01 && (
+                            <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente → anticipo</Badge>
                           )}
                         </div>
                       </td>
@@ -673,7 +690,7 @@ function ImportarMovimientosInner() {
                       </td>
                       <td className="p-2">
                         <Select
-                          value={m.cxp?.id ?? "_none_"}
+                          value={proveedorRef?.id ?? "_none_"}
                           onValueChange={(v) => setMatchCxp(m.bankRow.id, v === "_none_" ? null : v)}
                         >
                           <SelectTrigger className="w-[220px] text-xs">
@@ -681,25 +698,58 @@ function ImportarMovimientosInner() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="_none_">— Sin emparejar —</SelectItem>
-                            {(m.cxp && !cxpOptions.slice(0, 200).some((c) => c.id === m.cxp!.id) ? [m.cxp, ...cxpOptions.slice(0, 200)] : cxpOptions.slice(0, 200)).map((c) => (
+                            {(proveedorRef && !cxpOptions.slice(0, 200).some((c) => c.id === proveedorRef.id)
+                              ? [proveedorRef, ...cxpOptions.slice(0, 200)]
+                              : cxpOptions.slice(0, 200)
+                            ).map((c) => (
                               <SelectItem key={c.id} value={c.id}>
-                                {c.proveedor} · Fact {c.numero_factura ?? "—"} · {fmtBs(Number(c.monto_pendiente_bs ?? c.monto_bs))}
+                                {c.proveedor} · Fact {c.numero_factura ?? "—"} · {fmtBs(pendienteBs(c))}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        {m.cxp && (
-                          <div className="text-[10px] text-muted-foreground mt-1">
-                            Pendiente: {fmtBs(Number(m.cxp.monto_pendiente_bs ?? m.cxp.monto_bs))}
-                            {m.cxp.monto_pendiente_usd_bcv ? ` · ${fmtUsd(Number(m.cxp.monto_pendiente_usd_bcv))} USD BCV` : ""}
+                        {m.cxps.map((c, i) => (
+                          <div key={c.id} className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                            <span className="truncate max-w-[170px]">
+                              {i > 0 ? `+ Fact ${c.numero_factura ?? "—"} · ` : ""}
+                              Pendiente: {fmtBs(pendienteBs(c))}
+                              {c.monto_pendiente_usd_bcv ? ` · ${fmtUsd(Number(c.monto_pendiente_usd_bcv))} USD BCV` : ""}
+                            </span>
+                            {i > 0 && (
+                              <button
+                                type="button"
+                                className="text-destructive hover:underline"
+                                onClick={() => removeMatchCxp(m.bankRow.id, c.id)}
+                              >
+                                quitar
+                              </button>
+                            )}
                           </div>
+                        ))}
+                        {proveedorRef && candidatas.length > 0 && (
+                          <Select value="_add_" onValueChange={(v) => { if (v !== "_add_") addMatchCxp(m.bankRow.id, v); }}>
+                            <SelectTrigger className="w-[220px] text-[10px] h-7 mt-1">
+                              <SelectValue placeholder="+ Agregar otra factura" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_add_">+ Agregar otra factura</SelectItem>
+                              {candidatas.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  Fact {c.numero_factura ?? "—"} · {fmtBs(pendienteBs(c))}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         )}
+                      </td>
+                      <td className={"p-2 text-right mono " + (dif !== null && Math.abs(dif) > 0.01 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                        {dif === null ? "—" : fmtBs(dif)}
                       </td>
                       <td className="p-2">
                         <Select
                           value={m.cuentaCodigo ?? "_none_"}
                           onValueChange={(v) => setMatchCuenta(m.bankRow.id, v === "_none_" ? null : v)}
-                          disabled={!!m.cxp}
+                          disabled={m.cxps.length > 0}
                         >
                           <SelectTrigger className="w-[220px] text-xs">
                             <SelectValue placeholder="Elegir cuenta" />
@@ -713,7 +763,8 @@ function ImportarMovimientosInner() {
                         </Select>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
