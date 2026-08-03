@@ -1,30 +1,44 @@
-## Objetivo
+# Compras Xetux como CxP + Importación de movimientos bancarios
 
-En el registro de nómina, los parafiscales se descuentan del salario base y producen un **salario neto**. Ese neto es lo que debe quedar registrado en la cuenta de salario (3.9 YV / 3.4 Bocu), no el base.
+## Parte 1 — Importar compras (Xetux) genera Cuentas por Pagar
 
-Total registrado por quincena = salario neto + bono alimentación + bono compensatorio + parafiscales
-(equivale a: salario base + bonos).
+En la página de importación de compras, cada factura pasa a registrarse como **CxP pendiente** en lugar de compra ya pagada:
 
-## 1. Formulario de nómina (`src/routes/_authenticated/registrar.tsx`)
+- La transacción 2.1 se guarda con método de pago "pendiente" y sin cuenta bancaria.
+- Tras insertar la 2.1 y su pierna de IVA (12.5), se crea el registro en cuentas por pagar con proveedor, N° factura, centro de costo, monto en Bs, USD BCV y USD paralelo, las tasas de la fecha de la factura, estado "pendiente" y origen "xetux".
+- Deduplicación: si ya existe la transacción 2.1, se verifica también la CxP (mismo proveedor + N° factura). Si existe y está pendiente, se omite; si no existe, se crea.
+- Texto informativo actualizado: "Todas las compras importadas se registran como Cuentas por Pagar pendientes. El pago se registrará cuando importes los movimientos bancarios y los cruces contra estas facturas."
 
-Aplica a las dos pestañas: **Nómina regular (Bs)** y **Chef Ejecutivo (USD)**.
+## Parte 2 — Nueva página "Importar movimientos bancarios"
 
-- En cada bloque (BYV, BOCU, BYV-BOCU y Chef) se añade una fila de solo lectura **Salario neto = Salario base − Parafiscales**, que se recalcula en vivo al escribir. Campo deshabilitado, estilo resaltado, no editable directamente.
-- Si los parafiscales superan al salario base, el neto se muestra en rojo y el botón de registrar se bloquea con un mensaje.
-- El total de la sección y el total general pasan a calcularse como `neto + alimentación + compensatorio + parafiscales`.
-- Al registrar, la línea de salario (3.9 / 3.4, incluido el reparto 20/80 del bloque compartido) se inserta con el **neto**; las líneas de bonos y parafiscales quedan igual. El concepto de esa línea pasa a decir "Salario neto (base − parafiscales)".
+Nueva ruta `/importar-movimientos` con ítem en el menú lateral (modo Registro), justo debajo de "Importar compras (Xetux)".
 
-## 2. Corrección retroactiva
+**Paso 1 — Subir y cruzar**
+Se lee el Excel por nombre de columna (Mes, Banco, Fecha, N° Referencia, Concepto/Descripción, Monto Bs, Monto USD, Categoría, Cuenta Plan de Cuentas, N° Factura extraído, Estado, Cuenta Sugerida), tolerante a variaciones y al orden real del archivo.
 
-Hay 3 grupos de nómina históricos con líneas de parafiscales (13/07, 15/07 y 28/07 de 2026). Para cada uno:
+Cruce automático contra CxP pendientes:
+- Primario: N° factura extraído (comparando solo dígitos).
+- Secundario: números detectados en el concepto (FACT 1234, F12345, NE 123, REC123) → sugerencia.
+- Sin coincidencia: "Sin cruzar".
 
-- Emparejar cada línea de parafiscales (3.15) con su línea de salario correspondiente (3.9 o 3.4) usando el mismo grupo, el mismo centro de costo y el mismo sufijo de concepto en las notas (normal, "compartido 20%", "compartido 80%").
-- Restar el monto de los parafiscales al salario: se ajustan `monto_bs`, `monto_base_bs` y `monto_usd` (recalculado con la misma tasa que ya tiene la transacción, paralela con fallback a BCV) manteniendo el resto intacto.
-- Registrar cada cambio en auditoría.
-- El grupo del 15/07 (solo dos líneas de salario, sin parafiscales) no se toca.
-- Se hará mediante una corrección de datos puntual, mostrando el antes/después de cada línea al terminar.
+**Paso 2 — Vista previa**
+Tabla con badge por fila: Cruzado (verde, muestra proveedor/factura/monto de la CxP), Sugerencia (amarillo, con Aceptar/Rechazar), Sin cruzar (rojo, con selector de cuenta del plan precargado desde las columnas de cuenta sugerida y campo de notas), Ignorar (gris). Acciones masivas: "Aceptar todos los cruzados" e "Ignorar traspasos" (Categoría AHORRO/TRASPASO o concepto con TRASPASO).
 
-## Notas técnicas
+**Paso 3 — Confirmar importación**
+- Filas cruzadas: se toman las tasas BCV y paralela de la fecha del movimiento; se crea la transacción 13.2 (pago de CxP) con monto en Bs, USD a paralela, referencia y concepto del archivo, ligada al grupo de la factura; se marca la CxP como pagada con pendiente en 0; y si el USD BCV pagado difiere del USD BCV de la factura, se registra el diferencial cambiario en 11.1 (ganancia) o 11.2 (pérdida).
+- Filas sin cruzar con cuenta asignada: transacción on-balance en esa cuenta con las tasas de la fecha.
+- Filas sin cruzar sin cuenta: se registran off-balance con referencia "BANCO-SIN-CRUZAR" para revisión posterior.
+- Banco → cuenta bancaria: BVC (y el typo "BCV") → BVC, MERC → MERCANTIL, BA → BANCAMIGA, BOFA → BOFA; CASH y CXP quedan sin cuenta bancaria. Se avisa en pantalla cuando aparece "BCV" para que sepas que se interpretó como BVC.
+- Filas en USD sin Monto Bs (BOFA/CASH): el USD del archivo se toma como USD paralelo real y el monto en Bs se calcula con la tasa paralela de esa fecha.
+- Resumen final: "X pagos cruzados contra CxP · Y gastos registrados directamente · Z off-balance pendientes · W ignorados."
 
-- No cambia el plan de cuentas ni el esquema; los parafiscales siguen en 3.15 como línea propia.
-- El neto es un valor derivado: no se guarda un campo nuevo, se calcula en el formulario y se persiste en el monto de la línea de salario.
+## Parte 3 — Filtro de origen en Cuentas por Pagar
+
+- Migración: agregar la columna `origen` (texto, por defecto "manual") a cuentas por pagar y marcar como "xetux" las que provengan de transacciones importadas de Xetux.
+- En la vista de CxP: filtro "Origen" (Todos / Xetux / Manual) y una columna con badge Xetux o Manual.
+
+## Detalles técnicos
+
+- Archivos: `src/routes/_authenticated/importar-compras.tsx`, nuevo `src/routes/_authenticated/importar-movimientos.tsx`, `src/components/app-sidebar.tsx`, `src/routes/_authenticated/cxp.tsx`; parseo con los helpers existentes de `src/lib/xetux-parse.ts`.
+- Migración SQL: `ALTER TABLE public.cuentas_por_pagar ADD COLUMN IF NOT EXISTS origen text NOT NULL DEFAULT 'manual';` + update de las CxP ligadas a transacciones con `referencia = 'xetux'`.
+- Se respeta el guard de mes cerrado al insertar transacciones y se invalidan las queries de CxP, transacciones y saldos al terminar.
