@@ -79,6 +79,8 @@ function ImportarMovimientosInner() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [visibleCount, setVisibleCount] = useState(150);
+
 
   const { data: banks } = useQuery({
     queryKey: ["cuentas-bancarias-activas"],
@@ -179,14 +181,26 @@ function ImportarMovimientosInner() {
       }
       setRows(parsed);
 
-      // Auto-match
+      // Auto-match (indexado: evita O(filas × CxP) con regex por par)
+      const norm = (s: string) => s.toUpperCase().replace(/^0+/, "");
+      const index = new Map<string, CxPRow[]>();
+      for (const c of cxpOptions) {
+        if (!c.numero_factura) continue;
+        const key = norm(c.numero_factura);
+        if (!key) continue;
+        const list = index.get(key);
+        if (list) list.push(c); else index.set(key, [c]);
+      }
+
       const initialMatches: Match[] = parsed.map((bankRow) => {
-        const candidates = cxpOptions.filter((c) => {
-          if (!c.numero_factura) return false;
-          const invs = extractInvoiceNumbers(bankRow.concepto + " " + bankRow.referencia);
-          return invs.some((inv) => c.numero_factura!.toUpperCase().replace(/^0+/, "").includes(inv) || inv.includes(c.numero_factura!.toUpperCase().replace(/^0+/, "")));
-        });
-        const best = candidates.length === 1 ? candidates[0] : null;
+        const invs = extractInvoiceNumbers(bankRow.concepto + " " + bankRow.referencia);
+        const found: CxPRow[] = [];
+        for (const inv of invs) {
+          const hit = index.get(inv);
+          if (hit) found.push(...hit);
+        }
+        const uniq = Array.from(new Set(found));
+        const best = uniq.length === 1 ? uniq[0] : null;
         return {
           bankRow,
           cxp: best,
@@ -196,6 +210,7 @@ function ImportarMovimientosInner() {
         };
       });
       setMatches(initialMatches);
+
       toast.success(`${parsed.length} movimientos bancarios cargados`);
     } catch (e: any) {
       toast.error(e?.message ?? "Error leyendo archivo");
@@ -389,7 +404,7 @@ function ImportarMovimientosInner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {matches.map((m) => (
+                  {matches.slice(0, visibleCount).map((m) => (
                     <tr key={m.bankRow.id} className="border-t">
                       <td className="p-2">
                         <Checkbox
@@ -433,7 +448,7 @@ function ImportarMovimientosInner() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="_none_">— Sin emparejar —</SelectItem>
-                            {cxpOptions.map((c) => (
+                            {(m.cxp && !cxpOptions.slice(0, 200).some((c) => c.id === m.cxp!.id) ? [m.cxp, ...cxpOptions.slice(0, 200)] : cxpOptions.slice(0, 200)).map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {c.proveedor} · Fact {c.numero_factura ?? "—"} · {fmtBs(Number(c.monto_pendiente_bs ?? c.monto_bs))}
                               </SelectItem>
@@ -452,6 +467,14 @@ function ImportarMovimientosInner() {
                 </tbody>
               </table>
             </div>
+
+            {matches.length > visibleCount && (
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <span>Mostrando {visibleCount} de {matches.length} filas</span>
+                <Button variant="outline" size="sm" onClick={() => setVisibleCount((v) => v + 150)}>Mostrar más</Button>
+              </div>
+            )}
+
 
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
