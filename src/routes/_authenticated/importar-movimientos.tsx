@@ -404,7 +404,7 @@ function ImportarMovimientosInner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {matches.map((m) => (
+                  {matches.slice(0, visibleCount).map((m) => (
                     <tr key={m.bankRow.id} className="border-t">
                       <td className="p-2">
                         <Checkbox
