@@ -598,6 +598,7 @@ function TransaccionesPage() {
   cuentasSel.forEach((c) => chips.push({ key: `cu-${c}`, label: `Cuenta: ${c}`, clear: () => upd("cuentas", cuentasSel.filter((x) => x !== c)) }));
   metodosSel.forEach((m) => chips.push({ key: `m-${m}`, label: `Método: ${m}`, clear: () => upd("metodos", metodosSel.filter((x) => x !== m)) }));
   modos.forEach((m) => chips.push({ key: `mo-${m}`, label: `Modo: ${m === "on_balance" ? "on" : "off"}`, clear: () => upd("modos", modos.filter((x) => x !== m)) }));
+  if (soloSinFactura) chips.push({ key: "sinfac", label: "Solo sin factura Xetux", clear: () => upd("soloSinFactura", false) });
   if (tercero) chips.push({ key: "ter", label: `Tercero: "${tercero}"`, clear: () => upd("tercero", "") });
   if (factura) chips.push({ key: "fac", label: `Factura: "${factura}"`, clear: () => upd("factura", "") });
   if (notasF) chips.push({ key: "not", label: `Notas: "${notasF}"`, clear: () => upd("notas", "") });
