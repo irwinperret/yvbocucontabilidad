@@ -45,6 +45,7 @@ type FilterState = {
   cuentas: string[];
   metodos: string[];
   modos: string[]; // ["on_balance","off_balance"]
+  soloSinFactura: boolean;
   tercero: string;
   factura: string;
   notas: string;
