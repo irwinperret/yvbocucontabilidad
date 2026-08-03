@@ -398,7 +398,7 @@ function TransaccionesPage() {
       return 0;
     });
     return arr;
-  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos,
+  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos, soloSinFactura,
       numMin, numMax, bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
       sortKey, sortDir, cuentaNombre, terceroById]);
 
