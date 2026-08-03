@@ -448,7 +448,7 @@ function ImportarMovimientosInner() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="_none_">— Sin emparejar —</SelectItem>
-                            {cxpOptions.map((c) => (
+                            {(m.cxp && !cxpOptions.slice(0, 200).some((c) => c.id === m.cxp!.id) ? [m.cxp, ...cxpOptions.slice(0, 200)] : cxpOptions.slice(0, 200)).map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {c.proveedor} · Fact {c.numero_factura ?? "—"} · {fmtBs(Number(c.monto_pendiente_bs ?? c.monto_bs))}
                               </SelectItem>
