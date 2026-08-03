@@ -67,13 +67,17 @@ type CxPRow = {
 
 type Match = {
   bankRow: BankRow;
-  cxp: CxPRow | null;
+  /** Facturas cubiertas por este movimiento, en orden de aplicación. */
+  cxps: CxPRow[];
   manual: boolean;
   selected: boolean;
   montoBs: number;
   cuentaCodigo: string | null;
   duplicado: boolean;
 };
+
+const pendienteBs = (c: CxPRow) => Number(c.monto_pendiente_bs ?? c.monto_bs) || 0;
+const pendienteUsdBcv = (c: CxPRow) => Number(c.monto_pendiente_usd_bcv ?? c.usd_bcv_factura ?? 0) || 0;
 
 function ImportarMovimientos() {
   return (
@@ -268,7 +272,7 @@ function ImportarMovimientosInner() {
         const cuentaCodigo = cuentaPorFila[i] ?? null;
         return {
           bankRow,
-          cxp: best,
+          cxps: best ? [best] : [],
           manual: false,
           selected: !duplicado && (!!best || !!cuentaCodigo),
           montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd * 1),
@@ -285,15 +289,41 @@ function ImportarMovimientosInner() {
     }
   };
 
+  /** Reemplaza la factura principal (primera) del movimiento. */
   const setMatchCxp = (bankRowId: string, cxpId: string | null) => {
     setMatches((prev) =>
       prev.map((m) => {
         if (m.bankRow.id !== bankRowId) return m;
         const cxp = cxpId ? cxpOptions.find((c) => c.id === cxpId) ?? null : null;
-        return { ...m, cxp, manual: true, selected: !m.duplicado && (!!cxp || !!m.cuentaCodigo) };
+        const cxps = cxp ? [cxp] : [];
+        return { ...m, cxps, manual: true, selected: !m.duplicado && (cxps.length > 0 || !!m.cuentaCodigo) };
       })
     );
   };
+
+  /** Agrega otra factura del mismo proveedor al mismo movimiento. */
+  const addMatchCxp = (bankRowId: string, cxpId: string) => {
+    setMatches((prev) =>
+      prev.map((m) => {
+        if (m.bankRow.id !== bankRowId) return m;
+        if (m.cxps.some((c) => c.id === cxpId)) return m;
+        const cxp = cxpOptions.find((c) => c.id === cxpId);
+        if (!cxp) return m;
+        return { ...m, cxps: [...m.cxps, cxp], manual: true };
+      })
+    );
+  };
+
+  const removeMatchCxp = (bankRowId: string, cxpId: string) => {
+    setMatches((prev) =>
+      prev.map((m) => {
+        if (m.bankRow.id !== bankRowId) return m;
+        const cxps = m.cxps.filter((c) => c.id !== cxpId);
+        return { ...m, cxps, manual: true, selected: !m.duplicado && (cxps.length > 0 || !!m.cuentaCodigo) };
+      })
+    );
+  };
+
 
   const setMatchCuenta = (bankRowId: string, codigo: string | null) => {
     setMatches((prev) =>
@@ -321,7 +351,7 @@ function ImportarMovimientosInner() {
   };
 
   const importable = (m: Match) =>
-    m.selected && !m.duplicado && !!m.bankRow.cuentaBancariaId && (!!m.cxp || !!m.cuentaCodigo);
+    m.selected && !m.duplicado && !!m.bankRow.cuentaBancariaId && (m.cxps.length > 0 || !!m.cuentaCodigo);
 
   const confirmar = async () => {
     if (!user) return;
@@ -336,7 +366,7 @@ function ImportarMovimientosInner() {
 
     setBusy(true);
     setProgress({ done: 0, total: toImport.length });
-    let ok = 0, fail = 0, partial = 0, sinFactura = 0;
+    let ok = 0, fail = 0, partial = 0, sinFactura = 0, anticipos = 0;
     const importados = new Set<string>();
 
     for (const m of toImport) {
@@ -344,9 +374,10 @@ function ImportarMovimientosInner() {
         const bankRow = m.bankRow;
         const rates = await getRatesForDate(bankRow.fecha);
         const montoBs = Math.abs(bankRow.montoBs || bankRow.montoUsd * (rates.paralela || rates.bcv || 1));
-        const montoUsd = rates.paralela > 0 ? +(montoBs / rates.paralela).toFixed(2) : (rates.bcv > 0 ? +(montoBs / rates.bcv).toFixed(2) : 0);
+        const toUsd = (bs: number) =>
+          rates.paralela > 0 ? +(bs / rates.paralela).toFixed(2) : (rates.bcv > 0 ? +(bs / rates.bcv).toFixed(2) : 0);
 
-        if (!m.cxp) {
+        if (m.cxps.length === 0) {
           // ── Movimiento sin factura en Xetux: se registra contra su cuenta contable ──
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
@@ -359,7 +390,7 @@ function ImportarMovimientosInner() {
             tipo_iva: null,
             tasa_bcv: rates.bcv || null,
             tasa_paralela: rates.paralela || null,
-            monto_usd: montoUsd,
+            monto_usd: toUsd(montoBs),
             metodo_pago: "transferencia" as any,
             referencia: bankRow.huella,
             detalle: `${SIN_FACTURA_PREFIX} · ${bankRow.concepto}`.slice(0, 255),
@@ -378,67 +409,113 @@ function ImportarMovimientosInner() {
           continue;
         }
 
-        const cxp = m.cxp;
-
-        const { data: txOrig } = await supabase
-          .from("transacciones")
-          .select("centro_costo, grupo_transaccion_id")
-          .eq("id", cxp.transaccion_id ?? "")
-          .maybeSingle();
-        const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
-
+        // ── Distribución del pago en USD BCV entre las facturas seleccionadas ──
         const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
-        const { data: ivaLegs } = await supabase
-          .from("transacciones")
-          .select("id")
-          .eq("grupo_transaccion_id", grupoId)
-          .eq("cuenta_codigo", "12.5")
-          .gt("monto_bs", 0)
-          .limit(1);
-        const hasIva = (ivaLegs?.length ?? 0) > 0;
-        const split = await calcularSplitIvaPagoCxp(grupoId, montoBs, hasIva);
+        let restanteUsdBcv = rates.bcv > 0 ? +(montoBs / rates.bcv).toFixed(2) : 0;
+        let restanteBs = montoBs;
+        let idx = 0;
 
-        const { data: tx, error } = await supabase.from("transacciones").insert({
-          fecha: bankRow.fecha,
-          cuenta_codigo: CUENTA_PAGO_CXP,
-          centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
-          monto_bs: montoBs,
-          monto_base_bs: split.monto_base_bs,
-          iva_bs: split.iva_bs,
-          iva_aplica: split.iva_bs > 0,
-          tipo_iva: null,
-          tasa_bcv: rates.bcv || null,
-          tasa_paralela: rates.paralela || null,
-          monto_usd: montoUsd,
-          metodo_pago: "transferencia" as any,
-          referencia: bankRow.huella,
-          notas: `Conciliación bancaria · ${bankRow.concepto}`.slice(0, 255),
-          modo: "on_balance" as any,
-          cuenta_bancaria_id: bankRow.cuentaBancariaId,
-          tercero_id: cxp.tercero_id ?? null,
-          grupo_transaccion_id: grupoId,
-          created_by: user.id,
-        } as any).select().single();
+        for (const cxp of m.cxps) {
+          if (restanteBs <= 0.01) break;
+          const pendUsdBcv = pendienteUsdBcv(cxp);
+          const aplicarUsdBcv = rates.bcv > 0
+            ? Math.min(pendUsdBcv, restanteUsdBcv)
+            : restanteUsdBcv;
+          const tramoBs = rates.bcv > 0
+            ? Math.min(restanteBs, +(aplicarUsdBcv * rates.bcv).toFixed(2))
+            : restanteBs;
+          if (tramoBs <= 0.01) { idx++; continue; }
 
-        if (error) throw new Error(error.message);
-        if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+          const { data: txOrig } = await supabase
+            .from("transacciones")
+            .select("centro_costo, grupo_transaccion_id")
+            .eq("id", cxp.transaccion_id ?? "")
+            .maybeSingle();
+          const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
 
-        // Update CxP
-        const pendiente = Number(cxp.monto_pendiente_bs ?? cxp.monto_bs);
-        const usdBcvPendiente = Number(cxp.monto_pendiente_usd_bcv ?? cxp.usd_bcv_factura ?? 0);
-        const usdBcvPagado = rates.bcv > 0 ? +(montoBs / rates.bcv).toFixed(2) : 0;
-        const nuevoUsdBcv = Math.max(0, +(usdBcvPendiente - usdBcvPagado).toFixed(2));
-        const nuevoBs = Math.max(0, +(nuevoUsdBcv * (Number(cxp.tasa_bcv_factura) || rates.bcv || 1)).toFixed(2));
-        const cubreTodo = nuevoUsdBcv <= 0.01;
+          const { data: ivaLegs } = await supabase
+            .from("transacciones")
+            .select("id")
+            .eq("grupo_transaccion_id", grupoId)
+            .eq("cuenta_codigo", "12.5")
+            .gt("monto_bs", 0)
+            .limit(1);
+          const hasIva = (ivaLegs?.length ?? 0) > 0;
+          const split = await calcularSplitIvaPagoCxp(grupoId, tramoBs, hasIva);
 
-        await supabase.from("cuentas_por_pagar").update({
-          estado: cubreTodo ? "pagada" : "parcial",
-          pagada_at: cubreTodo ? new Date().toISOString() : null,
-          monto_pendiente_bs: nuevoBs,
-          monto_pendiente_usd_bcv: nuevoUsdBcv,
-        }).eq("id", cxp.id);
+          const { data: tx, error } = await supabase.from("transacciones").insert({
+            fecha: bankRow.fecha,
+            cuenta_codigo: CUENTA_PAGO_CXP,
+            centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
+            monto_bs: tramoBs,
+            monto_base_bs: split.monto_base_bs,
+            iva_bs: split.iva_bs,
+            iva_aplica: split.iva_bs > 0,
+            tipo_iva: null,
+            tasa_bcv: rates.bcv || null,
+            tasa_paralela: rates.paralela || null,
+            monto_usd: toUsd(tramoBs),
+            metodo_pago: "transferencia" as any,
+            referencia: idx === 0 ? bankRow.huella : `${bankRow.huella}#${idx}`,
+            notas: `Conciliación bancaria · ${bankRow.concepto}`.slice(0, 255),
+            modo: "on_balance" as any,
+            cuenta_bancaria_id: bankRow.cuentaBancariaId,
+            tercero_id: cxp.tercero_id ?? null,
+            grupo_transaccion_id: grupoId,
+            created_by: user.id,
+          } as any).select().single();
 
-        if (cubreTodo) ok++; else partial++;
+          if (error) throw new Error(error.message);
+          if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+
+          const nuevoUsdBcv = Math.max(0, +(pendUsdBcv - aplicarUsdBcv).toFixed(2));
+          const nuevoBs = Math.max(0, +(nuevoUsdBcv * (Number(cxp.tasa_bcv_factura) || rates.bcv || 1)).toFixed(2));
+          const cubreTodo = nuevoUsdBcv <= 0.01;
+
+          await supabase.from("cuentas_por_pagar").update({
+            estado: cubreTodo ? "pagada" : "parcial",
+            pagada_at: cubreTodo ? new Date().toISOString() : null,
+            monto_pendiente_bs: nuevoBs,
+            monto_pendiente_usd_bcv: nuevoUsdBcv,
+          }).eq("id", cxp.id);
+
+          if (cubreTodo) ok++; else partial++;
+          restanteBs = +(restanteBs - tramoBs).toFixed(2);
+          restanteUsdBcv = +(restanteUsdBcv - aplicarUsdBcv).toFixed(2);
+          idx++;
+        }
+
+        // ── Remanente: anticipo a proveedor (14.2) ──
+        if (restanteUsdBcv > 0.01 && restanteBs > 0.01) {
+          const proveedor = m.cxps[0];
+          const { data: txAnt, error: eAnt } = await supabase.from("transacciones").insert({
+            fecha: bankRow.fecha,
+            cuenta_codigo: "14.2",
+            centro_costo: (proveedor.centro_costo ?? "Compartido") as any,
+            monto_bs: restanteBs,
+            monto_base_bs: restanteBs,
+            iva_bs: 0,
+            iva_aplica: false,
+            tipo_iva: null,
+            tasa_bcv: rates.bcv || null,
+            tasa_paralela: rates.paralela || null,
+            monto_usd: toUsd(restanteBs),
+            metodo_pago: "transferencia" as any,
+            referencia: `${bankRow.huella}#ANT`,
+            detalle: `Anticipo por excedente de pago · ${proveedor.proveedor}`.slice(0, 255),
+            notas: `Excedente de conciliación bancaria · ${bankRow.banco} · Ref ${bankRow.referencia || "—"}`.slice(0, 255),
+            modo: "on_balance" as any,
+            cuenta_bancaria_id: bankRow.cuentaBancariaId,
+            tercero_id: proveedor.tercero_id ?? null,
+            anticipo_estado: "abierto",
+            grupo_transaccion_id: crypto.randomUUID(),
+            created_by: user.id,
+          } as any).select().single();
+          if (eAnt) throw new Error(eAnt.message);
+          if (txAnt) await logAudit("transacciones", "INSERT", (txAnt as any).id, null, txAnt);
+          anticipos++;
+        }
+
         importados.add(bankRow.id);
         setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
       } catch (e: any) {
@@ -451,22 +528,34 @@ function ImportarMovimientosInner() {
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Pagados: ${ok} · Parciales: ${partial} · Sin factura: ${sinFactura} · Fallidos: ${fail}`);
+    toast.success(
+      `Facturas pagadas: ${ok} · Parciales: ${partial} · Anticipos: ${anticipos} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
+    );
     if (importados.size > 0) {
       setRows((prev) => prev.filter((r) => !importados.has(r.id)));
       setMatches((prev) => prev.filter((m) => !importados.has(m.bankRow.id)));
     }
   };
 
+  /** Diferencia (solo informativa) entre lo que valen las facturas y lo que se paga. */
+  const difBs = (m: Match) => {
+    if (m.cxps.length === 0) return null;
+    const facturado = m.cxps.reduce((s, c) => s + pendienteBs(c), 0);
+    const pagado = Math.abs(m.bankRow.montoBs || 0);
+    if (!pagado) return null;
+    return +(pagado - facturado).toFixed(2);
+  };
+
   const stats = useMemo(() => {
     const total = rows.length;
-    const matched = matches.filter((m) => m.cxp).length;
+    const matched = matches.filter((m) => m.cxps.length > 0).length;
     const duplicados = matches.filter((m) => m.duplicado).length;
-    const sinCuenta = matches.filter((m) => !m.duplicado && !m.cxp && !m.cuentaCodigo).length;
-    const sinFactura = matches.filter((m) => !m.duplicado && !m.cxp && !!m.cuentaCodigo).length;
+    const sinCuenta = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && !m.cuentaCodigo).length;
+    const sinFactura = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && !!m.cuentaCodigo).length;
     const selected = matches.filter(importable).length;
     const withAccount = matches.filter((m) => m.bankRow.cuentaBancariaId).length;
-    return { total, matched, selected, withAccount, duplicados, sinCuenta, sinFactura };
+    const difTotal = matches.reduce((s, m) => s + (m.duplicado ? 0 : (difBs(m) ?? 0)), 0);
+    return { total, matched, selected, withAccount, duplicados, sinCuenta, sinFactura, difTotal };
   }, [rows, matches]);
 
   return (
@@ -508,6 +597,11 @@ function ImportarMovimientosInner() {
               {stats.withAccount < stats.selected && (
                 <Badge variant="destructive">Falta cuenta bancaria en {stats.selected - stats.withAccount} filas</Badge>
               )}
+              {Math.abs(stats.difTotal) > 0.01 && (
+                <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">
+                  Diferencia total (informativa): {fmtBs(stats.difTotal)}
+                </Badge>
+              )}
             </div>
 
             <div className="border rounded overflow-x-auto max-h-[600px]">
@@ -522,19 +616,33 @@ function ImportarMovimientosInner() {
                     <th className="p-2 bg-muted text-right">Monto Bs</th>
                     <th className="p-2 bg-muted text-right">Monto USD</th>
                     <th className="p-2 bg-muted">Cuenta destino</th>
-                    <th className="p-2 bg-muted">CxP emparejada</th>
+                    <th className="p-2 bg-muted">CxP emparejadas</th>
+                    <th className="p-2 bg-muted text-right">Dif. Bs</th>
                     <th className="p-2 bg-muted">Cuenta contable (sin factura)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {matches.slice(0, visibleCount).map((m) => (
+                  {matches.slice(0, visibleCount).map((m) => {
+                    const dif = difBs(m);
+                    const proveedorRef = m.cxps[0];
+                    const candidatas = proveedorRef
+                      ? cxpOptions
+                          .filter((c) =>
+                            !m.cxps.some((x) => x.id === c.id) &&
+                            (proveedorRef.tercero_id
+                              ? c.tercero_id === proveedorRef.tercero_id
+                              : c.proveedor === proveedorRef.proveedor),
+                          )
+                          .slice(0, 50)
+                      : [];
+                    return (
                     <tr
                       key={m.bankRow.id}
                       className={
                         "border-t " +
                         (m.duplicado
                           ? "opacity-50"
-                          : !m.cxp && !m.cuentaCodigo
+                          : m.cxps.length === 0 && !m.cuentaCodigo
                             ? "bg-destructive/5"
                             : "")
                       }
@@ -543,7 +651,7 @@ function ImportarMovimientosInner() {
                         <Checkbox
                           checked={m.selected && !m.duplicado}
                           onCheckedChange={(v) => setMatchSelected(m.bankRow.id, Boolean(v))}
-                          disabled={m.duplicado || !m.bankRow.cuentaBancariaId || (!m.cxp && !m.cuentaCodigo)}
+                          disabled={m.duplicado || !m.bankRow.cuentaBancariaId || (m.cxps.length === 0 && !m.cuentaCodigo)}
                         />
                       </td>
                       <td className="p-2">{fmtDate(m.bankRow.fecha)}</td>
@@ -559,8 +667,11 @@ function ImportarMovimientosInner() {
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{m.bankRow.categoria}</Badge>
                           )}
                           {m.duplicado && <Badge variant="secondary" className="text-[9px] px-1 py-0">Ya importado</Badge>}
-                          {!m.duplicado && !m.cxp && m.cuentaCodigo && (
+                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && (
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
+                          )}
+                          {!m.duplicado && dif !== null && dif > 0.01 && (
+                            <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente → anticipo</Badge>
                           )}
                         </div>
                       </td>
@@ -584,7 +695,7 @@ function ImportarMovimientosInner() {
                       </td>
                       <td className="p-2">
                         <Select
-                          value={m.cxp?.id ?? "_none_"}
+                          value={proveedorRef?.id ?? "_none_"}
                           onValueChange={(v) => setMatchCxp(m.bankRow.id, v === "_none_" ? null : v)}
                         >
                           <SelectTrigger className="w-[220px] text-xs">
@@ -592,25 +703,58 @@ function ImportarMovimientosInner() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="_none_">— Sin emparejar —</SelectItem>
-                            {(m.cxp && !cxpOptions.slice(0, 200).some((c) => c.id === m.cxp!.id) ? [m.cxp, ...cxpOptions.slice(0, 200)] : cxpOptions.slice(0, 200)).map((c) => (
+                            {(proveedorRef && !cxpOptions.slice(0, 200).some((c) => c.id === proveedorRef.id)
+                              ? [proveedorRef, ...cxpOptions.slice(0, 200)]
+                              : cxpOptions.slice(0, 200)
+                            ).map((c) => (
                               <SelectItem key={c.id} value={c.id}>
-                                {c.proveedor} · Fact {c.numero_factura ?? "—"} · {fmtBs(Number(c.monto_pendiente_bs ?? c.monto_bs))}
+                                {c.proveedor} · Fact {c.numero_factura ?? "—"} · {fmtBs(pendienteBs(c))}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        {m.cxp && (
-                          <div className="text-[10px] text-muted-foreground mt-1">
-                            Pendiente: {fmtBs(Number(m.cxp.monto_pendiente_bs ?? m.cxp.monto_bs))}
-                            {m.cxp.monto_pendiente_usd_bcv ? ` · ${fmtUsd(Number(m.cxp.monto_pendiente_usd_bcv))} USD BCV` : ""}
+                        {m.cxps.map((c, i) => (
+                          <div key={c.id} className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                            <span className="truncate max-w-[170px]">
+                              {i > 0 ? `+ Fact ${c.numero_factura ?? "—"} · ` : ""}
+                              Pendiente: {fmtBs(pendienteBs(c))}
+                              {c.monto_pendiente_usd_bcv ? ` · ${fmtUsd(Number(c.monto_pendiente_usd_bcv))} USD BCV` : ""}
+                            </span>
+                            {i > 0 && (
+                              <button
+                                type="button"
+                                className="text-destructive hover:underline"
+                                onClick={() => removeMatchCxp(m.bankRow.id, c.id)}
+                              >
+                                quitar
+                              </button>
+                            )}
                           </div>
+                        ))}
+                        {proveedorRef && candidatas.length > 0 && (
+                          <Select value="_add_" onValueChange={(v) => { if (v !== "_add_") addMatchCxp(m.bankRow.id, v); }}>
+                            <SelectTrigger className="w-[220px] text-[10px] h-7 mt-1">
+                              <SelectValue placeholder="+ Agregar otra factura" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_add_">+ Agregar otra factura</SelectItem>
+                              {candidatas.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  Fact {c.numero_factura ?? "—"} · {fmtBs(pendienteBs(c))}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         )}
+                      </td>
+                      <td className={"p-2 text-right mono " + (dif !== null && Math.abs(dif) > 0.01 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                        {dif === null ? "—" : fmtBs(dif)}
                       </td>
                       <td className="p-2">
                         <Select
                           value={m.cuentaCodigo ?? "_none_"}
                           onValueChange={(v) => setMatchCuenta(m.bankRow.id, v === "_none_" ? null : v)}
-                          disabled={!!m.cxp}
+                          disabled={m.cxps.length > 0}
                         >
                           <SelectTrigger className="w-[220px] text-xs">
                             <SelectValue placeholder="Elegir cuenta" />
@@ -624,7 +768,8 @@ function ImportarMovimientosInner() {
                         </Select>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
