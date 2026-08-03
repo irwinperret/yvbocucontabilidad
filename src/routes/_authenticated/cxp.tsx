@@ -13,15 +13,20 @@ import { UsdRateBadge } from "@/components/usd-rate-badge";
 export const Route = createFileRoute("/_authenticated/cxp")({ component: CxPAnalisisPage });
 
 function CxPAnalisisPage() {
+  const [origenFilter, setOrigenFilter] = useState<string>("todos");
+
   const { data } = useQuery({
-    queryKey: ["cxp-analisis"],
+    queryKey: ["cxp-analisis", origenFilter],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
-      return await fetchAllRows(async (from, to) =>
-        await supabase.from("cuentas_por_pagar").select("*").neq("estado", "pagada").order("fecha_vencimiento", { ascending: true }).range(from, to),
-      );
+      let q = supabase.from("cuentas_por_pagar").select("*").neq("estado", "pagada").order("fecha_vencimiento", { ascending: true });
+      if (origenFilter !== "todos") {
+        q = q.eq("origen", origenFilter);
+      }
+      return await fetchAllRows(async (from, to) => await q.range(from, to));
     },
   });
+
 
   const badge = (c: any) => {
     if (!c.fecha_vencimiento) return <Badge className="bg-green-600">vigente</Badge>;
