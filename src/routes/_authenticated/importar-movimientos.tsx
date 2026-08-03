@@ -179,14 +179,26 @@ function ImportarMovimientosInner() {
       }
       setRows(parsed);
 
-      // Auto-match
+      // Auto-match (indexado: evita O(filas × CxP) con regex por par)
+      const norm = (s: string) => s.toUpperCase().replace(/^0+/, "");
+      const index = new Map<string, CxPRow[]>();
+      for (const c of cxpOptions) {
+        if (!c.numero_factura) continue;
+        const key = norm(c.numero_factura);
+        if (!key) continue;
+        const list = index.get(key);
+        if (list) list.push(c); else index.set(key, [c]);
+      }
+
       const initialMatches: Match[] = parsed.map((bankRow) => {
-        const candidates = cxpOptions.filter((c) => {
-          if (!c.numero_factura) return false;
-          const invs = extractInvoiceNumbers(bankRow.concepto + " " + bankRow.referencia);
-          return invs.some((inv) => c.numero_factura!.toUpperCase().replace(/^0+/, "").includes(inv) || inv.includes(c.numero_factura!.toUpperCase().replace(/^0+/, "")));
-        });
-        const best = candidates.length === 1 ? candidates[0] : null;
+        const invs = extractInvoiceNumbers(bankRow.concepto + " " + bankRow.referencia);
+        const found: CxPRow[] = [];
+        for (const inv of invs) {
+          const hit = index.get(inv);
+          if (hit) found.push(...hit);
+        }
+        const uniq = Array.from(new Set(found));
+        const best = uniq.length === 1 ? uniq[0] : null;
         return {
           bankRow,
           cxp: best,
@@ -196,6 +208,7 @@ function ImportarMovimientosInner() {
         };
       });
       setMatches(initialMatches);
+
       toast.success(`${parsed.length} movimientos bancarios cargados`);
     } catch (e: any) {
       toast.error(e?.message ?? "Error leyendo archivo");
