@@ -56,12 +56,28 @@ function CxPAnalisisPage() {
         <p className="text-sm text-muted-foreground">Vista de obligaciones pendientes (solo lectura)</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Vencidas" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
-        <Kpi label="Por vencer 7d" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
-        <Kpi label="Vigentes" value={fmtUsd(total - totalVencidas - totalPorVencer)} count={items.length - vencidas.length - porVencer.length} color="positive" />
-        <Kpi label="Total" value={fmtUsd(total)} count={items.length} color="" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="grid gap-4 md:grid-cols-4 flex-1">
+          <Kpi label="Vencidas" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
+          <Kpi label="Por vencer 7d" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
+          <Kpi label="Vigentes" value={fmtUsd(total - totalVencidas - totalPorVencer)} count={items.length - vencidas.length - porVencer.length} color="positive" />
+          <Kpi label="Total" value={fmtUsd(total)} count={items.length} color="" />
+        </div>
+        <div className="space-y-1 md:w-[200px]">
+          <Label className="text-xs">Origen</Label>
+          <Select value={origenFilter} onValueChange={setOrigenFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="xetux">Xetux</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Detalle</CardTitle></CardHeader>
