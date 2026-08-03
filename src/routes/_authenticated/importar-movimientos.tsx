@@ -597,6 +597,11 @@ function ImportarMovimientosInner() {
               {stats.withAccount < stats.selected && (
                 <Badge variant="destructive">Falta cuenta bancaria en {stats.selected - stats.withAccount} filas</Badge>
               )}
+              {Math.abs(stats.difTotal) > 0.01 && (
+                <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">
+                  Diferencia total (informativa): {fmtBs(stats.difTotal)}
+                </Badge>
+              )}
             </div>
 
             <div className="border rounded overflow-x-auto max-h-[600px]">
