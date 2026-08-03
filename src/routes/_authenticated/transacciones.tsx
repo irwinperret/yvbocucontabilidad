@@ -73,6 +73,7 @@ const defaultState = (initialDesde: string): FilterState => ({
   cuentas: [],
   metodos: [],
   modos: [],
+  soloSinFactura: false,
   tercero: "",
   factura: "",
   notas: "",
