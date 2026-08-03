@@ -48,7 +48,9 @@ const registroDirectos = [
   { title: "Registrar movimiento", url: "/registrar", icon: PlusCircle },
   { title: "Importar ventas (Xetux)", url: "/importar-ventas", icon: Upload },
   { title: "Importar compras (Xetux)", url: "/importar-compras", icon: Upload },
+  { title: "Importar movimientos bancarios", url: "/importar-movimientos", icon: Landmark },
 ];
+
 
 const registroGestion = [
   { title: "Transacciones", url: "/transacciones", icon: ListChecks },

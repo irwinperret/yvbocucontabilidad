@@ -28,6 +28,7 @@ import { Route as AuthenticatedInventariosRouteImport } from './routes/_authenti
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedImpuestosRouteImport } from './routes/_authenticated/impuestos'
 import { Route as AuthenticatedImportarVentasRouteImport } from './routes/_authenticated/importar-ventas'
+import { Route as AuthenticatedImportarMovimientosRouteImport } from './routes/_authenticated/importar-movimientos'
 import { Route as AuthenticatedImportarComprasRouteImport } from './routes/_authenticated/importar-compras'
 import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
 import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
@@ -146,6 +147,12 @@ const AuthenticatedImportarVentasRoute =
     path: '/importar-ventas',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedImportarMovimientosRoute =
+  AuthenticatedImportarMovimientosRouteImport.update({
+    id: '/importar-movimientos',
+    path: '/importar-movimientos',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedImportarComprasRoute =
   AuthenticatedImportarComprasRouteImport.update({
     id: '/importar-compras',
@@ -245,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
   '/importar-compras': typeof AuthenticatedImportarComprasRoute
+  '/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/impuestos': typeof AuthenticatedImpuestosRoute
   '/inicio': typeof AuthenticatedInicioRoute
@@ -280,6 +288,7 @@ export interface FileRoutesByTo {
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
   '/importar-compras': typeof AuthenticatedImportarComprasRoute
+  '/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/impuestos': typeof AuthenticatedImpuestosRoute
   '/inicio': typeof AuthenticatedInicioRoute
@@ -317,6 +326,7 @@ export interface FileRoutesById {
   '/_authenticated/fc': typeof AuthenticatedFcRoute
   '/_authenticated/gyp': typeof AuthenticatedGypRoute
   '/_authenticated/importar-compras': typeof AuthenticatedImportarComprasRoute
+  '/_authenticated/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/_authenticated/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/_authenticated/impuestos': typeof AuthenticatedImpuestosRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/fc'
     | '/gyp'
     | '/importar-compras'
+    | '/importar-movimientos'
     | '/importar-ventas'
     | '/impuestos'
     | '/inicio'
@@ -389,6 +400,7 @@ export interface FileRouteTypes {
     | '/fc'
     | '/gyp'
     | '/importar-compras'
+    | '/importar-movimientos'
     | '/importar-ventas'
     | '/impuestos'
     | '/inicio'
@@ -425,6 +437,7 @@ export interface FileRouteTypes {
     | '/_authenticated/fc'
     | '/_authenticated/gyp'
     | '/_authenticated/importar-compras'
+    | '/_authenticated/importar-movimientos'
     | '/_authenticated/importar-ventas'
     | '/_authenticated/impuestos'
     | '/_authenticated/inicio'
@@ -588,6 +601,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedImportarVentasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/importar-movimientos': {
+      id: '/_authenticated/importar-movimientos'
+      path: '/importar-movimientos'
+      fullPath: '/importar-movimientos'
+      preLoaderRoute: typeof AuthenticatedImportarMovimientosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/importar-compras': {
       id: '/_authenticated/importar-compras'
       path: '/importar-compras'
@@ -710,6 +730,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFcRoute: typeof AuthenticatedFcRoute
   AuthenticatedGypRoute: typeof AuthenticatedGypRoute
   AuthenticatedImportarComprasRoute: typeof AuthenticatedImportarComprasRoute
+  AuthenticatedImportarMovimientosRoute: typeof AuthenticatedImportarMovimientosRoute
   AuthenticatedImportarVentasRoute: typeof AuthenticatedImportarVentasRoute
   AuthenticatedImpuestosRoute: typeof AuthenticatedImpuestosRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
@@ -744,6 +765,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFcRoute: AuthenticatedFcRoute,
   AuthenticatedGypRoute: AuthenticatedGypRoute,
   AuthenticatedImportarComprasRoute: AuthenticatedImportarComprasRoute,
+  AuthenticatedImportarMovimientosRoute: AuthenticatedImportarMovimientosRoute,
   AuthenticatedImportarVentasRoute: AuthenticatedImportarVentasRoute,
   AuthenticatedImpuestosRoute: AuthenticatedImpuestosRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
@@ -776,13 +798,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
