@@ -901,6 +901,9 @@ function TransaccionesPage() {
                             {typeof t.notas === "string" && t.notas.startsWith("Pago CxP") && (
                               <Badge className="text-[9px] bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-300">Pago CxP</Badge>
                             )}
+                            {esSinFactura(t.detalle) && (
+                              <Badge className="text-[9px] bg-orange-100 text-orange-800 hover:bg-orange-100 border-orange-300">Sin factura</Badge>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground">{cuentaNombre[t.cuenta_codigo] ?? ""}</div>
                         </td>
