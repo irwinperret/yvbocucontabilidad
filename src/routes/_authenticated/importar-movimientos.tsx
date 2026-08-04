@@ -735,7 +735,18 @@ function ImportarMovimientosInner() {
                         <div className="font-medium">{m.bankRow.banco}</div>
                         <div className="text-[10px] text-muted-foreground">{m.bankRow.bancoRaw}</div>
                       </td>
-                      <td className="p-2 font-mono">{m.bankRow.referencia}</td>
+                      <td className="p-2 font-mono">
+                        <div>{m.bankRow.referencia}</div>
+                        {m.bankRow.codigos.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {m.bankRow.codigos.map((c) => (
+                              <Badge key={c.raw} variant="outline" className="text-[9px] px-1 py-0">
+                                {c.raw}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-2 max-w-[200px]">
                         <div className="truncate">{m.bankRow.concepto}</div>
                         <div className="flex gap-1 mt-1">
@@ -743,7 +754,10 @@ function ImportarMovimientosInner() {
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{m.bankRow.categoria}</Badge>
                           )}
                           {m.duplicado && <Badge variant="secondary" className="text-[9px] px-1 py-0">Ya importado</Badge>}
-                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && (
+                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && noAplicaFactura(m) && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0">No aplica factura</Badge>
+                          )}
+                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && !noAplicaFactura(m) && (
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
                           )}
                           {!m.duplicado && dif !== null && dif > 0.01 && (
