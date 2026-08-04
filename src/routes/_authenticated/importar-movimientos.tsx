@@ -752,28 +752,17 @@ function ImportarMovimientosInner() {
                         </Select>
                       </td>
                       <td className="p-2">
-                        <Select
-                          value={proveedorRef?.id ?? "_none_"}
-                          onValueChange={(v) => setMatchCxp(m.bankRow.id, v === "_none_" ? null : v)}
-                        >
-                          <SelectTrigger className="w-[220px] text-xs">
-                            <SelectValue placeholder="Emparejar CxP" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_none_">— Sin emparejar —</SelectItem>
-                            {(proveedorRef && !cxpOptions.slice(0, 200).some((c) => c.id === proveedorRef.id)
-                              ? [proveedorRef, ...cxpOptions.slice(0, 200)]
-                              : cxpOptions.slice(0, 200)
-                            ).map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.proveedor} · Fact {c.numero_factura ?? "—"} · {fmtBs(pendienteBs(c))}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchCombobox
+                          triggerClassName="w-[240px]"
+                          placeholder="Emparejar CxP"
+                          searchPlaceholder="Buscar proveedor o factura..."
+                          value={proveedorRef?.id ?? null}
+                          onChange={(v) => setMatchCxp(m.bankRow.id, v)}
+                          options={cxpComboOptions}
+                        />
                         {m.cxps.map((c, i) => (
                           <div key={c.id} className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
-                            <span className="truncate max-w-[170px]">
+                            <span className="truncate max-w-[190px]">
                               {i > 0 ? `+ Fact ${c.numero_factura ?? "—"} · ` : ""}
                               Pendiente: {fmtBs(pendienteBs(c))}
                               {c.monto_pendiente_usd_bcv ? ` · ${fmtUsd(Number(c.monto_pendiente_usd_bcv))} USD BCV` : ""}
@@ -790,41 +779,35 @@ function ImportarMovimientosInner() {
                           </div>
                         ))}
                         {proveedorRef && candidatas.length > 0 && (
-                          <Select value="_add_" onValueChange={(v) => { if (v !== "_add_") addMatchCxp(m.bankRow.id, v); }}>
-                            <SelectTrigger className="w-[220px] text-[10px] h-7 mt-1">
-                              <SelectValue placeholder="+ Agregar otra factura" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="_add_">+ Agregar otra factura</SelectItem>
-                              {candidatas.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                  Fact {c.numero_factura ?? "—"} · {fmtBs(pendienteBs(c))}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchCombobox
+                            triggerClassName="w-[240px] h-7 mt-1"
+                            placeholder="+ Agregar otra factura"
+                            searchPlaceholder="Buscar factura..."
+                            value={null}
+                            onChange={(v) => { if (v) addMatchCxp(m.bankRow.id, v); }}
+                            options={candidatas.map((c) => ({
+                              value: c.id,
+                              label: `Fact ${c.numero_factura ?? "—"} · ${fmtBs(pendienteBs(c))}`,
+                              keywords: `${c.proveedor ?? ""} ${c.numero_factura ?? ""}`,
+                            }))}
+                          />
                         )}
                       </td>
                       <td className={"p-2 text-right mono " + (dif !== null && Math.abs(dif) > 0.01 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
                         {dif === null ? "—" : fmtBs(dif)}
                       </td>
                       <td className="p-2">
-                        <Select
-                          value={m.cuentaCodigo ?? "_none_"}
-                          onValueChange={(v) => setMatchCuenta(m.bankRow.id, v === "_none_" ? null : v)}
+                        <SearchCombobox
+                          triggerClassName="w-[240px]"
+                          placeholder="Elegir cuenta"
+                          searchPlaceholder="Buscar cuenta..."
+                          value={m.cuentaCodigo}
+                          onChange={(v) => setMatchCuenta(m.bankRow.id, v)}
                           disabled={m.cxps.length > 0}
-                        >
-                          <SelectTrigger className="w-[220px] text-xs">
-                            <SelectValue placeholder="Elegir cuenta" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_none_">— Sin cuenta —</SelectItem>
-                            {planOptions.map((p) => (
-                              <SelectItem key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={planComboOptions}
+                        />
                       </td>
+
                     </tr>
                     );
                   })}
