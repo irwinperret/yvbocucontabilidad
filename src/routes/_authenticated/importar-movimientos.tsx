@@ -371,6 +371,19 @@ function ImportarMovimientosInner() {
     );
   };
 
+  /** Asigna la cuenta 99 — POR DETERMINAR a todas las filas nuevas sin cuenta ni CxP. */
+  const asignarPorDeterminar = () => {
+    let n = 0;
+    setMatches((prev) =>
+      prev.map((m) => {
+        if (m.duplicado || m.cxps.length > 0 || m.cuentaCodigo) return m;
+        n++;
+        return { ...m, cuentaCodigo: "99", selected: true };
+      })
+    );
+    toast.success(n > 0 ? `${n} movimientos asignados a 99 — POR DETERMINAR` : "No hay filas sin cuenta");
+  };
+
   const setMatchSelected = (bankRowId: string, selected: boolean) => {
     setMatches((prev) => prev.map((m) => (m.bankRow.id === bankRowId ? { ...m, selected } : m)));
   };
@@ -669,7 +682,14 @@ function ImportarMovimientosInner() {
               <Badge variant="default">Nuevas seleccionadas: {stats.selected}</Badge>
               {stats.noAplica > 0 && <Badge variant="outline">No aplica factura: {stats.noAplica}</Badge>}
               {stats.duplicados > 0 && <Badge variant="secondary">Ya importadas: {stats.duplicados}</Badge>}
-              {stats.sinCuenta > 0 && <Badge variant="destructive">Sin cuenta contable: {stats.sinCuenta}</Badge>}
+              {stats.sinCuenta > 0 && (
+                <>
+                  <Badge variant="destructive">Sin cuenta contable: {stats.sinCuenta}</Badge>
+                  <Button size="sm" variant="outline" className="h-6 text-xs" onClick={asignarPorDeterminar}>
+                    Asignar 99 — POR DETERMINAR
+                  </Button>
+                </>
+              )}
               {stats.withAccount < stats.selected && (
                 <Badge variant="destructive">Falta cuenta bancaria en {stats.selected - stats.withAccount} filas</Badge>
               )}
