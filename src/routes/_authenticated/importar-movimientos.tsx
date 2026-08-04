@@ -682,7 +682,14 @@ function ImportarMovimientosInner() {
               <Badge variant="default">Nuevas seleccionadas: {stats.selected}</Badge>
               {stats.noAplica > 0 && <Badge variant="outline">No aplica factura: {stats.noAplica}</Badge>}
               {stats.duplicados > 0 && <Badge variant="secondary">Ya importadas: {stats.duplicados}</Badge>}
-              {stats.sinCuenta > 0 && <Badge variant="destructive">Sin cuenta contable: {stats.sinCuenta}</Badge>}
+              {stats.sinCuenta > 0 && (
+                <>
+                  <Badge variant="destructive">Sin cuenta contable: {stats.sinCuenta}</Badge>
+                  <Button size="sm" variant="outline" className="h-6 text-xs" onClick={asignarPorDeterminar}>
+                    Asignar 99 — POR DETERMINAR
+                  </Button>
+                </>
+              )}
               {stats.withAccount < stats.selected && (
                 <Badge variant="destructive">Falta cuenta bancaria en {stats.selected - stats.withAccount} filas</Badge>
               )}
