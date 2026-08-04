@@ -15,7 +15,17 @@ import { toast } from "sonner";
 import { readSheetAOA, numFromCell, parseDateCell } from "@/lib/xetux-parse";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 import { logAudit } from "@/lib/audit";
-import { SIN_FACTURA_PREFIX, huellaBancaria } from "@/lib/conciliacion";
+import {
+  SIN_FACTURA_PREFIX,
+  huellaBancaria,
+  parseCodigosDoc,
+  normalizarCodigo,
+  cuentaSinFactura,
+  cuentaServicio,
+  monedaBase,
+  type CodigoDoc,
+} from "@/lib/conciliacion";
+import { SearchCombobox } from "@/components/search-combobox";
 
 export const Route = createFileRoute("/_authenticated/importar-movimientos")({
   component: ImportarMovimientos,
