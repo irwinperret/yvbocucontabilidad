@@ -113,7 +113,37 @@ function TasaPage() {
       />
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Todas las tasas registradas ({tasas?.length ?? 0})</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <CardTitle className="text-base">Todas las tasas registradas ({tasas?.length ?? 0})</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                exportTasasToExcel({
+                  titulo: `Tasas BCV y paralela · ${new Date().getFullYear()}`,
+                  filename: `Tasas_BCV_${new Date().toISOString().slice(0, 10)}.xlsx`,
+                  rows: (tasas ?? []).map((t: any) => {
+                    const bcv = Number(t.tasa);
+                    const par = t.tasa_paralela != null ? Number(t.tasa_paralela) : null;
+                    return {
+                      fecha: t.fecha,
+                      tasa: bcv,
+                      tasaParalela: par,
+                      bcv,
+                      diferencial: par != null ? par - bcv : null,
+                      estado: t.fecha === todayISO() ? "Vigente" : "Histórica",
+                    };
+                  }),
+                  incluyeParalela: true,
+                })
+              }
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Exportar Excel
+            </Button>
+          </div>
+        </CardHeader>
         <CardContent>
           <div className="max-h-[600px] overflow-auto">
             <table className="w-full text-sm">
