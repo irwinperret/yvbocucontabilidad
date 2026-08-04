@@ -454,7 +454,7 @@ function ImportarMovimientosInner() {
 
           if (error) throw new Error(error.message);
           if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
-          sinFactura++;
+          if (noAplica) noAplicaCount++; else sinFactura++;
           importados.add(bankRow.id);
           setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
           continue;
