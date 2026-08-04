@@ -15,7 +15,17 @@ import { toast } from "sonner";
 import { readSheetAOA, numFromCell, parseDateCell } from "@/lib/xetux-parse";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 import { logAudit } from "@/lib/audit";
-import { SIN_FACTURA_PREFIX, huellaBancaria } from "@/lib/conciliacion";
+import {
+  SIN_FACTURA_PREFIX,
+  huellaBancaria,
+  parseCodigosDoc,
+  normalizarCodigo,
+  cuentaSinFactura,
+  cuentaServicio,
+  monedaBase,
+  type CodigoDoc,
+} from "@/lib/conciliacion";
+import { SearchCombobox } from "@/components/search-combobox";
 
 export const Route = createFileRoute("/_authenticated/importar-movimientos")({
   component: ImportarMovimientos,
@@ -46,6 +56,7 @@ type BankRow = {
   categoria: string;
   cuentaBancariaId: string | null;
   moneda: "Bs" | "USD";
+  codigos: CodigoDoc[];
   huella: string;
 };
 
@@ -190,6 +201,9 @@ function ImportarMovimientosInner() {
       const idxMes = idx("mes") >= 0 ? idx("mes") : -1;
       const idxSug = header.findIndex((h) => h.includes("sugerida"));
       const idxCuentaPlan = header.findIndex((h) => h.includes("cuenta plan"));
+      const idxCodigos = header.findIndex(
+        (h) => (h.includes("factura") && h.includes("orden")) || h.includes("orden de ent")
+      );
 
       if (idxFecha < 0 || idxConcepto < 0 || (idxBs < 0 && idxUsd < 0)) {
         return toast.error("Columnas requeridas no encontradas: Fecha, Concepto, Monto Bs/USD");
@@ -203,10 +217,13 @@ function ImportarMovimientosInner() {
         if (!fecha) continue;
         const bancoRaw = String(row[idxBanco] ?? "").trim();
         if (!bancoRaw) continue;
-        const montoBs = idxBs >= 0 ? numFromCell(row[idxBs]) : 0;
-        const montoUsd = idxUsd >= 0 ? numFromCell(row[idxUsd]) : 0;
-        const monto = Math.abs(montoBs) > 0 ? -Math.abs(montoBs) : -Math.abs(montoUsd);
-        const moneda = Math.abs(montoBs) > 0 ? "Bs" : "USD";
+        const valBs = idxBs >= 0 ? numFromCell(row[idxBs]) : 0;
+        const valUsd = idxUsd >= 0 ? numFromCell(row[idxUsd]) : 0;
+        // La moneda base depende del banco (col. C), no de qué celda venga llena.
+        let moneda = monedaBase(bancoRaw);
+        if (moneda === "Bs" && Math.abs(valBs) === 0 && Math.abs(valUsd) > 0) moneda = "USD";
+        if (moneda === "USD" && Math.abs(valUsd) === 0 && Math.abs(valBs) > 0) moneda = "Bs";
+        const monto = moneda === "Bs" ? -Math.abs(valBs) : -Math.abs(valUsd);
         const bankAccount = findBankAccount(bancoRaw);
         const cuentaBancariaId = bankAccount ? bankAccount.id : null;
         const categoria = idxCat >= 0 ? String(row[idxCat] ?? "") : "";
@@ -232,20 +249,26 @@ function ImportarMovimientosInner() {
           categoria,
           cuentaBancariaId,
           moneda,
+          codigos: idxCodigos >= 0 ? parseCodigosDoc(row[idxCodigos]) : [],
           huella: huellaBancaria({ banco, fecha, referencia, monto: Math.abs(monto) }),
         });
       }
       setRows(parsed);
 
-      // Auto-match (indexado: evita O(filas × CxP) con regex por par)
-      const norm = (s: string) => s.toUpperCase().replace(/^0+/, "");
+      // ── Índice de CxP por código normalizado (exacto + sufijos) ──
       const index = new Map<string, CxPRow[]>();
+      const push = (key: string, c: CxPRow) => {
+        if (!key) return;
+        const list = index.get(key);
+        if (list) { if (!list.includes(c)) list.push(c); } else index.set(key, [c]);
+      };
       for (const c of cxpOptions) {
         if (!c.numero_factura) continue;
-        const key = norm(c.numero_factura);
+        const key = normalizarCodigo(c.numero_factura);
         if (!key) continue;
-        const list = index.get(key);
-        if (list) list.push(c); else index.set(key, [c]);
+        push(key, c);
+        // sufijos: permite cruzar "1404" contra factura "00011404"
+        for (let l = 3; l < key.length; l++) push("~" + key.slice(key.length - l), c);
       }
 
       // Anti-duplicados: huellas ya registradas en transacciones
@@ -259,22 +282,35 @@ function ImportarMovimientosInner() {
       const vistas = new Set<string>();
 
       const initialMatches: Match[] = parsed.map((bankRow, i) => {
-        const invs = extractInvoiceNumbers(bankRow.concepto + " " + bankRow.referencia);
+        const cuentaCodigo = cuentaPorFila[i] ?? null;
+        const noAplica = cuentaSinFactura(cuentaCodigo) || cuentaServicio(cuentaCodigo);
+
         const found: CxPRow[] = [];
-        for (const inv of invs) {
-          const hit = index.get(inv);
-          if (hit) found.push(...hit);
+        if (!noAplica) {
+          // 1) códigos explícitos de la columna K (fuente principal)
+          const claves = bankRow.codigos.map((c) => c.norm);
+          // 2) respaldo: números detectados en concepto/referencia
+          if (claves.length === 0) {
+            for (const inv of extractInvoiceNumbers(bankRow.concepto + " " + bankRow.referencia)) {
+              claves.push(normalizarCodigo(inv));
+            }
+          }
+          for (const k of claves) {
+            if (!k) continue;
+            const hit = index.get(k) ?? index.get("~" + k);
+            if (hit) for (const c of hit) if (!found.includes(c)) found.push(c);
+          }
         }
-        const uniq = Array.from(new Set(found));
-        const best = uniq.length === 1 ? uniq[0] : null;
+        // Con varios códigos distintos se emparejan todas las facturas halladas;
+        // con un solo código ambiguo (varias candidatas) se deja elegir al usuario.
+        const auto = found.length === 1 || bankRow.codigos.length > 1 ? found : [];
         const duplicado = yaImportadas.has(bankRow.huella) || vistas.has(bankRow.huella);
         vistas.add(bankRow.huella);
-        const cuentaCodigo = cuentaPorFila[i] ?? null;
         return {
           bankRow,
-          cxps: best ? [best] : [],
+          cxps: auto,
           manual: false,
-          selected: !duplicado && (!!best || !!cuentaCodigo),
+          selected: !duplicado && (auto.length > 0 || !!cuentaCodigo),
           montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd * 1),
           cuentaCodigo,
           duplicado,
@@ -366,19 +402,33 @@ function ImportarMovimientosInner() {
 
     setBusy(true);
     setProgress({ done: 0, total: toImport.length });
-    let ok = 0, fail = 0, partial = 0, sinFactura = 0, anticipos = 0;
+    let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0, anticipos = 0;
     const importados = new Set<string>();
 
     for (const m of toImport) {
       try {
         const bankRow = m.bankRow;
         const rates = await getRatesForDate(bankRow.fecha);
-        const montoBs = Math.abs(bankRow.montoBs || bankRow.montoUsd * (rates.paralela || rates.bcv || 1));
+        // Variable independiente según el banco: Bs (BA/BCV/BM/BVC/MERC/CxP) o USD (CASH/BOFA).
+        const montoBs =
+          bankRow.moneda === "USD"
+            ? +(Math.abs(bankRow.montoUsd) * (rates.paralela || rates.bcv || 1)).toFixed(2)
+            : Math.abs(bankRow.montoBs);
         const toUsd = (bs: number) =>
           rates.paralela > 0 ? +(bs / rates.paralela).toFixed(2) : (rates.bcv > 0 ? +(bs / rates.bcv).toFixed(2) : 0);
 
         if (m.cxps.length === 0) {
-          // ── Movimiento sin factura en Xetux: se registra contra su cuenta contable ──
+          // ── Movimiento sin CxP emparejada ──
+          const noAplica = cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
+          const detalle = noAplica
+            ? (cuentaServicio(m.cuentaCodigo)
+                ? `Servicio público · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+                : bankRow.concepto)
+            : `${SIN_FACTURA_PREFIX} · ${bankRow.concepto}`;
+          const notas = noAplica
+            ? `Conciliación bancaria (no aplica factura) · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+            : `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`;
+
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
             cuenta_codigo: m.cuentaCodigo!,
@@ -390,11 +440,12 @@ function ImportarMovimientosInner() {
             tipo_iva: null,
             tasa_bcv: rates.bcv || null,
             tasa_paralela: rates.paralela || null,
-            monto_usd: toUsd(montoBs),
+            monto_usd:
+              bankRow.moneda === "USD" ? +Math.abs(bankRow.montoUsd).toFixed(2) : toUsd(montoBs),
             metodo_pago: "transferencia" as any,
             referencia: bankRow.huella,
-            detalle: `${SIN_FACTURA_PREFIX} · ${bankRow.concepto}`.slice(0, 255),
-            notas: `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`.slice(0, 255),
+            detalle: detalle.slice(0, 255),
+            notas: notas.slice(0, 255),
             modo: "on_balance" as any,
             cuenta_bancaria_id: bankRow.cuentaBancariaId,
             grupo_transaccion_id: crypto.randomUUID(),
@@ -403,7 +454,7 @@ function ImportarMovimientosInner() {
 
           if (error) throw new Error(error.message);
           if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
-          sinFactura++;
+          if (noAplica) noAplicaCount++; else sinFactura++;
           importados.add(bankRow.id);
           setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
           continue;
@@ -529,7 +580,7 @@ function ImportarMovimientosInner() {
     setProgress(null);
     qc.invalidateQueries();
     toast.success(
-      `Facturas pagadas: ${ok} · Parciales: ${partial} · Anticipos: ${anticipos} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
+      `Facturas pagadas: ${ok} · Parciales: ${partial} · Anticipos: ${anticipos} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
     );
     if (importados.size > 0) {
       setRows((prev) => prev.filter((r) => !importados.has(r.id)));
@@ -546,16 +597,38 @@ function ImportarMovimientosInner() {
     return +(pagado - facturado).toFixed(2);
   };
 
+  const noAplicaFactura = (m: Match) => cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
+
+  const cxpComboOptions = useMemo(
+    () =>
+      cxpOptions.map((c) => ({
+        value: c.id,
+        label: `${c.proveedor ?? "—"} · Fact ${c.numero_factura ?? "—"} · ${fmtBs(pendienteBs(c))}`,
+        keywords: `${c.proveedor ?? ""} ${c.numero_factura ?? ""}`,
+      })),
+    [cxpOptions]
+  );
+
+  const planComboOptions = useMemo(
+    () => planOptions.map((p) => ({ value: p.codigo, label: `${p.codigo} — ${p.nombre}`, keywords: p.nombre })),
+    [planOptions]
+  );
+
+
+
   const stats = useMemo(() => {
     const total = rows.length;
     const matched = matches.filter((m) => m.cxps.length > 0).length;
     const duplicados = matches.filter((m) => m.duplicado).length;
     const sinCuenta = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && !m.cuentaCodigo).length;
-    const sinFactura = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && !!m.cuentaCodigo).length;
+    const noAplica = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && noAplicaFactura(m)).length;
+    const sinFactura = matches.filter(
+      (m) => !m.duplicado && m.cxps.length === 0 && !!m.cuentaCodigo && !noAplicaFactura(m)
+    ).length;
     const selected = matches.filter(importable).length;
     const withAccount = matches.filter((m) => m.bankRow.cuentaBancariaId).length;
     const difTotal = matches.reduce((s, m) => s + (m.duplicado ? 0 : (difBs(m) ?? 0)), 0);
-    return { total, matched, selected, withAccount, duplicados, sinCuenta, sinFactura, difTotal };
+    return { total, matched, selected, withAccount, duplicados, sinCuenta, sinFactura, noAplica, difTotal };
   }, [rows, matches]);
 
   return (
@@ -563,8 +636,10 @@ function ImportarMovimientosInner() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Importar movimientos bancarios</h1>
         <p className="text-sm text-muted-foreground">
-          Sube el reporte de movimientos bancarios. El sistema empareja cada egreso con una CxP pendiente por número de factura;
-          lo que no se empareja se registra igual contra la cuenta de su categoría y queda marcado como <strong>sin factura</strong>.
+          Sube el reporte de movimientos bancarios. El sistema cruza la columna <strong>N° Factura o N° Orden de Entrega</strong>
+          {" "}(acepta <code>NE:</code>, <code>PED:</code> y varios códigos separados por coma) contra las CxP pendientes.
+          Los movimientos que por naturaleza no tienen factura (nómina, impuestos, préstamos, fees bancarios, servicios públicos)
+          se registran igual y quedan marcados como <strong>no aplica factura</strong>.
         </p>
       </div>
 
@@ -585,13 +660,14 @@ function ImportarMovimientosInner() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              2. Conciliación ({stats.matched} con factura · {stats.sinFactura} sin factura · {stats.duplicados} ya importadas)
+              2. Conciliación ({stats.matched} con factura · {stats.noAplica} no aplica · {stats.sinFactura} sin factura · {stats.duplicados} ya importadas)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2 text-xs">
               <Badge variant="outline">Total: {stats.total}</Badge>
               <Badge variant="default">Nuevas seleccionadas: {stats.selected}</Badge>
+              {stats.noAplica > 0 && <Badge variant="outline">No aplica factura: {stats.noAplica}</Badge>}
               {stats.duplicados > 0 && <Badge variant="secondary">Ya importadas: {stats.duplicados}</Badge>}
               {stats.sinCuenta > 0 && <Badge variant="destructive">Sin cuenta contable: {stats.sinCuenta}</Badge>}
               {stats.withAccount < stats.selected && (
@@ -659,7 +735,18 @@ function ImportarMovimientosInner() {
                         <div className="font-medium">{m.bankRow.banco}</div>
                         <div className="text-[10px] text-muted-foreground">{m.bankRow.bancoRaw}</div>
                       </td>
-                      <td className="p-2 font-mono">{m.bankRow.referencia}</td>
+                      <td className="p-2 font-mono">
+                        <div>{m.bankRow.referencia}</div>
+                        {m.bankRow.codigos.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {m.bankRow.codigos.map((c) => (
+                              <Badge key={c.raw} variant="outline" className="text-[9px] px-1 py-0">
+                                {c.raw}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-2 max-w-[200px]">
                         <div className="truncate">{m.bankRow.concepto}</div>
                         <div className="flex gap-1 mt-1">
@@ -667,7 +754,10 @@ function ImportarMovimientosInner() {
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{m.bankRow.categoria}</Badge>
                           )}
                           {m.duplicado && <Badge variant="secondary" className="text-[9px] px-1 py-0">Ya importado</Badge>}
-                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && (
+                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && noAplicaFactura(m) && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0">No aplica factura</Badge>
+                          )}
+                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && !noAplicaFactura(m) && (
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
                           )}
                           {!m.duplicado && dif !== null && dif > 0.01 && (
@@ -694,28 +784,17 @@ function ImportarMovimientosInner() {
                         </Select>
                       </td>
                       <td className="p-2">
-                        <Select
-                          value={proveedorRef?.id ?? "_none_"}
-                          onValueChange={(v) => setMatchCxp(m.bankRow.id, v === "_none_" ? null : v)}
-                        >
-                          <SelectTrigger className="w-[220px] text-xs">
-                            <SelectValue placeholder="Emparejar CxP" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_none_">— Sin emparejar —</SelectItem>
-                            {(proveedorRef && !cxpOptions.slice(0, 200).some((c) => c.id === proveedorRef.id)
-                              ? [proveedorRef, ...cxpOptions.slice(0, 200)]
-                              : cxpOptions.slice(0, 200)
-                            ).map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.proveedor} · Fact {c.numero_factura ?? "—"} · {fmtBs(pendienteBs(c))}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchCombobox
+                          triggerClassName="w-[240px]"
+                          placeholder="Emparejar CxP"
+                          searchPlaceholder="Buscar proveedor o factura..."
+                          value={proveedorRef?.id ?? null}
+                          onChange={(v) => setMatchCxp(m.bankRow.id, v)}
+                          options={cxpComboOptions}
+                        />
                         {m.cxps.map((c, i) => (
                           <div key={c.id} className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
-                            <span className="truncate max-w-[170px]">
+                            <span className="truncate max-w-[190px]">
                               {i > 0 ? `+ Fact ${c.numero_factura ?? "—"} · ` : ""}
                               Pendiente: {fmtBs(pendienteBs(c))}
                               {c.monto_pendiente_usd_bcv ? ` · ${fmtUsd(Number(c.monto_pendiente_usd_bcv))} USD BCV` : ""}
@@ -732,41 +811,35 @@ function ImportarMovimientosInner() {
                           </div>
                         ))}
                         {proveedorRef && candidatas.length > 0 && (
-                          <Select value="_add_" onValueChange={(v) => { if (v !== "_add_") addMatchCxp(m.bankRow.id, v); }}>
-                            <SelectTrigger className="w-[220px] text-[10px] h-7 mt-1">
-                              <SelectValue placeholder="+ Agregar otra factura" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="_add_">+ Agregar otra factura</SelectItem>
-                              {candidatas.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                  Fact {c.numero_factura ?? "—"} · {fmtBs(pendienteBs(c))}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchCombobox
+                            triggerClassName="w-[240px] h-7 mt-1"
+                            placeholder="+ Agregar otra factura"
+                            searchPlaceholder="Buscar factura..."
+                            value={null}
+                            onChange={(v) => { if (v) addMatchCxp(m.bankRow.id, v); }}
+                            options={candidatas.map((c) => ({
+                              value: c.id,
+                              label: `Fact ${c.numero_factura ?? "—"} · ${fmtBs(pendienteBs(c))}`,
+                              keywords: `${c.proveedor ?? ""} ${c.numero_factura ?? ""}`,
+                            }))}
+                          />
                         )}
                       </td>
                       <td className={"p-2 text-right mono " + (dif !== null && Math.abs(dif) > 0.01 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
                         {dif === null ? "—" : fmtBs(dif)}
                       </td>
                       <td className="p-2">
-                        <Select
-                          value={m.cuentaCodigo ?? "_none_"}
-                          onValueChange={(v) => setMatchCuenta(m.bankRow.id, v === "_none_" ? null : v)}
+                        <SearchCombobox
+                          triggerClassName="w-[240px]"
+                          placeholder="Elegir cuenta"
+                          searchPlaceholder="Buscar cuenta..."
+                          value={m.cuentaCodigo}
+                          onChange={(v) => setMatchCuenta(m.bankRow.id, v)}
                           disabled={m.cxps.length > 0}
-                        >
-                          <SelectTrigger className="w-[220px] text-xs">
-                            <SelectValue placeholder="Elegir cuenta" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_none_">— Sin cuenta —</SelectItem>
-                            {planOptions.map((p) => (
-                              <SelectItem key={p.codigo} value={p.codigo}>{p.codigo} — {p.nombre}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={planComboOptions}
+                        />
                       </td>
+
                     </tr>
                     );
                   })}
