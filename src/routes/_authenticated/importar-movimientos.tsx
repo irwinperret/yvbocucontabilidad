@@ -201,6 +201,9 @@ function ImportarMovimientosInner() {
       const idxMes = idx("mes") >= 0 ? idx("mes") : -1;
       const idxSug = header.findIndex((h) => h.includes("sugerida"));
       const idxCuentaPlan = header.findIndex((h) => h.includes("cuenta plan"));
+      const idxCodigos = header.findIndex(
+        (h) => (h.includes("factura") && h.includes("orden")) || h.includes("orden de ent")
+      );
 
       if (idxFecha < 0 || idxConcepto < 0 || (idxBs < 0 && idxUsd < 0)) {
         return toast.error("Columnas requeridas no encontradas: Fecha, Concepto, Monto Bs/USD");
@@ -214,10 +217,13 @@ function ImportarMovimientosInner() {
         if (!fecha) continue;
         const bancoRaw = String(row[idxBanco] ?? "").trim();
         if (!bancoRaw) continue;
-        const montoBs = idxBs >= 0 ? numFromCell(row[idxBs]) : 0;
-        const montoUsd = idxUsd >= 0 ? numFromCell(row[idxUsd]) : 0;
-        const monto = Math.abs(montoBs) > 0 ? -Math.abs(montoBs) : -Math.abs(montoUsd);
-        const moneda = Math.abs(montoBs) > 0 ? "Bs" : "USD";
+        const valBs = idxBs >= 0 ? numFromCell(row[idxBs]) : 0;
+        const valUsd = idxUsd >= 0 ? numFromCell(row[idxUsd]) : 0;
+        // La moneda base depende del banco (col. C), no de qué celda venga llena.
+        let moneda = monedaBase(bancoRaw);
+        if (moneda === "Bs" && Math.abs(valBs) === 0 && Math.abs(valUsd) > 0) moneda = "USD";
+        if (moneda === "USD" && Math.abs(valUsd) === 0 && Math.abs(valBs) > 0) moneda = "Bs";
+        const monto = moneda === "Bs" ? -Math.abs(valBs) : -Math.abs(valUsd);
         const bankAccount = findBankAccount(bancoRaw);
         const cuentaBancariaId = bankAccount ? bankAccount.id : null;
         const categoria = idxCat >= 0 ? String(row[idxCat] ?? "") : "";
@@ -243,20 +249,26 @@ function ImportarMovimientosInner() {
           categoria,
           cuentaBancariaId,
           moneda,
+          codigos: idxCodigos >= 0 ? parseCodigosDoc(row[idxCodigos]) : [],
           huella: huellaBancaria({ banco, fecha, referencia, monto: Math.abs(monto) }),
         });
       }
       setRows(parsed);
 
-      // Auto-match (indexado: evita O(filas × CxP) con regex por par)
-      const norm = (s: string) => s.toUpperCase().replace(/^0+/, "");
+      // ── Índice de CxP por código normalizado (exacto + sufijos) ──
       const index = new Map<string, CxPRow[]>();
+      const push = (key: string, c: CxPRow) => {
+        if (!key) return;
+        const list = index.get(key);
+        if (list) { if (!list.includes(c)) list.push(c); } else index.set(key, [c]);
+      };
       for (const c of cxpOptions) {
         if (!c.numero_factura) continue;
-        const key = norm(c.numero_factura);
+        const key = normalizarCodigo(c.numero_factura);
         if (!key) continue;
-        const list = index.get(key);
-        if (list) list.push(c); else index.set(key, [c]);
+        push(key, c);
+        // sufijos: permite cruzar "1404" contra factura "00011404"
+        for (let l = 3; l < key.length; l++) push("~" + key.slice(key.length - l), c);
       }
 
       // Anti-duplicados: huellas ya registradas en transacciones
@@ -270,22 +282,35 @@ function ImportarMovimientosInner() {
       const vistas = new Set<string>();
 
       const initialMatches: Match[] = parsed.map((bankRow, i) => {
-        const invs = extractInvoiceNumbers(bankRow.concepto + " " + bankRow.referencia);
+        const cuentaCodigo = cuentaPorFila[i] ?? null;
+        const noAplica = cuentaSinFactura(cuentaCodigo) || cuentaServicio(cuentaCodigo);
+
         const found: CxPRow[] = [];
-        for (const inv of invs) {
-          const hit = index.get(inv);
-          if (hit) found.push(...hit);
+        if (!noAplica) {
+          // 1) códigos explícitos de la columna K (fuente principal)
+          const claves = bankRow.codigos.map((c) => c.norm);
+          // 2) respaldo: números detectados en concepto/referencia
+          if (claves.length === 0) {
+            for (const inv of extractInvoiceNumbers(bankRow.concepto + " " + bankRow.referencia)) {
+              claves.push(normalizarCodigo(inv));
+            }
+          }
+          for (const k of claves) {
+            if (!k) continue;
+            const hit = index.get(k) ?? index.get("~" + k);
+            if (hit) for (const c of hit) if (!found.includes(c)) found.push(c);
+          }
         }
-        const uniq = Array.from(new Set(found));
-        const best = uniq.length === 1 ? uniq[0] : null;
+        // Con varios códigos distintos se emparejan todas las facturas halladas;
+        // con un solo código ambiguo (varias candidatas) se deja elegir al usuario.
+        const auto = found.length === 1 || bankRow.codigos.length > 1 ? found : [];
         const duplicado = yaImportadas.has(bankRow.huella) || vistas.has(bankRow.huella);
         vistas.add(bankRow.huella);
-        const cuentaCodigo = cuentaPorFila[i] ?? null;
         return {
           bankRow,
-          cxps: best ? [best] : [],
+          cxps: auto,
           manual: false,
-          selected: !duplicado && (!!best || !!cuentaCodigo),
+          selected: !duplicado && (auto.length > 0 || !!cuentaCodigo),
           montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd * 1),
           cuentaCodigo,
           duplicado,
