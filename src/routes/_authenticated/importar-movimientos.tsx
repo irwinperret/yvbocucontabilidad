@@ -580,7 +580,7 @@ function ImportarMovimientosInner() {
     setProgress(null);
     qc.invalidateQueries();
     toast.success(
-      `Facturas pagadas: ${ok} · Parciales: ${partial} · Anticipos: ${anticipos} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
+      `Facturas pagadas: ${ok} · Parciales: ${partial} · Anticipos: ${anticipos} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
     );
     if (importados.size > 0) {
       setRows((prev) => prev.filter((r) => !importados.has(r.id)));
