@@ -660,13 +660,14 @@ function ImportarMovimientosInner() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              2. Conciliación ({stats.matched} con factura · {stats.sinFactura} sin factura · {stats.duplicados} ya importadas)
+              2. Conciliación ({stats.matched} con factura · {stats.noAplica} no aplica · {stats.sinFactura} sin factura · {stats.duplicados} ya importadas)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2 text-xs">
               <Badge variant="outline">Total: {stats.total}</Badge>
               <Badge variant="default">Nuevas seleccionadas: {stats.selected}</Badge>
+              {stats.noAplica > 0 && <Badge variant="outline">No aplica factura: {stats.noAplica}</Badge>}
               {stats.duplicados > 0 && <Badge variant="secondary">Ya importadas: {stats.duplicados}</Badge>}
               {stats.sinCuenta > 0 && <Badge variant="destructive">Sin cuenta contable: {stats.sinCuenta}</Badge>}
               {stats.withAccount < stats.selected && (
