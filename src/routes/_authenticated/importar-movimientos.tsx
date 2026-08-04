@@ -599,6 +599,23 @@ function ImportarMovimientosInner() {
 
   const noAplicaFactura = (m: Match) => cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
 
+  const cxpComboOptions = useMemo(
+    () =>
+      cxpOptions.map((c) => ({
+        value: c.id,
+        label: `${c.proveedor ?? "—"} · Fact ${c.numero_factura ?? "—"} · ${fmtBs(pendienteBs(c))}`,
+        keywords: `${c.proveedor ?? ""} ${c.numero_factura ?? ""}`,
+      })),
+    [cxpOptions]
+  );
+
+  const planComboOptions = useMemo(
+    () => planOptions.map((p) => ({ value: p.codigo, label: `${p.codigo} — ${p.nombre}`, keywords: p.nombre })),
+    [planOptions]
+  );
+
+
+
   const stats = useMemo(() => {
     const total = rows.length;
     const matched = matches.filter((m) => m.cxps.length > 0).length;
