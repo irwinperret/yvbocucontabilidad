@@ -597,16 +597,21 @@ function ImportarMovimientosInner() {
     return +(pagado - facturado).toFixed(2);
   };
 
+  const noAplicaFactura = (m: Match) => cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
+
   const stats = useMemo(() => {
     const total = rows.length;
     const matched = matches.filter((m) => m.cxps.length > 0).length;
     const duplicados = matches.filter((m) => m.duplicado).length;
     const sinCuenta = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && !m.cuentaCodigo).length;
-    const sinFactura = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && !!m.cuentaCodigo).length;
+    const noAplica = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && noAplicaFactura(m)).length;
+    const sinFactura = matches.filter(
+      (m) => !m.duplicado && m.cxps.length === 0 && !!m.cuentaCodigo && !noAplicaFactura(m)
+    ).length;
     const selected = matches.filter(importable).length;
     const withAccount = matches.filter((m) => m.bankRow.cuentaBancariaId).length;
     const difTotal = matches.reduce((s, m) => s + (m.duplicado ? 0 : (difBs(m) ?? 0)), 0);
-    return { total, matched, selected, withAccount, duplicados, sinCuenta, sinFactura, difTotal };
+    return { total, matched, selected, withAccount, duplicados, sinCuenta, sinFactura, noAplica, difTotal };
   }, [rows, matches]);
 
   return (
@@ -614,8 +619,10 @@ function ImportarMovimientosInner() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Importar movimientos bancarios</h1>
         <p className="text-sm text-muted-foreground">
-          Sube el reporte de movimientos bancarios. El sistema empareja cada egreso con una CxP pendiente por número de factura;
-          lo que no se empareja se registra igual contra la cuenta de su categoría y queda marcado como <strong>sin factura</strong>.
+          Sube el reporte de movimientos bancarios. El sistema cruza la columna <strong>N° Factura o N° Orden de Entrega</strong>
+          {" "}(acepta <code>NE:</code>, <code>PED:</code> y varios códigos separados por coma) contra las CxP pendientes.
+          Los movimientos que por naturaleza no tienen factura (nómina, impuestos, préstamos, fees bancarios, servicios públicos)
+          se registran igual y quedan marcados como <strong>no aplica factura</strong>.
         </p>
       </div>
 
