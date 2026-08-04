@@ -14,8 +14,9 @@ import { toast } from "sonner";
 import { syncTasaParalela } from "@/lib/paralela-sync.functions";
 import { backfillTasaParalela } from "@/lib/paralela-backfill.functions";
 import { recalcParalelaPorFecha } from "@/lib/recalc-paralela.functions";
-import { RefreshCw, History } from "lucide-react";
+import { RefreshCw, History, FileSpreadsheet } from "lucide-react";
 import { TasaTimeSeriesChart } from "@/components/tasa-time-series-chart";
+import { exportTasasToExcel } from "@/lib/tasa-export";
 
 export const Route = createFileRoute("/_authenticated/tasa-paralela")({ component: TasaParalelaPage });
 
@@ -162,7 +163,37 @@ function TasaParalelaPage() {
       />
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Todas las tasas paralelas ({tasas?.length ?? 0})</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <CardTitle className="text-base">Todas las tasas paralelas ({tasas?.length ?? 0})</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                exportTasasToExcel({
+                  titulo: `Tasas paralela vs BCV · ${new Date().getFullYear()}`,
+                  filename: `Tasas_Paralela_${new Date().toISOString().slice(0, 10)}.xlsx`,
+                  rows: (tasas ?? []).map((t: any) => {
+                    const par = Number(t.tasa);
+                    const bcv = bcvByFecha.get(t.fecha) ?? null;
+                    return {
+                      fecha: t.fecha,
+                      tasa: bcv,
+                      tasaParalela: par,
+                      bcv,
+                      diferencial: bcv != null ? par - bcv : null,
+                      estado: t.fecha === todayISO() ? "Vigente" : "Histórica",
+                    };
+                  }),
+                  incluyeParalela: true,
+                })
+              }
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Exportar Excel
+            </Button>
+          </div>
+        </CardHeader>
         <CardContent>
           <div className="max-h-[600px] overflow-auto">
             <table className="w-full text-sm">
