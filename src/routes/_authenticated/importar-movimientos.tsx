@@ -371,6 +371,19 @@ function ImportarMovimientosInner() {
     );
   };
 
+  /** Asigna la cuenta 99 — POR DETERMINAR a todas las filas nuevas sin cuenta ni CxP. */
+  const asignarPorDeterminar = () => {
+    let n = 0;
+    setMatches((prev) =>
+      prev.map((m) => {
+        if (m.duplicado || m.cxps.length > 0 || m.cuentaCodigo) return m;
+        n++;
+        return { ...m, cuentaCodigo: "99", selected: true };
+      })
+    );
+    toast.success(n > 0 ? `${n} movimientos asignados a 99 — POR DETERMINAR` : "No hay filas sin cuenta");
+  };
+
   const setMatchSelected = (bankRowId: string, selected: boolean) => {
     setMatches((prev) => prev.map((m) => (m.bankRow.id === bankRowId ? { ...m, selected } : m)));
   };
