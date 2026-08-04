@@ -402,19 +402,33 @@ function ImportarMovimientosInner() {
 
     setBusy(true);
     setProgress({ done: 0, total: toImport.length });
-    let ok = 0, fail = 0, partial = 0, sinFactura = 0, anticipos = 0;
+    let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0, anticipos = 0;
     const importados = new Set<string>();
 
     for (const m of toImport) {
       try {
         const bankRow = m.bankRow;
         const rates = await getRatesForDate(bankRow.fecha);
-        const montoBs = Math.abs(bankRow.montoBs || bankRow.montoUsd * (rates.paralela || rates.bcv || 1));
+        // Variable independiente según el banco: Bs (BA/BCV/BM/BVC/MERC/CxP) o USD (CASH/BOFA).
+        const montoBs =
+          bankRow.moneda === "USD"
+            ? +(Math.abs(bankRow.montoUsd) * (rates.paralela || rates.bcv || 1)).toFixed(2)
+            : Math.abs(bankRow.montoBs);
         const toUsd = (bs: number) =>
           rates.paralela > 0 ? +(bs / rates.paralela).toFixed(2) : (rates.bcv > 0 ? +(bs / rates.bcv).toFixed(2) : 0);
 
         if (m.cxps.length === 0) {
-          // ── Movimiento sin factura en Xetux: se registra contra su cuenta contable ──
+          // ── Movimiento sin CxP emparejada ──
+          const noAplica = cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
+          const detalle = noAplica
+            ? (cuentaServicio(m.cuentaCodigo)
+                ? `Servicio público · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+                : bankRow.concepto)
+            : `${SIN_FACTURA_PREFIX} · ${bankRow.concepto}`;
+          const notas = noAplica
+            ? `Conciliación bancaria (no aplica factura) · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+            : `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`;
+
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
             cuenta_codigo: m.cuentaCodigo!,
@@ -426,11 +440,12 @@ function ImportarMovimientosInner() {
             tipo_iva: null,
             tasa_bcv: rates.bcv || null,
             tasa_paralela: rates.paralela || null,
-            monto_usd: toUsd(montoBs),
+            monto_usd:
+              bankRow.moneda === "USD" ? +Math.abs(bankRow.montoUsd).toFixed(2) : toUsd(montoBs),
             metodo_pago: "transferencia" as any,
             referencia: bankRow.huella,
-            detalle: `${SIN_FACTURA_PREFIX} · ${bankRow.concepto}`.slice(0, 255),
-            notas: `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`.slice(0, 255),
+            detalle: detalle.slice(0, 255),
+            notas: notas.slice(0, 255),
             modo: "on_balance" as any,
             cuenta_bancaria_id: bankRow.cuentaBancariaId,
             grupo_transaccion_id: crypto.randomUUID(),
