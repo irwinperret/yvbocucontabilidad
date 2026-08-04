@@ -56,6 +56,7 @@ type BankRow = {
   categoria: string;
   cuentaBancariaId: string | null;
   moneda: "Bs" | "USD";
+  codigos: CodigoDoc[];
   huella: string;
 };
 
