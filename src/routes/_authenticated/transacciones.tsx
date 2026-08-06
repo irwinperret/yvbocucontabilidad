@@ -883,7 +883,15 @@ function TransaccionesPage() {
                       <TextFilter value={notasF} onChange={(v) => upd("notas", v)} label="Contiene" />
                     </th>
                     <th className="text-center py-2 px-2">Adj.</th>
-                    <th className="text-left py-2 px-2">Registrado por</th>
+                    <th className="text-left py-2 px-2">
+                      Registrado por
+                      <MultiSelectFilter
+                        options={usuariosEnData}
+                        selected={usuarios}
+                        onChange={(v) => upd("usuarios", v)}
+                        label="Registrado por"
+                      />
+                    </th>
                     <th></th>
                   </tr>
                 </thead>
