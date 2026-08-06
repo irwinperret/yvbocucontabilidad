@@ -494,6 +494,7 @@ function TransaccionesPage() {
         { header: "Método", key: "metodo", width: 14 },
         { header: "Modo", key: "modo", width: 12 },
         { header: "Notas", key: "notas", width: 40 },
+        { header: "Registrado por", key: "registradoPor", width: 32 },
       ];
       const header = ws.getRow(1);
       header.font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -528,6 +529,7 @@ function TransaccionesPage() {
           metodo: t.metodo_pago ?? "",
           modo: t.modo,
           notas: t.notas ?? "",
+          registradoPor: emailById[t.created_by] ?? t.created_by ?? "",
         });
         ["bs", "base", "iva"].forEach((k) => { r.getCell(k as any).numFmt = '#,##0.00'; });
         r.getCell("tasa" as any).numFmt = '#,##0.0000';
