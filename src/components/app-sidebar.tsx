@@ -26,6 +26,7 @@ import {
   Receipt,
   Sparkles,
 } from "lucide-react";
+import { History as HistoryIcon } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -49,7 +50,7 @@ const registroDirectos = [
   { title: "Importar ventas (Xetux)", url: "/importar-ventas", icon: Upload },
   { title: "Importar compras (Xetux)", url: "/importar-compras", icon: Upload },
   { title: "Importar movimientos bancarios", url: "/importar-movimientos", icon: Landmark },
-  { title: "Historial de importaciones", url: "/importaciones", icon: History },
+  { title: "Historial de importaciones", url: "/importaciones", icon: HistoryIcon },
 ];
 
 

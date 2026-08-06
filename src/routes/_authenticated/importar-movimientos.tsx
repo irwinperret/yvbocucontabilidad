@@ -554,7 +554,7 @@ function ImportarMovimientosInner() {
             revert_estado_anterior: (cxp as any).revert_estado_anterior ?? cxp.estado ?? "pendiente",
             revert_pendiente_bs_anterior: (cxp as any).revert_pendiente_bs_anterior ?? cxp.monto_pendiente_bs ?? cxp.monto_bs,
             revert_pendiente_usd_bcv_anterior: (cxp as any).revert_pendiente_usd_bcv_anterior ?? cxp.monto_pendiente_usd_bcv ?? cxp.usd_bcv_factura,
-            revert_pagada_at_anterior: (cxp as any).revert_pagada_at_anterior ?? cxp.pagada_at ?? null,
+            revert_pagada_at_anterior: (cxp as any).revert_pagada_at_anterior ?? (cxp as any).pagada_at ?? null,
             estado: cubreTodo ? "pagada" : "parcial",
             pagada_at: cubreTodo ? new Date().toISOString() : null,
             monto_pendiente_bs: nuevoBs,
