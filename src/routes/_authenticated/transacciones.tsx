@@ -38,6 +38,28 @@ export const Route = createFileRoute("/_authenticated/transacciones")({
 
 // ---------- Session-persistent state helper ----------
 const SESSION_KEY = "transacciones-filters-v1";
+
+// ===== Vía de registro (derivada de la marca que deja cada flujo) =====
+const VIAS = [
+  { value: "manual", label: "Manual", cls: "" },
+  { value: "ventas", label: "Importar ventas (Xetux)", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  { value: "compras", label: "Importar compras (Xetux)", cls: "bg-amber-100 text-amber-800 border-amber-300" },
+  { value: "banco", label: "Importar movimientos bancarios", cls: "bg-sky-100 text-sky-800 border-sky-300" },
+];
+const VIA_BY_VALUE: Record<string, (typeof VIAS)[number]> = Object.fromEntries(VIAS.map((v) => [v.value, v]));
+const CUENTAS_COMPRAS_XETUX = new Set(["2.1", "12.5"]);
+
+function viaRegistro(t: any): (typeof VIAS)[number] {
+  const ref = String(t?.referencia ?? "").trim();
+  if (ref.startsWith("BANK:")) return VIA_BY_VALUE.banco;
+  if (ref === "xetux" || ref === "xetux-iva") {
+    return CUENTAS_COMPRAS_XETUX.has(String(t?.cuenta_codigo ?? ""))
+      ? VIA_BY_VALUE.compras
+      : VIA_BY_VALUE.ventas;
+  }
+  return VIA_BY_VALUE.manual;
+}
+
 type FilterState = {
   desde: string;
   hasta: string;
@@ -47,6 +69,7 @@ type FilterState = {
   metodos: string[];
   modos: string[]; // ["on_balance","off_balance"]
   usuarios: string[]; // created_by ids
+  vias: string[]; // vía de registro
   soloSinFactura: boolean;
   tercero: string;
   factura: string;
@@ -76,6 +99,7 @@ const defaultState = (initialDesde: string): FilterState => ({
   metodos: [],
   modos: [],
   usuarios: [],
+  vias: [],
   soloSinFactura: false,
   tercero: "",
   factura: "",
@@ -186,7 +210,7 @@ function TransaccionesPage() {
   }, [minFechaReady, minFecha, state.desde]);
 
   const {
-    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos, usuarios, soloSinFactura,
+    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos, usuarios, vias, soloSinFactura,
     tercero, factura, notas: notasF, referencia, numMin, numMax,
     bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
     sortKey, sortDir, pageSize,
@@ -209,7 +233,7 @@ function TransaccionesPage() {
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   useEffect(() => { setPage(0); setSelected(new Set()); }, [
-    desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos, usuarios,
+    desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos, usuarios, vias,
     tercero, factura, notasF, referencia, numMin, numMax,
     bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
     sortKey, sortDir, pageSize,
@@ -312,6 +336,12 @@ function TransaccionesPage() {
     return Array.from(set).sort();
   }, [data]);
 
+  const viasEnData = useMemo(() => {
+    const set = new Set<string>();
+    (data ?? []).forEach((t: any) => set.add(viaRegistro(t).value));
+    return VIAS.filter((v) => set.has(v.value));
+  }, [data]);
+
   const usuariosEnData = useMemo(() => {
     const set = new Set<string>();
     (data ?? []).forEach((t: any) => t.created_by && set.add(t.created_by));
@@ -347,6 +377,7 @@ function TransaccionesPage() {
       if (metodosSel.length && !metodosSel.includes(t.metodo_pago ?? "")) return false;
       if (modos.length && !modos.includes(t.modo)) return false;
       if (usuarios.length && !usuarios.includes(t.created_by ?? "")) return false;
+      if (vias.length && !vias.includes(viaRegistro(t).value)) return false;
       if (soloSinFactura && !esSinFactura(t.detalle)) return false;
 
       if (tN) {
@@ -409,7 +440,7 @@ function TransaccionesPage() {
       return 0;
     });
     return arr;
-  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos, usuarios, soloSinFactura,
+  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos, usuarios, vias, soloSinFactura,
       numMin, numMax, bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
       sortKey, sortDir, cuentaNombre, terceroById]);
 
@@ -495,6 +526,7 @@ function TransaccionesPage() {
         { header: "Modo", key: "modo", width: 12 },
         { header: "Notas", key: "notas", width: 40 },
         { header: "Registrado por", key: "registradoPor", width: 32 },
+        { header: "Vía de registro", key: "via", width: 26 },
       ];
       const header = ws.getRow(1);
       header.font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -530,6 +562,7 @@ function TransaccionesPage() {
           modo: t.modo,
           notas: t.notas ?? "",
           registradoPor: emailById[t.created_by] ?? t.created_by ?? "",
+          via: viaRegistro(t).label,
         });
         ["bs", "base", "iva"].forEach((k) => { r.getCell(k as any).numFmt = '#,##0.00'; });
         r.getCell("tasa" as any).numFmt = '#,##0.0000';
@@ -902,6 +935,15 @@ function TransaccionesPage() {
                         label="Registrado por"
                       />
                     </th>
+                    <th className="text-left py-2 px-2">
+                      Vía
+                      <MultiSelectFilter
+                        options={viasEnData}
+                        selected={vias}
+                        onChange={(v) => upd("vias", v)}
+                        label="Vía de registro"
+                      />
+                    </th>
                     <th></th>
                   </tr>
                 </thead>
@@ -983,6 +1025,11 @@ function TransaccionesPage() {
                           />
                         </td>
                         <td className="py-2 px-2 text-xs text-muted-foreground">{emailById[t.created_by] ?? "—"}</td>
+                        <td className="py-2 px-2">
+                          {(() => { const v = viaRegistro(t); return (
+                            <Badge variant="outline" className={`text-[10px] whitespace-nowrap ${v.cls}`}>{v.label}</Badge>
+                          ); })()}
+                        </td>
                         <td className="py-2 px-2">
                           <div className="flex items-center justify-end gap-1">
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(t)} title="Editar">
