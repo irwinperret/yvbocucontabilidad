@@ -233,6 +233,16 @@ function ImportarVentasPage() {
     const elegibles = rows.filter(filaImportable);
     if (!elegibles.length) return toast.error("No hay filas importables");
     setBusy(true);
+    const fechas = elegibles.map((r) => r.fecha).filter(Boolean).sort();
+    const batch: BatchHandle | null = await crearBatch({
+      tipo: "ventas",
+      archivoNombre: fileName,
+      archivoTamano: fileSize,
+      fechaDesde: fechas[0] ?? null,
+      fechaHasta: fechas[fechas.length - 1] ?? null,
+      filasLeidas: rows.length,
+      userId: user.id,
+    });
     let ok = 0, updated = 0, unchanged = 0, fail = 0;
     let ivaLegs = 0, bonoLegs = 0, propinaLegs = 0;
 
