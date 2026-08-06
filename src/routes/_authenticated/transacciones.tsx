@@ -529,6 +529,7 @@ function TransaccionesPage() {
           metodo: t.metodo_pago ?? "",
           modo: t.modo,
           notas: t.notas ?? "",
+          registradoPor: emailById[t.created_by] ?? t.created_by ?? "",
         });
         ["bs", "base", "iva"].forEach((k) => { r.getCell(k as any).numFmt = '#,##0.00'; });
         r.getCell("tasa" as any).numFmt = '#,##0.0000';
