@@ -209,7 +209,7 @@ function TransaccionesPage() {
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   useEffect(() => { setPage(0); setSelected(new Set()); }, [
-    desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos,
+    desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos, usuarios,
     tercero, factura, notasF, referencia, numMin, numMax,
     bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
     sortKey, sortDir, pageSize,
