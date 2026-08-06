@@ -46,6 +46,7 @@ type FilterState = {
   cuentas: string[];
   metodos: string[];
   modos: string[]; // ["on_balance","off_balance"]
+  usuarios: string[]; // created_by ids
   soloSinFactura: boolean;
   tercero: string;
   factura: string;
@@ -74,6 +75,7 @@ const defaultState = (initialDesde: string): FilterState => ({
   cuentas: [],
   metodos: [],
   modos: [],
+  usuarios: [],
   soloSinFactura: false,
   tercero: "",
   factura: "",
@@ -184,7 +186,7 @@ function TransaccionesPage() {
   }, [minFechaReady, minFecha, state.desde]);
 
   const {
-    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos, soloSinFactura,
+    desde, hasta, busca, centros, cuentas: cuentasSel, metodos: metodosSel, modos, usuarios, soloSinFactura,
     tercero, factura, notas: notasF, referencia, numMin, numMax,
     bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
     sortKey, sortDir, pageSize,
@@ -207,7 +209,7 @@ function TransaccionesPage() {
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   useEffect(() => { setPage(0); setSelected(new Set()); }, [
-    desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos,
+    desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos, usuarios,
     tercero, factura, notasF, referencia, numMin, numMax,
     bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
     sortKey, sortDir, pageSize,
@@ -310,6 +312,14 @@ function TransaccionesPage() {
     return Array.from(set).sort();
   }, [data]);
 
+  const usuariosEnData = useMemo(() => {
+    const set = new Set<string>();
+    (data ?? []).forEach((t: any) => t.created_by && set.add(t.created_by));
+    return Array.from(set)
+      .map((id) => ({ value: id, label: emailById[id] ?? id.slice(0, 8) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [data, emailById]);
+
   const norm = (v: any) =>
     (v ?? "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -336,6 +346,7 @@ function TransaccionesPage() {
       if (cuentasSel.length && !cuentasSel.includes(t.cuenta_codigo)) return false;
       if (metodosSel.length && !metodosSel.includes(t.metodo_pago ?? "")) return false;
       if (modos.length && !modos.includes(t.modo)) return false;
+      if (usuarios.length && !usuarios.includes(t.created_by ?? "")) return false;
       if (soloSinFactura && !esSinFactura(t.detalle)) return false;
 
       if (tN) {
@@ -398,7 +409,7 @@ function TransaccionesPage() {
       return 0;
     });
     return arr;
-  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos, soloSinFactura,
+  }, [data, buscaDebounced, tercero, factura, notasF, referencia, centros, cuentasSel, metodosSel, modos, usuarios, soloSinFactura,
       numMin, numMax, bsMin, bsMax, usdMin, usdMax, netoMin, netoMax, ivaMin, ivaMax,
       sortKey, sortDir, cuentaNombre, terceroById]);
 
@@ -880,7 +891,15 @@ function TransaccionesPage() {
                       <TextFilter value={notasF} onChange={(v) => upd("notas", v)} label="Contiene" />
                     </th>
                     <th className="text-center py-2 px-2">Adj.</th>
-                    <th className="text-left py-2 px-2">Registrado por</th>
+                    <th className="text-left py-2 px-2">
+                      Registrado por
+                      <MultiSelectFilter
+                        options={usuariosEnData}
+                        selected={usuarios}
+                        onChange={(v) => upd("usuarios", v)}
+                        label="Registrado por"
+                      />
+                    </th>
                     <th></th>
                   </tr>
                 </thead>
