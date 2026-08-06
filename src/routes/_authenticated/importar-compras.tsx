@@ -15,6 +15,7 @@ import { fmtUsd } from "@/lib/format";
 import { numFromCell, parseDateCell, readSheetAOA } from "@/lib/xetux-parse";
 import { toast } from "sonner";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
+import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
 
 
 
@@ -61,6 +62,7 @@ function ImportarComprasInner() {
   const qc = useQueryClient();
   const [rows, setRows] = useState<ParsedCompra[]>([]);
   const [fileName, setFileName] = useState("");
+  const [fileSize, setFileSize] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -87,6 +89,7 @@ function ImportarComprasInner() {
 
   const onFile = async (file: File) => {
     setFileName(file.name);
+    setFileSize(file.size);
     setRows([]);
     const aoa = await readSheetAOA(file);
     if (!aoa.length) return toast.error("El archivo está vacío o no se pudo leer");
@@ -221,6 +224,16 @@ function ImportarComprasInner() {
 
     setBusy(true);
     setProgress({ done: 0, total: elegibles.length });
+    const fechasSort = elegibles.map((r) => r.fecha).filter(Boolean).sort();
+    const batch: BatchHandle | null = await crearBatch({
+      tipo: "compras",
+      archivoNombre: fileName,
+      archivoTamano: fileSize,
+      fechaDesde: fechasSort[0] ?? null,
+      fechaHasta: fechasSort[fechasSort.length - 1] ?? null,
+      filasLeidas: visibles.length,
+      userId: user.id,
+    });
     const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
     let ok = 0, dup = 0, fail = 0, upd = 0;
 
@@ -406,6 +419,12 @@ function ImportarComprasInner() {
         setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
       }
     }
+
+    await cerrarBatch(batch, {
+      filasRegistradas: ok + upd,
+      filasOmitidas: dup + fail,
+      totalUsd: elegibles.reduce((s, r) => s + (Number(r.total_usd) || 0), 0),
+    });
 
     setBusy(false);
     setProgress(null);

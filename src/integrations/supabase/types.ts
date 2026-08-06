@@ -235,6 +235,7 @@ export type Database = {
           estado: string
           fecha_vencimiento: string | null
           id: string
+          import_batch_id: string | null
           monto_bs: number
           monto_pendiente_bs: number | null
           monto_pendiente_usd: number | null
@@ -254,6 +255,7 @@ export type Database = {
           estado?: string
           fecha_vencimiento?: string | null
           id?: string
+          import_batch_id?: string | null
           monto_bs: number
           monto_pendiente_bs?: number | null
           monto_pendiente_usd?: number | null
@@ -273,6 +275,7 @@ export type Database = {
           estado?: string
           fecha_vencimiento?: string | null
           id?: string
+          import_batch_id?: string | null
           monto_bs?: number
           monto_pendiente_bs?: number | null
           monto_pendiente_usd?: number | null
@@ -285,6 +288,13 @@ export type Database = {
           transaccion_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "cuentas_por_cobrar_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "importaciones"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cuentas_por_cobrar_transaccion_cobro_id_fkey"
             columns: ["transaccion_cobro_id"]
@@ -322,6 +332,7 @@ export type Database = {
           estado: string
           fecha_vencimiento: string | null
           id: string
+          import_batch_id: string | null
           monto_bs: number
           monto_pendiente_bs: number | null
           monto_pendiente_usd_bcv: number | null
@@ -330,6 +341,11 @@ export type Database = {
           origen: string
           pagada_at: string | null
           proveedor: string | null
+          revert_batch_id: string | null
+          revert_estado_anterior: string | null
+          revert_pagada_at_anterior: string | null
+          revert_pendiente_bs_anterior: number | null
+          revert_pendiente_usd_bcv_anterior: number | null
           tasa_bcv_factura: number | null
           tasa_paralela_factura: number | null
           tercero_id: string | null
@@ -343,6 +359,7 @@ export type Database = {
           estado?: string
           fecha_vencimiento?: string | null
           id?: string
+          import_batch_id?: string | null
           monto_bs: number
           monto_pendiente_bs?: number | null
           monto_pendiente_usd_bcv?: number | null
@@ -351,6 +368,11 @@ export type Database = {
           origen?: string
           pagada_at?: string | null
           proveedor?: string | null
+          revert_batch_id?: string | null
+          revert_estado_anterior?: string | null
+          revert_pagada_at_anterior?: string | null
+          revert_pendiente_bs_anterior?: number | null
+          revert_pendiente_usd_bcv_anterior?: number | null
           tasa_bcv_factura?: number | null
           tasa_paralela_factura?: number | null
           tercero_id?: string | null
@@ -364,6 +386,7 @@ export type Database = {
           estado?: string
           fecha_vencimiento?: string | null
           id?: string
+          import_batch_id?: string | null
           monto_bs?: number
           monto_pendiente_bs?: number | null
           monto_pendiente_usd_bcv?: number | null
@@ -372,6 +395,11 @@ export type Database = {
           origen?: string
           pagada_at?: string | null
           proveedor?: string | null
+          revert_batch_id?: string | null
+          revert_estado_anterior?: string | null
+          revert_pagada_at_anterior?: string | null
+          revert_pendiente_bs_anterior?: number | null
+          revert_pendiente_usd_bcv_anterior?: number | null
           tasa_bcv_factura?: number | null
           tasa_paralela_factura?: number | null
           tercero_id?: string | null
@@ -380,6 +408,20 @@ export type Database = {
           usd_paralelo_factura?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "cuentas_por_pagar_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "importaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuentas_por_pagar_revert_batch_id_fkey"
+            columns: ["revert_batch_id"]
+            isOneToOne: false
+            referencedRelation: "importaciones"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cuentas_por_pagar_tercero_id_fkey"
             columns: ["tercero_id"]
@@ -402,6 +444,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      importaciones: {
+        Row: {
+          archivo_nombre: string
+          archivo_tamano: number | null
+          created_at: string
+          created_by: string | null
+          estado: string
+          fecha_desde: string | null
+          fecha_hasta: string | null
+          filas_leidas: number
+          filas_omitidas: number
+          filas_registradas: number
+          id: string
+          meta: Json | null
+          reverted_at: string | null
+          reverted_by: string | null
+          tipo: string
+          total_bs: number
+          total_usd: number
+          updated_at: string
+        }
+        Insert: {
+          archivo_nombre: string
+          archivo_tamano?: number | null
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          fecha_desde?: string | null
+          fecha_hasta?: string | null
+          filas_leidas?: number
+          filas_omitidas?: number
+          filas_registradas?: number
+          id?: string
+          meta?: Json | null
+          reverted_at?: string | null
+          reverted_by?: string | null
+          tipo: string
+          total_bs?: number
+          total_usd?: number
+          updated_at?: string
+        }
+        Update: {
+          archivo_nombre?: string
+          archivo_tamano?: number | null
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          fecha_desde?: string | null
+          fecha_hasta?: string | null
+          filas_leidas?: number
+          filas_omitidas?: number
+          filas_registradas?: number
+          id?: string
+          meta?: Json | null
+          reverted_at?: string | null
+          reverted_by?: string | null
+          tipo?: string
+          total_bs?: number
+          total_usd?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       inventario_snapshots: {
         Row: {
@@ -607,6 +712,7 @@ export type Database = {
           fecha: string
           fecha_distribucion: string | null
           id: string
+          import_batch_id: string | null
           monto_bs: number | null
           monto_distribuido_usd: number | null
           monto_usd: number
@@ -628,6 +734,7 @@ export type Database = {
           fecha: string
           fecha_distribucion?: string | null
           id?: string
+          import_batch_id?: string | null
           monto_bs?: number | null
           monto_distribuido_usd?: number | null
           monto_usd: number
@@ -649,6 +756,7 @@ export type Database = {
           fecha?: string
           fecha_distribucion?: string | null
           id?: string
+          import_batch_id?: string | null
           monto_bs?: number | null
           monto_distribuido_usd?: number | null
           monto_usd?: number
@@ -663,6 +771,13 @@ export type Database = {
           transaccion_salida_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "propinas_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "importaciones"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "propinas_transaccion_entrada_id_fkey"
             columns: ["transaccion_entrada_id"]
@@ -817,6 +932,7 @@ export type Database = {
           fecha: string
           grupo_transaccion_id: string | null
           id: string
+          import_batch_id: string | null
           iva_aplica: boolean
           iva_bs: number
           marcada_error: boolean
@@ -852,6 +968,7 @@ export type Database = {
           fecha?: string
           grupo_transaccion_id?: string | null
           id?: string
+          import_batch_id?: string | null
           iva_aplica?: boolean
           iva_bs?: number
           marcada_error?: boolean
@@ -887,6 +1004,7 @@ export type Database = {
           fecha?: string
           grupo_transaccion_id?: string | null
           id?: string
+          import_batch_id?: string | null
           iva_aplica?: boolean
           iva_bs?: number
           marcada_error?: boolean
@@ -934,6 +1052,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_gyp_mes_actual"
             referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "transacciones_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "importaciones"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "transacciones_pareja_off_balance_id_fkey"

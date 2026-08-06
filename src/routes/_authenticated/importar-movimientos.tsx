@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { readSheetAOA, numFromCell, parseDateCell } from "@/lib/xetux-parse";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 import { logAudit } from "@/lib/audit";
+import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
 import {
   SIN_FACTURA_PREFIX,
   huellaBancaria,
@@ -104,6 +105,7 @@ function ImportarMovimientosInner() {
   const ensurePeriodoAbierto = useMesCerradoGuard();
 
   const [fileName, setFileName] = useState("");
+  const [fileSize, setFileSize] = useState<number | null>(null);
   const [rows, setRows] = useState<BankRow[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [busy, setBusy] = useState(false);
@@ -186,6 +188,7 @@ function ImportarMovimientosInner() {
 
   const onFile = async (file: File) => {
     setFileName(file.name);
+    setFileSize(file.size);
     try {
       const aoa = await readSheetAOA(file);
       if (aoa.length < 2) return toast.error("El archivo no tiene filas de datos");
@@ -415,6 +418,16 @@ function ImportarMovimientosInner() {
 
     setBusy(true);
     setProgress({ done: 0, total: toImport.length });
+    const fechasSort = toImport.map((m) => m.bankRow.fecha).filter(Boolean).sort();
+    const batch: BatchHandle | null = await crearBatch({
+      tipo: "movimientos",
+      archivoNombre: fileName,
+      archivoTamano: fileSize,
+      fechaDesde: fechasSort[0] ?? null,
+      fechaHasta: fechasSort[fechasSort.length - 1] ?? null,
+      filasLeidas: matches.length,
+      userId: user.id,
+    });
     let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0, anticipos = 0;
     const importados = new Set<string>();
 
@@ -537,6 +550,11 @@ function ImportarMovimientosInner() {
           const cubreTodo = nuevoUsdBcv <= 0.01;
 
           await supabase.from("cuentas_por_pagar").update({
+            revert_batch_id: (cxp as any).revert_batch_id ?? batch?.id ?? null,
+            revert_estado_anterior: (cxp as any).revert_estado_anterior ?? cxp.estado ?? "pendiente",
+            revert_pendiente_bs_anterior: (cxp as any).revert_pendiente_bs_anterior ?? cxp.monto_pendiente_bs ?? cxp.monto_bs,
+            revert_pendiente_usd_bcv_anterior: (cxp as any).revert_pendiente_usd_bcv_anterior ?? cxp.monto_pendiente_usd_bcv ?? cxp.usd_bcv_factura,
+            revert_pagada_at_anterior: (cxp as any).revert_pagada_at_anterior ?? (cxp as any).pagada_at ?? null,
             estado: cubreTodo ? "pagada" : "parcial",
             pagada_at: cubreTodo ? new Date().toISOString() : null,
             monto_pendiente_bs: nuevoBs,
@@ -588,6 +606,13 @@ function ImportarMovimientosInner() {
         setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
       }
     }
+
+    await cerrarBatch(batch, {
+      filasRegistradas: importados.size,
+      filasOmitidas: fail,
+      totalBs: toImport.reduce((s, m) => s + Math.abs(Number(m.bankRow.montoBs) || 0), 0),
+      totalUsd: toImport.reduce((s, m) => s + Math.abs(Number(m.bankRow.montoUsd) || 0), 0),
+    });
 
     setBusy(false);
     setProgress(null);

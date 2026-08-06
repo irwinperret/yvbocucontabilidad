@@ -30,6 +30,7 @@ import { Route as AuthenticatedImpuestosRouteImport } from './routes/_authentica
 import { Route as AuthenticatedImportarVentasRouteImport } from './routes/_authenticated/importar-ventas'
 import { Route as AuthenticatedImportarMovimientosRouteImport } from './routes/_authenticated/importar-movimientos'
 import { Route as AuthenticatedImportarComprasRouteImport } from './routes/_authenticated/importar-compras'
+import { Route as AuthenticatedImportacionesRouteImport } from './routes/_authenticated/importaciones'
 import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
 import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
 import { Route as AuthenticatedDiferencialCambiarioRouteImport } from './routes/_authenticated/diferencial-cambiario'
@@ -159,6 +160,12 @@ const AuthenticatedImportarComprasRoute =
     path: '/importar-compras',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedImportacionesRoute =
+  AuthenticatedImportacionesRouteImport.update({
+    id: '/importaciones',
+    path: '/importaciones',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedGypRoute = AuthenticatedGypRouteImport.update({
   id: '/gyp',
   path: '/gyp',
@@ -251,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
+  '/importaciones': typeof AuthenticatedImportacionesRoute
   '/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
@@ -287,6 +295,7 @@ export interface FileRoutesByTo {
   '/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
+  '/importaciones': typeof AuthenticatedImportacionesRoute
   '/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
@@ -325,6 +334,7 @@ export interface FileRoutesById {
   '/_authenticated/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
   '/_authenticated/fc': typeof AuthenticatedFcRoute
   '/_authenticated/gyp': typeof AuthenticatedGypRoute
+  '/_authenticated/importaciones': typeof AuthenticatedImportacionesRoute
   '/_authenticated/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/_authenticated/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/_authenticated/importar-ventas': typeof AuthenticatedImportarVentasRoute
@@ -363,6 +373,7 @@ export interface FileRouteTypes {
     | '/diferencial-cambiario'
     | '/fc'
     | '/gyp'
+    | '/importaciones'
     | '/importar-compras'
     | '/importar-movimientos'
     | '/importar-ventas'
@@ -399,6 +410,7 @@ export interface FileRouteTypes {
     | '/diferencial-cambiario'
     | '/fc'
     | '/gyp'
+    | '/importaciones'
     | '/importar-compras'
     | '/importar-movimientos'
     | '/importar-ventas'
@@ -436,6 +448,7 @@ export interface FileRouteTypes {
     | '/_authenticated/diferencial-cambiario'
     | '/_authenticated/fc'
     | '/_authenticated/gyp'
+    | '/_authenticated/importaciones'
     | '/_authenticated/importar-compras'
     | '/_authenticated/importar-movimientos'
     | '/_authenticated/importar-ventas'
@@ -615,6 +628,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedImportarComprasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/importaciones': {
+      id: '/_authenticated/importaciones'
+      path: '/importaciones'
+      fullPath: '/importaciones'
+      preLoaderRoute: typeof AuthenticatedImportacionesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/gyp': {
       id: '/_authenticated/gyp'
       path: '/gyp'
@@ -729,6 +749,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDiferencialCambiarioRoute: typeof AuthenticatedDiferencialCambiarioRoute
   AuthenticatedFcRoute: typeof AuthenticatedFcRoute
   AuthenticatedGypRoute: typeof AuthenticatedGypRoute
+  AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRoute
   AuthenticatedImportarComprasRoute: typeof AuthenticatedImportarComprasRoute
   AuthenticatedImportarMovimientosRoute: typeof AuthenticatedImportarMovimientosRoute
   AuthenticatedImportarVentasRoute: typeof AuthenticatedImportarVentasRoute
@@ -764,6 +785,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedDiferencialCambiarioRoute,
   AuthenticatedFcRoute: AuthenticatedFcRoute,
   AuthenticatedGypRoute: AuthenticatedGypRoute,
+  AuthenticatedImportacionesRoute: AuthenticatedImportacionesRoute,
   AuthenticatedImportarComprasRoute: AuthenticatedImportarComprasRoute,
   AuthenticatedImportarMovimientosRoute: AuthenticatedImportarMovimientosRoute,
   AuthenticatedImportarVentasRoute: AuthenticatedImportarVentasRoute,
@@ -798,13 +820,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
