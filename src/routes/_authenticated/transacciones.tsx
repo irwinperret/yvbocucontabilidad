@@ -312,6 +312,14 @@ function TransaccionesPage() {
     return Array.from(set).sort();
   }, [data]);
 
+  const usuariosEnData = useMemo(() => {
+    const set = new Set<string>();
+    (data ?? []).forEach((t: any) => t.created_by && set.add(t.created_by));
+    return Array.from(set)
+      .map((id) => ({ value: id, label: emailById[id] ?? id.slice(0, 8) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [data, emailById]);
+
   const norm = (v: any) =>
     (v ?? "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
