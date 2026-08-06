@@ -103,6 +103,7 @@ function ImportarVentasPage() {
 
   const onFile = async (file: File) => {
     setFileName(file.name);
+    setFileSize(file.size);
     setRows([]);
     const aoa = await readSheetAOA(file);
     if (!aoa.length) return toast.error("El archivo está vacío o no se pudo leer");
