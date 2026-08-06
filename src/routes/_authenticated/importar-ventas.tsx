@@ -603,6 +603,12 @@ function ImportarVentasPage() {
       }
     }
 
+    await cerrarBatch(batch, {
+      filasRegistradas: ok + updated,
+      filasOmitidas: unchanged + fail,
+      totalUsd: elegibles.reduce((s, r) => s + (Number(r.total_usd) || 0), 0),
+    });
+
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
