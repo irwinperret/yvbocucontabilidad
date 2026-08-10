@@ -15,6 +15,7 @@ import { logAudit } from "@/lib/audit";
 import { numFromCell, parseDateCell, readSheetAOA } from "@/lib/xetux-parse";
 import { toast } from "sonner";
 import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
+import { ImportacionFallidasWizard, type FilaFallida } from "@/components/importacion-fallidas-wizard";
 
 export const Route = createFileRoute("/_authenticated/importar-ventas")({
   component: ImportarVentasPage,
@@ -63,6 +64,11 @@ function ImportarVentasPage() {
   const [fileSize, setFileSize] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [fallidas, setFallidas] = useState<{ row: ParsedRow; motivo: string }[]>([]);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [batchActivo, setBatchActivo] = useState<BatchHandle | null>(null);
+  const [registradas, setRegistradas] = useState(0);
+  const [omitidas, setOmitidas] = useState(0);
 
   const { data: cuentasBancarias = [] } = useQuery({
     queryKey: ["cuentas-bancarias-activas-importar"],
@@ -227,29 +233,21 @@ function ImportarVentasPage() {
     return { paralela, bcv: bcvN, esParalela: paralela > 0 };
   };
 
-  const importar = async () => {
-    if (!user) return;
-    if (formasSinMapear.length > 0) return toast.error(`Configura el mapeo de: ${formasSinMapear.join(", ")}`);
-    const elegibles = rows.filter(filaImportable);
-    if (!elegibles.length) return toast.error("No hay filas importables");
-    setBusy(true);
-    const fechas = elegibles.map((r) => r.fecha).filter(Boolean).sort();
-    const batch: BatchHandle | null = await crearBatch({
-      tipo: "ventas",
-      archivoNombre: fileName,
-      archivoTamano: fileSize,
-      fechaDesde: fechas[0] ?? null,
-      fechaHasta: fechas[fechas.length - 1] ?? null,
-      filasLeidas: rows.length,
-      userId: user.id,
-    });
-    let ok = 0, updated = 0, unchanged = 0, fail = 0;
-    let ivaLegs = 0, bonoLegs = 0, propinaLegs = 0;
+  type ResFila = { status: "ok" | "upd" | "dup" | "fail"; motivo?: string };
+
+  const procesarVenta = async (
+    r: ParsedRow,
+    opts: {
+      tasas?: { bcv: number; paralela: number };
+      tasaCache?: Map<string, { paralela: number; bcv: number; esParalela: boolean }>;
+      centroOverride?: Centro;
+    },
+  ): Promise<ResFila> => {
+    if (!user) return { status: "fail", motivo: "Sesión no válida" };
+    const legs = { iva: 0, bono: 0, propina: 0 };
 
     // Helpers compartidos para sincronizar patas anexas (IVA, bono, propina) en INSERT y UPDATE.
     // Conversión Xetux: el USD del reporte está calculado a tasa BCV.
-    //   Bs                  = usd_xetux × tasa_bcv
-    //   USD almacenado (a tasa paralela) = Bs / tasa_paralela
     const syncBono = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, grupoId: string) => {
       if (r.clase !== "factura" || r.servicio_usd <= 0 || centroRow === ("Compartido" as any)) return;
       const cuentaBono = centroRow === "YV" ? "3.10" : "3.5";
@@ -279,7 +277,7 @@ function ImportarVentasPage() {
       } else {
         await supabase.from("transacciones").insert(bonoPayload);
       }
-      bonoLegs++;
+      legs.bono++;
     };
 
     const syncPropina = async (
@@ -347,21 +345,19 @@ function ImportarVentasPage() {
       } else {
         await supabase.from("propinas").insert(propPayload);
       }
-      propinaLegs++;
+      legs.propina++;
     };
-    setProgress({ done: 0, total: elegibles.length });
-
-    const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
     const approxEq = (a: number, b: number) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
 
-
-    for (const r of elegibles) {
+    {
       try {
-        if (!r.fecha) { fail++; continue; }
-        let tasas = tasaCache.get(r.fecha);
+        if (!r.fecha) return { status: "fail", motivo: "Falta la fecha del documento" };
+        let tasas = opts.tasas
+          ? { ...opts.tasas, esParalela: opts.tasas.paralela > 0 }
+          : opts.tasaCache?.get(r.fecha);
         if (!tasas) {
           tasas = await fetchTasa(r.fecha);
-          tasaCache.set(r.fecha, tasas);
+          opts.tasaCache?.set(r.fecha, tasas);
         }
         // El USD del reporte Xetux está calculado a tasa BCV. Para almacenar:
         //   Bs                            = usd_xetux × tasa_bcv
@@ -369,7 +365,7 @@ function ImportarVentasPage() {
         // Fallback: si no hay paralela, se usa BCV (sin diferencia entre ambas tasas).
         const tasaBcv = tasas.bcv;
         const tasaPar = tasas.paralela || tasas.bcv;
-        if (!tasaBcv) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura || r.numero_orden})`); continue; }
+        if (!tasaBcv) return { status: "fail", motivo: `No hay tasa BCV registrada para ${r.fecha}` };
 
         const totalBs = +(r.total_usd * tasaBcv).toFixed(2);
         const baseBs = +(r.base_usd * tasaBcv).toFixed(2);
@@ -379,7 +375,7 @@ function ImportarVentasPage() {
         const ivaUsdPar = +(ivaBs / tasaPar).toFixed(2);
 
         // Centro: factura → derivado del nº factura; resto (orden) → Bocu por regla.
-        const centroRow: Centro = r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu";
+        const centroRow: Centro = opts.centroOverride ?? (r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu");
 
         let cuenta_codigo: string;
         let metodo: Metodo;
@@ -462,7 +458,7 @@ function ImportarVentasPage() {
             (dup.cuenta_bancaria_id ?? null) !== (payload.cuenta_bancaria_id ?? null) ||
             ((dup as any).numero_orden ?? null) !== (payload.numero_orden ?? null);
 
-          if (!cambios) { unchanged++; continue; }
+          if (!cambios) return { status: "dup" };
 
           const nuevasNotas = `${notasBase} · [ACTUALIZADA ${new Date().toISOString().slice(0, 10)}]`;
           const { data: tx, error } = await supabase
@@ -471,7 +467,7 @@ function ImportarVentasPage() {
             .eq("id", dup.id)
             .select()
             .single();
-          if (error) { fail++; toast.error(`${refIdent}: ${error.message}`); continue; }
+          if (error) return { status: "fail", motivo: `${refIdent}: ${error.message}` };
           if (tx) await logAudit("transacciones", "UPDATE", tx.id, dup, tx);
 
           // Sync CxC asociada solo para facturas a crédito
@@ -535,13 +531,12 @@ function ImportarVentasPage() {
                 referencia: "xetux", notas: notasBase, created_by: user.id,
                 grupo_transaccion_id: grupoExistente, tipo: "debito",
               });
-              ivaLegs++;
+              legs.iva++;
             }
             await syncBono(r, centroRow, tasas, grupoExistente);
             await syncPropina(r, centroRow, tasas, tx.id, grupoExistente, metodo);
           }
-          updated++;
-          continue;
+          return { status: "upd" };
         }
 
         const grupoId = crypto.randomUUID();
@@ -552,7 +547,7 @@ function ImportarVentasPage() {
           created_by: user.id,
         } as any).select().single();
 
-        if (error) { fail++; toast.error(`${refIdent}: ${error.message}`); continue; }
+        if (error) return { status: "fail", motivo: `${refIdent}: ${error.message}` };
         if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
 
         // Pierna IVA (12.4) para nuevas ventas
@@ -566,7 +561,7 @@ function ImportarVentasPage() {
             referencia: "xetux", notas: notasBase, created_by: user.id,
             grupo_transaccion_id: grupoId, tipo: "debito",
           });
-          ivaLegs++;
+          legs.iva++;
         }
 
         if (r.clase === "factura" && r.esCxC && tx) {
@@ -594,28 +589,117 @@ function ImportarVentasPage() {
         }
 
 
-        ok++;
+        return { status: "ok" };
       } catch (e: any) {
-        fail++;
-        toast.error(`${r.numero_factura || r.numero_orden}: ${e?.message ?? "error"}`);
-      } finally {
-        setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
+        return { status: "fail", motivo: e?.message ?? "Error desconocido" };
       }
     }
+  };
+
+  const importar = async () => {
+    if (!user) return;
+    if (formasSinMapear.length > 0) return toast.error(`Configura el mapeo de: ${formasSinMapear.join(", ")}`);
+    const elegibles = rows.filter(filaImportable);
+    if (!elegibles.length) return toast.error("No hay filas importables");
+    setBusy(true);
+    setProgress({ done: 0, total: elegibles.length });
+    const fechas = elegibles.map((r) => r.fecha).filter(Boolean).sort();
+    const batch: BatchHandle | null = await crearBatch({
+      tipo: "ventas",
+      archivoNombre: fileName,
+      archivoTamano: fileSize,
+      fechaDesde: fechas[0] ?? null,
+      fechaHasta: fechas[fechas.length - 1] ?? null,
+      filasLeidas: rows.length,
+      userId: user.id,
+    });
+    setBatchActivo(batch);
+    const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
+    let ok = 0, updated = 0, unchanged = 0;
+    const nuevasFallidas: { row: ParsedRow; motivo: string }[] = [];
+
+    // El proceso nunca se detiene: las filas fallidas se acumulan para el asistente.
+    for (const r of elegibles) {
+      const res = await procesarVenta(r, { tasaCache });
+      if (res.status === "ok") ok++;
+      else if (res.status === "upd") updated++;
+      else if (res.status === "dup") unchanged++;
+      else nuevasFallidas.push({ row: r, motivo: res.motivo ?? "Error desconocido" });
+      setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+
+    setFallidas(nuevasFallidas);
+    setRegistradas(ok + updated);
+    setOmitidas(unchanged);
 
     await cerrarBatch(batch, {
       filasRegistradas: ok + updated,
-      filasOmitidas: unchanged + fail,
+      filasOmitidas: unchanged + nuevasFallidas.length,
       totalUsd: elegibles.reduce((s, r) => s + (Number(r.total_usd) || 0), 0),
     });
 
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Nuevas: ${ok} · Actualizadas: ${updated} · Sin cambios: ${unchanged} · Fallidas: ${fail} · IVA: ${ivaLegs} · Bonos: ${bonoLegs} · Propinas: ${propinaLegs}`);
-    if (ok > 0) {
-      setRows((all) => all.filter((r) => !filaImportable(r)));
+    toast.success(`Nuevas: ${ok} · Actualizadas: ${updated} · Sin cambios: ${unchanged} · Fallidas: ${nuevasFallidas.length}`);
+    if (ok > 0 || updated > 0) {
+      const idsFallidos = new Set(nuevasFallidas.map((f) => f.row.idx));
+      setRows((all) => all.filter((r) => !filaImportable(r) || idsFallidos.has(r.idx)));
     }
+  };
+
+  const guardarTasasSiFaltan = async (fecha: string, bcv: number, paralela: number) => {
+    if (bcv > 0) {
+      const { data: hoyBcv } = await supabase.from("tasas_bcv").select("id").eq("fecha", fecha).maybeSingle();
+      if (!hoyBcv) await supabase.from("tasas_bcv").insert({ fecha, tasa: bcv, registrado_por: user?.id ?? null } as any);
+    }
+    if (paralela > 0) {
+      const { data: hoyPar } = await supabase.from("tasas_paralela").select("id").eq("fecha", fecha).maybeSingle();
+      if (!hoyPar) await supabase.from("tasas_paralela").insert({ fecha, tasa: paralela, registrado_por: user?.id ?? null } as any);
+    }
+  };
+
+  const registrarFallida = async (item: FilaFallida, valores: Record<string, any>) => {
+    if (!user) return { ok: false, error: "Sesión no válida" };
+    const original = fallidas.find((f) => String(f.row.idx) === item.id)?.row;
+    if (!original) return { ok: false, error: "Fila no encontrada" };
+
+    const fecha = String(valores.fecha || "").slice(0, 10);
+    if (!fecha) return { ok: false, error: "La fecha es obligatoria" };
+    const bcv = Number(valores.tasa_bcv) || 0;
+    const paralela = Number(valores.tasa_paralela) || 0;
+    if (!bcv) return { ok: false, error: "Debes indicar la tasa BCV de esa fecha" };
+    await guardarTasasSiFaltan(fecha, bcv, paralela);
+
+    const iva = Number(valores.iva_usd) || 0;
+    const base = Number(valores.base_usd) || 0;
+    const row: ParsedRow = {
+      ...original,
+      fecha,
+      cliente: String(valores.cliente || original.cliente),
+      numero_factura: String(valores.numero_factura ?? original.numero_factura ?? ""),
+      numero_orden: String(valores.numero_orden ?? original.numero_orden ?? ""),
+      base_usd: base,
+      iva_usd: iva,
+      total_usd: +(base + iva).toFixed(2),
+      servicio_usd: Number(valores.servicio_usd) || 0,
+      propina_usd: Number(valores.propina_usd) || 0,
+    };
+    const centro = valores.centro ? (String(valores.centro) as Centro) : undefined;
+
+    const res = await procesarVenta(row, { tasas: { bcv, paralela }, centroOverride: centro });
+    if (res.status === "fail") return { ok: false, error: res.motivo };
+
+    if (batchActivo) {
+      await cerrarBatch(batchActivo, {
+        filasRegistradas: registradas + 1,
+        filasOmitidas: omitidas + Math.max(0, fallidas.length - 1),
+      });
+    }
+    setRegistradas((n) => n + 1);
+    setRows((all) => all.filter((x) => x.idx !== original.idx));
+    qc.invalidateQueries();
+    return { ok: true };
   };
 
   return (
@@ -760,6 +844,73 @@ function ImportarVentasPage() {
           </Card>
         </>
       )}
+
+      {fallidas.length > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive">
+              {fallidas.length} fila{fallidas.length === 1 ? "" : "s"} no se pudo registrar
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ul className="text-sm space-y-1 max-h-48 overflow-y-auto">
+              {fallidas.map((f) => (
+                <li key={f.row.idx} className="flex gap-2">
+                  <span className="font-medium">{f.row.numero_factura || f.row.numero_orden || `Fila ${f.row.idx + 1}`}</span>
+                  <span className="text-muted-foreground">— {f.motivo}</span>
+                </li>
+              ))}
+            </ul>
+            <Button variant="destructive" onClick={() => setWizardOpen(true)}>
+              Corregir filas fallidas
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <ImportacionFallidasWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        titulo="Corregir ventas fallidas"
+        campos={[
+          { name: "fecha", label: "Fecha", type: "date" },
+          { name: "centro", label: "Centro de costo", type: "select", options: [
+            { value: "YV", label: "YV" }, { value: "Bocu", label: "Bocu" }, { value: "Compartido", label: "Compartido" },
+          ] },
+          { name: "cliente", label: "Cliente" },
+          { name: "numero_factura", label: "N° factura" },
+          { name: "numero_orden", label: "N° orden" },
+          { name: "base_usd", label: "Base (USD BCV)", type: "number" },
+          { name: "iva_usd", label: "IVA (USD BCV)", type: "number" },
+          { name: "servicio_usd", label: "Servicio 10% (USD)", type: "number" },
+          { name: "propina_usd", label: "Propina (USD)", type: "number" },
+          { name: "tasa_bcv", label: "Tasa BCV", type: "number" },
+          { name: "tasa_paralela", label: "Tasa paralela", type: "number" },
+        ]}
+        items={fallidas.map((f) => ({
+          id: String(f.row.idx),
+          titulo: `${f.row.cliente} · ${f.row.numero_factura || f.row.numero_orden || "s/n"}`,
+          motivo: f.motivo,
+          valores: {
+            fecha: f.row.fecha ?? "",
+            centro: f.row.clase === "factura" ? centroDeFactura(f.row.numero_factura) : "Bocu",
+            cliente: f.row.cliente ?? "",
+            numero_factura: f.row.numero_factura ?? "",
+            numero_orden: f.row.numero_orden ?? "",
+            base_usd: f.row.base_usd ?? 0,
+            iva_usd: f.row.iva_usd ?? 0,
+            servicio_usd: f.row.servicio_usd ?? 0,
+            propina_usd: f.row.propina_usd ?? 0,
+            tasa_bcv: "",
+            tasa_paralela: "",
+          },
+        }))}
+        onRegistrar={registrarFallida}
+        onPendientesChange={(pend) => {
+          const ids = new Set(pend.map((x) => x.id));
+          setFallidas((prev) => prev.filter((f) => ids.has(String(f.row.idx))));
+        }}
+      />
 
       {progress && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
