@@ -812,7 +812,7 @@ function ImportarVentasPage() {
                       else if (r.esCxC) estado = { label: "CxC", cls: "text-blue-700" };
                       else if (!mapByForma.has(formaKeyOf(r))) estado = { label: "Sin mapear", cls: "text-orange-700" };
                       else estado = { label: r.esMixto ? "Mixto" : "Importable", cls: r.esMixto ? "text-amber-700" : "text-emerald-700" };
-                      const centroRow: Centro = opts.centroOverride ?? (r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu");
+                      const centroRow: Centro = r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu";
                       return (
                         <tr key={r.idx} className="border-t">
                           <td className="p-2 font-mono">{r.numero_factura || "—"}</td>
