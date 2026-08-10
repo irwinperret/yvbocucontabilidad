@@ -649,6 +649,69 @@ function ImportarComprasInner() {
         </>
       )}
 
+      {fallidas.length > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive">
+              {fallidas.length} fila{fallidas.length === 1 ? "" : "s"} no se pudo registrar
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ul className="text-sm space-y-1 max-h-48 overflow-y-auto">
+              {fallidas.map((f) => (
+                <li key={f.row.idx} className="flex gap-2">
+                  <span className="font-medium">{f.row.numero_factura || `Fila ${f.row.idx + 1}`}</span>
+                  <span className="text-muted-foreground">— {f.motivo}</span>
+                </li>
+              ))}
+            </ul>
+            <Button variant="destructive" onClick={() => setWizardOpen(true)}>
+              Corregir filas fallidas
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <ImportacionFallidasWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        titulo="Corregir compras fallidas"
+        campos={[
+          { name: "fecha", label: "Fecha", type: "date" },
+          { name: "centro", label: "Centro de costo", type: "select", options: [
+            { value: "YV", label: "YV" }, { value: "Bocu", label: "Bocu" }, { value: "Compartido", label: "Compartido" },
+          ] },
+          { name: "proveedor", label: "Proveedor" },
+          { name: "numero_factura", label: "N° factura" },
+          { name: "neto_usd", label: "Neto (USD BCV)", type: "number" },
+          { name: "iva_usd", label: "IVA (USD BCV)", type: "number" },
+          { name: "tasa_bcv", label: "Tasa BCV", type: "number" },
+          { name: "tasa_paralela", label: "Tasa paralela", type: "number" },
+        ]}
+        items={fallidas.map((f) => ({
+          id: String(f.row.idx),
+          titulo: `${f.row.proveedor} · ${f.row.numero_factura || "s/n"}`,
+          motivo: f.motivo,
+          valores: {
+            fecha: f.row.fecha ?? "",
+            centro: centroDefault,
+            proveedor: f.row.proveedor ?? "",
+            numero_factura: f.row.numero_factura ?? "",
+            neto_usd: f.row.neto_usd ?? 0,
+            iva_usd: f.row.iva_usd ?? 0,
+            tasa_bcv: "",
+            tasa_paralela: "",
+          },
+        }))}
+        onRegistrar={registrarFallida}
+        onPendientesChange={(pend) => {
+          const ids = new Set(pend.map((p) => p.id));
+          setFallidas((prev) => prev.filter((f) => ids.has(String(f.row.idx))));
+        }}
+      />
+
+
+
       {progress && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="bg-card border rounded-lg shadow-xl px-8 py-6 min-w-[320px] text-center space-y-3">
