@@ -2,12 +2,14 @@
 
 Hoy, cuando una factura de ventas o compras no se puede registrar (falta la fecha, no hay tasa BCV de ese día, no se pudo crear el proveedor, error al insertar), solo aparece un aviso rojo que desaparece y la fila queda perdida: no se cuenta y no queda rastro. La idea es que ninguna fila se pierda.
 
-## 1. Registrar las fallas en vez de solo avisarlas
+## 1. Acumular las fallas sin detener la importación
 
-Durante la importación, cada fila que falle se guarda en memoria con:
+La importación nunca se interrumpe ni pregunta nada a mitad de camino: recorre todas las filas del archivo de principio a fin. Cada fila que falle se guarda en una lista con:
 
 - Los datos leídos del archivo (fecha, proveedor/cliente, N° factura, montos, IVA, tipo).
 - El motivo exacto del fallo, en texto claro ("Sin tasa BCV para 2026-07-14", "Falta la fecha", "No se pudo crear el proveedor", o el error devuelto por el sistema).
+
+Tampoco se muestran avisos rojos fila por fila durante el proceso; solo la barra de progreso. El asistente aparece únicamente al terminar todo el archivo.
 
 Las filas duplicadas (omitidas a propósito) no cuentan como fallas.
 
