@@ -212,6 +212,180 @@ function ImportarComprasInner() {
 
   const ensurePeriodoAbierto = useMesCerradoGuard();
 
+  type ResFila = { status: "ok" | "upd" | "dup" | "fail"; motivo?: string };
+
+  const procesarCompra = async (
+    r: ParsedCompra,
+    opts: {
+      centro: Centro;
+      offBal: boolean;
+      tasas?: { bcv: number; paralela: number };
+      tasaCache?: Map<string, { paralela: number; bcv: number; esParalela: boolean }>;
+    }
+  ): Promise<ResFila> => {
+    try {
+      if (!r.fecha) return { status: "fail", motivo: "Falta la fecha del documento" };
+
+      let tasas = opts.tasas
+        ? { ...opts.tasas, esParalela: opts.tasas.paralela > 0 }
+        : opts.tasaCache?.get(r.fecha);
+      if (!tasas) {
+        tasas = await fetchTasa(r.fecha);
+        opts.tasaCache?.set(r.fecha, tasas);
+      }
+      if (!tasas.bcv) return { status: "fail", motivo: `No hay tasa BCV registrada para ${r.fecha}` };
+      const tasaParaUsd = tasas.paralela || tasas.bcv;
+
+      const terceroId = await ensureTercero(r);
+      if (!terceroId) return { status: "fail", motivo: `No se pudo crear/encontrar el proveedor ${r.proveedor} (${r.tipo_rif}-${r.rif})` };
+
+      // Dedup por (tercero, numero_factura) sobre transacciones 2.1 y CxP (fuente de verdad)
+      const { data: existeArr } = await supabase.from("transacciones")
+        .select("id, monto_bs, monto_base_bs, fecha, grupo_transaccion_id")
+        .eq("cuenta_codigo", "2.1")
+        .eq("tercero_id", terceroId).eq("numero_factura", r.numero_factura).limit(1);
+      const existe = existeArr && existeArr.length > 0 ? existeArr[0] : null;
+
+      const { data: cxpDup } = await supabase.from("cuentas_por_pagar")
+        .select("id, monto_bs, transaccion_id, estado")
+        .eq("tercero_id", terceroId)
+        .eq("numero_factura", r.numero_factura)
+        .eq("origen", "xetux")
+        .limit(1);
+      const cxpExiste = cxpDup && cxpDup.length > 0 ? cxpDup[0] : null;
+
+      const ivaAplica = r.iva_usd > 0;
+      const baseUsd = ivaAplica ? Math.max(0, r.total_usd - r.iva_usd) : r.total_usd;
+      const totalBs = +(r.total_usd * tasas.bcv).toFixed(2);
+      const baseBs = +(baseUsd * tasas.bcv).toFixed(2);
+      const ivaBs = +(r.iva_usd * tasas.bcv).toFixed(2);
+      void tasaParaUsd;
+
+      const offBal = opts.offBal;
+      const centro = opts.centro;
+
+      const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
+
+      // Helper para insertar par (2.1 compra + 12.5 IVA) enlazadas por grupo_transaccion_id + CxP pendiente
+      const insertCompraTransacciones = async (grupoId: string) => {
+        const usdParalela = tasas!.paralela > 0 ? +(baseBs / tasas!.paralela).toFixed(2) : baseUsd;
+        const { data: txCompra, error: eCompra } = await supabase.from("transacciones").insert({
+          fecha: r.fecha,
+          cuenta_codigo: "2.1",
+          centro_costo: centro as any,
+          modo: offBal ? "off_balance" : "on_balance",
+          monto_bs: baseBs,
+          monto_base_bs: baseBs,
+          iva_bs: 0,
+          iva_aplica: false,
+          tipo_iva: null,
+          monto_usd: usdParalela,
+          tasa_bcv: tasas!.bcv || null,
+          tasa_paralela: tasas!.paralela || null,
+          metodo_pago: "pendiente" as any,
+          tercero_id: terceroId,
+          numero_factura: r.numero_factura,
+          numero_orden: r.numero_orden || null,
+          referencia: "xetux",
+          notas: notaBase,
+          created_by: user!.id,
+          grupo_transaccion_id: grupoId,
+        } as any).select().single();
+        if (eCompra) throw new Error(`2.1 ${r.numero_factura}: ${eCompra.message}`);
+
+        if (ivaAplica && r.iva_usd > 0) {
+          const { insertIvaLeg } = await import("@/lib/iva-helpers");
+          const ivaUsdParalela = tasas!.paralela > 0 ? +(ivaBs / tasas!.paralela).toFixed(2) : r.iva_usd;
+          const ivaRes = await insertIvaLeg({
+            fecha: r.fecha,
+            centro_costo: centro as any,
+            modo: offBal ? "off_balance" : "on_balance",
+            monto_bs_iva: ivaBs,
+            monto_usd_iva: ivaUsdParalela,
+            tasa_bcv: tasas!.bcv || null,
+            tasa_paralela: tasas!.paralela || null,
+            tercero_id: terceroId,
+            numero_factura: r.numero_factura,
+            referencia: "xetux-iva",
+            notas: notaBase,
+            created_by: user!.id,
+            grupo_transaccion_id: grupoId,
+            tipo: "credito",
+          });
+          if (!ivaRes) {
+            await supabase.from("transacciones").delete().eq("id", (txCompra as any).id);
+            throw new Error(`12.5 ${r.numero_factura}: no se pudo registrar IVA, se revirtió la compra`);
+          }
+        }
+
+        // Crear CxP pendiente vinculada a la compra 2.1 (solo si es on-balance)
+        if (!offBal) {
+          const usdBcvTotal = tasas!.bcv > 0 ? +(totalBs / tasas!.bcv).toFixed(2) : r.total_usd;
+          const usdParTotal = tasas!.paralela > 0 ? +(totalBs / tasas!.paralela).toFixed(2) : r.total_usd;
+          const { error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
+            proveedor: r.proveedor,
+            numero_factura: r.numero_factura,
+            tercero_id: terceroId,
+            centro_costo: centro as any,
+            monto_bs: totalBs,
+            monto_usd: usdBcvTotal,
+            monto_pendiente_bs: totalBs,
+            monto_pendiente_usd_bcv: usdBcvTotal,
+            usd_bcv_factura: usdBcvTotal,
+            usd_paralelo_factura: usdParTotal,
+            tasa_bcv_factura: tasas!.bcv || null,
+            tasa_paralela_factura: tasas!.paralela || null,
+            fecha_vencimiento: null,
+            estado: "pendiente",
+            origen: "xetux",
+            transaccion_id: (txCompra as any).id,
+          } as any);
+          if (eCxp) {
+            await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId);
+            throw new Error(`CxP ${r.numero_factura}: ${eCxp.message}`);
+          }
+        }
+        return (txCompra as any).id as string;
+      };
+
+      if (existe) {
+        const sameAmount = Math.abs(Number(existe.monto_base_bs || existe.monto_bs || 0) - baseBs) < 0.01;
+        if (sameAmount) return { status: "dup" };
+
+        // Distinto monto → borrar par (2.1 + 12.5), CxP y reinsertar
+        if (existe.grupo_transaccion_id) {
+          await supabase.from("transacciones")
+            .delete()
+            .eq("grupo_transaccion_id", existe.grupo_transaccion_id)
+            .in("cuenta_codigo", ["2.1", "12.5"]);
+        } else {
+          await supabase.from("transacciones").delete().eq("id", existe.id);
+        }
+        if (cxpExiste) await supabase.from("cuentas_por_pagar").delete().eq("id", cxpExiste.id);
+        try {
+          await insertCompraTransacciones(crypto.randomUUID());
+        } catch (e: any) {
+          return { status: "fail", motivo: e?.message ?? "Error reinsertando la compra" };
+        }
+        return { status: "upd" };
+      }
+
+      // Si no existe 2.1 pero sí CxP huérfana, limpiarla antes de insertar
+      if (cxpExiste && !existe) {
+        await supabase.from("cuentas_por_pagar").delete().eq("id", cxpExiste.id);
+      }
+
+      try {
+        await insertCompraTransacciones(crypto.randomUUID());
+      } catch (e: any) {
+        return { status: "fail", motivo: e?.message ?? "Error registrando la compra" };
+      }
+      return { status: "ok" };
+    } catch (e: any) {
+      return { status: "fail", motivo: e?.message ?? "Error desconocido" };
+    }
+  };
+
   const importar = async () => {
     if (!user) return;
     const elegibles = visibles.filter((r) => r.include);
@@ -234,207 +408,96 @@ function ImportarComprasInner() {
       filasLeidas: visibles.length,
       userId: user.id,
     });
+    setBatchActivo(batch);
     const tasaCache = new Map<string, { paralela: number; bcv: number; esParalela: boolean }>();
-    let ok = 0, dup = 0, fail = 0, upd = 0;
+    let ok = 0, dup = 0, upd = 0;
+    const nuevasFallidas: { row: ParsedCompra; motivo: string }[] = [];
 
-
-
+    // El proceso NUNCA se detiene: las fallas se acumulan y se resuelven al final.
     for (const r of elegibles) {
-      try {
-        if (!r.fecha) { fail++; toast.error(`Sin fecha: ${r.numero_factura}`); continue; }
-        let tasas = tasaCache.get(r.fecha);
-        if (!tasas) {
-          tasas = await fetchTasa(r.fecha);
-          tasaCache.set(r.fecha, tasas);
-        }
-        // Xetux calcula sus montos USD a tasa BCV. Conversión correcta:
-        //   1) Bs = USD_xetux × tasa_bcv  (recuperar el monto real en Bs)
-        //   2) USD paralelo = Bs / tasa_paralela  (USD contable para G&P/FC)
-        if (!tasas.bcv) { fail++; toast.error(`Sin tasa BCV para ${r.fecha} (${r.numero_factura})`); continue; }
-        const tasaParaUsd = tasas.paralela || tasas.bcv;
-
-        const terceroId = await ensureTercero(r);
-        if (!terceroId) { fail++; continue; }
-
-        // Dedup por (tercero, numero_factura) sobre transacciones 2.1 y CxP (fuente de verdad)
-        const { data: existeArr } = await supabase.from("transacciones")
-          .select("id, monto_bs, monto_base_bs, fecha, grupo_transaccion_id")
-          .eq("cuenta_codigo", "2.1")
-          .eq("tercero_id", terceroId).eq("numero_factura", r.numero_factura).limit(1);
-        const existe = existeArr && existeArr.length > 0 ? existeArr[0] : null;
-
-        const { data: cxpDup } = await supabase.from("cuentas_por_pagar")
-          .select("id, monto_bs, transaccion_id, estado")
-          .eq("tercero_id", terceroId)
-          .eq("numero_factura", r.numero_factura)
-          .eq("origen", "xetux")
-          .limit(1);
-        const cxpExiste = cxpDup && cxpDup.length > 0 ? cxpDup[0] : null;
-
-
-        const ivaAplica = r.iva_usd > 0;
-        const baseUsd = ivaAplica ? Math.max(0, r.total_usd - r.iva_usd) : r.total_usd;
-        const totalBs = +(r.total_usd * tasas.bcv).toFixed(2);
-        const baseBs = +(baseUsd * tasas.bcv).toFixed(2);
-        const ivaBs = +(r.iva_usd * tasas.bcv).toFixed(2);
-        // USD paralelo (contable) — fuente de verdad para G&P/FC
-        const totalUsdParalelo = +(totalBs / tasaParaUsd).toFixed(2);
-        const baseUsdParalelo = +(baseBs / tasaParaUsd).toFixed(2);
-        const ivaUsdParalelo = +(ivaBs / tasaParaUsd).toFixed(2);
-        void totalUsdParalelo; void baseUsdParalelo; void ivaUsdParalelo;
-
-        const offBal = offBalance;
-
-        const notaBase = `Xetux · ${r.tipo}${r.numero_control ? ` · Ctrl ${r.numero_control}` : ""}${r.numero_orden ? ` · OC ${r.numero_orden}` : ""}`;
-
-        // Helper para insertar par (2.1 compra + 12.5 IVA) enlazadas por grupo_transaccion_id + CxP pendiente
-        const insertCompraTransacciones = async (grupoId: string) => {
-          const usdParalela = tasas.paralela > 0 ? +(baseBs / tasas.paralela).toFixed(2) : baseUsd;
-          const { data: txCompra, error: eCompra } = await supabase.from("transacciones").insert({
-            fecha: r.fecha,
-            cuenta_codigo: "2.1",
-            centro_costo: centroDefault as any,
-            modo: offBal ? "off_balance" : "on_balance",
-            monto_bs: baseBs,
-            monto_base_bs: baseBs,
-            iva_bs: 0,
-            iva_aplica: false,
-            tipo_iva: null,
-            monto_usd: usdParalela,
-            tasa_bcv: tasas.bcv || null,
-            tasa_paralela: tasas.paralela || null,
-            metodo_pago: "pendiente" as any,
-            tercero_id: terceroId,
-            numero_factura: r.numero_factura,
-            numero_orden: r.numero_orden || null,
-            referencia: "xetux",
-            notas: notaBase,
-            created_by: user!.id,
-            grupo_transaccion_id: grupoId,
-          } as any).select().single();
-          if (eCompra) throw new Error(`2.1 ${r.numero_factura}: ${eCompra.message}`);
-
-          if (ivaAplica && r.iva_usd > 0) {
-            const { insertIvaLeg } = await import("@/lib/iva-helpers");
-            const ivaUsdParalela = tasas.paralela > 0 ? +(ivaBs / tasas.paralela).toFixed(2) : r.iva_usd;
-            const ivaRes = await insertIvaLeg({
-              fecha: r.fecha,
-              centro_costo: centroDefault as any,
-              modo: offBal ? "off_balance" : "on_balance",
-              monto_bs_iva: ivaBs,
-              monto_usd_iva: ivaUsdParalela,
-              tasa_bcv: tasas.bcv || null,
-              tasa_paralela: tasas.paralela || null,
-              tercero_id: terceroId,
-              numero_factura: r.numero_factura,
-              referencia: "xetux-iva",
-              notas: notaBase,
-              created_by: user!.id,
-              grupo_transaccion_id: grupoId,
-              tipo: "credito",
-            });
-            if (!ivaRes) {
-              await supabase.from("transacciones").delete().eq("id", (txCompra as any).id);
-              throw new Error(`12.5 ${r.numero_factura}: no se pudo registrar IVA, se revirtió la compra`);
-            }
-          }
-
-          // Crear CxP pendiente vinculada a la compra 2.1 (solo si es on-balance)
-          if (!offBal) {
-            const usdBcvTotal = tasas.bcv > 0 ? +(totalBs / tasas.bcv).toFixed(2) : r.total_usd;
-            const usdParTotal = tasas.paralela > 0 ? +(totalBs / tasas.paralela).toFixed(2) : r.total_usd;
-            const { error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
-              proveedor: r.proveedor,
-              numero_factura: r.numero_factura,
-              tercero_id: terceroId,
-              centro_costo: centroDefault as any,
-              monto_bs: totalBs,
-              monto_usd: usdBcvTotal,
-              monto_pendiente_bs: totalBs,
-              monto_pendiente_usd_bcv: usdBcvTotal,
-              usd_bcv_factura: usdBcvTotal,
-              usd_paralelo_factura: usdParTotal,
-              tasa_bcv_factura: tasas.bcv || null,
-              tasa_paralela_factura: tasas.paralela || null,
-              fecha_vencimiento: null,
-              estado: "pendiente",
-              origen: "xetux",
-              transaccion_id: (txCompra as any).id,
-            } as any);
-            if (eCxp) {
-              await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId);
-              throw new Error(`CxP ${r.numero_factura}: ${eCxp.message}`);
-            }
-          }
-          return (txCompra as any).id as string;
-        };
-
-
-
-        if (existe) {
-          const sameAmount = Math.abs(Number(existe.monto_base_bs || existe.monto_bs || 0) - baseBs) < 0.01;
-          if (sameAmount) {
-            dup++;
-            toast.warning(`Duplicada (${existe.fecha}): ${r.proveedor} #${r.numero_factura} — mismo monto, omitida`);
-            continue;
-          }
-          // Distinto monto → borrar par (2.1 + 12.5), CxP y reinsertar
-          if (existe.grupo_transaccion_id) {
-            await supabase.from("transacciones")
-              .delete()
-              .eq("grupo_transaccion_id", existe.grupo_transaccion_id)
-              .in("cuenta_codigo", ["2.1", "12.5"]);
-          } else {
-            await supabase.from("transacciones").delete().eq("id", existe.id);
-          }
-          if (cxpExiste) await supabase.from("cuentas_por_pagar").delete().eq("id", cxpExiste.id);
-          try {
-            await insertCompraTransacciones(crypto.randomUUID());
-          } catch (e: any) {
-            fail++; toast.error(e?.message ?? "error reinsertando compra");
-            continue;
-          }
-          upd++;
-          toast.warning(`Duplicada (${existe.fecha}): ${r.proveedor} #${r.numero_factura} — actualizada al nuevo monto`);
-          continue;
-        }
-
-        // Si no existe 2.1 pero sí CxP huérfana, limpiarla antes de insertar
-        if (cxpExiste && !existe) {
-          await supabase.from("cuentas_por_pagar").delete().eq("id", cxpExiste.id);
-        }
-
-        try {
-          await insertCompraTransacciones(crypto.randomUUID());
-        } catch (e: any) {
-          fail++;
-          toast.error(e?.message ?? "error registrando compra en transacciones");
-          continue;
-        }
-        ok++;
-      } catch (e: any) {
-        fail++;
-        toast.error(`${r.numero_factura}: ${e?.message ?? "error"}`);
-      } finally {
-        setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
-      }
+      const res = await procesarCompra(r, { centro: centroDefault, offBal: offBalance, tasaCache });
+      if (res.status === "ok") ok++;
+      else if (res.status === "upd") upd++;
+      else if (res.status === "dup") dup++;
+      else nuevasFallidas.push({ row: r, motivo: res.motivo ?? "Error desconocido" });
+      setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
     }
+
+    setFallidas(nuevasFallidas);
+    setRegistradas(ok + upd);
+    setOmitidas(dup);
 
     await cerrarBatch(batch, {
       filasRegistradas: ok + upd,
-      filasOmitidas: dup + fail,
+      filasOmitidas: dup + nuevasFallidas.length,
       totalUsd: elegibles.reduce((s, r) => s + (Number(r.total_usd) || 0), 0),
     });
 
     setBusy(false);
     setProgress(null);
     qc.invalidateQueries();
-    toast.success(`Nuevas CxP: ${ok} · Actualizadas: ${upd} · Duplicadas: ${dup} · Fallidas: ${fail}`);
+    toast.success(`Nuevas CxP: ${ok} · Actualizadas: ${upd} · Duplicadas: ${dup} · Fallidas: ${nuevasFallidas.length}`);
     if (ok > 0 || upd > 0) {
-      const ids = new Set(elegibles.map((r) => r.idx));
+      const idsFallidos = new Set(nuevasFallidas.map((f) => f.row.idx));
+      const ids = new Set(elegibles.filter((r) => !idsFallidos.has(r.idx)).map((r) => r.idx));
       setRows((all) => all.filter((r) => !ids.has(r.idx)));
     }
   };
+
+  const guardarTasasSiFaltan = async (fecha: string, bcv: number, paralela: number) => {
+    if (bcv > 0) {
+      const { data: hoyBcv } = await supabase.from("tasas_bcv").select("id").eq("fecha", fecha).maybeSingle();
+      if (!hoyBcv) await supabase.from("tasas_bcv").insert({ fecha, tasa: bcv, registrado_por: user?.id ?? null } as any);
+    }
+    if (paralela > 0) {
+      const { data: hoyPar } = await supabase.from("tasas_paralela").select("id").eq("fecha", fecha).maybeSingle();
+      if (!hoyPar) await supabase.from("tasas_paralela").insert({ fecha, tasa: paralela, registrado_por: user?.id ?? null } as any);
+    }
+  };
+
+  const registrarFallida = async (item: FilaFallida, valores: Record<string, any>) => {
+    if (!user) return { ok: false, error: "Sesión no válida" };
+    const original = fallidas.find((f) => String(f.row.idx) === item.id)?.row;
+    if (!original) return { ok: false, error: "Fila no encontrada" };
+
+    const fecha = String(valores.fecha || "").slice(0, 10);
+    if (!fecha) return { ok: false, error: "La fecha es obligatoria" };
+    const canContinue = await ensurePeriodoAbierto(fecha);
+    if (!canContinue) return { ok: false, error: "El mes está cerrado" };
+
+    const bcv = Number(valores.tasa_bcv) || 0;
+    const paralela = Number(valores.tasa_paralela) || 0;
+    if (!bcv) return { ok: false, error: "Debes indicar la tasa BCV de esa fecha" };
+    await guardarTasasSiFaltan(fecha, bcv, paralela);
+
+    const iva = Number(valores.iva_usd) || 0;
+    const neto = Number(valores.neto_usd) || 0;
+    const row: ParsedCompra = {
+      ...original,
+      fecha,
+      proveedor: String(valores.proveedor || original.proveedor),
+      numero_factura: String(valores.numero_factura || original.numero_factura),
+      neto_usd: neto,
+      iva_usd: iva,
+      total_usd: +(neto + iva).toFixed(2),
+    };
+    const centro = (String(valores.centro || centroDefault) as Centro);
+
+    const res = await procesarCompra(row, { centro, offBal: offBalance, tasas: { bcv, paralela } });
+    if (res.status === "fail") return { ok: false, error: res.motivo };
+
+    if (batchActivo) {
+      await cerrarBatch(batchActivo, {
+        filasRegistradas: registradas + 1,
+        filasOmitidas: omitidas + Math.max(0, fallidas.length - 1),
+      });
+    }
+    setRegistradas((n) => n + 1);
+    setRows((all) => all.filter((r) => r.idx !== original.idx));
+    qc.invalidateQueries();
+    return { ok: true };
+  };
+
 
   return (
     <div className="space-y-6 max-w-6xl">
