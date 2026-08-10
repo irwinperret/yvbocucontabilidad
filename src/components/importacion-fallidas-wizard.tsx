@@ -47,12 +47,14 @@ export function ImportacionFallidasWizard({
   const [valores, setValores] = useState<Record<string, any>>({});
   const [busy, setBusy] = useState(false);
 
+  const itemsKey = items.map((i) => i.id).join("|");
   useEffect(() => {
     if (open) {
       setLista(items);
       setIdx(0);
     }
-  }, [open, items]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, itemsKey]);
 
   const actual = lista[idx];
 
