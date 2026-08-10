@@ -16,6 +16,7 @@ import { numFromCell, parseDateCell, readSheetAOA } from "@/lib/xetux-parse";
 import { toast } from "sonner";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
+import { ImportacionFallidasWizard, type FilaFallida } from "@/components/importacion-fallidas-wizard";
 
 
 
