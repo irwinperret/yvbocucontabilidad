@@ -70,6 +70,11 @@ function ImportarComprasInner() {
   const [centroDefault, setCentroDefault] = useState<Centro>("Compartido");
   const [soloFacturas, setSoloFacturas] = useState(false);
   const [offBalance, setOffBalance] = useState(false);
+  const [fallidas, setFallidas] = useState<{ row: ParsedCompra; motivo: string }[]>([]);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [batchActivo, setBatchActivo] = useState<BatchHandle | null>(null);
+  const [registradas, setRegistradas] = useState(0);
+  const [omitidas, setOmitidas] = useState(0);
 
 
 
