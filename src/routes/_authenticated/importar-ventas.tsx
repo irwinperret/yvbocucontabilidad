@@ -241,10 +241,12 @@ function ImportarVentasPage() {
       tasas?: { bcv: number; paralela: number };
       tasaCache?: Map<string, { paralela: number; bcv: number; esParalela: boolean }>;
       centroOverride?: Centro;
+      referencia?: string;
     },
   ): Promise<ResFila> => {
     if (!user) return { status: "fail", motivo: "Sesión no válida" };
     const legs = { iva: 0, bono: 0, propina: 0 };
+    const referencia = opts.referencia ?? "xetux";
 
     // Helpers compartidos para sincronizar patas anexas (IVA, bono, propina) en INSERT y UPDATE.
     // Conversión Xetux: el USD del reporte está calculado a tasa BCV.
