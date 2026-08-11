@@ -281,7 +281,12 @@ function MovimientosBancariosPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Movimientos ({filtradas.length})</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+          <CardTitle className="text-base">Movimientos ({filtradas.length})</CardTitle>
+          <Button size="sm" variant="outline" onClick={onExportar} disabled={exportando}>
+            <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+          </Button>
+        </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-sm text-muted-foreground">Cargando…</p> : filtradas.length === 0 ? (
             <p className="text-sm text-muted-foreground">No hay movimientos bancarios con estos filtros.</p>
