@@ -184,6 +184,68 @@ export type Database = {
         }
         Relationships: []
       }
+      conciliacion_bancaria: {
+        Row: {
+          confirmado_en: string
+          confirmado_por: string | null
+          created_at: string
+          estado: string
+          id: string
+          transaccion_bancaria_id: string
+          transaccion_factura_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          confirmado_en?: string
+          confirmado_por?: string | null
+          created_at?: string
+          estado?: string
+          id?: string
+          transaccion_bancaria_id: string
+          transaccion_factura_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          confirmado_en?: string
+          confirmado_por?: string | null
+          created_at?: string
+          estado?: string
+          id?: string
+          transaccion_bancaria_id?: string
+          transaccion_factura_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conciliacion_bancaria_transaccion_bancaria_id_fkey"
+            columns: ["transaccion_bancaria_id"]
+            isOneToOne: true
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conciliacion_bancaria_transaccion_bancaria_id_fkey"
+            columns: ["transaccion_bancaria_id"]
+            isOneToOne: true
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conciliacion_bancaria_transaccion_factura_id_fkey"
+            columns: ["transaccion_factura_id"]
+            isOneToOne: false
+            referencedRelation: "transacciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conciliacion_bancaria_transaccion_factura_id_fkey"
+            columns: ["transaccion_factura_id"]
+            isOneToOne: false
+            referencedRelation: "v_off_balance_pendientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cuentas_bancarias: {
         Row: {
           activa: boolean
