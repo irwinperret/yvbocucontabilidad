@@ -390,7 +390,8 @@ function MovimientosBancariosPage() {
                           {badgeEstado(f.estado)}
                           <span className="text-[11px] text-muted-foreground">{f.motivo}</span>
                           {f.factura?.numero_factura && (
-                            <span className="text-[11px] mono">Fact {f.factura.numero_factura} · {fmtDate(f.factura.fecha)} · {fmtBs(f.factura.monto_bs)}</span>
+                            <span className="text-[11px] mono">Fact {f.factura.numero_factura} · {f.factura.proveedor ?? "—"} · {fmtDate(f.factura.fecha)} · {fmtBs(f.factura.monto_bs)}</span>
+
                           )}
                           {f.confirmable && f.sugerido && (
                             <div className="flex gap-1 pt-1">
