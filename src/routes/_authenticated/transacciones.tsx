@@ -815,11 +815,22 @@ function TransaccionesPage() {
                 </Select>
               </div>
               {selected.size > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => pedirStandby(filtradas.filter((t: any) => selected.has(t.id)))}
+                >
+                  <PauseCircle className="h-4 w-4 mr-1.5" />
+                  Poner {selected.size} en standby
+                </Button>
+              )}
+              {selected.size > 0 && (
                 <Button variant="destructive" size="sm" onClick={borrarSeleccionadas}>
                   <Trash2 className="h-4 w-4 mr-1.5" />
                   Borrar {selected.size} seleccionadas
                 </Button>
               )}
+
               <Button variant="outline" size="sm" onClick={exportar} disabled={exporting || filtradas.length === 0}>
                 <Download className="h-4 w-4 mr-1.5" />
                 {exporting ? "Exportando…" : "Exportar a Excel"}
