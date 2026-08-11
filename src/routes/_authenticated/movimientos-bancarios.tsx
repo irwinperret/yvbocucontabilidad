@@ -192,7 +192,13 @@ function MovimientosBancariosPage() {
       const auto = parearMovimiento(mov, indice.porNumero, indice.lista, proveedor);
       const vs = vinculosPorMov.get(mov.id) ?? [];
       const confirmados = vs.filter((v) => v.transaccion_factura_id && v.estado !== "rechazado");
-      const rechazado = vs.some((v) => v.estado === "rechazado");
+      const filaRechazo = vs.find((v) => v.estado === "rechazado");
+      const rechazadas: string[] = (filaRechazo?.facturas_rechazadas ?? []) as string[];
+      const idsSug = auto.facturas.map((f) => f.id);
+      const mismoRechazo =
+        !!filaRechazo &&
+        (rechazadas.length === 0 ||
+          (rechazadas.length === idsSug.length && [...rechazadas].sort().join("|") === [...idsSug].sort().join("|")));
       let estado: EstadoConciliacion = auto.estado;
       let facturas = auto.facturas;
       let motivo = auto.motivo;
@@ -208,10 +214,12 @@ function MovimientosBancariosPage() {
         motivo = cob.completa
           ? origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente"
           : `Pareo parcial: cubre ${cob.total.toFixed(2)} de ${cob.monto.toFixed(2)} Bs (faltan ${cob.diferencia.toFixed(2)} Bs)`;
-      } else if (rechazado) {
+      } else if (filaRechazo && mismoRechazo) {
         estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
         facturas = [];
         motivo = "Sugerencia rechazada";
+      } else if (filaRechazo) {
+        motivo = `${auto.motivo} · sugerencia nueva tras un rechazo anterior`;
       }
 
       const total = facturas.reduce((s, f) => s + Math.abs(Number(f.monto_bs) || 0), 0);
@@ -227,9 +235,15 @@ function MovimientosBancariosPage() {
         provFuente,
         faltantes: auto.faltantes ?? [],
         sugeridas: auto.facturas,
-        confirmable: !vs.length && auto.facturas.length > 0,
+        auto,
+        confirmadasIds: confirmados.map((v) => v.transaccion_factura_id as string),
+        rechazado: !!filaRechazo,
+        rechazadas,
+        manual: confirmados.some((v) => v.origen === "manual"),
+        confirmable: (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
         estadoSugerido: (auto.estado === "parcial" ? "parcial" : "pareado") as "pareado" | "parcial",
       };
+
     });
   }, [movimientos, indice, vinculosPorMov, terceros, tercerosById]);
 
