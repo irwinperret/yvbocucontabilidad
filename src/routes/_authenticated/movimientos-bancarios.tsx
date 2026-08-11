@@ -265,8 +265,10 @@ function MovimientosBancariosPage() {
         { header: "Centro de costo", key: "centro", width: 14 },
         { header: "Notas/memo", key: "notas", width: 50 },
         { header: "Estado de conciliación", key: "estado", width: 20 },
-        { header: "Factura pareada", key: "factura", width: 18 },
+        { header: "Facturas pareadas", key: "factura", width: 26 },
+        { header: "Total pareado Bs", key: "totalPareado", width: 16, fmt: "bs" },
         { header: "Proveedor factura", key: "provFactura", width: 28 },
+        { header: "Origen del pareo", key: "origen", width: 16 },
         { header: "Motivo del pareo", key: "motivo", width: 34 },
 
       ],
@@ -281,11 +283,14 @@ function MovimientosBancariosPage() {
         centro: f.mov.centro_costo,
         notas: f.mov.notas ?? "",
         estado: ESTADO_LABEL[f.estado],
-        factura: f.estado === "pareado" ? (f.factura?.numero_factura ?? "") : "",
+        factura: f.facturas.map((x) => x.numero_factura).filter(Boolean).join(", "),
+        totalPareado: f.facturas.length ? f.total : 0,
         provFactura: f.factura?.proveedor ?? "",
+        origen: f.origen === "auto" ? "Automático" : f.origen === "manual" ? "Manual" : "—",
         motivo: f.motivo,
 
       })),
+
     });
   };
 
