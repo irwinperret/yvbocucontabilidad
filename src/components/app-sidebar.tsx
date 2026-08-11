@@ -60,6 +60,7 @@ const registroGestion = [
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
   { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
+  { title: "Movimientos bancarios", url: "/movimientos-bancarios", icon: ArrowLeftRight },
   { title: "Proveedores", url: "/proveedores", icon: Users },
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },

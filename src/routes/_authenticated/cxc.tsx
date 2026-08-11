@@ -59,12 +59,45 @@ function CxCPage() {
   const totalPorVencer = porVencer.reduce((s: number, c: any) => s + pendBcv(c), 0);
   const totalVigentes = vigentes.reduce((s: number, c: any) => s + pendBcv(c), 0);
 
+  const exportarExcel = async () => {
+    const { exportTableToExcel } = await import("@/lib/excel-table");
+    await exportTableToExcel({
+      filename: `cuentas-por-cobrar-${todayISO()}.xlsx`,
+      sheetName: "Cuentas por cobrar",
+      columns: [
+        { header: "Cliente", key: "cliente", width: 32 },
+        { header: "RIF", key: "rif", width: 16 },
+        { header: "N° factura", key: "factura", width: 18 },
+        { header: "Fecha vencimiento", key: "vence", width: 16 },
+        { header: "Monto original Bs", key: "origBs", width: 18, fmt: "bs" },
+        { header: "Monto pendiente Bs", key: "pendBs", width: 18, fmt: "bs" },
+        { header: "Monto pendiente USD (BCV)", key: "pendUsd", width: 22, fmt: "usd" },
+        { header: "Estado", key: "estado", width: 14 },
+        { header: "Centro de costo", key: "centro", width: 14 },
+      ],
+      rows: (data ?? []).map((c: any) => ({
+        cliente: c.cliente ?? "",
+        rif: (c as any).rif ?? "",
+        factura: (c as any).numero_orden ?? "",
+        vence: c.fecha_vencimiento ?? "",
+        origBs: Number(c.monto_bs ?? 0),
+        pendBs: Number(c.monto_pendiente_bs ?? c.monto_bs ?? 0),
+        pendUsd: pendBcv(c),
+        estado: c.estado ?? "",
+        centro: c.centro_costo ?? "",
+      })),
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Cuentas por cobrar</h1>
-          <div className="mt-1"><UsdRateBadge /></div>
-        <p className="text-sm text-muted-foreground">Ventas a crédito pendientes</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Cuentas por cobrar</h1>
+            <div className="mt-1"><UsdRateBadge /></div>
+          <p className="text-sm text-muted-foreground">Ventas a crédito pendientes</p>
+        </div>
+        <Button variant="outline" onClick={exportarExcel} disabled={!data?.length}>Exportar a Excel</Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">

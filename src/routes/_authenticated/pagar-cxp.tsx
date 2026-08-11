@@ -57,11 +57,63 @@ function PagarCxPPage() {
     qc.invalidateQueries({ queryKey: ["cxp-pendientes"] });
   };
 
+  const { data: terceros } = useQuery({
+    queryKey: ["terceros-min"],
+    queryFn: async () => {
+      const { data } = await supabase.from("terceros").select("id,rif,tipo_rif,razon_social");
+      return data ?? [];
+    },
+  });
+  const rifDe = (c: any) => {
+    const t = (terceros ?? []).find((x: any) => x.id === c.tercero_id);
+    return t ? `${t.tipo_rif}-${t.rif}` : "";
+  };
+
+  const exportarExcel = async () => {
+    const { exportTableToExcel } = await import("@/lib/excel-table");
+    await exportTableToExcel({
+      filename: `cuentas-por-pagar-${todayISO()}.xlsx`,
+      sheetName: "Cuentas por pagar",
+      columns: [
+        { header: "Proveedor", key: "proveedor", width: 32 },
+        { header: "RIF", key: "rif", width: 16 },
+        { header: "N° factura", key: "factura", width: 18 },
+        { header: "Fecha vencimiento", key: "vence", width: 16 },
+        { header: "Monto original Bs", key: "origBs", width: 18, fmt: "bs" },
+        { header: "Monto pendiente Bs", key: "pendBs", width: 18, fmt: "bs" },
+        { header: "Monto pendiente USD (BCV)", key: "pendUsd", width: 22, fmt: "usd" },
+        { header: "Estado", key: "estado", width: 14 },
+        { header: "Centro de costo", key: "centro", width: 14 },
+      ],
+      rows: (data ?? []).map((c: any) => {
+        const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
+        const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
+        const pendUsdBcv = c.monto_pendiente_usd_bcv != null
+          ? Number(c.monto_pendiente_usd_bcv)
+          : Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) * ratio;
+        return {
+          proveedor: c.proveedor ?? "",
+          rif: rifDe(c),
+          factura: c.numero_factura ?? "",
+          vence: c.fecha_vencimiento ?? "",
+          origBs: Number(c.monto_bs ?? 0),
+          pendBs,
+          pendUsd: pendUsdBcv,
+          estado: c.estado ?? "",
+          centro: c.centro_costo ?? "",
+        };
+      }),
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Pagar cuentas por pagar</h1>
-        <p className="text-sm text-muted-foreground">Registra el pago de facturas pendientes (genera el movimiento de FC)</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Pagar cuentas por pagar</h1>
+          <p className="text-sm text-muted-foreground">Registra el pago de facturas pendientes (genera el movimiento de FC)</p>
+        </div>
+        <Button variant="outline" onClick={exportarExcel} disabled={!data?.length}>Exportar a Excel</Button>
       </div>
 
       <Card>
