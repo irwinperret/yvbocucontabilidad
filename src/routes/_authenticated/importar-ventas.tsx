@@ -259,7 +259,7 @@ function ImportarVentasPage() {
       const bonoUsdPar = +(bonoBs / tasaPar).toFixed(2);
       const { data: bonoExist } = await supabase.from("transacciones")
         .select("id")
-        .eq("referencia", "xetux")
+        .eq("referencia", referencia)
         .eq("cuenta_codigo", cuentaBono)
         .eq("numero_factura", r.numero_factura)
         .limit(1).maybeSingle();
@@ -301,7 +301,7 @@ function ImportarVentasPage() {
         ? supabase.from("transacciones").select("id").eq("numero_factura", r.numero_factura)
         : supabase.from("transacciones").select("id").eq("numero_orden", r.numero_orden);
       const { data: propTxExist } = await dedupTx
-        .eq("referencia", "xetux")
+        .eq("referencia", referencia)
         .eq("cuenta_codigo", "13.1")
         .limit(1).maybeSingle();
       const propTxPayload: any = {
