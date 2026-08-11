@@ -103,6 +103,16 @@ function MovimientosBancariosPage() {
     },
   });
 
+  const { data: terceros } = useQuery({
+    queryKey: ["terceros-min-conciliacion"],
+    queryFn: async () => {
+      const { data } = await supabase.from("terceros").select("id,razon_social,nombre_comercial");
+      return ((data ?? []) as any[]).map((t) => ({
+        id: t.id,
+        nombre: (t.nombre_comercial || t.razon_social) as string,
+      })) as TerceroRef[];
+    },
+  });
 
   const { data: vinculos } = useQuery({
     queryKey: ["conciliacion-bancaria"],
@@ -112,6 +122,7 @@ function MovimientosBancariosPage() {
       return (data ?? []) as any[];
     },
   });
+
 
   const { data: cuentas } = useQuery({
     queryKey: ["plan-cuentas-min-grupo"],
