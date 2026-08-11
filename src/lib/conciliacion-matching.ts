@@ -151,7 +151,9 @@ export function expandirNumerosMemo(
   const out: string[] = [];
   const push = (n: string) => {
     const k = normalizarFactura(n);
-    if (k && existe(k) && !out.includes(k)) out.push(k);
+    if (!k || !existe(k)) return false;
+    if (!out.includes(k)) out.push(k);
+    return true;
   };
 
   const tokens = tokensNumericos(memo);
@@ -159,19 +161,27 @@ export function expandirNumerosMemo(
   for (const tok of tokens) {
     const t = tok.replace(/\D/g, "");
     if (!t) continue;
-    // token completo tal cual
-    push(t);
+
     if (t.length >= 5) {
-      if (!base) base = t;
+      push(t);
+      base = t; // el último número largo pasa a ser la base
       continue;
     }
-    // token corto: completar con la base
+
+    // token corto: primero intentar completarlo con la base (memos tipo "241714 1860 61 77")
+    let resuelto = false;
     if (base && t.length < base.length) {
-      push(base.slice(0, base.length - t.length) + t);
+      const cand = base.slice(0, base.length - t.length) + t;
+      if (push(cand)) {
+        base = cand; // la base avanza al último número resuelto
+        resuelto = true;
+      }
     }
+    if (!resuelto) push(t);
   }
   return out;
 }
+
 
 /** Busca un subconjunto (hasta `max` facturas) cuya suma coincida con el monto */
 export function buscarCombinacionPorMonto(
