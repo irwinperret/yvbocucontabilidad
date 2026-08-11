@@ -245,14 +245,21 @@ function MovimientosBancariosPage() {
       if (origenF !== "todos" && (f.origen ?? "ninguno") !== origenF) return false;
       if (cuentasSel.length && !cuentasSel.includes(f.mov.cuenta_codigo)) return false;
       if (centrosSel.length && !centrosSel.includes(f.mov.centro_costo)) return false;
+      if (provSel.length && !provSel.includes(f.proveedor?.nombre ?? "—")) return false;
       if (desde && f.mov.fecha < desde) return false;
       if (hasta && f.mov.fecha > hasta) return false;
-      if (q && !String(f.mov.notas ?? "").toLowerCase().includes(q)) return false;
+      if (q && !`${f.mov.notas ?? ""} ${f.proveedor?.nombre ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [filas, banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel]);
+  }, [filas, banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel]);
 
-  useEffect(() => { setPage(0); }, [banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, pageSize]);
+  useEffect(() => { setPage(0); }, [banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel, pageSize]);
+
+  const proveedoresOpts = useMemo(() => {
+    const s = new Set<string>();
+    filas.forEach((f) => s.add(f.proveedor?.nombre ?? "—"));
+    return [...s].sort().map((n) => ({ value: n, label: n }));
+  }, [filas]);
 
   const effectivePageSize = pageSize === "all" ? Math.max(filtradas.length, 1) : pageSize;
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filtradas.length / effectivePageSize));
@@ -262,7 +269,7 @@ function MovimientosBancariosPage() {
   );
 
   const resumen = useMemo(() => {
-    const c = { total: filtradas.length, pareado: 0, posible: 0, no_aplica: 0, sin_pareo: 0 } as any;
+    const c = { total: filtradas.length, pareado: 0, parcial: 0, posible: 0, no_aplica: 0, sin_pareo: 0 } as any;
     for (const f of filtradas) c[f.estado]++;
     return c;
   }, [filtradas]);
@@ -270,24 +277,21 @@ function MovimientosBancariosPage() {
   const guardarVinculo = async (
     movId: string,
     facturaIds: string[],
-    estado: "pareado" | "rechazado",
+    estado: "pareado" | "parcial" | "rechazado",
     origen: "auto" | "manual",
   ) => {
-    const del = await (supabase.from as any)("conciliacion_bancaria").delete().eq("transaccion_bancaria_id", movId);
-    if (del.error) { toast.error(del.error.message); return; }
-    const rows = (estado === "pareado" ? facturaIds : [null]).map((fid) => ({
-      transaccion_bancaria_id: movId,
-      transaccion_factura_id: fid,
+    const r = await guardarVinculosConciliacion({
+      movimientoId: movId,
+      contrapartes: facturaIds,
       estado,
       origen,
-      confirmado_por: user?.id ?? null,
-      confirmado_en: new Date().toISOString(),
-    }));
-    const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(rows);
-    if (error) { toast.error(error.message); return; }
-    toast.success(estado === "pareado" ? "Pareo confirmado" : "Sugerencia rechazada");
+      userId: user?.id ?? null,
+    });
+    if (!r.ok) { toast.error(r.error ?? "No se pudo guardar el pareo"); return; }
+    toast.success(estado === "rechazado" ? "Sugerencia rechazada" : estado === "parcial" ? "Pareo parcial guardado" : "Pareo confirmado");
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
   };
+
 
 
   const exportar = async () => {
