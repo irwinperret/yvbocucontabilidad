@@ -363,9 +363,32 @@ function MovimientosBancariosPage() {
 
   const badgeEstado = (e: EstadoConciliacion) => {
     if (e === "pareado") return <Badge className="bg-green-600">Pareado</Badge>;
+    if (e === "parcial") return <Badge className="bg-amber-600">Pareado parcial</Badge>;
     if (e === "posible") return <Badge className="bg-orange-500">Posible pareo</Badge>;
     if (e === "no_aplica") return <Badge variant="secondary">No aplica</Badge>;
     return <Badge variant="destructive">Sin pareo</Badge>;
+  };
+
+  const setPreset = (p: string) => {
+    const hoy = new Date();
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    if (p === "todo") { setDesde(""); setHasta(""); return; }
+    if (p === "mes") {
+      setDesde(iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
+      setHasta(iso(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)));
+      return;
+    }
+    if (p === "mes_anterior") {
+      setDesde(iso(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)));
+      setHasta(iso(new Date(hoy.getFullYear(), hoy.getMonth(), 0)));
+      return;
+    }
+    if (p === "trimestre") {
+      setDesde(iso(new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1)));
+      setHasta(iso(hoy));
+      return;
+    }
+    if (p === "ano") { setDesde(`${hoy.getFullYear()}-01-01`); setHasta(iso(hoy)); }
   };
 
   return (
@@ -380,9 +403,10 @@ function MovimientosBancariosPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-6">
         <Kpi label="Total movimientos" value={resumen.total} />
         <Kpi label="Pareados" value={resumen.pareado} tone="text-green-600" />
+        <Kpi label="Pareo parcial" value={resumen.parcial} tone="text-amber-600" />
         <Kpi label="Posible pareo" value={resumen.posible} tone="text-orange-600" />
         <Kpi label="No aplica" value={resumen.no_aplica} tone="text-muted-foreground" />
         <Kpi label="Sin pareo" value={resumen.sin_pareo} tone="text-destructive" highlight={resumen.sin_pareo > 0} />
@@ -390,38 +414,83 @@ function MovimientosBancariosPage() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-5">
-          <Select value={banco} onValueChange={setBanco}>
-            <SelectTrigger><SelectValue placeholder="Banco" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los bancos</SelectItem>
-              {bancos.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={estadoF} onValueChange={setEstadoF}>
-            <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los estados</SelectItem>
-              <SelectItem value="pareado">Pareado</SelectItem>
-              <SelectItem value="posible">Posible pareo</SelectItem>
-              <SelectItem value="no_aplica">No aplica</SelectItem>
-              <SelectItem value="sin_pareo">Sin pareo</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={origenF} onValueChange={setOrigenF}>
-            <SelectTrigger><SelectValue placeholder="Origen del pareo" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todo origen de pareo</SelectItem>
-              <SelectItem value="auto">Pareo automático</SelectItem>
-              <SelectItem value="manual">Pareo manual</SelectItem>
-              <SelectItem value="ninguno">Sin pareo confirmado</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-          <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-          <Input placeholder="Buscar en notas/memo…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Select value={banco} onValueChange={setBanco}>
+              <SelectTrigger><SelectValue placeholder="Banco" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los bancos</SelectItem>
+                {bancos.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={estadoF} onValueChange={setEstadoF}>
+              <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los estados</SelectItem>
+                <SelectItem value="pareado">Pareado</SelectItem>
+                <SelectItem value="parcial">Pareado parcial</SelectItem>
+                <SelectItem value="posible">Posible pareo</SelectItem>
+                <SelectItem value="no_aplica">No aplica</SelectItem>
+                <SelectItem value="sin_pareo">Sin pareo</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={origenF} onValueChange={setOrigenF}>
+              <SelectTrigger><SelectValue placeholder="Origen del pareo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todo origen de pareo</SelectItem>
+                <SelectItem value="auto">Pareo automático</SelectItem>
+                <SelectItem value="manual">Pareo manual</SelectItem>
+                <SelectItem value="ninguno">Sin pareo confirmado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input placeholder="Buscar en memo o proveedor…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Rango rápido</Label>
+              <Select
+                value={!desde && !hasta ? "todo" : "custom"}
+                onValueChange={setPreset}
+              >
+                <SelectTrigger><SelectValue placeholder="Rango de fechas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todo">Todo el histórico</SelectItem>
+                  <SelectItem value="mes">Mes actual</SelectItem>
+                  <SelectItem value="mes_anterior">Mes anterior</SelectItem>
+                  <SelectItem value="trimestre">Últimos 3 meses</SelectItem>
+                  <SelectItem value="ano">Año en curso</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Desde</Label>
+              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Hasta</Label>
+              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </div>
+            {(desde || hasta) && (
+              <Button variant="ghost" size="sm" className="justify-self-start" onClick={() => { setDesde(""); setHasta(""); }}>
+                <X className="h-3 w-3 mr-1" /> Limpiar fechas
+              </Button>
+            )}
+          </div>
+
+          {(desde || hasta || provSel.length > 0 || cuentasSel.length > 0 || centrosSel.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {desde && <Badge variant="outline">Desde {fmtDate(desde)}</Badge>}
+              {hasta && <Badge variant="outline">Hasta {fmtDate(hasta)}</Badge>}
+              {provSel.length > 0 && <Badge variant="outline">{provSel.length} proveedor(es)</Badge>}
+              {cuentasSel.length > 0 && <Badge variant="outline">{cuentasSel.length} cuenta(s)</Badge>}
+              {centrosSel.length > 0 && <Badge variant="outline">{centrosSel.length} centro(s)</Badge>}
+            </div>
+          )}
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 flex-wrap">
