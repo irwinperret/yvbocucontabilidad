@@ -620,6 +620,16 @@ function ImportarMovimientosInner() {
     toast.success(
       `Facturas pagadas: ${ok} · Parciales: ${partial} · Anticipos: ${anticipos} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
     );
+    if (sinFactura > 0 || noAplicaCount > 0) {
+      toast("Movimientos sin factura identificada", {
+        description: "Cuando importes las compras de Xetux, usa “Recalcular pareos” para vincularlos.",
+        action: {
+          label: "Ir a Movimientos bancarios",
+          onClick: () => { window.location.href = "/movimientos-bancarios"; },
+        },
+        duration: 12000,
+      });
+    }
     if (importados.size > 0) {
       setRows((prev) => prev.filter((r) => !importados.has(r.id)));
       setMatches((prev) => prev.filter((m) => !importados.has(m.bankRow.id)));
