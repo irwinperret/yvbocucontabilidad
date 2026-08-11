@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
 
 export type CampoWizard = {
   name: string;
@@ -61,6 +63,37 @@ export function ImportacionFallidasWizard({
   useEffect(() => {
     setValores(actual ? { ...actual.valores } : {});
   }, [actual?.id]);
+
+  // ── Autocompletar tasas según la fecha (usa la más reciente <= fecha) ──
+  const [tasaInfo, setTasaInfo] = useState<{ bcv?: string; paralela?: string } | null>(null);
+  const tieneTasas = campos.some((c) => c.name === "tasa_bcv" || c.name === "tasa_paralela");
+  const fechaValor = String(valores.fecha ?? "").slice(0, 10);
+  const lastLookup = useRef<string>("");
+
+  useEffect(() => {
+    if (!open || !tieneTasas || !fechaValor) return;
+    const key = `${actual?.id ?? ""}|${fechaValor}`;
+    if (lastLookup.current === key) return;
+    lastLookup.current = key;
+    let cancel = false;
+    (async () => {
+      const [bcvRes, parRes] = await Promise.all([
+        supabase.from("tasas_bcv").select("fecha, tasa").lte("fecha", fechaValor).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("tasas_paralela").select("fecha, tasa").lte("fecha", fechaValor).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (cancel) return;
+      const bcv = bcvRes.data as { fecha: string; tasa: number } | null;
+      const par = parRes.data as { fecha: string; tasa: number } | null;
+      setValores((s) => ({
+        ...s,
+        tasa_bcv: bcv ? String(bcv.tasa) : s.tasa_bcv ?? "",
+        tasa_paralela: par ? String(par.tasa) : s.tasa_paralela ?? "",
+      }));
+      setTasaInfo({ bcv: bcv?.fecha, paralela: par?.fecha });
+    })();
+    return () => { cancel = true; };
+  }, [open, tieneTasas, fechaValor, actual?.id]);
+
 
   const aplicar = (nuevas: FilaFallida[], nuevoIdx: number) => {
     setLista(nuevas);
@@ -149,6 +182,14 @@ export function ImportacionFallidasWizard({
                 </div>
               ))}
             </div>
+
+            {tieneTasas && tasaInfo && (
+              <p className="text-xs text-muted-foreground">
+                Tasas cargadas automáticamente — BCV: {tasaInfo.bcv ? `tasa del ${tasaInfo.bcv}` : "sin registro"} ·
+                {" "}Paralela: {tasaInfo.paralela ? `tasa del ${tasaInfo.paralela}` : "sin registro"}. Puedes editarlas.
+              </p>
+            )}
+
           </div>
         )}
 
