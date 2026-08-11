@@ -310,12 +310,15 @@ function MovimientosBancariosPage() {
         { header: "Cuenta asignada", key: "cuenta", width: 32 },
         { header: "Centro de costo", key: "centro", width: 14 },
         { header: "Notas/memo", key: "notas", width: 50 },
+        { header: "Proveedor (si aplica)", key: "proveedor", width: 28 },
+        { header: "Origen del proveedor", key: "provFuente", width: 18 },
         { header: "Estado de conciliación", key: "estado", width: 20 },
         { header: "Facturas pareadas", key: "factura", width: 26 },
         { header: "Total pareado Bs", key: "totalPareado", width: 16, fmt: "bs" },
+        { header: "Diferencia Bs", key: "dif", width: 16, fmt: "bs" },
         { header: "Proveedor factura", key: "provFactura", width: 28 },
         { header: "Origen del pareo", key: "origen", width: 16 },
-        { header: "Motivo del pareo", key: "motivo", width: 34 },
+        { header: "Motivo del pareo", key: "motivo", width: 40 },
 
       ],
       rows: filtradas.map((f) => ({
@@ -328,14 +331,18 @@ function MovimientosBancariosPage() {
         cuenta: `${f.mov.cuenta_codigo} · ${nombreCuenta(f.mov.cuenta_codigo)}`,
         centro: f.mov.centro_costo,
         notas: f.mov.notas ?? "",
+        proveedor: f.proveedor?.nombre ?? "",
+        provFuente: f.provFuente === "asignado" ? "Asignado" : f.provFuente === "memo" ? "Deducido del memo" : "—",
         estado: ESTADO_LABEL[f.estado],
         factura: f.facturas.map((x) => x.numero_factura).filter(Boolean).join(", "),
         totalPareado: f.facturas.length ? f.total : 0,
+        dif: f.facturas.length ? Math.abs(Number(f.mov.monto_bs)) - f.total : 0,
         provFactura: f.factura?.proveedor ?? "",
         origen: f.origen === "auto" ? "Automático" : f.origen === "manual" ? "Manual" : "—",
         motivo: f.motivo,
 
       })),
+
 
     });
   };
