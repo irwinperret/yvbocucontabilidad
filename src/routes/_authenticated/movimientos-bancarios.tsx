@@ -713,8 +713,13 @@ function MovimientosBancariosPage() {
                         </div>
 
                       </td>
-
+                      <td className="py-2 px-2 text-right">
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditando(f.mov)}>
+                          <Pencil className="h-3 w-3 mr-1" /> Editar
+                        </Button>
+                      </td>
                     </tr>
+
                   ))}
                 </tbody>
               </table>
