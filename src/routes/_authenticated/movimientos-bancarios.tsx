@@ -234,6 +234,9 @@ function MovimientosBancariosPage() {
         { header: "Notas/memo", key: "notas", width: 50 },
         { header: "Estado de conciliación", key: "estado", width: 20 },
         { header: "Factura pareada", key: "factura", width: 18 },
+        { header: "Proveedor factura", key: "provFactura", width: 28 },
+        { header: "Motivo del pareo", key: "motivo", width: 34 },
+
       ],
       rows: filtradas.map((f) => ({
         fecha: f.mov.fecha,
