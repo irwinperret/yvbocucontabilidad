@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Download, Check, X, RefreshCw } from "lucide-react";
 import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CENTROS } from "@/lib/account-helpers";
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import {
@@ -726,6 +727,52 @@ function MovimientosBancariosPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={recalcOpen} onOpenChange={setRecalcOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Recalcular pareos</DialogTitle>
+            <DialogDescription>
+              Se revisaron {filtradas.length} movimientos (con los filtros actuales) contra las facturas registradas hoy.
+              Los pareos confirmados manualmente nunca se modifican.
+            </DialogDescription>
+          </DialogHeader>
+
+          {propuestas.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Todo está al día: no hay pareos por actualizar.</p>
+          ) : (
+            <div className="space-y-3">
+              {([
+                ["nuevo_pareo", "Movimientos sin pareo que ahora tienen factura", porTipo.nuevo_pareo],
+                ["parcial_completable", "Pareos parciales que ahora se completan", porTipo.parcial_completable],
+                ["rechazo_obsoleto", "Rechazos con una sugerencia distinta", porTipo.rechazo_obsoleto],
+              ] as const).map(([key, label, lista]) => (
+                <div key={key} className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{lista.length} movimiento(s)</p>
+                    {lista.slice(0, 3).map((p) => (
+                      <p key={p.movId} className="truncate text-xs text-muted-foreground">
+                        · {fmtDate(p.fila.mov.fecha)} — {fmtBs(Math.abs(Number(p.fila.mov.monto_bs)))} — {p.motivo}
+                      </p>
+                    ))}
+                  </div>
+                  <Button size="sm" variant="outline" disabled={!lista.length || aplicando} onClick={() => aplicarRecalculo(lista as any)}>
+                    Aplicar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRecalcOpen(false)}>Cerrar</Button>
+            <Button disabled={!propuestas.length || aplicando} onClick={() => aplicarRecalculo(propuestas)}>
+              {aplicando ? "Aplicando…" : `Aplicar todo (${propuestas.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
