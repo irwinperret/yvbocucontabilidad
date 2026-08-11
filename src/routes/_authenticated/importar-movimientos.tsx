@@ -454,7 +454,10 @@ function ImportarMovimientosInner() {
 
         if (m.cxps.length === 0) {
           // ── Movimiento sin CxP emparejada ──
-          const noAplica = cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
+          const noAplica =
+            !requiereCxP(bankRow.categoria) &&
+            (cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo));
+
           const detalle = noAplica
             ? (cuentaServicio(m.cuentaCodigo)
                 ? `Servicio público · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
