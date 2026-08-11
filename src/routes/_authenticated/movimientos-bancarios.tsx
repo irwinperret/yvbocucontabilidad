@@ -546,7 +546,17 @@ function MovimientosBancariosPage() {
                       />
                     </th>
                     <th className="text-left py-2 px-2">Notas / memo</th>
+                    <th className="text-left py-2 px-2">
+                      Proveedor (si aplica)
+                      <MultiSelectFilter
+                        label="Proveedor"
+                        options={proveedoresOpts}
+                        selected={provSel}
+                        onChange={setProvSel}
+                      />
+                    </th>
                     <th className="text-left py-2 px-2">Conciliación</th>
+
                   </tr>
                 </thead>
                 <tbody>
