@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Download, Check, X, RefreshCw } from "lucide-react";
+import { Download, Check, X, RefreshCw, Pencil } from "lucide-react";
+import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -360,6 +361,8 @@ function MovimientosBancariosPage() {
     setRecalcOpen(false);
   };
 
+  const [editando, setEditando] = useState<any | null>(null);
+
   const recargarDatos = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["mov-bancarios"] }),
@@ -367,6 +370,7 @@ function MovimientosBancariosPage() {
       qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] }),
     ]);
   };
+
 
 
 
@@ -640,8 +644,10 @@ function MovimientosBancariosPage() {
                       />
                     </th>
                     <th className="text-left py-2 px-2">Conciliación</th>
+                    <th className="text-right py-2 px-2">Acciones</th>
 
                   </tr>
+
                 </thead>
                 <tbody>
                   {pagina.map((f) => (
@@ -707,8 +713,13 @@ function MovimientosBancariosPage() {
                         </div>
 
                       </td>
-
+                      <td className="py-2 px-2 text-right">
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditando(f.mov)}>
+                          <Pencil className="h-3 w-3 mr-1" /> Editar
+                        </Button>
+                      </td>
                     </tr>
+
                   ))}
                 </tbody>
               </table>
@@ -773,7 +784,16 @@ function MovimientosBancariosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {editando && (
+        <EditDialog
+          tx={editando}
+          onClose={() => setEditando(null)}
+          onSaved={async () => { setEditando(null); await recargarDatos(); }}
+        />
+      )}
     </div>
+
   );
 }
 
