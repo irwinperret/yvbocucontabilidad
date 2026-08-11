@@ -1012,6 +1012,8 @@ export type Database = {
           numero_orden: string | null
           pareja_off_balance_id: string | null
           referencia: string | null
+          standby: boolean
+          standby_at: string | null
           tasa_bcv: number
           tasa_paralela: number | null
           tercero_id: string | null
@@ -1048,6 +1050,8 @@ export type Database = {
           numero_orden?: string | null
           pareja_off_balance_id?: string | null
           referencia?: string | null
+          standby?: boolean
+          standby_at?: string | null
           tasa_bcv: number
           tasa_paralela?: number | null
           tercero_id?: string | null
@@ -1084,6 +1088,8 @@ export type Database = {
           numero_orden?: string | null
           pareja_off_balance_id?: string | null
           referencia?: string | null
+          standby?: boolean
+          standby_at?: string | null
           tasa_bcv?: number
           tasa_paralela?: number | null
           tercero_id?: string | null
