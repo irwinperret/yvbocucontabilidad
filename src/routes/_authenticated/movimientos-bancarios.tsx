@@ -142,31 +142,54 @@ function MovimientosBancariosPage() {
     return { lista, porNumero };
   }, [facturas]);
 
-  const vinculoPorMov = useMemo(() => {
-    const m = new Map<string, any>();
-    for (const v of vinculos ?? []) m.set(v.transaccion_bancaria_id, v);
+  const vinculosPorMov = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const v of vinculos ?? []) {
+      const arr = m.get(v.transaccion_bancaria_id) ?? [];
+      arr.push(v);
+      m.set(v.transaccion_bancaria_id, arr);
+    }
     return m;
   }, [vinculos]);
 
   const filas = useMemo(() => {
     return (movimientos ?? []).map((mov: any) => {
       const auto = parearMovimiento(mov, indice.porNumero, indice.lista);
-      const v = vinculoPorMov.get(mov.id);
+      const vs = vinculosPorMov.get(mov.id) ?? [];
+      const pareados = vs.filter((v) => v.estado === "pareado" && v.transaccion_factura_id);
+      const rechazado = vs.some((v) => v.estado === "rechazado");
       let estado: EstadoConciliacion = auto.estado;
-      let factura = auto.factura;
+      let facturas = auto.facturas;
       let motivo = auto.motivo;
-      if (v?.estado === "pareado") {
+      let origen: "auto" | "manual" | null = null;
+
+      if (pareados.length) {
         estado = "pareado";
-        factura = indice.lista.find((f) => f.id === v.transaccion_factura_id) ?? auto.factura;
-        motivo = "Confirmado manualmente";
-      } else if (v?.estado === "rechazado") {
+        facturas = pareados
+          .map((v) => indice.lista.find((f) => f.id === v.transaccion_factura_id))
+          .filter(Boolean) as FacturaRef[];
+        origen = pareados.every((v) => v.origen === "auto") ? "auto" : "manual";
+        motivo = origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente";
+      } else if (rechazado) {
         estado = auto.estado === "posible" ? "sin_pareo" : auto.estado;
-        factura = undefined;
+        facturas = [];
         motivo = "Sugerencia rechazada";
       }
-      return { mov, estado, factura, motivo, sugerido: auto.factura, confirmable: auto.estado === "posible" && !v };
+
+      const total = facturas.reduce((s, f) => s + Math.abs(Number(f.monto_bs) || 0), 0);
+      return {
+        mov,
+        estado,
+        facturas,
+        factura: facturas[0],
+        total,
+        motivo,
+        origen,
+        sugeridas: auto.facturas,
+        confirmable: (auto.estado === "posible" || auto.estado === "pareado") && !vs.length && auto.facturas.length > 0,
+      };
     });
-  }, [movimientos, indice, vinculoPorMov]);
+  }, [movimientos, indice, vinculosPorMov]);
 
   const bancos = useMemo(
     () => [...new Set(filas.map((f) => bancoDeReferencia(f.mov.referencia)))].sort(),
@@ -178,6 +201,7 @@ function MovimientosBancariosPage() {
     return filas.filter((f) => {
       if (banco !== "todos" && bancoDeReferencia(f.mov.referencia) !== banco) return false;
       if (estadoF !== "todos" && f.estado !== estadoF) return false;
+      if (origenF !== "todos" && (f.origen ?? "ninguno") !== origenF) return false;
       if (cuentasSel.length && !cuentasSel.includes(f.mov.cuenta_codigo)) return false;
       if (centrosSel.length && !centrosSel.includes(f.mov.centro_costo)) return false;
       if (desde && f.mov.fecha < desde) return false;
@@ -185,9 +209,9 @@ function MovimientosBancariosPage() {
       if (q && !String(f.mov.notas ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [filas, banco, estadoF, desde, hasta, texto, cuentasSel, centrosSel]);
+  }, [filas, banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel]);
 
-  useEffect(() => { setPage(0); }, [banco, estadoF, desde, hasta, texto, cuentasSel, centrosSel, pageSize]);
+  useEffect(() => { setPage(0); }, [banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, pageSize]);
 
   const effectivePageSize = pageSize === "all" ? Math.max(filtradas.length, 1) : pageSize;
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filtradas.length / effectivePageSize));
@@ -202,21 +226,28 @@ function MovimientosBancariosPage() {
     return c;
   }, [filtradas]);
 
-  const guardarVinculo = async (movId: string, facturaId: string | null, estado: "pareado" | "rechazado") => {
-    const { error } = await (supabase.from as any)("conciliacion_bancaria").upsert(
-      {
-        transaccion_bancaria_id: movId,
-        transaccion_factura_id: facturaId,
-        estado,
-        confirmado_por: user?.id ?? null,
-        confirmado_en: new Date().toISOString(),
-      },
-      { onConflict: "transaccion_bancaria_id" },
-    );
+  const guardarVinculo = async (
+    movId: string,
+    facturaIds: string[],
+    estado: "pareado" | "rechazado",
+    origen: "auto" | "manual",
+  ) => {
+    const del = await (supabase.from as any)("conciliacion_bancaria").delete().eq("transaccion_bancaria_id", movId);
+    if (del.error) { toast.error(del.error.message); return; }
+    const rows = (estado === "pareado" ? facturaIds : [null]).map((fid) => ({
+      transaccion_bancaria_id: movId,
+      transaccion_factura_id: fid,
+      estado,
+      origen,
+      confirmado_por: user?.id ?? null,
+      confirmado_en: new Date().toISOString(),
+    }));
+    const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(rows);
     if (error) { toast.error(error.message); return; }
     toast.success(estado === "pareado" ? "Pareo confirmado" : "Sugerencia rechazada");
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
   };
+
 
   const exportar = async () => {
     await exportTableToExcel({
