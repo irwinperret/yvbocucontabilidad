@@ -1,18 +1,19 @@
-export type EstadoConciliacion = "pareado" | "posible" | "no_aplica" | "sin_pareo";
+export type EstadoConciliacion = "pareado" | "parcial" | "posible" | "no_aplica" | "sin_pareo";
 
 export const ESTADO_LABEL: Record<EstadoConciliacion, string> = {
   pareado: "Pareado",
+  parcial: "Pareado parcial",
   posible: "Posible pareo",
   no_aplica: "No aplica",
   sin_pareo: "Sin pareo",
 };
 
 /** Cuentas que por naturaleza no requieren una factura asociada */
-const PREFIJOS_SIN_FACTURA = ["3.", "7.", "10.", "11.", "12.", "13.", "14."];
-/** Cuentas puntuales sin factura (p. ej. Condo + Alquiler) */
-const CUENTAS_SIN_FACTURA = new Set(["4.10"]);
-/** 10.6 CapEx sí puede tener factura */
-const EXCEPCIONES_CON_FACTURA = new Set(["10.6"]);
+const PREFIJOS_SIN_FACTURA = ["3.", "7.", "10.", "11.", "12."];
+/** Cuentas puntuales sin factura (p. ej. Condo + Alquiler, pasivos transitorios) */
+const CUENTAS_SIN_FACTURA = new Set(["4.10", "13.1", "13.3", "14.1", "14.3"]);
+/** Cuentas que sí pueden llevar factura pese al prefijo (CapEx, pagos de CxP, anticipos) */
+const EXCEPCIONES_CON_FACTURA = new Set(["10.6", "13.2", "14.2"]);
 
 export function cuentaRequiereFactura(codigo?: string | null) {
   if (!codigo) return true;
@@ -25,10 +26,11 @@ export function cuentaRequiereFactura(codigo?: string | null) {
 const PREFIJOS_FACTURA_COMPRA = ["2.", "4.", "5.", "6.", "8.", "9."];
 export function esFacturaDeCompra(codigo?: string | null) {
   if (!codigo) return false;
-  if (EXCEPCIONES_CON_FACTURA.has(codigo)) return true;
+  if (codigo === "10.6") return true;
   if (CUENTAS_SIN_FACTURA.has(codigo)) return false;
   return PREFIJOS_FACTURA_COMPRA.some((p) => codigo.startsWith(p));
 }
+
 
 /** 'BANK:{banco}|{fecha}|{ref}|{monto}' -> banco */
 export function bancoDeReferencia(referencia?: string | null) {
