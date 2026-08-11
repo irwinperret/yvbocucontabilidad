@@ -35,14 +35,20 @@ export const Route = createFileRoute("/_authenticated/importar-movimientos")({
 const CUENTA_PAGO_CXP = "13.2";
 
 // Mapa Categoría → cuenta del plan (fallback cuando el archivo no trae cuenta sugerida)
+// OJO: INV no se mapea a 2.1 — esas filas son pagos de compras que ya existen como CxP
+// y deben emparejarse manualmente (o asignarse a 99 — POR DETERMINAR).
 const CATEGORIA_CUENTA: Record<string, string> = {
-  INV: "2.1",
   ADM: "4.8",
   MO: "3.16",
   OC: "5.6",
   MERCADEO: "6.2",
   INVERSION: "10.6",
 };
+
+/** Categorías cuyos movimientos siempre deben emparejarse contra una CxP existente. */
+const requiereCxP = (categoria: string | null | undefined) =>
+  String(categoria ?? "").trim().toUpperCase() === "INV";
+
 
 type BankRow = {
   id: string;
@@ -286,7 +292,10 @@ function ImportarMovimientosInner() {
 
       const initialMatches: Match[] = parsed.map((bankRow, i) => {
         const cuentaCodigo = cuentaPorFila[i] ?? null;
-        const noAplica = cuentaSinFactura(cuentaCodigo) || cuentaServicio(cuentaCodigo);
+        const noAplica =
+          !requiereCxP(bankRow.categoria) &&
+          (cuentaSinFactura(cuentaCodigo) || cuentaServicio(cuentaCodigo));
+
 
         const found: CxPRow[] = [];
         if (!noAplica) {
@@ -445,7 +454,10 @@ function ImportarMovimientosInner() {
 
         if (m.cxps.length === 0) {
           // ── Movimiento sin CxP emparejada ──
-          const noAplica = cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
+          const noAplica =
+            !requiereCxP(bankRow.categoria) &&
+            (cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo));
+
           const detalle = noAplica
             ? (cuentaServicio(m.cuentaCodigo)
                 ? `Servicio público · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
@@ -645,7 +657,10 @@ function ImportarMovimientosInner() {
     return +(pagado - facturado).toFixed(2);
   };
 
-  const noAplicaFactura = (m: Match) => cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
+  const noAplicaFactura = (m: Match) =>
+    !requiereCxP(m.bankRow.categoria) &&
+    (cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo));
+
 
   const cxpComboOptions = useMemo(
     () =>
@@ -809,12 +824,18 @@ function ImportarMovimientosInner() {
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{m.bankRow.categoria}</Badge>
                           )}
                           {m.duplicado && <Badge variant="secondary" className="text-[9px] px-1 py-0">Ya importado</Badge>}
+                          {!m.duplicado && m.cxps.length === 0 && requiereCxP(m.bankRow.categoria) && (
+                            <Badge className="text-[9px] px-1 py-0 bg-blue-600 text-white hover:bg-blue-600">
+                              Requiere emparejamiento con CxP
+                            </Badge>
+                          )}
                           {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && noAplicaFactura(m) && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0">No aplica factura</Badge>
                           )}
-                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && !noAplicaFactura(m) && (
+                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && !noAplicaFactura(m) && !requiereCxP(m.bankRow.categoria) && (
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
                           )}
+
                           {!m.duplicado && dif !== null && dif > 0.01 && (
                             <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente → anticipo</Badge>
                           )}
