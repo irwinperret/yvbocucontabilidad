@@ -302,11 +302,24 @@ function MovimientosBancariosPage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 flex-wrap">
           <CardTitle className="text-base">Movimientos ({filtradas.length})</CardTitle>
-          <Button size="sm" variant="outline" onClick={onExportar} disabled={exportando}>
-            <Download className="h-4 w-4 mr-2" /> Exportar a Excel
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Mostrar</span>
+            <Select value={String(pageSize)} onValueChange={(v) => setPageSize(v === "all" ? "all" : Number(v))}>
+              <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="250">250</SelectItem>
+                <SelectItem value="500">500</SelectItem>
+                <SelectItem value="all">Todas</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" onClick={onExportar} disabled={exportando}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-sm text-muted-foreground">Cargando…</p> : filtradas.length === 0 ? (
