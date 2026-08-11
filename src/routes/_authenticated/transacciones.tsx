@@ -232,6 +232,32 @@ function TransaccionesPage() {
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [standbyTarget, setStandbyTarget] = useState<{ rows: any[]; relacionadas: string[] } | null>(null);
+  const [standbyBusy, setStandbyBusy] = useState(false);
+
+  const pedirStandby = async (rows: any[]) => {
+    if (!rows.length) return;
+    const { contarRelacionadas } = await import("@/lib/standby");
+    const { relacionadasIds } = await contarRelacionadas(rows);
+    if (!relacionadasIds.length) {
+      await aplicarStandby(rows.map((r) => r.id));
+      return;
+    }
+    setStandbyTarget({ rows, relacionadas: relacionadasIds });
+  };
+
+  const aplicarStandby = async (ids: string[]) => {
+    setStandbyBusy(true);
+    const { ponerEnStandby } = await import("@/lib/standby");
+    const res = await ponerEnStandby(ids);
+    setStandbyBusy(false);
+    setStandbyTarget(null);
+    if (!res.ok) return toast.error("No se pudo poner en standby: " + res.error);
+    toast.success(`${ids.length} transacción(es) en standby`);
+    setSelected(new Set());
+    qc.invalidateQueries();
+  };
+
 
   useEffect(() => { setPage(0); setSelected(new Set()); }, [
     desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos, usuarios, vias,
