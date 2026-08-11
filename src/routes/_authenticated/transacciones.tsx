@@ -256,6 +256,7 @@ function TransaccionesPage() {
         return await supabase
           .from("transacciones")
           .select("id,numero,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id,grupo_transaccion_id,tercero_id")
+          .neq("standby", true)
           .gte("fecha", desde)
           .lte("fecha", hasta)
           .order("fecha", { ascending: false })
@@ -264,6 +265,7 @@ function TransaccionesPage() {
       });
     },
   });
+
 
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-all-list"],
