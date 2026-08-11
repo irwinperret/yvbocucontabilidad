@@ -1109,6 +1109,39 @@ function TransaccionesPage() {
         onDeleted={() => qc.invalidateQueries()}
       />
 
+      <Dialog open={!!standbyTarget} onOpenChange={(o) => { if (!o) setStandbyTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Poner en standby</DialogTitle>
+            <DialogDescription>
+              {standbyTarget
+                ? `Esta transacción tiene ${standbyTarget.relacionadas.length} transacciones relacionadas. ¿Deseas poner todas en standby?`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setStandbyTarget(null)} disabled={standbyBusy}>Cancelar</Button>
+            <Button
+              variant="secondary"
+              disabled={standbyBusy}
+              onClick={() => standbyTarget && aplicarStandby(standbyTarget.rows.map((r) => r.id))}
+            >
+              Solo esta
+            </Button>
+            <Button
+              disabled={standbyBusy}
+              onClick={() =>
+                standbyTarget &&
+                aplicarStandby([...standbyTarget.rows.map((r) => r.id), ...standbyTarget.relacionadas])
+              }
+            >
+              Todas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       <Dialog open={wipeOpen} onOpenChange={(o) => { if (!o) { setWipeOpen(false); setWipePwd(""); } }}>
         <DialogContent>
           <DialogHeader>
