@@ -491,7 +491,7 @@ function ImportarComprasInner() {
     };
     const centro = (String(valores.centro || centroDefault) as Centro);
 
-    const res = await procesarCompra(row, { centro, offBal: offBalance, tasas: { bcv, paralela } });
+    const res = await procesarCompra(row, { centro, offBal: offBalance, tasas: { bcv, paralela }, referencia: "manual" });
     if (res.status === "fail") return { ok: false, error: res.motivo };
 
     if (batchActivo) {
