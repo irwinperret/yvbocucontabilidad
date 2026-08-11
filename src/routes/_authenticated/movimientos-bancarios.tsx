@@ -295,6 +295,7 @@ function MovimientosBancariosPage() {
     facturaIds: string[],
     estado: "pareado" | "parcial" | "rechazado",
     origen: "auto" | "manual",
+    facturasRechazadas?: string[],
   ) => {
     const r = await guardarVinculosConciliacion({
       movimientoId: movId,
@@ -302,11 +303,70 @@ function MovimientosBancariosPage() {
       estado,
       origen,
       userId: user?.id ?? null,
+      facturasRechazadas,
     });
     if (!r.ok) { toast.error(r.error ?? "No se pudo guardar el pareo"); return; }
     toast.success(estado === "rechazado" ? "Sugerencia rechazada" : estado === "parcial" ? "Pareo parcial guardado" : "Pareo confirmado");
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
   };
+
+  // ── Recalcular pareos con las facturas actuales ──────────────
+  const [recalcOpen, setRecalcOpen] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+
+  const propuestas = useMemo(() => {
+    const porMov = new Map(filtradas.map((f) => [f.mov.id, f]));
+    const res = recalcularPareos(
+      filtradas.map((f) => ({
+        movId: f.mov.id,
+        montoBs: Number(f.mov.monto_bs),
+        auto: f.auto,
+        confirmadas: f.confirmadasIds,
+        rechazado: f.rechazado,
+        rechazadas: f.rechazadas,
+        manual: f.manual,
+      })),
+    );
+    return res.map((r) => ({ ...r, fila: porMov.get(r.movId)! }));
+  }, [filtradas]);
+
+  const porTipo = useMemo(() => ({
+    nuevo_pareo: propuestas.filter((p) => p.cambio === "nuevo_pareo"),
+    parcial_completable: propuestas.filter((p) => p.cambio === "parcial_completable"),
+    rechazo_obsoleto: propuestas.filter((p) => p.cambio === "rechazo_obsoleto"),
+  }), [propuestas]);
+
+  const aplicarRecalculo = async (lista: typeof propuestas) => {
+    if (!lista.length) return;
+    setAplicando(true);
+    let ok = 0;
+    let fail = 0;
+    for (const p of lista) {
+      const r = await guardarVinculosConciliacion({
+        movimientoId: p.movId,
+        contrapartes: p.facturas.map((f) => f.id),
+        estado: p.estado,
+        origen: "auto",
+        userId: user?.id ?? null,
+      });
+      if (r.ok) ok++; else fail++;
+    }
+    setAplicando(false);
+    qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+    if (fail) toast.error(`${ok} pareo(s) actualizados, ${fail} con error`);
+    else toast.success(`${ok} pareo(s) actualizados`);
+    setRecalcOpen(false);
+  };
+
+  const recargarDatos = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["mov-bancarios"] }),
+      qc.invalidateQueries({ queryKey: ["facturas-compra-para-conciliar"] }),
+      qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] }),
+    ]);
+  };
+
+
 
 
 
