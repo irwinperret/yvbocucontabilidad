@@ -247,18 +247,54 @@ const res = (
   estado: EstadoConciliacion,
   facturas: FacturaRef[],
   motivo: string,
+  faltantes: string[] = [],
 ): ResultadoPareo => ({
   estado,
   facturas,
   factura: facturas[0],
   total: sumaBs(facturas),
   motivo,
+  faltantes,
 });
 
+/**
+ * Cobertura de un conjunto de facturas frente al monto del movimiento.
+ * "completa" si suman el monto (±1%), "parcial" en cualquier otro caso.
+ */
+export function coberturaPareo(facturas: FacturaRef[], montoMov: number) {
+  const total = sumaBs(facturas);
+  const monto = Math.abs(Number(montoMov) || 0);
+  const completa = monto > 0 ? montoCoincide(total, monto) : facturas.length > 0;
+  return { total, monto, completa, diferencia: monto - total };
+}
+
+/** Números del memo que existen realmente como factura y los que no */
+export function numerosMemoNoUbicados(
+  memo: string | null | undefined,
+  facturasPorNumero: Map<string, FacturaRef[]>,
+): string[] {
+  const out: string[] = [];
+  for (const n of numerosEnMemo(memo)) {
+    const k = normalizarFactura(n);
+    if (!k || k.length < 3) continue;
+    if (facturasPorNumero.has(k)) continue;
+    if (!out.includes(k)) out.push(k);
+  }
+  return out;
+}
+
 export function parearMovimiento(
-  mov: { fecha: string; notas?: string | null; monto_bs: number; cuenta_codigo: string },
+  mov: {
+    fecha: string;
+    notas?: string | null;
+    monto_bs: number;
+    cuenta_codigo: string;
+    tercero_id?: string | null;
+  },
   facturasPorNumero: Map<string, FacturaRef[]>,
   facturas: FacturaRef[],
+  /** Proveedor conocido/adivinado del movimiento (mejora la selección de candidatas) */
+  proveedorMov?: { id?: string | null; nombre?: string | null } | null,
 ): ResultadoPareo {
   // (0) cuentas que por naturaleza no llevan factura: nunca se parean
   if (!cuentaRequiereFactura(mov.cuenta_codigo)) {
@@ -267,73 +303,84 @@ export function parearMovimiento(
 
   const montoMov = Math.abs(Number(mov.monto_bs) || 0);
   const memo = mov.notas ?? "";
+  const provId = proveedorMov?.id ?? mov.tercero_id ?? null;
+  const provNombre = proveedorMov?.nombre ?? null;
+
+  /** ¿La factura pertenece al proveedor del movimiento? */
+  const esDelProveedor = (f: FacturaRef) => {
+    if (provId && f.tercero_id) return f.tercero_id === provId;
+    if (provNombre) return proveedorSimilar(f.proveedor, provNombre) || proveedorSimilar(provNombre, f.proveedor ?? "");
+    return proveedorSimilar(f.proveedor, memo);
+  };
+
+  const sufijo = provNombre ? ` · proveedor ${provNombre}` : "";
 
   // (a) números de factura hallados/expandidos en el memo
   const numeros = expandirNumerosMemo(memo, (k) => facturasPorNumero.has(k));
+  const noUbicados = numerosMemoNoUbicados(memo, facturasPorNumero);
   if (numeros.length) {
     const grupo: FacturaRef[] = [];
     for (const num of numeros) {
       const candidatos = facturasPorNumero.get(num) ?? [];
       if (!candidatos.length) continue;
-      const conProv = candidatos.find((f) => proveedorSimilar(f.proveedor, memo));
+      const conProv = candidatos.find((f) => esDelProveedor(f));
       const conMonto = candidatos.find((f) => montoCoincide(f.monto_bs, montoMov));
       const elegida = conProv ?? conMonto ?? candidatos[0];
       if (!grupo.some((g) => g.id === elegida.id)) grupo.push(elegida);
     }
     if (grupo.length) {
-      const total = sumaBs(grupo);
+      const { total, completa, diferencia } = coberturaPareo(grupo, montoMov);
       const nums = grupo.map((g) => g.numero_factura).join(", ");
-      if (grupo.length === 1) {
-        return res("pareado", grupo, `N° factura ${nums} hallado en el memo`);
-      }
-      if (montoCoincide(total, montoMov)) {
-        return res("pareado", grupo, `${grupo.length} facturas del memo (${nums}) suman el monto del pago`);
-      }
-      // intentar subconjunto que sí cuadre
-      const sub = buscarCombinacionPorMonto(grupo, montoMov, grupo.length);
-      if (sub && sub.length !== grupo.length) {
+      if (completa) {
         return res(
           "pareado",
-          sub,
-          `${sub.length} facturas del memo suman el monto del pago`,
+          grupo,
+          grupo.length === 1
+            ? `N° factura ${nums} hallado en el memo${sufijo}`
+            : `${grupo.length} facturas del memo (${nums}) suman el monto del pago`,
+          noUbicados,
         );
       }
-      const dif = total - montoMov;
+      // intentar subconjunto que sí cuadre exactamente
+      const sub = buscarCombinacionPorMonto(grupo, montoMov, grupo.length);
+      if (sub && sub.length !== grupo.length) {
+        return res("pareado", sub, `${sub.length} facturas del memo suman el monto del pago`, noUbicados);
+      }
+      const detalleFaltan = noUbicados.length
+        ? ` · ${noUbicados.length} número(s) del memo sin factura registrada (${noUbicados.join(", ")})`
+        : "";
       return res(
-        "posible",
+        "parcial",
         grupo,
-        `${grupo.length} facturas del memo (${nums}); diferencia de ${dif.toFixed(2)} Bs`,
+        `${grupo.length} factura(s) del memo (${nums}) cubren ${total.toFixed(2)} de ${montoMov.toFixed(2)} Bs; faltan ${diferencia.toFixed(2)} Bs${detalleFaltan}`,
+        noUbicados,
       );
     }
   }
 
   const numsMemo = numerosEnMemo(memo);
-  const conProveedor = facturas.filter((f) => proveedorSimilar(f.proveedor, memo));
+  const conProveedor = facturas.filter((f) => esDelProveedor(f));
 
-  // (b) proveedor parecido + varias facturas que suman el monto
+  // (b) proveedor conocido + varias facturas que suman el monto
   if (conProveedor.length > 1 && montoMov > 0) {
     const cercanas = conProveedor
       .filter((f) => diasEntre(f.fecha, mov.fecha) <= 30)
       .sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha));
     const combo = buscarCombinacionPorMonto(cercanas, montoMov, 4);
     if (combo && combo.length > 1) {
-      return res(
-        "posible",
-        combo,
-        `${combo.length} facturas del proveedor suman el monto del pago`,
-      );
+      return res("posible", combo, `${combo.length} facturas del proveedor suman el monto del pago${sufijo}`, noUbicados);
     }
   }
 
-  // (c) proveedor parecido + número de factura parecido
+  // (c) proveedor + número de factura parecido
   if (numsMemo.length) {
     const casi = conProveedor.find((f) => numsMemo.some((n) => numeroSimilar(f.numero_factura, n)));
-    if (casi) return res("posible", [casi], `Proveedor y N° de factura ${casi.numero_factura} parecidos`);
+    if (casi) return res("posible", [casi], `Proveedor y N° de factura ${casi.numero_factura} parecidos`, noUbicados);
   }
 
-  // (d) proveedor parecido + monto igual
+  // (d) proveedor + monto igual
   const provMonto = conProveedor.find((f) => montoCoincide(f.monto_bs, montoMov));
-  if (provMonto) return res("posible", [provMonto], "Proveedor y monto coinciden");
+  if (provMonto) return res("posible", [provMonto], `Proveedor y monto coinciden${sufijo}`, noUbicados);
 
   // (e) monto + fecha cercana
   if (montoMov > 0) {
@@ -342,16 +389,17 @@ export function parearMovimiento(
     );
     if (cerca.length) {
       const f = cerca.sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha))[0];
-      return res("posible", [f], "Monto y fecha cercanos");
+      return res("posible", [f], "Monto y fecha cercanos", noUbicados);
     }
   }
 
-  // (f) proveedor parecido + fecha cercana (señal débil)
+  // (f) proveedor + fecha cercana (señal débil)
   const provFecha = conProveedor
     .filter((f) => diasEntre(f.fecha, mov.fecha) <= 10)
     .sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha))[0];
-  if (provFecha) return res("posible", [provFecha], "Proveedor y fecha cercanos (monto distinto)");
+  if (provFecha) return res("posible", [provFecha], `Proveedor y fecha cercanos (monto distinto)${sufijo}`, noUbicados);
 
-  return res("sin_pareo", [], "Sin factura identificada");
+  return res("sin_pareo", [], "Sin factura identificada", noUbicados);
+
 }
 
