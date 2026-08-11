@@ -1064,12 +1064,16 @@ function TransaccionesPage() {
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(t)} title="Editar">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => pedirStandby([t])} title="Poner en standby">
+                              <PauseCircle className="h-3.5 w-3.5" />
+                            </Button>
                             <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
                                     onClick={() => setDeleteTarget(t)} title="Eliminar">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </td>
+
                       </tr>
                     );
                   })}
