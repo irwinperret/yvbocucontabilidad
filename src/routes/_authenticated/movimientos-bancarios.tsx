@@ -70,19 +70,30 @@ function MovimientosBancariosPage() {
   });
 
   const { data: facturas } = useQuery({
-    queryKey: ["facturas-para-conciliar"],
+    queryKey: ["facturas-compra-para-conciliar"],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
       const rows = await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("id,fecha,numero_factura,monto_bs,cuenta_codigo,notas")
+          .select("id,fecha,numero_factura,monto_bs,cuenta_codigo,notas,tercero_id")
           .not("numero_factura", "is", null)
           .range(from, to),
       );
-      return rows as any[];
+      const compras = (rows as any[]).filter((r) => esFacturaDeCompra(r.cuenta_codigo));
+      const ids = [...new Set(compras.map((r) => r.tercero_id).filter(Boolean))];
+      const nombreById = new Map<string, string>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await supabase
+          .from("terceros")
+          .select("id,razon_social,nombre_comercial")
+          .in("id", ids.slice(i, i + 200) as string[]);
+        (data ?? []).forEach((t: any) => nombreById.set(t.id, t.nombre_comercial || t.razon_social));
+      }
+      return compras.map((r) => ({ ...r, proveedor: r.tercero_id ? nombreById.get(r.tercero_id) ?? null : null }));
     },
   });
+
 
   const { data: vinculos } = useQuery({
     queryKey: ["conciliacion-bancaria"],
