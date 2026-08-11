@@ -824,12 +824,18 @@ function ImportarMovimientosInner() {
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{m.bankRow.categoria}</Badge>
                           )}
                           {m.duplicado && <Badge variant="secondary" className="text-[9px] px-1 py-0">Ya importado</Badge>}
+                          {!m.duplicado && m.cxps.length === 0 && requiereCxP(m.bankRow.categoria) && (
+                            <Badge className="text-[9px] px-1 py-0 bg-blue-600 text-white hover:bg-blue-600">
+                              Requiere emparejamiento con CxP
+                            </Badge>
+                          )}
                           {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && noAplicaFactura(m) && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0">No aplica factura</Badge>
                           )}
-                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && !noAplicaFactura(m) && (
+                          {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && !noAplicaFactura(m) && !requiereCxP(m.bankRow.categoria) && (
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
                           )}
+
                           {!m.duplicado && dif !== null && dif > 0.01 && (
                             <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente → anticipo</Badge>
                           )}
