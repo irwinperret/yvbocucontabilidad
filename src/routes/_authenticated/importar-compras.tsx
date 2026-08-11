@@ -227,8 +227,10 @@ function ImportarComprasInner() {
       offBal: boolean;
       tasas?: { bcv: number; paralela: number };
       tasaCache?: Map<string, { paralela: number; bcv: number; esParalela: boolean }>;
+      referencia?: string;
     }
   ): Promise<ResFila> => {
+    const referencia = opts.referencia ?? "xetux";
     try {
       if (!r.fecha) return { status: "fail", motivo: "Falta la fecha del documento" };
 
