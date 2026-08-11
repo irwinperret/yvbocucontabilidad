@@ -784,7 +784,16 @@ function MovimientosBancariosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {editando && (
+        <EditDialog
+          tx={editando}
+          onClose={() => setEditando(null)}
+          onSaved={async () => { setEditando(null); await recargarDatos(); }}
+        />
+      )}
     </div>
+
   );
 }
 
