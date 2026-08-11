@@ -446,6 +446,16 @@ function ImportarComprasInner() {
     qc.invalidateQueries();
     toast.success(`Nuevas CxP: ${ok} · Actualizadas: ${upd} · Duplicadas: ${dup} · Fallidas: ${nuevasFallidas.length}`);
     if (ok > 0 || upd > 0) {
+      toast("Hay facturas nuevas — revisa los pareos bancarios", {
+        description: "Los movimientos ya cargados pueden parear con estas facturas.",
+        action: {
+          label: "Recalcular pareos",
+          onClick: () => { window.location.href = "/movimientos-bancarios"; },
+        },
+        duration: 12000,
+      });
+    }
+    if (ok > 0 || upd > 0) {
       const idsFallidos = new Set(nuevasFallidas.map((f) => f.row.idx));
       const ids = new Set(elegibles.filter((r) => !idsFallidos.has(r.idx)).map((r) => r.idx));
       setRows((all) => all.filter((r) => !ids.has(r.idx)));

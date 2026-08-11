@@ -11,9 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Download, Check, X } from "lucide-react";
+import { Download, Check, X, RefreshCw } from "lucide-react";
 import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CENTROS } from "@/lib/account-helpers";
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import {
@@ -23,6 +24,7 @@ import {
   parearMovimiento,
   proveedorDeMemo,
   coberturaPareo,
+  recalcularPareos,
   esFacturaDeCompra,
   ESTADO_LABEL,
   type EstadoConciliacion,
@@ -192,7 +194,13 @@ function MovimientosBancariosPage() {
       const auto = parearMovimiento(mov, indice.porNumero, indice.lista, proveedor);
       const vs = vinculosPorMov.get(mov.id) ?? [];
       const confirmados = vs.filter((v) => v.transaccion_factura_id && v.estado !== "rechazado");
-      const rechazado = vs.some((v) => v.estado === "rechazado");
+      const filaRechazo = vs.find((v) => v.estado === "rechazado");
+      const rechazadas: string[] = (filaRechazo?.facturas_rechazadas ?? []) as string[];
+      const idsSug = auto.facturas.map((f) => f.id);
+      const mismoRechazo =
+        !!filaRechazo &&
+        (rechazadas.length === 0 ||
+          (rechazadas.length === idsSug.length && [...rechazadas].sort().join("|") === [...idsSug].sort().join("|")));
       let estado: EstadoConciliacion = auto.estado;
       let facturas = auto.facturas;
       let motivo = auto.motivo;
@@ -208,10 +216,12 @@ function MovimientosBancariosPage() {
         motivo = cob.completa
           ? origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente"
           : `Pareo parcial: cubre ${cob.total.toFixed(2)} de ${cob.monto.toFixed(2)} Bs (faltan ${cob.diferencia.toFixed(2)} Bs)`;
-      } else if (rechazado) {
+      } else if (filaRechazo && mismoRechazo) {
         estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
         facturas = [];
         motivo = "Sugerencia rechazada";
+      } else if (filaRechazo) {
+        motivo = `${auto.motivo} · sugerencia nueva tras un rechazo anterior`;
       }
 
       const total = facturas.reduce((s, f) => s + Math.abs(Number(f.monto_bs) || 0), 0);
@@ -227,9 +237,15 @@ function MovimientosBancariosPage() {
         provFuente,
         faltantes: auto.faltantes ?? [],
         sugeridas: auto.facturas,
-        confirmable: !vs.length && auto.facturas.length > 0,
+        auto,
+        confirmadasIds: confirmados.map((v) => v.transaccion_factura_id as string),
+        rechazado: !!filaRechazo,
+        rechazadas,
+        manual: confirmados.some((v) => v.origen === "manual"),
+        confirmable: (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
         estadoSugerido: (auto.estado === "parcial" ? "parcial" : "pareado") as "pareado" | "parcial",
       };
+
     });
   }, [movimientos, indice, vinculosPorMov, terceros, tercerosById]);
 
@@ -281,6 +297,7 @@ function MovimientosBancariosPage() {
     facturaIds: string[],
     estado: "pareado" | "parcial" | "rechazado",
     origen: "auto" | "manual",
+    facturasRechazadas?: string[],
   ) => {
     const r = await guardarVinculosConciliacion({
       movimientoId: movId,
@@ -288,11 +305,70 @@ function MovimientosBancariosPage() {
       estado,
       origen,
       userId: user?.id ?? null,
+      facturasRechazadas,
     });
     if (!r.ok) { toast.error(r.error ?? "No se pudo guardar el pareo"); return; }
     toast.success(estado === "rechazado" ? "Sugerencia rechazada" : estado === "parcial" ? "Pareo parcial guardado" : "Pareo confirmado");
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
   };
+
+  // ── Recalcular pareos con las facturas actuales ──────────────
+  const [recalcOpen, setRecalcOpen] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+
+  const propuestas = useMemo(() => {
+    const porMov = new Map(filtradas.map((f) => [f.mov.id, f]));
+    const res = recalcularPareos(
+      filtradas.map((f) => ({
+        movId: f.mov.id,
+        montoBs: Number(f.mov.monto_bs),
+        auto: f.auto,
+        confirmadas: f.confirmadasIds,
+        rechazado: f.rechazado,
+        rechazadas: f.rechazadas,
+        manual: f.manual,
+      })),
+    );
+    return res.map((r) => ({ ...r, fila: porMov.get(r.movId)! }));
+  }, [filtradas]);
+
+  const porTipo = useMemo(() => ({
+    nuevo_pareo: propuestas.filter((p) => p.cambio === "nuevo_pareo"),
+    parcial_completable: propuestas.filter((p) => p.cambio === "parcial_completable"),
+    rechazo_obsoleto: propuestas.filter((p) => p.cambio === "rechazo_obsoleto"),
+  }), [propuestas]);
+
+  const aplicarRecalculo = async (lista: typeof propuestas) => {
+    if (!lista.length) return;
+    setAplicando(true);
+    let ok = 0;
+    let fail = 0;
+    for (const p of lista) {
+      const r = await guardarVinculosConciliacion({
+        movimientoId: p.movId,
+        contrapartes: p.facturas.map((f) => f.id),
+        estado: p.estado,
+        origen: "auto",
+        userId: user?.id ?? null,
+      });
+      if (r.ok) ok++; else fail++;
+    }
+    setAplicando(false);
+    qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+    if (fail) toast.error(`${ok} pareo(s) actualizados, ${fail} con error`);
+    else toast.success(`${ok} pareo(s) actualizados`);
+    setRecalcOpen(false);
+  };
+
+  const recargarDatos = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["mov-bancarios"] }),
+      qc.invalidateQueries({ queryKey: ["facturas-compra-para-conciliar"] }),
+      qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] }),
+    ]);
+  };
+
+
 
 
 
@@ -398,9 +474,17 @@ function MovimientosBancariosPage() {
           <h1 className="text-2xl font-bold tracking-tight">Movimientos bancarios</h1>
           <p className="text-sm text-muted-foreground">Conciliación de movimientos importados del banco contra las facturas registradas</p>
         </div>
-        <Button onClick={onExportar} disabled={exportando}>
-          <Download className="h-4 w-4 mr-2" /> {exportando ? "Generando…" : "Exportar a Excel"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={async () => { await recargarDatos(); setRecalcOpen(true); }}>
+            <RefreshCw className="h-4 w-4 mr-2" /> Recalcular pareos
+            {propuestas.length > 0 && (
+              <Badge variant="secondary" className="ml-2">{propuestas.length}</Badge>
+            )}
+          </Button>
+          <Button onClick={onExportar} disabled={exportando}>
+            <Download className="h-4 w-4 mr-2" /> {exportando ? "Generando…" : "Exportar a Excel"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-6">
@@ -615,7 +699,7 @@ function MovimientosBancariosPage() {
                                 {f.estadoSugerido === "parcial" ? "Confirmar parcial" : "Confirmar"}
                                 {f.sugeridas.length > 1 ? ` (${f.sugeridas.length})` : ""}
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, [], "rechazado", "manual")}>
+                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, [], "rechazado", "manual", f.sugeridas.map((s: any) => s.id))}>
                                 <X className="h-3 w-3 mr-1" /> Rechazar
                               </Button>
                             </div>
@@ -643,6 +727,52 @@ function MovimientosBancariosPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={recalcOpen} onOpenChange={setRecalcOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Recalcular pareos</DialogTitle>
+            <DialogDescription>
+              Se revisaron {filtradas.length} movimientos (con los filtros actuales) contra las facturas registradas hoy.
+              Los pareos confirmados manualmente nunca se modifican.
+            </DialogDescription>
+          </DialogHeader>
+
+          {propuestas.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Todo está al día: no hay pareos por actualizar.</p>
+          ) : (
+            <div className="space-y-3">
+              {([
+                ["nuevo_pareo", "Movimientos sin pareo que ahora tienen factura", porTipo.nuevo_pareo],
+                ["parcial_completable", "Pareos parciales que ahora se completan", porTipo.parcial_completable],
+                ["rechazo_obsoleto", "Rechazos con una sugerencia distinta", porTipo.rechazo_obsoleto],
+              ] as const).map(([key, label, lista]) => (
+                <div key={key} className="flex items-start justify-between gap-3 rounded-md border p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{lista.length} movimiento(s)</p>
+                    {lista.slice(0, 3).map((p) => (
+                      <p key={p.movId} className="truncate text-xs text-muted-foreground">
+                        · {fmtDate(p.fila.mov.fecha)} — {fmtBs(Math.abs(Number(p.fila.mov.monto_bs)))} — {p.motivo}
+                      </p>
+                    ))}
+                  </div>
+                  <Button size="sm" variant="outline" disabled={!lista.length || aplicando} onClick={() => aplicarRecalculo(lista as any)}>
+                    Aplicar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRecalcOpen(false)}>Cerrar</Button>
+            <Button disabled={!propuestas.length || aplicando} onClick={() => aplicarRecalculo(propuestas)}>
+              {aplicando ? "Aplicando…" : `Aplicar todo (${propuestas.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
