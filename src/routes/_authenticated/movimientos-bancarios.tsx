@@ -569,7 +569,17 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2 text-xs">{f.mov.cuenta_codigo} · {nombreCuenta(f.mov.cuenta_codigo)}</td>
                       <td className="py-2 px-2 text-xs">{f.mov.centro_costo}</td>
                       <td className="py-2 px-2 text-xs max-w-[320px]">{f.mov.notas ?? "—"}</td>
-                      <td className="py-2 px-2">
+                      <td className="py-2 px-2 text-xs">
+                        {f.proveedor ? (
+                          <div className="flex flex-col">
+                            <span>{f.proveedor.nombre}</span>
+                            {f.provFuente === "memo" && (
+                              <span className="text-[10px] text-muted-foreground">deducido del memo</span>
+                            )}
+                          </div>
+                        ) : "—"}
+                      </td>
+
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1 flex-wrap">
                             {badgeEstado(f.estado)}
