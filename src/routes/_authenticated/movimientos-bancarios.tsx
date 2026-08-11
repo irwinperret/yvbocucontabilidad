@@ -92,13 +92,19 @@ function MovimientosBancariosPage() {
   });
 
   const { data: cuentas } = useQuery({
-    queryKey: ["plan-cuentas-min"],
+    queryKey: ["plan-cuentas-min-grupo"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre");
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre,grupo,orden").order("orden");
       return data ?? [];
     },
   });
   const nombreCuenta = (c: string) => cuentas?.find((x: any) => x.codigo === c)?.nombre ?? c;
+
+  const cuentasByGrupo = useMemo(() => {
+    const g: Record<string, any[]> = {};
+    (cuentas ?? []).forEach((c: any) => { (g[c.grupo || "Otros"] ||= []).push(c); });
+    return g;
+  }, [cuentas]);
 
   const indice = useMemo(() => {
     const lista: FacturaRef[] = (facturas ?? []).map((f: any) => ({
