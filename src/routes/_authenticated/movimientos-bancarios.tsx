@@ -333,13 +333,33 @@ function MovimientosBancariosPage() {
                     <th className="text-left py-2 px-2">Banco</th>
                     <th className="text-right py-2 px-2">Monto Bs</th>
                     <th className="text-right py-2 px-2">USD (BCV)</th>
-                    <th className="text-left py-2 px-2">Cuenta asignada</th>
+                    <th className="text-left py-2 px-2">
+                      Cuenta asignada
+                      <MultiSelectFilter
+                        label="Cuenta contable"
+                        groupedOptions={Object.entries(cuentasByGrupo).map(([grupo, items]) => ({
+                          group: grupo,
+                          items: items.map((c: any) => ({ value: c.codigo, label: `${c.codigo} · ${c.nombre}` })),
+                        }))}
+                        selected={cuentasSel}
+                        onChange={setCuentasSel}
+                      />
+                    </th>
+                    <th className="text-left py-2 px-2">
+                      Centro
+                      <MultiSelectFilter
+                        label="Centro de costo"
+                        options={CENTROS.map((c) => ({ value: c, label: c }))}
+                        selected={centrosSel}
+                        onChange={setCentrosSel}
+                      />
+                    </th>
                     <th className="text-left py-2 px-2">Notas / memo</th>
                     <th className="text-left py-2 px-2">Conciliación</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtradas.slice(0, 500).map((f) => (
+                  {pagina.map((f) => (
                     <tr key={f.mov.id} className="border-b last:border-0 align-top">
                       <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(f.mov.fecha)}</td>
                       <td className="py-2 px-2">{bancoDeReferencia(f.mov.referencia)}</td>
