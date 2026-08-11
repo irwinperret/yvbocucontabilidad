@@ -60,8 +60,10 @@ function MovimientosBancariosPage() {
   const [texto, setTexto] = useState("");
   const [cuentasSel, setCuentasSel] = useState<string[]>([]);
   const [centrosSel, setCentrosSel] = useState<string[]>([]);
+  const [provSel, setProvSel] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState<number | "all">(50);
   const [page, setPage] = useState(0);
+
 
   const { data: movimientos, isLoading } = useQuery({
     queryKey: ["mov-bancarios"],
