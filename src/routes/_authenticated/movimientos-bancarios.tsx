@@ -19,10 +19,12 @@ import {
   refBancaria,
   normalizarFactura,
   parearMovimiento,
+  esFacturaDeCompra,
   ESTADO_LABEL,
   type EstadoConciliacion,
   type FacturaRef,
 } from "@/lib/conciliacion-matching";
+
 
 export const Route = createFileRoute("/_authenticated/movimientos-bancarios")({
   component: MovimientosBancariosPage,
