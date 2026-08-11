@@ -313,7 +313,7 @@ function ImportarVentasPage() {
         metodo_pago: metodoVenta || "pendiente",
         numero_factura: r.numero_factura || null,
         numero_orden: r.numero_orden || null,
-        referencia: "xetux", modo: "on_balance",
+        referencia: referencia, modo: "on_balance",
         grupo_transaccion_id: grupoId,
         notas: `Xetux · Propina · factura ${r.numero_factura || r.numero_orden} · ${r.cliente}`,
         created_by: user.id,
@@ -331,14 +331,14 @@ function ImportarVentasPage() {
       const dedupFilter = r.numero_factura
         ? supabase.from("propinas").select("id").eq("numero_factura", r.numero_factura)
         : supabase.from("propinas").select("id").eq("numero_orden", r.numero_orden);
-      const { data: propExist } = await dedupFilter.eq("referencia", "xetux").limit(1).maybeSingle();
+      const { data: propExist } = await dedupFilter.eq("referencia", referencia).limit(1).maybeSingle();
       const propPayload: any = {
         transaccion_id: txId,
         transaccion_entrada_id: propTxId,
         fecha: r.fecha,
         monto_usd: propinaUsdPar, monto_bs: propinaBs,
         tasa_paralela: tasas.paralela || tasaBcv,
-        centro_costo: centroRow, concepto: "Propina Xetux", referencia: "xetux",
+        centro_costo: centroRow, concepto: "Propina Xetux", referencia: referencia,
         numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
         created_by: user.id,
       };
