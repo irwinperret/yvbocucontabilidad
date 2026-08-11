@@ -77,7 +77,7 @@ function CxPAnalisisPage() {
       const rows = await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("id,fecha,monto_bs,notas,referencia,cuenta_codigo")
+          .select("id,fecha,monto_bs,notas,referencia,cuenta_codigo").neq("standby", true)
           .like("referencia", "BANK:%")
           .order("fecha", { ascending: false })
           .range(from, to),

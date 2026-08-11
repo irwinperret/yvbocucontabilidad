@@ -239,7 +239,7 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
     if (cxc.transaccion_id) {
       const { data: origen } = await supabase
         .from("transacciones")
-        .select("grupo_transaccion_id")
+        .select("grupo_transaccion_id").neq("standby", true)
         .eq("id", cxc.transaccion_id)
         .maybeSingle();
       const origenGrupo = (origen as any)?.grupo_transaccion_id;

@@ -54,7 +54,7 @@ function ImpuestosPage() {
       return await fetchAllRows<Row>(async (from, to) => {
         return await supabase
           .from("transacciones")
-          .select("id,fecha,cuenta_codigo,centro_costo,monto_bs,monto_base_bs,iva_bs,iva_aplica,tipo_iva,monto_usd,tasa_bcv,tasa_paralela,numero_factura,referencia,notas,grupo_transaccion_id")
+          .select("id,fecha,cuenta_codigo,centro_costo,monto_bs,monto_base_bs,iva_bs,iva_aplica,tipo_iva,monto_usd,tasa_bcv,tasa_paralela,numero_factura,referencia,notas,grupo_transaccion_id").neq("standby", true)
           .in("cuenta_codigo", ["12.4", "12.5"])
           .gte("fecha", ini)
           .lte("fecha", fin)

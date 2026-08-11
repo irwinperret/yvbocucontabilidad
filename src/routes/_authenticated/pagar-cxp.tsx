@@ -205,7 +205,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       if (!cxp.transaccion_id) return null;
       const { data } = await supabase
         .from("transacciones")
-        .select("cuenta_codigo, centro_costo, grupo_transaccion_id, monto_bs, monto_base_bs, iva_bs, tasa_bcv")
+        .select("cuenta_codigo, centro_costo, grupo_transaccion_id, monto_bs, monto_base_bs, iva_bs, tasa_bcv").neq("standby", true)
         .eq("id", cxp.transaccion_id)
         .maybeSingle();
       return data;
@@ -285,7 +285,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
 
     const { data: txOrig } = await supabase
       .from("transacciones")
-      .select("cuenta_codigo, centro_costo, grupo_transaccion_id, monto_bs, monto_base_bs, iva_bs")
+      .select("cuenta_codigo, centro_costo, grupo_transaccion_id, monto_bs, monto_base_bs, iva_bs").neq("standby", true)
       .eq("id", cxp.transaccion_id).maybeSingle();
     const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
 
@@ -315,7 +315,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
       // Detectar si la factura original tenía IVA (existe una fila 12.5 con monto positivo en el grupo)
       const { data: ivaLegs } = await supabase
         .from("transacciones")
-        .select("id, monto_bs")
+        .select("id, monto_bs").neq("standby", true)
         .eq("grupo_transaccion_id", grupoId)
         .eq("cuenta_codigo", "12.5")
         .gt("monto_bs", 0)

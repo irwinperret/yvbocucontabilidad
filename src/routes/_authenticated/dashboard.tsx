@@ -30,7 +30,7 @@ function Dashboard() {
   const { data: ultimas } = useQuery({
     queryKey: ["ultimas-tx"],
     queryFn: async () => {
-      const { data } = await supabase.from("transacciones").select("*").order("created_at", { ascending: false }).limit(8);
+      const { data } = await supabase.from("transacciones").select("*").neq("standby", true).order("created_at", { ascending: false }).limit(8);
       return data ?? [];
     },
   });
@@ -44,7 +44,7 @@ function Dashboard() {
   const { data: offCount } = useQuery({
     queryKey: ["off-count"],
     queryFn: async () => {
-      const { count } = await supabase.from("transacciones").select("*", { count: "exact", head: true }).eq("modo", "off_balance");
+      const { count } = await supabase.from("transacciones").select("*", { count: "exact", head: true }).neq("standby", true).eq("modo", "off_balance");
       return count ?? 0;
     },
   });

@@ -34,7 +34,7 @@ export function useAnticiposAbiertosProveedor(terceroId: string | null | undefin
     queryFn: async (): Promise<AnticipoProveedor[]> => {
       const { data } = await supabase
         .from("transacciones")
-        .select(SELECT_FIELDS)
+        .select(SELECT_FIELDS).neq("standby", true)
         .eq("cuenta_codigo", "14.2")
         .eq("tercero_id", terceroId!)
         .in("anticipo_estado", ["abierto", "parcialmente_aplicado"])
@@ -50,7 +50,7 @@ export function useAnticiposProveedor(desde: string, hasta: string) {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select(SELECT_FIELDS + ", grupo_transaccion_id")
+        .select(SELECT_FIELDS + ", grupo_transaccion_id").neq("standby", true)
         .eq("cuenta_codigo", "14.2")
         .gte("fecha", desde)
         .lte("fecha", hasta)

@@ -64,7 +64,7 @@ function MovimientosBancariosPage() {
       return await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("*")
+          .select("*").neq("standby", true)
           .like("referencia", "BANK:%")
           .order("fecha", { ascending: false })
           .range(from, to),
@@ -79,7 +79,7 @@ function MovimientosBancariosPage() {
       const rows = await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("id,fecha,numero_factura,monto_bs,cuenta_codigo,notas,tercero_id")
+          .select("id,fecha,numero_factura,monto_bs,cuenta_codigo,notas,tercero_id").neq("standby", true)
           .not("numero_factura", "is", null)
           .range(from, to),
       );

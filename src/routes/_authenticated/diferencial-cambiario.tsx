@@ -37,7 +37,7 @@ function DiferencialPage() {
       const [{ data: txs }, { data: tasas }] = await Promise.all([
         supabase
           .from("transacciones")
-          .select("*")
+          .select("*").neq("standby", true)
           .gte("fecha", desde)
           .lte("fecha", hasta)
           .order("fecha", { ascending: true }),

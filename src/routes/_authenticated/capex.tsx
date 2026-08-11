@@ -53,7 +53,7 @@ function CapExPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("*")
+        .select("*").neq("standby", true)
         .eq("cuenta_codigo", "10.6")
         .order("fecha", { ascending: false });
       return data ?? [];
@@ -67,7 +67,7 @@ function CapExPage() {
       const hasta = `${anio}-12-31`;
       const { data } = await supabase
         .from("transacciones")
-        .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela")
+        .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela").neq("standby", true)
         .gte("fecha", desde).lte("fecha", hasta)
         .eq("modo", "on_balance");
       return data ?? [];

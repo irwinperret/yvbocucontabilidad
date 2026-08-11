@@ -19,7 +19,7 @@ function OffBalancePage() {
     queryKey: ["off-balance"],
     queryFn: async () => {
       const { data } = await supabase
-        .from("transacciones").select("*")
+        .from("transacciones").select("*").neq("standby", true)
         .eq("modo", "off_balance").order("fecha", { ascending: true });
       return data ?? [];
     },
@@ -31,7 +31,7 @@ function OffBalancePage() {
       const hoy = new Date();
       const desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-01`;
       const [{ data: txs }, { data: tasas }] = await Promise.all([
-        supabase.from("transacciones").select("fecha, metodo_pago, monto_usd, tasa_bcv, tasa_paralela")
+        supabase.from("transacciones").select("fecha, metodo_pago, monto_usd, tasa_bcv, tasa_paralela").neq("standby", true)
           .gte("fecha", desde).in("metodo_pago", ["efectivo_usd", "zelle"]),
         supabase.from("tasas_paralela").select("fecha, tasa").gte("fecha", desde),
       ]);

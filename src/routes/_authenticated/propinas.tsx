@@ -523,7 +523,7 @@ function DistribuirPropinaDialog({ propina, onClose }: { propina: Propina; onClo
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, cuenta_bancaria_id, grupo_transaccion_id, tasa_bcv, tasa_paralela")
+        .select("id, cuenta_bancaria_id, grupo_transaccion_id, tasa_bcv, tasa_paralela").neq("standby", true)
         .eq("id", propina.transaccion_entrada_id!)
         .maybeSingle();
       return data as any;

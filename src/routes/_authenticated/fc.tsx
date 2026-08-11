@@ -45,7 +45,7 @@ function FCPage() {
       const { fetchAllRows } = await import("@/lib/fetch-all");
       if (cuentaBancariaId !== "todas") {
         const data = await fetchAllRows<any>(async (from, to) => {
-          let q = supabase.from("transacciones").select("fecha, cuenta_codigo, centro_costo, modo, monto_bs, monto_usd, tasa_bcv")
+          let q = supabase.from("transacciones").select("fecha, cuenta_codigo, centro_costo, modo, monto_bs, monto_usd, tasa_bcv").neq("standby", true)
             .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`)
             .eq("cuenta_bancaria_id" as any, cuentaBancariaId)
             .range(from, to);

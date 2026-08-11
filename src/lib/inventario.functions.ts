@@ -114,7 +114,7 @@ async function recalcCierreForPeriod(
       .maybeSingle(),
     supabase
       .from("transacciones")
-      .select("monto_bs, monto_base_bs")
+      .select("monto_bs, monto_base_bs").neq("standby", true)
       .eq("cuenta_codigo", "2.1")
       .gte("fecha", from)
       .lte("fecha", to),
