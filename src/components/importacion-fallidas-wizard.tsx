@@ -64,6 +64,37 @@ export function ImportacionFallidasWizard({
     setValores(actual ? { ...actual.valores } : {});
   }, [actual?.id]);
 
+  // ── Autocompletar tasas según la fecha (usa la más reciente <= fecha) ──
+  const [tasaInfo, setTasaInfo] = useState<{ bcv?: string; paralela?: string } | null>(null);
+  const tieneTasas = campos.some((c) => c.name === "tasa_bcv" || c.name === "tasa_paralela");
+  const fechaValor = String(valores.fecha ?? "").slice(0, 10);
+  const lastLookup = useRef<string>("");
+
+  useEffect(() => {
+    if (!open || !tieneTasas || !fechaValor) return;
+    const key = `${actual?.id ?? ""}|${fechaValor}`;
+    if (lastLookup.current === key) return;
+    lastLookup.current = key;
+    let cancel = false;
+    (async () => {
+      const [bcvRes, parRes] = await Promise.all([
+        supabase.from("tasas_bcv").select("fecha, tasa").lte("fecha", fechaValor).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("tasas_paralela").select("fecha, tasa").lte("fecha", fechaValor).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (cancel) return;
+      const bcv = bcvRes.data as { fecha: string; tasa: number } | null;
+      const par = parRes.data as { fecha: string; tasa: number } | null;
+      setValores((s) => ({
+        ...s,
+        tasa_bcv: bcv ? String(bcv.tasa) : s.tasa_bcv ?? "",
+        tasa_paralela: par ? String(par.tasa) : s.tasa_paralela ?? "",
+      }));
+      setTasaInfo({ bcv: bcv?.fecha, paralela: par?.fecha });
+    })();
+    return () => { cancel = true; };
+  }, [open, tieneTasas, fechaValor, actual?.id]);
+
+
   const aplicar = (nuevas: FilaFallida[], nuevoIdx: number) => {
     setLista(nuevas);
     onPendientesChange?.(nuevas);
