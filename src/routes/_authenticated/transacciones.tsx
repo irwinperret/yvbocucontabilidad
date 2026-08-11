@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-import { Pencil, Download, Trash2, Filter, ArrowUp, ArrowDown, X } from "lucide-react";
+import { Pencil, Download, Trash2, Filter, ArrowUp, ArrowDown, X, PauseCircle } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { EliminarTransaccionDialog } from "@/components/eliminar-transaccion-dialog";
