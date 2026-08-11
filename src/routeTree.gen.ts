@@ -23,6 +23,7 @@ import { Route as AuthenticatedPropinasRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenticated/plan-cuentas'
 import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticated/pagar-cxp'
 import { Route as AuthenticatedOffBalanceRouteImport } from './routes/_authenticated/off-balance'
+import { Route as AuthenticatedMovimientosBancariosRouteImport } from './routes/_authenticated/movimientos-bancarios'
 import { Route as AuthenticatedLiquidacionesRouteImport } from './routes/_authenticated/liquidaciones'
 import { Route as AuthenticatedInventariosRouteImport } from './routes/_authenticated/inventarios'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
@@ -120,6 +121,12 @@ const AuthenticatedOffBalanceRoute = AuthenticatedOffBalanceRouteImport.update({
   path: '/off-balance',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedMovimientosBancariosRoute =
+  AuthenticatedMovimientosBancariosRouteImport.update({
+    id: '/movimientos-bancarios',
+    path: '/movimientos-bancarios',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedLiquidacionesRoute =
   AuthenticatedLiquidacionesRouteImport.update({
     id: '/liquidaciones',
@@ -266,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/inicio': typeof AuthenticatedInicioRoute
   '/inventarios': typeof AuthenticatedInventariosRoute
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
+  '/movimientos-bancarios': typeof AuthenticatedMovimientosBancariosRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
@@ -303,6 +311,7 @@ export interface FileRoutesByTo {
   '/inicio': typeof AuthenticatedInicioRoute
   '/inventarios': typeof AuthenticatedInventariosRoute
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
+  '/movimientos-bancarios': typeof AuthenticatedMovimientosBancariosRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
@@ -342,6 +351,7 @@ export interface FileRoutesById {
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/inventarios': typeof AuthenticatedInventariosRoute
   '/_authenticated/liquidaciones': typeof AuthenticatedLiquidacionesRoute
+  '/_authenticated/movimientos-bancarios': typeof AuthenticatedMovimientosBancariosRoute
   '/_authenticated/off-balance': typeof AuthenticatedOffBalanceRoute
   '/_authenticated/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/_authenticated/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/inicio'
     | '/inventarios'
     | '/liquidaciones'
+    | '/movimientos-bancarios'
     | '/off-balance'
     | '/pagar-cxp'
     | '/plan-cuentas'
@@ -418,6 +429,7 @@ export interface FileRouteTypes {
     | '/inicio'
     | '/inventarios'
     | '/liquidaciones'
+    | '/movimientos-bancarios'
     | '/off-balance'
     | '/pagar-cxp'
     | '/plan-cuentas'
@@ -456,6 +468,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inicio'
     | '/_authenticated/inventarios'
     | '/_authenticated/liquidaciones'
+    | '/_authenticated/movimientos-bancarios'
     | '/_authenticated/off-balance'
     | '/_authenticated/pagar-cxp'
     | '/_authenticated/plan-cuentas'
@@ -577,6 +590,13 @@ declare module '@tanstack/react-router' {
       path: '/off-balance'
       fullPath: '/off-balance'
       preLoaderRoute: typeof AuthenticatedOffBalanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/movimientos-bancarios': {
+      id: '/_authenticated/movimientos-bancarios'
+      path: '/movimientos-bancarios'
+      fullPath: '/movimientos-bancarios'
+      preLoaderRoute: typeof AuthenticatedMovimientosBancariosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/liquidaciones': {
@@ -757,6 +777,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedInventariosRoute: typeof AuthenticatedInventariosRoute
   AuthenticatedLiquidacionesRoute: typeof AuthenticatedLiquidacionesRoute
+  AuthenticatedMovimientosBancariosRoute: typeof AuthenticatedMovimientosBancariosRoute
   AuthenticatedOffBalanceRoute: typeof AuthenticatedOffBalanceRoute
   AuthenticatedPagarCxpRoute: typeof AuthenticatedPagarCxpRoute
   AuthenticatedPlanCuentasRoute: typeof AuthenticatedPlanCuentasRoute
@@ -793,6 +814,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedInventariosRoute: AuthenticatedInventariosRoute,
   AuthenticatedLiquidacionesRoute: AuthenticatedLiquidacionesRoute,
+  AuthenticatedMovimientosBancariosRoute:
+    AuthenticatedMovimientosBancariosRoute,
   AuthenticatedOffBalanceRoute: AuthenticatedOffBalanceRoute,
   AuthenticatedPagarCxpRoute: AuthenticatedPagarCxpRoute,
   AuthenticatedPlanCuentasRoute: AuthenticatedPlanCuentasRoute,
