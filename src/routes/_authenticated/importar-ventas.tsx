@@ -530,7 +530,7 @@ function ImportarVentasPage() {
                 monto_bs_iva: ivaBs, monto_usd_iva: ivaUsdPar,
                 tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
                 numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
-                referencia: "xetux", notas: notasBase, created_by: user.id,
+                referencia: referencia, notas: notasBase, created_by: user.id,
                 grupo_transaccion_id: grupoExistente, tipo: "debito",
               });
               legs.iva++;
@@ -560,7 +560,7 @@ function ImportarVentasPage() {
             monto_bs_iva: ivaBs, monto_usd_iva: ivaUsdPar,
             tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
             numero_factura: r.numero_factura || null, numero_orden: r.numero_orden || null,
-            referencia: "xetux", notas: notasBase, created_by: user.id,
+            referencia: referencia, notas: notasBase, created_by: user.id,
             grupo_transaccion_id: grupoId, tipo: "debito",
           });
           legs.iva++;
