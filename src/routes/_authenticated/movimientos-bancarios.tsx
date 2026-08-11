@@ -147,7 +147,9 @@ function MovimientosBancariosPage() {
       monto_bs: Number(f.monto_bs),
       cuenta_codigo: f.cuenta_codigo,
       proveedor: f.proveedor ?? null,
+      tercero_id: f.tercero_id ?? null,
     }));
+
 
     const porNumero = new Map<string, FacturaRef[]>();
     for (const f of lista) {
