@@ -213,6 +213,20 @@ function MovimientosBancariosPage() {
     });
   };
 
+  const [exportando, setExportando] = useState(false);
+  const onExportar = async () => {
+    if (!filtradas.length) { toast.error("No hay movimientos que exportar con los filtros actuales."); return; }
+    setExportando(true);
+    try {
+      await exportar();
+      toast.success(`Excel generado (${filtradas.length} movimientos)`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo generar el Excel");
+    } finally {
+      setExportando(false);
+    }
+  };
+
   const badgeEstado = (e: EstadoConciliacion) => {
     if (e === "pareado") return <Badge className="bg-green-600">Pareado</Badge>;
     if (e === "posible") return <Badge className="bg-orange-500">Posible pareo</Badge>;
@@ -227,8 +241,8 @@ function MovimientosBancariosPage() {
           <h1 className="text-2xl font-bold tracking-tight">Movimientos bancarios</h1>
           <p className="text-sm text-muted-foreground">Conciliación de movimientos importados del banco contra las facturas registradas</p>
         </div>
-        <Button variant="outline" onClick={exportar} disabled={!filtradas.length}>
-          <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+        <Button onClick={onExportar} disabled={exportando}>
+          <Download className="h-4 w-4 mr-2" /> {exportando ? "Generando…" : "Exportar a Excel"}
         </Button>
       </div>
 
@@ -267,7 +281,12 @@ function MovimientosBancariosPage() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Movimientos ({filtradas.length})</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+          <CardTitle className="text-base">Movimientos ({filtradas.length})</CardTitle>
+          <Button size="sm" variant="outline" onClick={onExportar} disabled={exportando}>
+            <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+          </Button>
+        </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-sm text-muted-foreground">Cargando…</p> : filtradas.length === 0 ? (
             <p className="text-sm text-muted-foreground">No hay movimientos bancarios con estos filtros.</p>
