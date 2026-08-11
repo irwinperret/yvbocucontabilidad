@@ -269,7 +269,7 @@ function ImportarVentasPage() {
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
         monto_usd: bonoUsdPar, metodo_pago: "efectivo_usd",
-        numero_factura: r.numero_factura, referencia: "xetux", modo: "on_balance",
+        numero_factura: r.numero_factura, referencia: referencia, modo: "on_balance",
         grupo_transaccion_id: grupoId,
         notas: `Xetux · Bono 10% servicio · factura ${r.numero_factura} · ${r.cliente}`,
         created_by: user.id,
@@ -428,7 +428,7 @@ function ImportarVentasPage() {
           metodo_pago: metodo as any,
           numero_factura: r.numero_factura || null,
           numero_orden: r.numero_orden || null,
-          referencia: "xetux",
+          referencia: referencia,
           modo: modo as any,
           cuenta_bancaria_id,
         };
