@@ -22,7 +22,7 @@ export function CierrePendienteBanner() {
         supabase.from("cierres_de_mes").select("id").eq("periodo", periodoAnt).maybeSingle(),
         supabase
           .from("transacciones")
-          .select("id", { count: "exact", head: true })
+          .select("id", { count: "exact", head: true }).neq("standby", true)
           .gte("fecha", firstAnt)
           .lte("fecha", lastAnt),
       ]);

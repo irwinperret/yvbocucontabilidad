@@ -95,7 +95,7 @@ export async function calcularSplitIvaPagoCxp(
   if (hasIva === false) return fallback;
   const { data } = await supabase
     .from("transacciones")
-    .select("cuenta_codigo, monto_bs, monto_base_bs, iva_bs")
+    .select("cuenta_codigo, monto_bs, monto_base_bs, iva_bs").neq("standby", true)
     .eq("grupo_transaccion_id", grupoId);
   if (!data || data.length === 0) return fallback;
   const ivaLeg = data.find((r: any) => r.cuenta_codigo === "12.5" && Number(r.monto_bs) > 0);

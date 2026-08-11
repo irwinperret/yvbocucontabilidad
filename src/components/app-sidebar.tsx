@@ -25,6 +25,8 @@ import {
   Building2,
   Receipt,
   Sparkles,
+  PauseCircle,
+
 } from "lucide-react";
 import { History as HistoryIcon } from "lucide-react";
 import {
@@ -56,6 +58,8 @@ const registroDirectos = [
 
 const registroGestion = [
   { title: "Transacciones", url: "/transacciones", icon: ListChecks },
+  { title: "Transacciones en Standby", url: "/standby", icon: PauseCircle },
+
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },

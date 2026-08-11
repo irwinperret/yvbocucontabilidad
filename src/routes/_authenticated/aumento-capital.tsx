@@ -34,7 +34,7 @@ function AumentoCapitalPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, centro_costo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, detalle, notas, metodo_pago, modo")
+        .select("id, fecha, centro_costo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, detalle, notas, metodo_pago, modo").neq("standby", true)
         .eq("cuenta_codigo", "10.5")
         .order("fecha", { ascending: false });
       return data ?? [];

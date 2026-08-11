@@ -93,7 +93,7 @@ function SaldosBancariosPage() {
       return await fetchAllRows(async (from, to) => {
         return await supabase
           .from("transacciones")
-          .select("cuenta_bancaria_id,cuenta_codigo,monto_bs,monto_usd,fecha,modo")
+          .select("cuenta_bancaria_id,cuenta_codigo,monto_bs,monto_usd,fecha,modo").neq("standby", true)
           .eq("modo", "on_balance")
           .not("cuenta_bancaria_id", "is", null)
           .lte("fecha", hasta)

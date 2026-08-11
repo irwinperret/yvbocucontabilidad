@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-import { Pencil, Download, Trash2, Filter, ArrowUp, ArrowDown, X } from "lucide-react";
+import { Pencil, Download, Trash2, Filter, ArrowUp, ArrowDown, X, PauseCircle } from "lucide-react";
 import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { EliminarTransaccionDialog } from "@/components/eliminar-transaccion-dialog";
@@ -232,6 +232,32 @@ function TransaccionesPage() {
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [standbyTarget, setStandbyTarget] = useState<{ rows: any[]; relacionadas: string[] } | null>(null);
+  const [standbyBusy, setStandbyBusy] = useState(false);
+
+  const pedirStandby = async (rows: any[]) => {
+    if (!rows.length) return;
+    const { contarRelacionadas } = await import("@/lib/standby");
+    const { relacionadasIds } = await contarRelacionadas(rows);
+    if (!relacionadasIds.length) {
+      await aplicarStandby(rows.map((r) => r.id));
+      return;
+    }
+    setStandbyTarget({ rows, relacionadas: relacionadasIds });
+  };
+
+  const aplicarStandby = async (ids: string[]) => {
+    setStandbyBusy(true);
+    const { ponerEnStandby } = await import("@/lib/standby");
+    const res = await ponerEnStandby(ids);
+    setStandbyBusy(false);
+    setStandbyTarget(null);
+    if (!res.ok) return toast.error("No se pudo poner en standby: " + res.error);
+    toast.success(`${ids.length} transacción(es) en standby`);
+    setSelected(new Set());
+    qc.invalidateQueries();
+  };
+
 
   useEffect(() => { setPage(0); setSelected(new Set()); }, [
     desde, hasta, buscaDebounced, centros, cuentasSel, metodosSel, modos, usuarios, vias,
@@ -256,6 +282,7 @@ function TransaccionesPage() {
         return await supabase
           .from("transacciones")
           .select("id,numero,fecha,centro_costo,cuenta_codigo,numero_factura,numero_orden,referencia,monto_bs,monto_base_bs,iva_bs,iva_aplica,tasa_bcv,tasa_paralela,monto_usd,metodo_pago,modo,notas,detalle,adjunto_url,created_by,cuenta_bancaria_id,capex_categoria,pareja_off_balance_id,grupo_transaccion_id,tercero_id")
+          .neq("standby", true)
           .gte("fecha", desde)
           .lte("fecha", hasta)
           .order("fecha", { ascending: false })
@@ -264,6 +291,7 @@ function TransaccionesPage() {
       });
     },
   });
+
 
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-all-list"],
@@ -787,11 +815,22 @@ function TransaccionesPage() {
                 </Select>
               </div>
               {selected.size > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => pedirStandby(filtradas.filter((t: any) => selected.has(t.id)))}
+                >
+                  <PauseCircle className="h-4 w-4 mr-1.5" />
+                  Poner {selected.size} en standby
+                </Button>
+              )}
+              {selected.size > 0 && (
                 <Button variant="destructive" size="sm" onClick={borrarSeleccionadas}>
                   <Trash2 className="h-4 w-4 mr-1.5" />
                   Borrar {selected.size} seleccionadas
                 </Button>
               )}
+
               <Button variant="outline" size="sm" onClick={exportar} disabled={exporting || filtradas.length === 0}>
                 <Download className="h-4 w-4 mr-1.5" />
                 {exporting ? "Exportando…" : "Exportar a Excel"}
@@ -1036,12 +1075,16 @@ function TransaccionesPage() {
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(t)} title="Editar">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => pedirStandby([t])} title="Poner en standby">
+                              <PauseCircle className="h-3.5 w-3.5" />
+                            </Button>
                             <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
                                     onClick={() => setDeleteTarget(t)} title="Eliminar">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </td>
+
                       </tr>
                     );
                   })}
@@ -1080,6 +1123,39 @@ function TransaccionesPage() {
         onClose={() => setDeleteTarget(null)}
         onDeleted={() => qc.invalidateQueries()}
       />
+
+      <Dialog open={!!standbyTarget} onOpenChange={(o) => { if (!o) setStandbyTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Poner en standby</DialogTitle>
+            <DialogDescription>
+              {standbyTarget
+                ? `Esta transacción tiene ${standbyTarget.relacionadas.length} transacciones relacionadas. ¿Deseas poner todas en standby?`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setStandbyTarget(null)} disabled={standbyBusy}>Cancelar</Button>
+            <Button
+              variant="secondary"
+              disabled={standbyBusy}
+              onClick={() => standbyTarget && aplicarStandby(standbyTarget.rows.map((r) => r.id))}
+            >
+              Solo esta
+            </Button>
+            <Button
+              disabled={standbyBusy}
+              onClick={() =>
+                standbyTarget &&
+                aplicarStandby([...standbyTarget.rows.map((r) => r.id), ...standbyTarget.relacionadas])
+              }
+            >
+              Todas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <Dialog open={wipeOpen} onOpenChange={(o) => { if (!o) { setWipeOpen(false); setWipePwd(""); } }}>
         <DialogContent>

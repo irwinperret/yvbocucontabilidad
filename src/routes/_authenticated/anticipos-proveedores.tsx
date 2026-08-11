@@ -65,7 +65,7 @@ function AnticiposProveedoresPage() {
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("transacciones")
-        .select("id, fecha, tercero_id, monto_bs, monto_usd, anticipo_usd_bcv, anticipo_aplicado_usd_bcv, tasa_bcv, tasa_paralela, anticipo_estado, anticipo_aplicado_usd, notas, grupo_transaccion_id, terceros(razon_social)")
+        .select("id, fecha, tercero_id, monto_bs, monto_usd, anticipo_usd_bcv, anticipo_aplicado_usd_bcv, tasa_bcv, tasa_paralela, anticipo_estado, anticipo_aplicado_usd, notas, grupo_transaccion_id, terceros(razon_social)").neq("standby", true)
         .eq("cuenta_codigo", "14.2")
         .gt("monto_usd", 0)
         .gte("fecha", desde)
@@ -79,7 +79,7 @@ function AnticiposProveedoresPage() {
       if (grupos.length > 0) {
         const { data: facs } = await supabase
           .from("transacciones")
-          .select("grupo_transaccion_id, numero_factura, cuenta_codigo")
+          .select("grupo_transaccion_id, numero_factura, cuenta_codigo").neq("standby", true)
           .in("grupo_transaccion_id", grupos)
           .neq("cuenta_codigo", "14.2")
           .not("numero_factura", "is", null);

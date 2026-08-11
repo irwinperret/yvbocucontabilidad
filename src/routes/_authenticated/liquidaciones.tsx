@@ -73,7 +73,7 @@ function LiquidacionesHistorialPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, centro_costo, cuenta_codigo, monto_bs, monto_usd, tasa_paralela, tasa_bcv, detalle, notas, cuenta_bancaria_id, metodo_pago")
+        .select("id, fecha, centro_costo, cuenta_codigo, monto_bs, monto_usd, tasa_paralela, tasa_bcv, detalle, notas, cuenta_bancaria_id, metodo_pago").neq("standby", true)
         .in("cuenta_codigo", CUENTAS_LIQ)
         .gte("fecha", desde)
         .lte("fecha", hasta)

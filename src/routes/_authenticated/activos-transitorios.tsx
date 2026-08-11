@@ -82,7 +82,7 @@ function TabBody({ tabKey }: { tabKey: TabKey }) {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, centro_costo, cuenta_codigo, monto_bs, monto_usd, tasa_paralela, tasa_bcv, detalle, notas, cuenta_bancaria_id, metodo_pago")
+        .select("id, fecha, centro_costo, cuenta_codigo, monto_bs, monto_usd, tasa_paralela, tasa_bcv, detalle, notas, cuenta_bancaria_id, metodo_pago").neq("standby", true)
         .eq("cuenta_codigo", cfg.cuenta)
         .gte("fecha", desde)
         .lte("fecha", hasta)
@@ -380,7 +380,7 @@ function ProveedoresTabBody() {
     queryFn: async () => {
       const { data } = await supabase
         .from("transacciones")
-        .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd, grupo_transaccion_id")
+        .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd, grupo_transaccion_id").neq("standby", true)
         .eq("cuenta_codigo", "14.2")
         .gte("fecha", desde)
         .lte("fecha", hasta)

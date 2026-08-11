@@ -16,6 +16,7 @@ import { Route as AuthenticatedTransaccionesRouteImport } from './routes/_authen
 import { Route as AuthenticatedTercerosRouteImport } from './routes/_authenticated/terceros'
 import { Route as AuthenticatedTasaParalelaRouteImport } from './routes/_authenticated/tasa-paralela'
 import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/tasa'
+import { Route as AuthenticatedStandbyRouteImport } from './routes/_authenticated/standby'
 import { Route as AuthenticatedSaldosBancariosRouteImport } from './routes/_authenticated/saldos-bancarios'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
 import { Route as AuthenticatedProveedoresRouteImport } from './routes/_authenticated/proveedores'
@@ -81,6 +82,11 @@ const AuthenticatedTasaParalelaRoute =
 const AuthenticatedTasaRoute = AuthenticatedTasaRouteImport.update({
   id: '/tasa',
   path: '/tasa',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedStandbyRoute = AuthenticatedStandbyRouteImport.update({
+  id: '/standby',
+  path: '/standby',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedSaldosBancariosRoute =
@@ -281,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
+  '/standby': typeof AuthenticatedStandbyRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
@@ -319,6 +326,7 @@ export interface FileRoutesByTo {
   '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
+  '/standby': typeof AuthenticatedStandbyRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
@@ -359,6 +367,7 @@ export interface FileRoutesById {
   '/_authenticated/proveedores': typeof AuthenticatedProveedoresRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
+  '/_authenticated/standby': typeof AuthenticatedStandbyRoute
   '/_authenticated/tasa': typeof AuthenticatedTasaRoute
   '/_authenticated/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
@@ -399,6 +408,7 @@ export interface FileRouteTypes {
     | '/proveedores'
     | '/registrar'
     | '/saldos-bancarios'
+    | '/standby'
     | '/tasa'
     | '/tasa-paralela'
     | '/terceros'
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/proveedores'
     | '/registrar'
     | '/saldos-bancarios'
+    | '/standby'
     | '/tasa'
     | '/tasa-paralela'
     | '/terceros'
@@ -476,6 +487,7 @@ export interface FileRouteTypes {
     | '/_authenticated/proveedores'
     | '/_authenticated/registrar'
     | '/_authenticated/saldos-bancarios'
+    | '/_authenticated/standby'
     | '/_authenticated/tasa'
     | '/_authenticated/tasa-paralela'
     | '/_authenticated/terceros'
@@ -541,6 +553,13 @@ declare module '@tanstack/react-router' {
       path: '/tasa'
       fullPath: '/tasa'
       preLoaderRoute: typeof AuthenticatedTasaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/standby': {
+      id: '/_authenticated/standby'
+      path: '/standby'
+      fullPath: '/standby'
+      preLoaderRoute: typeof AuthenticatedStandbyRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/saldos-bancarios': {
@@ -785,6 +804,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProveedoresRoute: typeof AuthenticatedProveedoresRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
   AuthenticatedSaldosBancariosRoute: typeof AuthenticatedSaldosBancariosRoute
+  AuthenticatedStandbyRoute: typeof AuthenticatedStandbyRoute
   AuthenticatedTasaRoute: typeof AuthenticatedTasaRoute
   AuthenticatedTasaParalelaRoute: typeof AuthenticatedTasaParalelaRoute
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
@@ -823,6 +843,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProveedoresRoute: AuthenticatedProveedoresRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
   AuthenticatedSaldosBancariosRoute: AuthenticatedSaldosBancariosRoute,
+  AuthenticatedStandbyRoute: AuthenticatedStandbyRoute,
   AuthenticatedTasaRoute: AuthenticatedTasaRoute,
   AuthenticatedTasaParalelaRoute: AuthenticatedTasaParalelaRoute,
   AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,
