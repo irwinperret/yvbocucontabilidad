@@ -19,10 +19,12 @@ import {
   refBancaria,
   normalizarFactura,
   parearMovimiento,
+  esFacturaDeCompra,
   ESTADO_LABEL,
   type EstadoConciliacion,
   type FacturaRef,
 } from "@/lib/conciliacion-matching";
+
 
 export const Route = createFileRoute("/_authenticated/movimientos-bancarios")({
   component: MovimientosBancariosPage,
@@ -70,19 +72,30 @@ function MovimientosBancariosPage() {
   });
 
   const { data: facturas } = useQuery({
-    queryKey: ["facturas-para-conciliar"],
+    queryKey: ["facturas-compra-para-conciliar"],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
       const rows = await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("id,fecha,numero_factura,monto_bs,cuenta_codigo,notas")
+          .select("id,fecha,numero_factura,monto_bs,cuenta_codigo,notas,tercero_id")
           .not("numero_factura", "is", null)
           .range(from, to),
       );
-      return rows as any[];
+      const compras = (rows as any[]).filter((r) => esFacturaDeCompra(r.cuenta_codigo));
+      const ids = [...new Set(compras.map((r) => r.tercero_id).filter(Boolean))];
+      const nombreById = new Map<string, string>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await supabase
+          .from("terceros")
+          .select("id,razon_social,nombre_comercial")
+          .in("id", ids.slice(i, i + 200) as string[]);
+        (data ?? []).forEach((t: any) => nombreById.set(t.id, t.nombre_comercial || t.razon_social));
+      }
+      return compras.map((r) => ({ ...r, proveedor: r.tercero_id ? nombreById.get(r.tercero_id) ?? null : null }));
     },
   });
+
 
   const { data: vinculos } = useQuery({
     queryKey: ["conciliacion-bancaria"],
@@ -115,7 +128,9 @@ function MovimientosBancariosPage() {
       numero_factura: f.numero_factura,
       monto_bs: Number(f.monto_bs),
       cuenta_codigo: f.cuenta_codigo,
+      proveedor: f.proveedor ?? null,
     }));
+
     const porNumero = new Map<string, FacturaRef[]>();
     for (const f of lista) {
       const k = normalizarFactura(f.numero_factura);
@@ -219,6 +234,9 @@ function MovimientosBancariosPage() {
         { header: "Notas/memo", key: "notas", width: 50 },
         { header: "Estado de conciliación", key: "estado", width: 20 },
         { header: "Factura pareada", key: "factura", width: 18 },
+        { header: "Proveedor factura", key: "provFactura", width: 28 },
+        { header: "Motivo del pareo", key: "motivo", width: 34 },
+
       ],
       rows: filtradas.map((f) => ({
         fecha: f.mov.fecha,
@@ -232,6 +250,9 @@ function MovimientosBancariosPage() {
         notas: f.mov.notas ?? "",
         estado: ESTADO_LABEL[f.estado],
         factura: f.estado === "pareado" ? (f.factura?.numero_factura ?? "") : "",
+        provFactura: f.factura?.proveedor ?? "",
+        motivo: f.motivo,
+
       })),
     });
   };
@@ -375,7 +396,8 @@ function MovimientosBancariosPage() {
                           {badgeEstado(f.estado)}
                           <span className="text-[11px] text-muted-foreground">{f.motivo}</span>
                           {f.factura?.numero_factura && (
-                            <span className="text-[11px] mono">Fact {f.factura.numero_factura} · {fmtDate(f.factura.fecha)} · {fmtBs(f.factura.monto_bs)}</span>
+                            <span className="text-[11px] mono">Fact {f.factura.numero_factura} · {f.factura.proveedor ?? "—"} · {fmtDate(f.factura.fecha)} · {fmtBs(f.factura.monto_bs)}</span>
+
                           )}
                           {f.confirmable && f.sugerido && (
                             <div className="flex gap-1 pt-1">
