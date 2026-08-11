@@ -190,6 +190,7 @@ export type Database = {
           confirmado_por: string | null
           created_at: string
           estado: string
+          facturas_rechazadas: string[]
           id: string
           origen: string
           transaccion_bancaria_id: string
@@ -201,6 +202,7 @@ export type Database = {
           confirmado_por?: string | null
           created_at?: string
           estado?: string
+          facturas_rechazadas?: string[]
           id?: string
           origen?: string
           transaccion_bancaria_id: string
@@ -212,6 +214,7 @@ export type Database = {
           confirmado_por?: string | null
           created_at?: string
           estado?: string
+          facturas_rechazadas?: string[]
           id?: string
           origen?: string
           transaccion_bancaria_id?: string
