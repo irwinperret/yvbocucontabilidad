@@ -579,7 +579,7 @@ function MovimientosBancariosPage() {
                           </div>
                         ) : "—"}
                       </td>
-
+                      <td className="py-2 px-2">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1 flex-wrap">
                             {badgeEstado(f.estado)}
@@ -598,10 +598,22 @@ function MovimientosBancariosPage() {
                           {f.facturas.length > 1 && (
                             <span className="text-[11px] font-medium">Total pareado: {fmtBs(f.total)}</span>
                           )}
+                          {f.faltantes.length > 0 && (
+                            <span className="text-[11px] text-destructive">
+                              Sin factura registrada: {f.faltantes.join(", ")}
+                            </span>
+                          )}
                           {f.confirmable && f.sugeridas.length > 0 && (
                             <div className="flex gap-1 pt-1">
-                              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, f.sugeridas.map((s) => s.id), "pareado", "auto")}>
-                                <Check className="h-3 w-3 mr-1" /> Confirmar{f.sugeridas.length > 1 ? ` (${f.sugeridas.length})` : ""}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2"
+                                onClick={() => guardarVinculo(f.mov.id, f.sugeridas.map((s) => s.id), f.estadoSugerido, "auto")}
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                {f.estadoSugerido === "parcial" ? "Confirmar parcial" : "Confirmar"}
+                                {f.sugeridas.length > 1 ? ` (${f.sugeridas.length})` : ""}
                               </Button>
                               <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, [], "rechazado", "manual")}>
                                 <X className="h-3 w-3 mr-1" /> Rechazar
@@ -609,6 +621,7 @@ function MovimientosBancariosPage() {
                             </div>
                           )}
                         </div>
+
                       </td>
 
                     </tr>
