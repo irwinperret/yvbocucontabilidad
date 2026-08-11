@@ -191,6 +191,7 @@ export type Database = {
           created_at: string
           estado: string
           id: string
+          origen: string
           transaccion_bancaria_id: string
           transaccion_factura_id: string | null
           updated_at: string
@@ -201,6 +202,7 @@ export type Database = {
           created_at?: string
           estado?: string
           id?: string
+          origen?: string
           transaccion_bancaria_id: string
           transaccion_factura_id?: string | null
           updated_at?: string
@@ -211,6 +213,7 @@ export type Database = {
           created_at?: string
           estado?: string
           id?: string
+          origen?: string
           transaccion_bancaria_id?: string
           transaccion_factura_id?: string | null
           updated_at?: string
@@ -219,14 +222,14 @@ export type Database = {
           {
             foreignKeyName: "conciliacion_bancaria_transaccion_bancaria_id_fkey"
             columns: ["transaccion_bancaria_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "transacciones"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "conciliacion_bancaria_transaccion_bancaria_id_fkey"
             columns: ["transaccion_bancaria_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "v_off_balance_pendientes"
             referencedColumns: ["id"]
           },

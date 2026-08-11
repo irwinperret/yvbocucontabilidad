@@ -48,6 +48,7 @@ function MovimientosBancariosPage() {
 
   const [banco, setBanco] = useState("todos");
   const [estadoF, setEstadoF] = useState("todos");
+  const [origenF, setOrigenF] = useState("todos");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [texto, setTexto] = useState("");
@@ -142,31 +143,54 @@ function MovimientosBancariosPage() {
     return { lista, porNumero };
   }, [facturas]);
 
-  const vinculoPorMov = useMemo(() => {
-    const m = new Map<string, any>();
-    for (const v of vinculos ?? []) m.set(v.transaccion_bancaria_id, v);
+  const vinculosPorMov = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const v of vinculos ?? []) {
+      const arr = m.get(v.transaccion_bancaria_id) ?? [];
+      arr.push(v);
+      m.set(v.transaccion_bancaria_id, arr);
+    }
     return m;
   }, [vinculos]);
 
   const filas = useMemo(() => {
     return (movimientos ?? []).map((mov: any) => {
       const auto = parearMovimiento(mov, indice.porNumero, indice.lista);
-      const v = vinculoPorMov.get(mov.id);
+      const vs = vinculosPorMov.get(mov.id) ?? [];
+      const pareados = vs.filter((v) => v.estado === "pareado" && v.transaccion_factura_id);
+      const rechazado = vs.some((v) => v.estado === "rechazado");
       let estado: EstadoConciliacion = auto.estado;
-      let factura = auto.factura;
+      let facturas = auto.facturas;
       let motivo = auto.motivo;
-      if (v?.estado === "pareado") {
+      let origen: "auto" | "manual" | null = null;
+
+      if (pareados.length) {
         estado = "pareado";
-        factura = indice.lista.find((f) => f.id === v.transaccion_factura_id) ?? auto.factura;
-        motivo = "Confirmado manualmente";
-      } else if (v?.estado === "rechazado") {
+        facturas = pareados
+          .map((v) => indice.lista.find((f) => f.id === v.transaccion_factura_id))
+          .filter(Boolean) as FacturaRef[];
+        origen = pareados.every((v) => v.origen === "auto") ? "auto" : "manual";
+        motivo = origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente";
+      } else if (rechazado) {
         estado = auto.estado === "posible" ? "sin_pareo" : auto.estado;
-        factura = undefined;
+        facturas = [];
         motivo = "Sugerencia rechazada";
       }
-      return { mov, estado, factura, motivo, sugerido: auto.factura, confirmable: auto.estado === "posible" && !v };
+
+      const total = facturas.reduce((s, f) => s + Math.abs(Number(f.monto_bs) || 0), 0);
+      return {
+        mov,
+        estado,
+        facturas,
+        factura: facturas[0],
+        total,
+        motivo,
+        origen,
+        sugeridas: auto.facturas,
+        confirmable: (auto.estado === "posible" || auto.estado === "pareado") && !vs.length && auto.facturas.length > 0,
+      };
     });
-  }, [movimientos, indice, vinculoPorMov]);
+  }, [movimientos, indice, vinculosPorMov]);
 
   const bancos = useMemo(
     () => [...new Set(filas.map((f) => bancoDeReferencia(f.mov.referencia)))].sort(),
@@ -178,6 +202,7 @@ function MovimientosBancariosPage() {
     return filas.filter((f) => {
       if (banco !== "todos" && bancoDeReferencia(f.mov.referencia) !== banco) return false;
       if (estadoF !== "todos" && f.estado !== estadoF) return false;
+      if (origenF !== "todos" && (f.origen ?? "ninguno") !== origenF) return false;
       if (cuentasSel.length && !cuentasSel.includes(f.mov.cuenta_codigo)) return false;
       if (centrosSel.length && !centrosSel.includes(f.mov.centro_costo)) return false;
       if (desde && f.mov.fecha < desde) return false;
@@ -185,9 +210,9 @@ function MovimientosBancariosPage() {
       if (q && !String(f.mov.notas ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [filas, banco, estadoF, desde, hasta, texto, cuentasSel, centrosSel]);
+  }, [filas, banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel]);
 
-  useEffect(() => { setPage(0); }, [banco, estadoF, desde, hasta, texto, cuentasSel, centrosSel, pageSize]);
+  useEffect(() => { setPage(0); }, [banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, pageSize]);
 
   const effectivePageSize = pageSize === "all" ? Math.max(filtradas.length, 1) : pageSize;
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filtradas.length / effectivePageSize));
@@ -202,21 +227,28 @@ function MovimientosBancariosPage() {
     return c;
   }, [filtradas]);
 
-  const guardarVinculo = async (movId: string, facturaId: string | null, estado: "pareado" | "rechazado") => {
-    const { error } = await (supabase.from as any)("conciliacion_bancaria").upsert(
-      {
-        transaccion_bancaria_id: movId,
-        transaccion_factura_id: facturaId,
-        estado,
-        confirmado_por: user?.id ?? null,
-        confirmado_en: new Date().toISOString(),
-      },
-      { onConflict: "transaccion_bancaria_id" },
-    );
+  const guardarVinculo = async (
+    movId: string,
+    facturaIds: string[],
+    estado: "pareado" | "rechazado",
+    origen: "auto" | "manual",
+  ) => {
+    const del = await (supabase.from as any)("conciliacion_bancaria").delete().eq("transaccion_bancaria_id", movId);
+    if (del.error) { toast.error(del.error.message); return; }
+    const rows = (estado === "pareado" ? facturaIds : [null]).map((fid) => ({
+      transaccion_bancaria_id: movId,
+      transaccion_factura_id: fid,
+      estado,
+      origen,
+      confirmado_por: user?.id ?? null,
+      confirmado_en: new Date().toISOString(),
+    }));
+    const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(rows);
     if (error) { toast.error(error.message); return; }
     toast.success(estado === "pareado" ? "Pareo confirmado" : "Sugerencia rechazada");
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
   };
+
 
   const exportar = async () => {
     await exportTableToExcel({
@@ -233,8 +265,10 @@ function MovimientosBancariosPage() {
         { header: "Centro de costo", key: "centro", width: 14 },
         { header: "Notas/memo", key: "notas", width: 50 },
         { header: "Estado de conciliación", key: "estado", width: 20 },
-        { header: "Factura pareada", key: "factura", width: 18 },
+        { header: "Facturas pareadas", key: "factura", width: 26 },
+        { header: "Total pareado Bs", key: "totalPareado", width: 16, fmt: "bs" },
         { header: "Proveedor factura", key: "provFactura", width: 28 },
+        { header: "Origen del pareo", key: "origen", width: 16 },
         { header: "Motivo del pareo", key: "motivo", width: 34 },
 
       ],
@@ -249,11 +283,14 @@ function MovimientosBancariosPage() {
         centro: f.mov.centro_costo,
         notas: f.mov.notas ?? "",
         estado: ESTADO_LABEL[f.estado],
-        factura: f.estado === "pareado" ? (f.factura?.numero_factura ?? "") : "",
+        factura: f.facturas.map((x) => x.numero_factura).filter(Boolean).join(", "),
+        totalPareado: f.facturas.length ? f.total : 0,
         provFactura: f.factura?.proveedor ?? "",
+        origen: f.origen === "auto" ? "Automático" : f.origen === "manual" ? "Manual" : "—",
         motivo: f.motivo,
 
       })),
+
     });
   };
 
@@ -316,6 +353,15 @@ function MovimientosBancariosPage() {
               <SelectItem value="posible">Posible pareo</SelectItem>
               <SelectItem value="no_aplica">No aplica</SelectItem>
               <SelectItem value="sin_pareo">Sin pareo</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={origenF} onValueChange={setOrigenF}>
+            <SelectTrigger><SelectValue placeholder="Origen del pareo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todo origen de pareo</SelectItem>
+              <SelectItem value="auto">Pareo automático</SelectItem>
+              <SelectItem value="manual">Pareo manual</SelectItem>
+              <SelectItem value="ninguno">Sin pareo confirmado</SelectItem>
             </SelectContent>
           </Select>
           <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
@@ -393,24 +439,36 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2 text-xs max-w-[320px]">{f.mov.notas ?? "—"}</td>
                       <td className="py-2 px-2">
                         <div className="flex flex-col gap-1">
-                          {badgeEstado(f.estado)}
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {badgeEstado(f.estado)}
+                            {f.origen && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {f.origen === "auto" ? "Automático" : "Manual"}
+                              </Badge>
+                            )}
+                          </div>
                           <span className="text-[11px] text-muted-foreground">{f.motivo}</span>
-                          {f.factura?.numero_factura && (
-                            <span className="text-[11px] mono">Fact {f.factura.numero_factura} · {f.factura.proveedor ?? "—"} · {fmtDate(f.factura.fecha)} · {fmtBs(f.factura.monto_bs)}</span>
-
+                          {(f.facturas ?? []).map((fa) => (
+                            <span key={fa.id} className="text-[11px] mono">
+                              Fact {fa.numero_factura} · {fa.proveedor ?? "—"} · {fmtDate(fa.fecha)} · {fmtBs(fa.monto_bs)}
+                            </span>
+                          ))}
+                          {f.facturas.length > 1 && (
+                            <span className="text-[11px] font-medium">Total pareado: {fmtBs(f.total)}</span>
                           )}
-                          {f.confirmable && f.sugerido && (
+                          {f.confirmable && f.sugeridas.length > 0 && (
                             <div className="flex gap-1 pt-1">
-                              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, f.sugerido!.id, "pareado")}>
-                                <Check className="h-3 w-3 mr-1" /> Confirmar
+                              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, f.sugeridas.map((s) => s.id), "pareado", "auto")}>
+                                <Check className="h-3 w-3 mr-1" /> Confirmar{f.sugeridas.length > 1 ? ` (${f.sugeridas.length})` : ""}
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, null, "rechazado")}>
+                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, [], "rechazado", "manual")}>
                                 <X className="h-3 w-3 mr-1" /> Rechazar
                               </Button>
                             </div>
                           )}
                         </div>
                       </td>
+
                     </tr>
                   ))}
                 </tbody>
