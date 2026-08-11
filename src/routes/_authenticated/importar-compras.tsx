@@ -227,8 +227,10 @@ function ImportarComprasInner() {
       offBal: boolean;
       tasas?: { bcv: number; paralela: number };
       tasaCache?: Map<string, { paralela: number; bcv: number; esParalela: boolean }>;
+      referencia?: string;
     }
   ): Promise<ResFila> => {
+    const referencia = opts.referencia ?? "xetux";
     try {
       if (!r.fecha) return { status: "fail", motivo: "Falta la fecha del documento" };
 
@@ -292,7 +294,7 @@ function ImportarComprasInner() {
           tercero_id: terceroId,
           numero_factura: r.numero_factura,
           numero_orden: r.numero_orden || null,
-          referencia: "xetux",
+          referencia: referencia,
           notas: notaBase,
           created_by: user!.id,
           grupo_transaccion_id: grupoId,
@@ -312,7 +314,7 @@ function ImportarComprasInner() {
             tasa_paralela: tasas!.paralela || null,
             tercero_id: terceroId,
             numero_factura: r.numero_factura,
-            referencia: "xetux-iva",
+            referencia: referencia,
             notas: notaBase,
             created_by: user!.id,
             grupo_transaccion_id: grupoId,
@@ -489,7 +491,7 @@ function ImportarComprasInner() {
     };
     const centro = (String(valores.centro || centroDefault) as Centro);
 
-    const res = await procesarCompra(row, { centro, offBal: offBalance, tasas: { bcv, paralela } });
+    const res = await procesarCompra(row, { centro, offBal: offBalance, tasas: { bcv, paralela }, referencia: "manual" });
     if (res.status === "fail") return { ok: false, error: res.motivo };
 
     if (batchActivo) {
