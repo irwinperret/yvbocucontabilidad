@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Download, Check, X } from "lucide-react";
+import { Download, Check, X, RefreshCw } from "lucide-react";
 import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { CENTROS } from "@/lib/account-helpers";
@@ -23,6 +23,7 @@ import {
   parearMovimiento,
   proveedorDeMemo,
   coberturaPareo,
+  recalcularPareos,
   esFacturaDeCompra,
   ESTADO_LABEL,
   type EstadoConciliacion,
@@ -472,9 +473,17 @@ function MovimientosBancariosPage() {
           <h1 className="text-2xl font-bold tracking-tight">Movimientos bancarios</h1>
           <p className="text-sm text-muted-foreground">Conciliación de movimientos importados del banco contra las facturas registradas</p>
         </div>
-        <Button onClick={onExportar} disabled={exportando}>
-          <Download className="h-4 w-4 mr-2" /> {exportando ? "Generando…" : "Exportar a Excel"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={async () => { await recargarDatos(); setRecalcOpen(true); }}>
+            <RefreshCw className="h-4 w-4 mr-2" /> Recalcular pareos
+            {propuestas.length > 0 && (
+              <Badge variant="secondary" className="ml-2">{propuestas.length}</Badge>
+            )}
+          </Button>
+          <Button onClick={onExportar} disabled={exportando}>
+            <Download className="h-4 w-4 mr-2" /> {exportando ? "Generando…" : "Exportar a Excel"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-6">
@@ -689,7 +698,7 @@ function MovimientosBancariosPage() {
                                 {f.estadoSugerido === "parcial" ? "Confirmar parcial" : "Confirmar"}
                                 {f.sugeridas.length > 1 ? ` (${f.sugeridas.length})` : ""}
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, [], "rechazado", "manual")}>
+                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, [], "rechazado", "manual", f.sugeridas.map((s: any) => s.id))}>
                                 <X className="h-3 w-3 mr-1" /> Rechazar
                               </Button>
                             </div>
