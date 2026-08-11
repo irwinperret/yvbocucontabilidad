@@ -370,8 +370,16 @@ function MovimientosBancariosPage() {
                   ))}
                 </tbody>
               </table>
-              {filtradas.length > 500 && (
-                <p className="text-xs text-muted-foreground pt-2">Mostrando los primeros 500 · exporta a Excel para ver todos.</p>
+              {pageSize !== "all" && totalPages > 1 && (
+                <div className="flex items-center justify-between pt-3">
+                  <span className="text-xs text-muted-foreground">
+                    Página {page + 1} de {totalPages} · {filtradas.length} movimientos
+                  </span>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
+                    <Button size="sm" variant="outline" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>Siguiente</Button>
+                  </div>
+                </div>
               )}
             </div>
           )}
