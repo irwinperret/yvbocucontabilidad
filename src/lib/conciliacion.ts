@@ -129,3 +129,62 @@ export function monedaBase(bancoRaw: string): "Bs" | "USD" {
   if (s.includes("BOFA") || s.includes("BANKOFAMERICA") || s.includes("CASH") || s.includes("EFECTIVO")) return "USD";
   return "Bs";
 }
+
+// ─────────────────────────────────────────────────────────────
+// Guardado de vínculos de conciliación (fuente única de verdad)
+// ─────────────────────────────────────────────────────────────
+
+import { supabase } from "@/integrations/supabase/client";
+
+export type EstadoVinculo = "pareado" | "parcial" | "rechazado";
+
+type GuardarArgs = {
+  /** Se reemplazan todos los vínculos de este movimiento */
+  movimientoId?: string;
+  /** …o todos los vínculos de esta factura */
+  facturaId?: string;
+  /** Contraparte(s) a vincular */
+  contrapartes: string[];
+  estado: EstadoVinculo;
+  origen: "auto" | "manual";
+  userId?: string | null;
+};
+
+/**
+ * Reemplaza los vínculos existentes del movimiento (o de la factura) por los
+ * indicados. Sin ON CONFLICT: se borra y se inserta, así no depende de índices.
+ */
+export async function guardarVinculosConciliacion(
+  args: GuardarArgs,
+): Promise<{ ok: boolean; error?: string }> {
+  const { movimientoId, facturaId, contrapartes, estado, origen, userId } = args;
+  const tabla = (supabase.from as any)("conciliacion_bancaria");
+
+  const del = movimientoId
+    ? await tabla.delete().eq("transaccion_bancaria_id", movimientoId)
+    : await tabla.delete().eq("transaccion_factura_id", facturaId);
+  if (del.error) return { ok: false, error: del.error.message };
+
+  const base = {
+    estado,
+    origen,
+    confirmado_por: userId ?? null,
+    confirmado_en: new Date().toISOString(),
+  };
+
+  let rows: any[] = [];
+  if (movimientoId) {
+    rows =
+      estado === "rechazado"
+        ? [{ ...base, transaccion_bancaria_id: movimientoId, transaccion_factura_id: null }]
+        : contrapartes.map((fid) => ({ ...base, transaccion_bancaria_id: movimientoId, transaccion_factura_id: fid }));
+  } else if (facturaId && estado !== "rechazado") {
+    rows = contrapartes.map((mid) => ({ ...base, transaccion_bancaria_id: mid, transaccion_factura_id: facturaId }));
+  }
+
+  if (!rows.length) return { ok: true };
+
+  const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(rows);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
@@ -14,16 +15,21 @@ import { Download, Check, X } from "lucide-react";
 import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { CENTROS } from "@/lib/account-helpers";
+import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import {
   bancoDeReferencia,
   refBancaria,
   normalizarFactura,
   parearMovimiento,
+  proveedorDeMemo,
+  coberturaPareo,
   esFacturaDeCompra,
   ESTADO_LABEL,
   type EstadoConciliacion,
   type FacturaRef,
+  type TerceroRef,
 } from "@/lib/conciliacion-matching";
+
 
 
 export const Route = createFileRoute("/_authenticated/movimientos-bancarios")({
@@ -54,8 +60,10 @@ function MovimientosBancariosPage() {
   const [texto, setTexto] = useState("");
   const [cuentasSel, setCuentasSel] = useState<string[]>([]);
   const [centrosSel, setCentrosSel] = useState<string[]>([]);
+  const [provSel, setProvSel] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState<number | "all">(50);
   const [page, setPage] = useState(0);
+
 
   const { data: movimientos, isLoading } = useQuery({
     queryKey: ["mov-bancarios"],
@@ -97,6 +105,16 @@ function MovimientosBancariosPage() {
     },
   });
 
+  const { data: terceros } = useQuery({
+    queryKey: ["terceros-min-conciliacion"],
+    queryFn: async () => {
+      const { data } = await supabase.from("terceros").select("id,razon_social,nombre_comercial");
+      return ((data ?? []) as any[]).map((t) => ({
+        id: t.id,
+        nombre: (t.nombre_comercial || t.razon_social) as string,
+      })) as TerceroRef[];
+    },
+  });
 
   const { data: vinculos } = useQuery({
     queryKey: ["conciliacion-bancaria"],
@@ -106,6 +124,7 @@ function MovimientosBancariosPage() {
       return (data ?? []) as any[];
     },
   });
+
 
   const { data: cuentas } = useQuery({
     queryKey: ["plan-cuentas-min-grupo"],
@@ -130,7 +149,9 @@ function MovimientosBancariosPage() {
       monto_bs: Number(f.monto_bs),
       cuenta_codigo: f.cuenta_codigo,
       proveedor: f.proveedor ?? null,
+      tercero_id: f.tercero_id ?? null,
     }));
+
 
     const porNumero = new Map<string, FacturaRef[]>();
     for (const f of lista) {
@@ -153,26 +174,42 @@ function MovimientosBancariosPage() {
     return m;
   }, [vinculos]);
 
+  const tercerosById = useMemo(() => {
+    const m = new Map<string, TerceroRef>();
+    (terceros ?? []).forEach((t) => m.set(t.id, t));
+    return m;
+  }, [terceros]);
+
   const filas = useMemo(() => {
+    const lista = terceros ?? [];
     return (movimientos ?? []).map((mov: any) => {
-      const auto = parearMovimiento(mov, indice.porNumero, indice.lista);
+      // Proveedor: el asignado en la transacción, si no, el adivinado del memo (columna F)
+      const provDirecto = mov.tercero_id ? tercerosById.get(mov.tercero_id) ?? null : null;
+      const provAdivinado = provDirecto ? null : proveedorDeMemo(mov.notas, lista);
+      const proveedor = provDirecto ?? provAdivinado;
+      const provFuente: "asignado" | "memo" | null = provDirecto ? "asignado" : provAdivinado ? "memo" : null;
+
+      const auto = parearMovimiento(mov, indice.porNumero, indice.lista, proveedor);
       const vs = vinculosPorMov.get(mov.id) ?? [];
-      const pareados = vs.filter((v) => v.estado === "pareado" && v.transaccion_factura_id);
+      const confirmados = vs.filter((v) => v.transaccion_factura_id && v.estado !== "rechazado");
       const rechazado = vs.some((v) => v.estado === "rechazado");
       let estado: EstadoConciliacion = auto.estado;
       let facturas = auto.facturas;
       let motivo = auto.motivo;
       let origen: "auto" | "manual" | null = null;
 
-      if (pareados.length) {
-        estado = "pareado";
-        facturas = pareados
+      if (confirmados.length) {
+        facturas = confirmados
           .map((v) => indice.lista.find((f) => f.id === v.transaccion_factura_id))
           .filter(Boolean) as FacturaRef[];
-        origen = pareados.every((v) => v.origen === "auto") ? "auto" : "manual";
-        motivo = origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente";
+        const cob = coberturaPareo(facturas, Number(mov.monto_bs));
+        estado = cob.completa ? "pareado" : "parcial";
+        origen = confirmados.every((v) => v.origen === "auto") ? "auto" : "manual";
+        motivo = cob.completa
+          ? origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente"
+          : `Pareo parcial: cubre ${cob.total.toFixed(2)} de ${cob.monto.toFixed(2)} Bs (faltan ${cob.diferencia.toFixed(2)} Bs)`;
       } else if (rechazado) {
-        estado = auto.estado === "posible" ? "sin_pareo" : auto.estado;
+        estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
         facturas = [];
         motivo = "Sugerencia rechazada";
       }
@@ -186,11 +223,16 @@ function MovimientosBancariosPage() {
         total,
         motivo,
         origen,
+        proveedor,
+        provFuente,
+        faltantes: auto.faltantes ?? [],
         sugeridas: auto.facturas,
-        confirmable: (auto.estado === "posible" || auto.estado === "pareado") && !vs.length && auto.facturas.length > 0,
+        confirmable: !vs.length && auto.facturas.length > 0,
+        estadoSugerido: (auto.estado === "parcial" ? "parcial" : "pareado") as "pareado" | "parcial",
       };
     });
-  }, [movimientos, indice, vinculosPorMov]);
+  }, [movimientos, indice, vinculosPorMov, terceros, tercerosById]);
+
 
   const bancos = useMemo(
     () => [...new Set(filas.map((f) => bancoDeReferencia(f.mov.referencia)))].sort(),
@@ -205,14 +247,21 @@ function MovimientosBancariosPage() {
       if (origenF !== "todos" && (f.origen ?? "ninguno") !== origenF) return false;
       if (cuentasSel.length && !cuentasSel.includes(f.mov.cuenta_codigo)) return false;
       if (centrosSel.length && !centrosSel.includes(f.mov.centro_costo)) return false;
+      if (provSel.length && !provSel.includes(f.proveedor?.nombre ?? "—")) return false;
       if (desde && f.mov.fecha < desde) return false;
       if (hasta && f.mov.fecha > hasta) return false;
-      if (q && !String(f.mov.notas ?? "").toLowerCase().includes(q)) return false;
+      if (q && !`${f.mov.notas ?? ""} ${f.proveedor?.nombre ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [filas, banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel]);
+  }, [filas, banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel]);
 
-  useEffect(() => { setPage(0); }, [banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, pageSize]);
+  useEffect(() => { setPage(0); }, [banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel, pageSize]);
+
+  const proveedoresOpts = useMemo(() => {
+    const s = new Set<string>();
+    filas.forEach((f) => s.add(f.proveedor?.nombre ?? "—"));
+    return [...s].sort().map((n) => ({ value: n, label: n }));
+  }, [filas]);
 
   const effectivePageSize = pageSize === "all" ? Math.max(filtradas.length, 1) : pageSize;
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filtradas.length / effectivePageSize));
@@ -222,7 +271,7 @@ function MovimientosBancariosPage() {
   );
 
   const resumen = useMemo(() => {
-    const c = { total: filtradas.length, pareado: 0, posible: 0, no_aplica: 0, sin_pareo: 0 } as any;
+    const c = { total: filtradas.length, pareado: 0, parcial: 0, posible: 0, no_aplica: 0, sin_pareo: 0 } as any;
     for (const f of filtradas) c[f.estado]++;
     return c;
   }, [filtradas]);
@@ -230,24 +279,21 @@ function MovimientosBancariosPage() {
   const guardarVinculo = async (
     movId: string,
     facturaIds: string[],
-    estado: "pareado" | "rechazado",
+    estado: "pareado" | "parcial" | "rechazado",
     origen: "auto" | "manual",
   ) => {
-    const del = await (supabase.from as any)("conciliacion_bancaria").delete().eq("transaccion_bancaria_id", movId);
-    if (del.error) { toast.error(del.error.message); return; }
-    const rows = (estado === "pareado" ? facturaIds : [null]).map((fid) => ({
-      transaccion_bancaria_id: movId,
-      transaccion_factura_id: fid,
+    const r = await guardarVinculosConciliacion({
+      movimientoId: movId,
+      contrapartes: facturaIds,
       estado,
       origen,
-      confirmado_por: user?.id ?? null,
-      confirmado_en: new Date().toISOString(),
-    }));
-    const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(rows);
-    if (error) { toast.error(error.message); return; }
-    toast.success(estado === "pareado" ? "Pareo confirmado" : "Sugerencia rechazada");
+      userId: user?.id ?? null,
+    });
+    if (!r.ok) { toast.error(r.error ?? "No se pudo guardar el pareo"); return; }
+    toast.success(estado === "rechazado" ? "Sugerencia rechazada" : estado === "parcial" ? "Pareo parcial guardado" : "Pareo confirmado");
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
   };
+
 
 
   const exportar = async () => {
@@ -264,12 +310,15 @@ function MovimientosBancariosPage() {
         { header: "Cuenta asignada", key: "cuenta", width: 32 },
         { header: "Centro de costo", key: "centro", width: 14 },
         { header: "Notas/memo", key: "notas", width: 50 },
+        { header: "Proveedor (si aplica)", key: "proveedor", width: 28 },
+        { header: "Origen del proveedor", key: "provFuente", width: 18 },
         { header: "Estado de conciliación", key: "estado", width: 20 },
         { header: "Facturas pareadas", key: "factura", width: 26 },
         { header: "Total pareado Bs", key: "totalPareado", width: 16, fmt: "bs" },
+        { header: "Diferencia Bs", key: "dif", width: 16, fmt: "bs" },
         { header: "Proveedor factura", key: "provFactura", width: 28 },
         { header: "Origen del pareo", key: "origen", width: 16 },
-        { header: "Motivo del pareo", key: "motivo", width: 34 },
+        { header: "Motivo del pareo", key: "motivo", width: 40 },
 
       ],
       rows: filtradas.map((f) => ({
@@ -282,14 +331,18 @@ function MovimientosBancariosPage() {
         cuenta: `${f.mov.cuenta_codigo} · ${nombreCuenta(f.mov.cuenta_codigo)}`,
         centro: f.mov.centro_costo,
         notas: f.mov.notas ?? "",
+        proveedor: f.proveedor?.nombre ?? "",
+        provFuente: f.provFuente === "asignado" ? "Asignado" : f.provFuente === "memo" ? "Deducido del memo" : "—",
         estado: ESTADO_LABEL[f.estado],
         factura: f.facturas.map((x) => x.numero_factura).filter(Boolean).join(", "),
         totalPareado: f.facturas.length ? f.total : 0,
+        dif: f.facturas.length ? Math.abs(Number(f.mov.monto_bs)) - f.total : 0,
         provFactura: f.factura?.proveedor ?? "",
         origen: f.origen === "auto" ? "Automático" : f.origen === "manual" ? "Manual" : "—",
         motivo: f.motivo,
 
       })),
+
 
     });
   };
@@ -310,9 +363,32 @@ function MovimientosBancariosPage() {
 
   const badgeEstado = (e: EstadoConciliacion) => {
     if (e === "pareado") return <Badge className="bg-green-600">Pareado</Badge>;
+    if (e === "parcial") return <Badge className="bg-amber-600">Pareado parcial</Badge>;
     if (e === "posible") return <Badge className="bg-orange-500">Posible pareo</Badge>;
     if (e === "no_aplica") return <Badge variant="secondary">No aplica</Badge>;
     return <Badge variant="destructive">Sin pareo</Badge>;
+  };
+
+  const setPreset = (p: string) => {
+    const hoy = new Date();
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    if (p === "todo") { setDesde(""); setHasta(""); return; }
+    if (p === "mes") {
+      setDesde(iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
+      setHasta(iso(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)));
+      return;
+    }
+    if (p === "mes_anterior") {
+      setDesde(iso(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)));
+      setHasta(iso(new Date(hoy.getFullYear(), hoy.getMonth(), 0)));
+      return;
+    }
+    if (p === "trimestre") {
+      setDesde(iso(new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1)));
+      setHasta(iso(hoy));
+      return;
+    }
+    if (p === "ano") { setDesde(`${hoy.getFullYear()}-01-01`); setHasta(iso(hoy)); }
   };
 
   return (
@@ -327,9 +403,10 @@ function MovimientosBancariosPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-6">
         <Kpi label="Total movimientos" value={resumen.total} />
         <Kpi label="Pareados" value={resumen.pareado} tone="text-green-600" />
+        <Kpi label="Pareo parcial" value={resumen.parcial} tone="text-amber-600" />
         <Kpi label="Posible pareo" value={resumen.posible} tone="text-orange-600" />
         <Kpi label="No aplica" value={resumen.no_aplica} tone="text-muted-foreground" />
         <Kpi label="Sin pareo" value={resumen.sin_pareo} tone="text-destructive" highlight={resumen.sin_pareo > 0} />
@@ -337,38 +414,83 @@ function MovimientosBancariosPage() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-5">
-          <Select value={banco} onValueChange={setBanco}>
-            <SelectTrigger><SelectValue placeholder="Banco" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los bancos</SelectItem>
-              {bancos.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={estadoF} onValueChange={setEstadoF}>
-            <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los estados</SelectItem>
-              <SelectItem value="pareado">Pareado</SelectItem>
-              <SelectItem value="posible">Posible pareo</SelectItem>
-              <SelectItem value="no_aplica">No aplica</SelectItem>
-              <SelectItem value="sin_pareo">Sin pareo</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={origenF} onValueChange={setOrigenF}>
-            <SelectTrigger><SelectValue placeholder="Origen del pareo" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todo origen de pareo</SelectItem>
-              <SelectItem value="auto">Pareo automático</SelectItem>
-              <SelectItem value="manual">Pareo manual</SelectItem>
-              <SelectItem value="ninguno">Sin pareo confirmado</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-          <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-          <Input placeholder="Buscar en notas/memo…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Select value={banco} onValueChange={setBanco}>
+              <SelectTrigger><SelectValue placeholder="Banco" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los bancos</SelectItem>
+                {bancos.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={estadoF} onValueChange={setEstadoF}>
+              <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los estados</SelectItem>
+                <SelectItem value="pareado">Pareado</SelectItem>
+                <SelectItem value="parcial">Pareado parcial</SelectItem>
+                <SelectItem value="posible">Posible pareo</SelectItem>
+                <SelectItem value="no_aplica">No aplica</SelectItem>
+                <SelectItem value="sin_pareo">Sin pareo</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={origenF} onValueChange={setOrigenF}>
+              <SelectTrigger><SelectValue placeholder="Origen del pareo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todo origen de pareo</SelectItem>
+                <SelectItem value="auto">Pareo automático</SelectItem>
+                <SelectItem value="manual">Pareo manual</SelectItem>
+                <SelectItem value="ninguno">Sin pareo confirmado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input placeholder="Buscar en memo o proveedor…" value={texto} onChange={(e) => setTexto(e.target.value)} />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Rango rápido</Label>
+              <Select
+                value={!desde && !hasta ? "todo" : "custom"}
+                onValueChange={setPreset}
+              >
+                <SelectTrigger><SelectValue placeholder="Rango de fechas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todo">Todo el histórico</SelectItem>
+                  <SelectItem value="mes">Mes actual</SelectItem>
+                  <SelectItem value="mes_anterior">Mes anterior</SelectItem>
+                  <SelectItem value="trimestre">Últimos 3 meses</SelectItem>
+                  <SelectItem value="ano">Año en curso</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Desde</Label>
+              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Hasta</Label>
+              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </div>
+            {(desde || hasta) && (
+              <Button variant="ghost" size="sm" className="justify-self-start" onClick={() => { setDesde(""); setHasta(""); }}>
+                <X className="h-3 w-3 mr-1" /> Limpiar fechas
+              </Button>
+            )}
+          </div>
+
+          {(desde || hasta || provSel.length > 0 || cuentasSel.length > 0 || centrosSel.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {desde && <Badge variant="outline">Desde {fmtDate(desde)}</Badge>}
+              {hasta && <Badge variant="outline">Hasta {fmtDate(hasta)}</Badge>}
+              {provSel.length > 0 && <Badge variant="outline">{provSel.length} proveedor(es)</Badge>}
+              {cuentasSel.length > 0 && <Badge variant="outline">{cuentasSel.length} cuenta(s)</Badge>}
+              {centrosSel.length > 0 && <Badge variant="outline">{centrosSel.length} centro(s)</Badge>}
+            </div>
+          )}
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 flex-wrap">
@@ -424,7 +546,17 @@ function MovimientosBancariosPage() {
                       />
                     </th>
                     <th className="text-left py-2 px-2">Notas / memo</th>
+                    <th className="text-left py-2 px-2">
+                      Proveedor (si aplica)
+                      <MultiSelectFilter
+                        label="Proveedor"
+                        options={proveedoresOpts}
+                        selected={provSel}
+                        onChange={setProvSel}
+                      />
+                    </th>
                     <th className="text-left py-2 px-2">Conciliación</th>
+
                   </tr>
                 </thead>
                 <tbody>
@@ -437,6 +569,16 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2 text-xs">{f.mov.cuenta_codigo} · {nombreCuenta(f.mov.cuenta_codigo)}</td>
                       <td className="py-2 px-2 text-xs">{f.mov.centro_costo}</td>
                       <td className="py-2 px-2 text-xs max-w-[320px]">{f.mov.notas ?? "—"}</td>
+                      <td className="py-2 px-2 text-xs">
+                        {f.proveedor ? (
+                          <div className="flex flex-col">
+                            <span>{f.proveedor.nombre}</span>
+                            {f.provFuente === "memo" && (
+                              <span className="text-[10px] text-muted-foreground">deducido del memo</span>
+                            )}
+                          </div>
+                        ) : "—"}
+                      </td>
                       <td className="py-2 px-2">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1 flex-wrap">
@@ -456,10 +598,22 @@ function MovimientosBancariosPage() {
                           {f.facturas.length > 1 && (
                             <span className="text-[11px] font-medium">Total pareado: {fmtBs(f.total)}</span>
                           )}
+                          {f.faltantes.length > 0 && (
+                            <span className="text-[11px] text-destructive">
+                              Sin factura registrada: {f.faltantes.join(", ")}
+                            </span>
+                          )}
                           {f.confirmable && f.sugeridas.length > 0 && (
                             <div className="flex gap-1 pt-1">
-                              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, f.sugeridas.map((s) => s.id), "pareado", "auto")}>
-                                <Check className="h-3 w-3 mr-1" /> Confirmar{f.sugeridas.length > 1 ? ` (${f.sugeridas.length})` : ""}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2"
+                                onClick={() => guardarVinculo(f.mov.id, f.sugeridas.map((s) => s.id), f.estadoSugerido, "auto")}
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                {f.estadoSugerido === "parcial" ? "Confirmar parcial" : "Confirmar"}
+                                {f.sugeridas.length > 1 ? ` (${f.sugeridas.length})` : ""}
                               </Button>
                               <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => guardarVinculo(f.mov.id, [], "rechazado", "manual")}>
                                 <X className="h-3 w-3 mr-1" /> Rechazar
@@ -467,6 +621,7 @@ function MovimientosBancariosPage() {
                             </div>
                           )}
                         </div>
+
                       </td>
 
                     </tr>
