@@ -368,6 +368,7 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2 text-right mono">{fmtBs(f.mov.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(usdBcvDe(f.mov))}</td>
                       <td className="py-2 px-2 text-xs">{f.mov.cuenta_codigo} · {nombreCuenta(f.mov.cuenta_codigo)}</td>
+                      <td className="py-2 px-2 text-xs">{f.mov.centro_costo}</td>
                       <td className="py-2 px-2 text-xs max-w-[320px]">{f.mov.notas ?? "—"}</td>
                       <td className="py-2 px-2">
                         <div className="flex flex-col gap-1">
