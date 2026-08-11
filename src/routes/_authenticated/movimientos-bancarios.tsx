@@ -172,26 +172,42 @@ function MovimientosBancariosPage() {
     return m;
   }, [vinculos]);
 
+  const tercerosById = useMemo(() => {
+    const m = new Map<string, TerceroRef>();
+    (terceros ?? []).forEach((t) => m.set(t.id, t));
+    return m;
+  }, [terceros]);
+
   const filas = useMemo(() => {
+    const lista = terceros ?? [];
     return (movimientos ?? []).map((mov: any) => {
-      const auto = parearMovimiento(mov, indice.porNumero, indice.lista);
+      // Proveedor: el asignado en la transacción, si no, el adivinado del memo (columna F)
+      const provDirecto = mov.tercero_id ? tercerosById.get(mov.tercero_id) ?? null : null;
+      const provAdivinado = provDirecto ? null : proveedorDeMemo(mov.notas, lista);
+      const proveedor = provDirecto ?? provAdivinado;
+      const provFuente: "asignado" | "memo" | null = provDirecto ? "asignado" : provAdivinado ? "memo" : null;
+
+      const auto = parearMovimiento(mov, indice.porNumero, indice.lista, proveedor);
       const vs = vinculosPorMov.get(mov.id) ?? [];
-      const pareados = vs.filter((v) => v.estado === "pareado" && v.transaccion_factura_id);
+      const confirmados = vs.filter((v) => v.transaccion_factura_id && v.estado !== "rechazado");
       const rechazado = vs.some((v) => v.estado === "rechazado");
       let estado: EstadoConciliacion = auto.estado;
       let facturas = auto.facturas;
       let motivo = auto.motivo;
       let origen: "auto" | "manual" | null = null;
 
-      if (pareados.length) {
-        estado = "pareado";
-        facturas = pareados
+      if (confirmados.length) {
+        facturas = confirmados
           .map((v) => indice.lista.find((f) => f.id === v.transaccion_factura_id))
           .filter(Boolean) as FacturaRef[];
-        origen = pareados.every((v) => v.origen === "auto") ? "auto" : "manual";
-        motivo = origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente";
+        const cob = coberturaPareo(facturas, Number(mov.monto_bs));
+        estado = cob.completa ? "pareado" : "parcial";
+        origen = confirmados.every((v) => v.origen === "auto") ? "auto" : "manual";
+        motivo = cob.completa
+          ? origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente"
+          : `Pareo parcial: cubre ${cob.total.toFixed(2)} de ${cob.monto.toFixed(2)} Bs (faltan ${cob.diferencia.toFixed(2)} Bs)`;
       } else if (rechazado) {
-        estado = auto.estado === "posible" ? "sin_pareo" : auto.estado;
+        estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
         facturas = [];
         motivo = "Sugerencia rechazada";
       }
@@ -205,11 +221,16 @@ function MovimientosBancariosPage() {
         total,
         motivo,
         origen,
+        proveedor,
+        provFuente,
+        faltantes: auto.faltantes ?? [],
         sugeridas: auto.facturas,
-        confirmable: (auto.estado === "posible" || auto.estado === "pareado") && !vs.length && auto.facturas.length > 0,
+        confirmable: !vs.length && auto.facturas.length > 0,
+        estadoSugerido: (auto.estado === "parcial" ? "parcial" : "pareado") as "pareado" | "parcial",
       };
     });
-  }, [movimientos, indice, vinculosPorMov]);
+  }, [movimientos, indice, vinculosPorMov, terceros, tercerosById]);
+
 
   const bancos = useMemo(
     () => [...new Set(filas.map((f) => bancoDeReferencia(f.mov.referencia)))].sort(),
