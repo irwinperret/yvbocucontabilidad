@@ -48,6 +48,7 @@ function MovimientosBancariosPage() {
 
   const [banco, setBanco] = useState("todos");
   const [estadoF, setEstadoF] = useState("todos");
+  const [origenF, setOrigenF] = useState("todos");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [texto, setTexto] = useState("");
