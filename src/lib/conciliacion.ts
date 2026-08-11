@@ -148,6 +148,8 @@ type GuardarArgs = {
   estado: EstadoVinculo;
   origen: "auto" | "manual";
   userId?: string | null;
+  /** Al rechazar: contra qué facturas se rechazó la sugerencia */
+  facturasRechazadas?: string[];
 };
 
 /**
@@ -157,7 +159,7 @@ type GuardarArgs = {
 export async function guardarVinculosConciliacion(
   args: GuardarArgs,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { movimientoId, facturaId, contrapartes, estado, origen, userId } = args;
+  const { movimientoId, facturaId, contrapartes, estado, origen, userId, facturasRechazadas } = args;
   const tabla = (supabase.from as any)("conciliacion_bancaria");
 
   const del = movimientoId
@@ -176,11 +178,17 @@ export async function guardarVinculosConciliacion(
   if (movimientoId) {
     rows =
       estado === "rechazado"
-        ? [{ ...base, transaccion_bancaria_id: movimientoId, transaccion_factura_id: null }]
+        ? [{
+            ...base,
+            transaccion_bancaria_id: movimientoId,
+            transaccion_factura_id: null,
+            facturas_rechazadas: facturasRechazadas ?? [],
+          }]
         : contrapartes.map((fid) => ({ ...base, transaccion_bancaria_id: movimientoId, transaccion_factura_id: fid }));
   } else if (facturaId && estado !== "rechazado") {
     rows = contrapartes.map((mid) => ({ ...base, transaccion_bancaria_id: mid, transaccion_factura_id: facturaId }));
   }
+
 
   if (!rows.length) return { ok: true };
 
