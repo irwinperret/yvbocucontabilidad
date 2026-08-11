@@ -433,11 +433,11 @@ function ImportarVentasPage() {
           cuenta_bancaria_id,
         };
 
-        // Dedup: por número de factura O número de orden con ref=xetux, excluyendo la pierna IVA (12.4)
+        // Dedup: por número de factura O número de orden con la misma referencia, excluyendo la pierna IVA (12.4)
         let dupQuery = supabase
           .from("transacciones")
           .select("*")
-          .eq("referencia", "xetux")
+          .eq("referencia", referencia)
           .neq("cuenta_codigo", "12.4");
         if (r.numero_factura) {
           dupQuery = dupQuery.eq("numero_factura", r.numero_factura);
