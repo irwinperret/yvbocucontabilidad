@@ -110,6 +110,29 @@ export function proveedorSimilar(proveedor?: string | null, memo?: string | null
   return toks.some((t) => texto.includes(t));
 }
 
+export type TerceroRef = { id: string; nombre: string };
+
+/**
+ * Adivina el proveedor a partir del concepto bancario (columna F del archivo
+ * importado, guardada en las notas del movimiento). Devuelve el tercero con
+ * mayor cantidad de tokens presentes en el memo.
+ */
+export function proveedorDeMemo(memo: string | null | undefined, terceros: TerceroRef[]): TerceroRef | null {
+  const texto = normalizarProveedor(memo);
+  if (!texto) return null;
+  let mejor: TerceroRef | null = null;
+  let mejorScore = 0;
+  for (const t of terceros) {
+    const toks = tokensProveedor(t.nombre);
+    if (!toks.length) continue;
+    let score = 0;
+    for (const tok of toks) if (texto.includes(tok)) score += tok.length;
+    if (score > mejorScore) { mejorScore = score; mejor = t; }
+  }
+  // exigir una coincidencia mínimamente significativa
+  return mejorScore >= 5 ? mejor : null;
+}
+
 export type FacturaRef = {
   id: string;
   fecha: string;
@@ -117,6 +140,7 @@ export type FacturaRef = {
   monto_bs: number;
   cuenta_codigo: string;
   proveedor?: string | null;
+  tercero_id?: string | null;
 };
 
 export type ResultadoPareo = {
@@ -128,7 +152,10 @@ export type ResultadoPareo = {
   /** Suma en Bs del grupo sugerido */
   total: number;
   motivo: string;
+  /** Números detectados en el memo que no se pudieron ubicar */
+  faltantes?: string[];
 };
+
 
 const diasEntre = (a: string, b: string) =>
   Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
