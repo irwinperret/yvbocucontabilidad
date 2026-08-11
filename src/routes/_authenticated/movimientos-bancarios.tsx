@@ -350,6 +350,15 @@ function MovimientosBancariosPage() {
               <SelectItem value="sin_pareo">Sin pareo</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={origenF} onValueChange={setOrigenF}>
+            <SelectTrigger><SelectValue placeholder="Origen del pareo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todo origen de pareo</SelectItem>
+              <SelectItem value="auto">Pareo automático</SelectItem>
+              <SelectItem value="manual">Pareo manual</SelectItem>
+              <SelectItem value="ninguno">Sin pareo confirmado</SelectItem>
+            </SelectContent>
+          </Select>
           <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
           <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
           <Input placeholder="Buscar en notas/memo…" value={texto} onChange={(e) => setTexto(e.target.value)} />
