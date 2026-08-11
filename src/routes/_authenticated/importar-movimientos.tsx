@@ -35,14 +35,20 @@ export const Route = createFileRoute("/_authenticated/importar-movimientos")({
 const CUENTA_PAGO_CXP = "13.2";
 
 // Mapa Categoría → cuenta del plan (fallback cuando el archivo no trae cuenta sugerida)
+// OJO: INV no se mapea a 2.1 — esas filas son pagos de compras que ya existen como CxP
+// y deben emparejarse manualmente (o asignarse a 99 — POR DETERMINAR).
 const CATEGORIA_CUENTA: Record<string, string> = {
-  INV: "2.1",
   ADM: "4.8",
   MO: "3.16",
   OC: "5.6",
   MERCADEO: "6.2",
   INVERSION: "10.6",
 };
+
+/** Categorías cuyos movimientos siempre deben emparejarse contra una CxP existente. */
+const requiereCxP = (categoria: string | null | undefined) =>
+  String(categoria ?? "").trim().toUpperCase() === "INV";
+
 
 type BankRow = {
   id: string;
