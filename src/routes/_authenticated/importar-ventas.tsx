@@ -689,7 +689,7 @@ function ImportarVentasPage() {
     };
     const centro = valores.centro ? (String(valores.centro) as Centro) : undefined;
 
-    const res = await procesarVenta(row, { tasas: { bcv, paralela }, centroOverride: centro });
+    const res = await procesarVenta(row, { tasas: { bcv, paralela }, centroOverride: centro, referencia: "manual" });
     if (res.status === "fail") return { ok: false, error: res.motivo };
 
     if (batchActivo) {
