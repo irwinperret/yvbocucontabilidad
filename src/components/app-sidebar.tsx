@@ -25,6 +25,8 @@ import {
   Building2,
   Receipt,
   Sparkles,
+  PauseCircle,
+
 } from "lucide-react";
 import { History as HistoryIcon } from "lucide-react";
 import {
