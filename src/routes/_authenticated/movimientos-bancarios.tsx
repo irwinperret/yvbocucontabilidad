@@ -644,8 +644,10 @@ function MovimientosBancariosPage() {
                       />
                     </th>
                     <th className="text-left py-2 px-2">Conciliación</th>
+                    <th className="text-right py-2 px-2">Acciones</th>
 
                   </tr>
+
                 </thead>
                 <tbody>
                   {pagina.map((f) => (
