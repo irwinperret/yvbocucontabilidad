@@ -361,6 +361,8 @@ function MovimientosBancariosPage() {
     setRecalcOpen(false);
   };
 
+  const [editando, setEditando] = useState<any | null>(null);
+
   const recargarDatos = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["mov-bancarios"] }),
@@ -368,6 +370,7 @@ function MovimientosBancariosPage() {
       qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] }),
     ]);
   };
+
 
 
 
