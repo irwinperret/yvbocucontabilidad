@@ -161,12 +161,23 @@ function MovimientosBancariosPage() {
     return filas.filter((f) => {
       if (banco !== "todos" && bancoDeReferencia(f.mov.referencia) !== banco) return false;
       if (estadoF !== "todos" && f.estado !== estadoF) return false;
+      if (cuentasSel.length && !cuentasSel.includes(f.mov.cuenta_codigo)) return false;
+      if (centrosSel.length && !centrosSel.includes(f.mov.centro_costo)) return false;
       if (desde && f.mov.fecha < desde) return false;
       if (hasta && f.mov.fecha > hasta) return false;
       if (q && !String(f.mov.notas ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [filas, banco, estadoF, desde, hasta, texto]);
+  }, [filas, banco, estadoF, desde, hasta, texto, cuentasSel, centrosSel]);
+
+  useEffect(() => { setPage(0); }, [banco, estadoF, desde, hasta, texto, cuentasSel, centrosSel, pageSize]);
+
+  const effectivePageSize = pageSize === "all" ? Math.max(filtradas.length, 1) : pageSize;
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filtradas.length / effectivePageSize));
+  const pagina = useMemo(
+    () => (pageSize === "all" ? filtradas : filtradas.slice(page * effectivePageSize, (page + 1) * effectivePageSize)),
+    [filtradas, page, pageSize, effectivePageSize],
+  );
 
   const resumen = useMemo(() => {
     const c = { total: filtradas.length, pareado: 0, posible: 0, no_aplica: 0, sin_pareo: 0 } as any;
