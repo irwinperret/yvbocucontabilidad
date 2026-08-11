@@ -56,6 +56,8 @@ const registroDirectos = [
 
 const registroGestion = [
   { title: "Transacciones", url: "/transacciones", icon: ListChecks },
+  { title: "Transacciones en Standby", url: "/standby", icon: PauseCircle },
+
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
