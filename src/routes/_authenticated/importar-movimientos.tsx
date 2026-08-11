@@ -292,7 +292,10 @@ function ImportarMovimientosInner() {
 
       const initialMatches: Match[] = parsed.map((bankRow, i) => {
         const cuentaCodigo = cuentaPorFila[i] ?? null;
-        const noAplica = cuentaSinFactura(cuentaCodigo) || cuentaServicio(cuentaCodigo);
+        const noAplica =
+          !requiereCxP(bankRow.categoria) &&
+          (cuentaSinFactura(cuentaCodigo) || cuentaServicio(cuentaCodigo));
+
 
         const found: CxPRow[] = [];
         if (!noAplica) {
