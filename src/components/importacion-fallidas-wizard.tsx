@@ -182,6 +182,14 @@ export function ImportacionFallidasWizard({
                 </div>
               ))}
             </div>
+
+            {tieneTasas && tasaInfo && (
+              <p className="text-xs text-muted-foreground">
+                Tasas cargadas automáticamente — BCV: {tasaInfo.bcv ? `tasa del ${tasaInfo.bcv}` : "sin registro"} ·
+                {" "}Paralela: {tasaInfo.paralela ? `tasa del ${tasaInfo.paralela}` : "sin registro"}. Puedes editarlas.
+              </p>
+            )}
+
           </div>
         )}
 
