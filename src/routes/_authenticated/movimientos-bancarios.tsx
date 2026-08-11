@@ -128,7 +128,9 @@ function MovimientosBancariosPage() {
       numero_factura: f.numero_factura,
       monto_bs: Number(f.monto_bs),
       cuenta_codigo: f.cuenta_codigo,
+      proveedor: f.proveedor ?? null,
     }));
+
     const porNumero = new Map<string, FacturaRef[]>();
     for (const f of lista) {
       const k = normalizarFactura(f.numero_factura);
