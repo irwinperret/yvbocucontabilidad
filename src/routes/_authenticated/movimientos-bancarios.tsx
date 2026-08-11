@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -12,6 +12,8 @@ import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
 import { Download, Check, X } from "lucide-react";
 import { exportTableToExcel } from "@/lib/excel-table";
+import { MultiSelectFilter } from "@/components/multi-select-filter";
+import { CENTROS } from "@/lib/account-helpers";
 import {
   bancoDeReferencia,
   refBancaria,
@@ -47,6 +49,10 @@ function MovimientosBancariosPage() {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [texto, setTexto] = useState("");
+  const [cuentasSel, setCuentasSel] = useState<string[]>([]);
+  const [centrosSel, setCentrosSel] = useState<string[]>([]);
+  const [pageSize, setPageSize] = useState<number | "all">(50);
+  const [page, setPage] = useState(0);
 
   const { data: movimientos, isLoading } = useQuery({
     queryKey: ["mov-bancarios"],
@@ -88,13 +94,19 @@ function MovimientosBancariosPage() {
   });
 
   const { data: cuentas } = useQuery({
-    queryKey: ["plan-cuentas-min"],
+    queryKey: ["plan-cuentas-min-grupo"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre");
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre,grupo,orden").order("orden");
       return data ?? [];
     },
   });
   const nombreCuenta = (c: string) => cuentas?.find((x: any) => x.codigo === c)?.nombre ?? c;
+
+  const cuentasByGrupo = useMemo(() => {
+    const g: Record<string, any[]> = {};
+    (cuentas ?? []).forEach((c: any) => { (g[c.grupo || "Otros"] ||= []).push(c); });
+    return g;
+  }, [cuentas]);
 
   const indice = useMemo(() => {
     const lista: FacturaRef[] = (facturas ?? []).map((f: any) => ({
@@ -151,12 +163,23 @@ function MovimientosBancariosPage() {
     return filas.filter((f) => {
       if (banco !== "todos" && bancoDeReferencia(f.mov.referencia) !== banco) return false;
       if (estadoF !== "todos" && f.estado !== estadoF) return false;
+      if (cuentasSel.length && !cuentasSel.includes(f.mov.cuenta_codigo)) return false;
+      if (centrosSel.length && !centrosSel.includes(f.mov.centro_costo)) return false;
       if (desde && f.mov.fecha < desde) return false;
       if (hasta && f.mov.fecha > hasta) return false;
       if (q && !String(f.mov.notas ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [filas, banco, estadoF, desde, hasta, texto]);
+  }, [filas, banco, estadoF, desde, hasta, texto, cuentasSel, centrosSel]);
+
+  useEffect(() => { setPage(0); }, [banco, estadoF, desde, hasta, texto, cuentasSel, centrosSel, pageSize]);
+
+  const effectivePageSize = pageSize === "all" ? Math.max(filtradas.length, 1) : pageSize;
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filtradas.length / effectivePageSize));
+  const pagina = useMemo(
+    () => (pageSize === "all" ? filtradas : filtradas.slice(page * effectivePageSize, (page + 1) * effectivePageSize)),
+    [filtradas, page, pageSize, effectivePageSize],
+  );
 
   const resumen = useMemo(() => {
     const c = { total: filtradas.length, pareado: 0, posible: 0, no_aplica: 0, sin_pareo: 0 } as any;
@@ -281,11 +304,24 @@ function MovimientosBancariosPage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 flex-wrap">
           <CardTitle className="text-base">Movimientos ({filtradas.length})</CardTitle>
-          <Button size="sm" variant="outline" onClick={onExportar} disabled={exportando}>
-            <Download className="h-4 w-4 mr-2" /> Exportar a Excel
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Mostrar</span>
+            <Select value={String(pageSize)} onValueChange={(v) => setPageSize(v === "all" ? "all" : Number(v))}>
+              <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="250">250</SelectItem>
+                <SelectItem value="500">500</SelectItem>
+                <SelectItem value="all">Todas</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" onClick={onExportar} disabled={exportando}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-sm text-muted-foreground">Cargando…</p> : filtradas.length === 0 ? (
@@ -299,19 +335,40 @@ function MovimientosBancariosPage() {
                     <th className="text-left py-2 px-2">Banco</th>
                     <th className="text-right py-2 px-2">Monto Bs</th>
                     <th className="text-right py-2 px-2">USD (BCV)</th>
-                    <th className="text-left py-2 px-2">Cuenta asignada</th>
+                    <th className="text-left py-2 px-2">
+                      Cuenta asignada
+                      <MultiSelectFilter
+                        label="Cuenta contable"
+                        groupedOptions={Object.entries(cuentasByGrupo).map(([grupo, items]) => ({
+                          group: grupo,
+                          items: items.map((c: any) => ({ value: c.codigo, label: `${c.codigo} · ${c.nombre}` })),
+                        }))}
+                        selected={cuentasSel}
+                        onChange={setCuentasSel}
+                      />
+                    </th>
+                    <th className="text-left py-2 px-2">
+                      Centro
+                      <MultiSelectFilter
+                        label="Centro de costo"
+                        options={CENTROS.map((c) => ({ value: c, label: c }))}
+                        selected={centrosSel}
+                        onChange={setCentrosSel}
+                      />
+                    </th>
                     <th className="text-left py-2 px-2">Notas / memo</th>
                     <th className="text-left py-2 px-2">Conciliación</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtradas.slice(0, 500).map((f) => (
+                  {pagina.map((f) => (
                     <tr key={f.mov.id} className="border-b last:border-0 align-top">
                       <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(f.mov.fecha)}</td>
                       <td className="py-2 px-2">{bancoDeReferencia(f.mov.referencia)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(f.mov.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(usdBcvDe(f.mov))}</td>
                       <td className="py-2 px-2 text-xs">{f.mov.cuenta_codigo} · {nombreCuenta(f.mov.cuenta_codigo)}</td>
+                      <td className="py-2 px-2 text-xs">{f.mov.centro_costo}</td>
                       <td className="py-2 px-2 text-xs max-w-[320px]">{f.mov.notas ?? "—"}</td>
                       <td className="py-2 px-2">
                         <div className="flex flex-col gap-1">
@@ -336,8 +393,16 @@ function MovimientosBancariosPage() {
                   ))}
                 </tbody>
               </table>
-              {filtradas.length > 500 && (
-                <p className="text-xs text-muted-foreground pt-2">Mostrando los primeros 500 · exporta a Excel para ver todos.</p>
+              {pageSize !== "all" && totalPages > 1 && (
+                <div className="flex items-center justify-between pt-3">
+                  <span className="text-xs text-muted-foreground">
+                    Página {page + 1} de {totalPages} · {filtradas.length} movimientos
+                  </span>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
+                    <Button size="sm" variant="outline" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>Siguiente</Button>
+                  </div>
+                </div>
               )}
             </div>
           )}
