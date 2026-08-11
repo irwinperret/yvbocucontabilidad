@@ -403,3 +403,113 @@ export function parearMovimiento(
 
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// Recálculo de pareos cuando llegan facturas nuevas
+// ─────────────────────────────────────────────────────────────
+
+export type CambioPareo =
+  | "nuevo_pareo"       // estaba sin pareo y ahora hay sugerencia
+  | "parcial_completable" // pareo parcial que con facturas nuevas cuadra
+  | "rechazo_obsoleto"  // se rechazó una sugerencia distinta a la actual
+  | "sin_cambio";
+
+export type EntradaRecalculo = {
+  movId: string;
+  montoBs: number;
+  /** Resultado del pareo automático recalculado con las facturas actuales */
+  auto: ResultadoPareo;
+  /** Facturas ya confirmadas (vínculos guardados, no rechazados) */
+  confirmadas: string[];
+  /** ¿Existe un rechazo guardado para este movimiento? */
+  rechazado: boolean;
+  /** Facturas contra las que se rechazó (vacío en rechazos antiguos) */
+  rechazadas: string[];
+  /** ¿El pareo confirmado fue manual? (no se pisa nunca) */
+  manual: boolean;
+};
+
+export type ResultadoRecalculo = {
+  movId: string;
+  cambio: CambioPareo;
+  /** Facturas que quedarían vinculadas si se aplica el cambio */
+  facturas: FacturaRef[];
+  estado: "pareado" | "parcial";
+  motivo: string;
+};
+
+const mismoConjunto = (a: string[], b: string[]) =>
+  a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
+
+/**
+ * Clasifica cada movimiento según lo que cambiaría al reevaluar el pareo con
+ * las facturas actuales. Función pura: no escribe nada, sirve de vista previa.
+ */
+export function recalcularPareos(entradas: EntradaRecalculo[]): ResultadoRecalculo[] {
+  const out: ResultadoRecalculo[] = [];
+
+  for (const e of entradas) {
+    const sugeridas = e.auto.facturas ?? [];
+    const idsSug = sugeridas.map((f) => f.id);
+
+    // nunca se pisa un pareo manual confirmado
+    if (e.manual && e.confirmadas.length) continue;
+
+    if (e.confirmadas.length) {
+      // ¿pareo parcial que ahora se puede completar?
+      const cobActual = coberturaPareo(
+        sugeridas.filter((f) => e.confirmadas.includes(f.id)),
+        e.montoBs,
+      );
+      const yaCompleto = mismoConjunto(e.confirmadas, idsSug) && cobActual.completa;
+      if (yaCompleto) continue;
+
+      const union = new Map<string, FacturaRef>();
+      for (const f of sugeridas) union.set(f.id, f);
+      const faltanConfirmadas = e.confirmadas.filter((id) => !union.has(id));
+      // solo se puede completar si la sugerencia contiene todo lo confirmado
+      if (faltanConfirmadas.length) continue;
+
+      const cobNueva = coberturaPareo(sugeridas, e.montoBs);
+      if (sugeridas.length > e.confirmadas.length && cobNueva.completa) {
+        out.push({
+          movId: e.movId,
+          cambio: "parcial_completable",
+          facturas: sugeridas,
+          estado: "pareado",
+          motivo: `Se agregan ${sugeridas.length - e.confirmadas.length} factura(s) nueva(s) y el pago queda cubierto`,
+        });
+      }
+      continue;
+    }
+
+    if (!sugeridas.length) continue;
+
+    if (e.rechazado) {
+      // el rechazo sigue vigente si la sugerencia es la misma que se rechazó
+      if (e.rechazadas.length && mismoConjunto(e.rechazadas, idsSug)) continue;
+      out.push({
+        movId: e.movId,
+        cambio: "rechazo_obsoleto",
+        facturas: sugeridas,
+        estado: e.auto.estado === "parcial" ? "parcial" : "pareado",
+        motivo: e.rechazadas.length
+          ? "Hay una sugerencia distinta a la que se rechazó"
+          : "Aparecieron facturas nuevas después del rechazo",
+      });
+      continue;
+    }
+
+    if (e.auto.estado === "pareado" || e.auto.estado === "parcial") {
+      out.push({
+        movId: e.movId,
+        cambio: "nuevo_pareo",
+        facturas: sugeridas,
+        estado: e.auto.estado === "parcial" ? "parcial" : "pareado",
+        motivo: e.auto.motivo,
+      });
+    }
+  }
+
+  return out;
+}
