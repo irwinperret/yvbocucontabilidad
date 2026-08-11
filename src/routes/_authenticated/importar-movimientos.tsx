@@ -657,7 +657,10 @@ function ImportarMovimientosInner() {
     return +(pagado - facturado).toFixed(2);
   };
 
-  const noAplicaFactura = (m: Match) => cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo);
+  const noAplicaFactura = (m: Match) =>
+    !requiereCxP(m.bankRow.categoria) &&
+    (cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo));
+
 
   const cxpComboOptions = useMemo(
     () =>
