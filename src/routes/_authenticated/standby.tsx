@@ -193,11 +193,14 @@ function StandbyPage() {
             />
             <MultiSelectFilter
               label="Cuenta"
-              groups={cuentasByGrupo}
-              options={(cuentas ?? []).map((c: any) => ({ value: c.codigo, label: `${c.codigo} — ${c.nombre}`, grupo: c.grupo }))}
+              groupedOptions={Object.entries(cuentasByGrupo).map(([group, items]) => ({
+                group,
+                items: (items as any[]).map((c) => ({ value: c.codigo, label: `${c.codigo} — ${c.nombre}` })),
+              }))}
               selected={cuentasSel}
               onChange={(v) => { setCuentasSel(v); setPage(0); }}
             />
+
           </div>
         </CardContent>
       </Card>
