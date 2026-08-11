@@ -250,6 +250,9 @@ function MovimientosBancariosPage() {
         notas: f.mov.notas ?? "",
         estado: ESTADO_LABEL[f.estado],
         factura: f.estado === "pareado" ? (f.factura?.numero_factura ?? "") : "",
+        provFactura: f.factura?.proveedor ?? "",
+        motivo: f.motivo,
+
       })),
     });
   };
