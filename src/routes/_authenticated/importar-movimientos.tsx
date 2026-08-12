@@ -437,7 +437,7 @@ function ImportarMovimientosInner() {
       filasLeidas: matches.length,
       userId: user.id,
     });
-    let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0, anticipos = 0;
+    let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0;
     const importados = new Set<string>();
 
     for (const m of toImport) {
@@ -451,6 +451,10 @@ function ImportarMovimientosInner() {
             : Math.abs(bankRow.montoBs);
         const toUsd = (bs: number) =>
           rates.paralela > 0 ? +(bs / rates.paralela).toFixed(2) : (rates.bcv > 0 ? +(bs / rates.bcv).toFixed(2) : 0);
+        // Monto USD del movimiento: si el banco es en USD, el Excel manda (variable independiente).
+        const montoUsdMov =
+          bankRow.moneda === "USD" ? +Math.abs(bankRow.montoUsd).toFixed(2) : toUsd(montoBs);
+
 
         if (m.cxps.length === 0) {
           // ── Movimiento sin CxP emparejada ──
@@ -478,8 +482,8 @@ function ImportarMovimientosInner() {
             tipo_iva: null,
             tasa_bcv: rates.bcv || null,
             tasa_paralela: rates.paralela || null,
-            monto_usd:
-              bankRow.moneda === "USD" ? +Math.abs(bankRow.montoUsd).toFixed(2) : toUsd(montoBs),
+            monto_usd: montoUsdMov,
+
             metodo_pago: "transferencia" as any,
             referencia: bankRow.huella,
             detalle: detalle.slice(0, 255),
@@ -498,64 +502,65 @@ function ImportarMovimientosInner() {
           continue;
         }
 
-        // ── Distribución del pago en USD BCV entre las facturas seleccionadas ──
+        // ── UNA sola transacción por movimiento (igual que la línea del Excel) ──
         const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
+        const primera = m.cxps[0];
+
+        const { data: txOrig } = await supabase
+          .from("transacciones")
+          .select("centro_costo, grupo_transaccion_id")
+          .eq("id", primera.transaccion_id ?? "")
+          .maybeSingle();
+        const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
+
+        const { data: ivaLegs } = await supabase
+          .from("transacciones")
+          .select("id")
+          .eq("grupo_transaccion_id", grupoId)
+          .eq("cuenta_codigo", "12.5")
+          .gt("monto_bs", 0)
+          .limit(1);
+        const hasIva = (ivaLegs?.length ?? 0) > 0;
+        const split = await calcularSplitIvaPagoCxp(grupoId, montoBs, hasIva);
+
+        const facturasTxt = m.cxps
+          .map((c) => c.numero_factura)
+          .filter(Boolean)
+          .join(", ");
+
+        const { data: tx, error } = await supabase.from("transacciones").insert({
+          fecha: bankRow.fecha,
+          cuenta_codigo: CUENTA_PAGO_CXP,
+          centro_costo: (txOrig?.centro_costo ?? primera.centro_costo ?? "Compartido") as any,
+          monto_bs: montoBs,
+          monto_base_bs: split.monto_base_bs,
+          iva_bs: split.iva_bs,
+          iva_aplica: split.iva_bs > 0,
+          tipo_iva: null,
+          tasa_bcv: rates.bcv || null,
+          tasa_paralela: rates.paralela || null,
+          monto_usd: montoUsdMov,
+          metodo_pago: "transferencia" as any,
+          referencia: bankRow.huella,
+          detalle: facturasTxt ? `Pago facturas ${facturasTxt}`.slice(0, 255) : null,
+          notas: `Conciliación bancaria · ${bankRow.banco} · ${bankRow.concepto}`.slice(0, 255),
+          modo: "on_balance" as any,
+          cuenta_bancaria_id: bankRow.cuentaBancariaId,
+          tercero_id: primera.tercero_id ?? null,
+          grupo_transaccion_id: grupoId,
+          created_by: user.id,
+        } as any).select().single();
+
+        if (error) throw new Error(error.message);
+        if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+
+        // ── Aplicación del pago a las facturas (solo saldos, sin líneas extra) ──
         let restanteUsdBcv = rates.bcv > 0 ? +(montoBs / rates.bcv).toFixed(2) : 0;
-        let restanteBs = montoBs;
-        let idx = 0;
-
         for (const cxp of m.cxps) {
-          if (restanteBs <= 0.01) break;
+          if (restanteUsdBcv <= 0.01) break;
           const pendUsdBcv = pendienteUsdBcv(cxp);
-          const aplicarUsdBcv = rates.bcv > 0
-            ? Math.min(pendUsdBcv, restanteUsdBcv)
-            : restanteUsdBcv;
-          const tramoBs = rates.bcv > 0
-            ? Math.min(restanteBs, +(aplicarUsdBcv * rates.bcv).toFixed(2))
-            : restanteBs;
-          if (tramoBs <= 0.01) { idx++; continue; }
-
-          const { data: txOrig } = await supabase
-            .from("transacciones")
-            .select("centro_costo, grupo_transaccion_id")
-            .eq("id", cxp.transaccion_id ?? "")
-            .maybeSingle();
-          const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
-
-          const { data: ivaLegs } = await supabase
-            .from("transacciones")
-            .select("id")
-            .eq("grupo_transaccion_id", grupoId)
-            .eq("cuenta_codigo", "12.5")
-            .gt("monto_bs", 0)
-            .limit(1);
-          const hasIva = (ivaLegs?.length ?? 0) > 0;
-          const split = await calcularSplitIvaPagoCxp(grupoId, tramoBs, hasIva);
-
-          const { data: tx, error } = await supabase.from("transacciones").insert({
-            fecha: bankRow.fecha,
-            cuenta_codigo: CUENTA_PAGO_CXP,
-            centro_costo: (txOrig?.centro_costo ?? cxp.centro_costo ?? "Compartido") as any,
-            monto_bs: tramoBs,
-            monto_base_bs: split.monto_base_bs,
-            iva_bs: split.iva_bs,
-            iva_aplica: split.iva_bs > 0,
-            tipo_iva: null,
-            tasa_bcv: rates.bcv || null,
-            tasa_paralela: rates.paralela || null,
-            monto_usd: toUsd(tramoBs),
-            metodo_pago: "transferencia" as any,
-            referencia: idx === 0 ? bankRow.huella : `${bankRow.huella}#${idx}`,
-            notas: `Conciliación bancaria · ${bankRow.concepto}`.slice(0, 255),
-            modo: "on_balance" as any,
-            cuenta_bancaria_id: bankRow.cuentaBancariaId,
-            tercero_id: cxp.tercero_id ?? null,
-            grupo_transaccion_id: grupoId,
-            created_by: user.id,
-          } as any).select().single();
-
-          if (error) throw new Error(error.message);
-          if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+          const aplicarUsdBcv = Math.min(pendUsdBcv, restanteUsdBcv);
+          if (aplicarUsdBcv <= 0.01) continue;
 
           const nuevoUsdBcv = Math.max(0, +(pendUsdBcv - aplicarUsdBcv).toFixed(2));
           const nuevoBs = Math.max(0, +(nuevoUsdBcv * (Number(cxp.tasa_bcv_factura) || rates.bcv || 1)).toFixed(2));
@@ -574,41 +579,9 @@ function ImportarMovimientosInner() {
           }).eq("id", cxp.id);
 
           if (cubreTodo) ok++; else partial++;
-          restanteBs = +(restanteBs - tramoBs).toFixed(2);
           restanteUsdBcv = +(restanteUsdBcv - aplicarUsdBcv).toFixed(2);
-          idx++;
         }
 
-        // ── Remanente: anticipo a proveedor (14.2) ──
-        if (restanteUsdBcv > 0.01 && restanteBs > 0.01) {
-          const proveedor = m.cxps[0];
-          const { data: txAnt, error: eAnt } = await supabase.from("transacciones").insert({
-            fecha: bankRow.fecha,
-            cuenta_codigo: "14.2",
-            centro_costo: (proveedor.centro_costo ?? "Compartido") as any,
-            monto_bs: restanteBs,
-            monto_base_bs: restanteBs,
-            iva_bs: 0,
-            iva_aplica: false,
-            tipo_iva: null,
-            tasa_bcv: rates.bcv || null,
-            tasa_paralela: rates.paralela || null,
-            monto_usd: toUsd(restanteBs),
-            metodo_pago: "transferencia" as any,
-            referencia: `${bankRow.huella}#ANT`,
-            detalle: `Anticipo por excedente de pago · ${proveedor.proveedor}`.slice(0, 255),
-            notas: `Excedente de conciliación bancaria · ${bankRow.banco} · Ref ${bankRow.referencia || "—"}`.slice(0, 255),
-            modo: "on_balance" as any,
-            cuenta_bancaria_id: bankRow.cuentaBancariaId,
-            tercero_id: proveedor.tercero_id ?? null,
-            anticipo_estado: "abierto",
-            grupo_transaccion_id: crypto.randomUUID(),
-            created_by: user.id,
-          } as any).select().single();
-          if (eAnt) throw new Error(eAnt.message);
-          if (txAnt) await logAudit("transacciones", "INSERT", (txAnt as any).id, null, txAnt);
-          anticipos++;
-        }
 
         importados.add(bankRow.id);
         setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
@@ -630,7 +603,7 @@ function ImportarMovimientosInner() {
     setProgress(null);
     qc.invalidateQueries();
     toast.success(
-      `Facturas pagadas: ${ok} · Parciales: ${partial} · Anticipos: ${anticipos} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
+      `Facturas pagadas: ${ok} · Parciales: ${partial} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
     );
     if (sinFactura > 0 || noAplicaCount > 0) {
       toast("Movimientos sin factura identificada", {
@@ -837,8 +810,9 @@ function ImportarMovimientosInner() {
                           )}
 
                           {!m.duplicado && dif !== null && dif > 0.01 && (
-                            <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente → anticipo</Badge>
+                            <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente sin aplicar</Badge>
                           )}
+
                         </div>
                       </td>
                       <td className="p-2 text-right mono">{m.bankRow.montoBs ? fmtBs(m.bankRow.montoBs) : "—"}</td>
