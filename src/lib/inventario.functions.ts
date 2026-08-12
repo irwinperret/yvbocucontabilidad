@@ -48,8 +48,16 @@ async function fetchTasaBcvPromedio(supabase: any, periodo: string): Promise<num
   return sum / arr.length;
 }
 
-// Última tasa BCV registrada en o antes de `fecha` (YYYY-MM-DD).
+// Tasa BCV aplicable a `fecha`: la del día o, si no existe, la PRÓXIMA publicada.
 async function fetchTasaBcvOnOrBefore(supabase: any, fecha: string): Promise<number> {
+  const { data: next } = await supabase
+    .from("tasas_bcv")
+    .select("tasa")
+    .gte("fecha", fecha)
+    .order("fecha", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (next?.tasa) return Number(next.tasa) || 0;
   const { data } = await supabase
     .from("tasas_bcv")
     .select("tasa")
