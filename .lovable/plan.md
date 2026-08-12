@@ -1,41 +1,44 @@
-# Borrar todo lo que no fue registrado manualmente
+# Tasa BCV: usar la tasa siguiente en lugar de la anterior
 
-## Qué hay hoy (consultado en la base de datos)
+Hoy, cuando un movimiento cae en un día sin tasa BCV (fin de semana o feriado), el sistema toma la última tasa **anterior**. Se cambia en toda la app para tomar la **próxima tasa BCV** publicada a partir de esa fecha. La tasa paralela sigue funcionando igual (tasa anterior más cercana).
 
-Transacciones activas (no standby):
+## Regla nueva
 
-- **7.487** de importación Xetux (ventas y compras)
-- **999** de importación de movimientos bancarios (huella `BANK:`)
-- **3** ligadas a un lote de importación
-- **120** manuales
+- Tasa BCV de una fecha = tasa del día si existe; si no, la primera tasa con fecha **posterior**.
+- Si no existe ninguna tasa posterior (fechas futuras, hoy 5 transacciones), se mantiene el comportamiento actual de tomar la anterior, para no dejar movimientos sin tasa.
 
-Además hay **35 transacciones manuales en standby**, que no se tocan.
+## Alcance del cambio hacia adelante
 
-Registros derivados de esas importaciones:
+Un único helper compartido (`tasaBcvParaFecha`) reemplaza las consultas dispersas actuales en:
 
-- **604 cuentas por pagar** creadas por Xetux (345 pendientes, 208 pagadas, 51 parciales). Solo 2 CxP son manuales.
-- **322 registros de conciliación bancaria**.
-- **1.504 propinas** ligadas a transacciones Xetux (de 752 filas de propinas, 312 con lote de importación).
-- **0 cuentas por cobrar** registradas.
+- Registro manual y nómina (`registrar.tsx`)
+- Edición de transacciones (`transaccion-edit-dialog.tsx`)
+- Asistente de filas fallidas (`importacion-fallidas-wizard.tsx`)
+- Importar compras Xetux, importar ventas, importar movimientos bancarios
+- Propinas, CxC, Pagar CxP
+- Inventarios (valuación de inventario inicial/final)
 
-## Qué se va a hacer
+También se actualizan las funciones de base de datos que hoy buscan `fecha <= X ORDER BY fecha DESC`:
 
-1. Eliminar las **8.489 transacciones activas** que no son manuales: Xetux (ventas y compras), movimientos bancarios y las de lote de importación.
-2. Eliminar en cascada sus registros derivados: cuentas por pagar de Xetux, conciliación bancaria y propinas asociadas.
-3. Conservar intactas: las **120 transacciones manuales activas**, las **35 manuales en standby**, las 2 CxP manuales, el plan de cuentas, terceros, cuentas bancarias, tasas e inventarios.
-4. Marcar el historial de importaciones como revertido y dejar constancia en la auditoría.
+- `aplicar_anticipo_a_factura`
+- `enforce_anticipo_proveedor_currency`
 
-Después de esto el sistema queda solo con lo registrado a mano, y todos los archivos se pueden volver a importar desde cero (la deduplicación por huella ya no bloquea).
+## Recálculo retroactivo (todos los meses, incluidos los cerrados)
 
-## Puntos importantes
+Se recalcula la tasa BCV guardada en los registros cuya fecha no tiene tasa exacta:
 
-- Los meses **abril, junio y julio de 2026 están cerrados**. El borrado se ejecuta igual sobre los datos; esos cierres quedarán desactualizados y conviene recalcularlos después desde Registrar → COGS.
-- Los **inventarios inicial/final** (4 y 4 registros) se conservan; sus montos ya no cuadrarán con las compras y habrá que revisarlos.
-- La operación **no tiene deshacer**.
+- `transacciones`: 3.261 filas cambian de tasa. Se actualiza `tasa_bcv` y los montos derivados en BCV (`anticipo_usd_bcv`, `anticipo_aplicado_usd_bcv`).
+- `cuentas_por_pagar`: `tasa_bcv_factura`, `usd_bcv_factura`, `monto_pendiente_usd_bcv`.
+- `cuentas_por_cobrar`: `tasa_bcv_venta`, `monto_usd_bcv`, `monto_pendiente_usd_bcv`.
+- `inventario_snapshots`: `tasa_bcv` y su valuación en USD BCV.
+
+No se toca `monto_bs` ni `monto_usd` (el USD contable sigue calculándose con la tasa paralela, según la regla vigente del proyecto). El cambio afecta únicamente la vista/valuación en USD BCV y la referencia fiscal.
+
+Antes de actualizar se crea una tabla de respaldo (`_backup_bcv_next_<fecha>`) con los valores anteriores, para poder revertir.
 
 ## Detalles técnicos
 
-- Criterio de borrado: `standby = false` AND (`referencia LIKE 'BANK:%'` OR `referencia IN ('xetux','xetux-iva')` OR `import_batch_id IS NOT NULL`).
-- Orden: propinas → conciliación bancaria → cuentas por pagar (de esas transacciones) → romper FK `pareja_off_balance_id` → transacciones.
-- `importaciones`: marcar todas como `revertida`.
-- Se ejecuta como operación de datos, sin cambios de esquema ni de código.
+- Helper nuevo en `src/lib/tasas.ts`: `tasaBcvParaFecha(fecha)` → `{ tasa, fecha_origen }`, con consulta `gte(fecha) order asc limit 1` y respaldo `lte(fecha) order desc limit 1`.
+- Los avisos de UI que hoy dicen "tasa del <fecha>" seguirán mostrando la fecha de origen, que ahora podrá ser posterior al movimiento.
+- El recálculo retroactivo se ejecuta como operaciones de datos (UPDATE) por tabla, en lotes, con verificación de conteos antes y después.
+- Los meses cerrados se recalculan igual; después conviene revisar el COGS/cierre de abril, junio y julio si su valuación BCV cambió.
