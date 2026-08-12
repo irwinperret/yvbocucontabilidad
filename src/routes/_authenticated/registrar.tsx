@@ -3916,7 +3916,7 @@ function CierreForm() {
   void bcvByFecha;
 
   // Tasas BCV específicas: primer día del mes (inv. inicial) y último día del mes (inv. final).
-  // Si no hay tasa exacta ese día, tomamos la última registrada en o antes de esa fecha.
+  // Si no hay tasa exacta ese día, tomamos la próxima tasa BCV publicada después de esa fecha.
   const primerDiaMes = `${periodo}-01`;
   const ultimoDiaMes = useMemo(() => {
     const [y, m] = periodo.split("-").map(Number);
