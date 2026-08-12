@@ -4,6 +4,15 @@
 export const SIN_FACTURA_PREFIX = "SIN FACTURA XETUX";
 
 /**
+ * Normaliza una referencia bancaria: BA (Banco de Venezuela/Banesco) exporta
+ * las referencias con apóstrofe inicial ('122347217146).
+ */
+export function limpiarReferencia(v: unknown): string {
+  return String(v ?? "").trim().replace(/^['´`\u2018\u2019]+/, "").trim();
+}
+
+
+/**
  * Huella única de un movimiento bancario, usada en `transacciones.referencia`
  * para evitar importar dos veces el mismo movimiento.
  * Formato: BANK:<BANCO>|<FECHA>|<REF>|<MONTO>
