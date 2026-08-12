@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 
 export type CampoWizard = {
@@ -78,7 +79,7 @@ export function ImportacionFallidasWizard({
     let cancel = false;
     (async () => {
       const [bcvRes, parRes] = await Promise.all([
-        supabase.from("tasas_bcv").select("fecha, tasa").lte("fecha", fechaValor).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+        tasaBcvQuery(fechaValor, "fecha, tasa"),
         supabase.from("tasas_paralela").select("fecha, tasa").lte("fecha", fechaValor).order("fecha", { ascending: false }).limit(1).maybeSingle(),
       ]);
       if (cancel) return;

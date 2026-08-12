@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      _backup_bcv_next_20260812: {
+        Row: {
+          created_at: string
+          extra: Json | null
+          fecha: string | null
+          id: string | null
+          tabla: string
+          tasa_bcv_anterior: number | null
+          tasa_bcv_nueva: number | null
+        }
+        Insert: {
+          created_at?: string
+          extra?: Json | null
+          fecha?: string | null
+          id?: string | null
+          tabla: string
+          tasa_bcv_anterior?: number | null
+          tasa_bcv_nueva?: number | null
+        }
+        Update: {
+          created_at?: string
+          extra?: Json | null
+          fecha?: string | null
+          id?: string | null
+          tabla?: string
+          tasa_bcv_anterior?: number | null
+          tasa_bcv_nueva?: number | null
+        }
+        Relationships: []
+      }
       _recalc_bcv_backup_20260618: {
         Row: {
           anticipo_aplicado_usd_anterior: number | null
@@ -1430,6 +1460,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      tasa_bcv_para_fecha: { Args: { _fecha: string }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "contador" | "usuario"

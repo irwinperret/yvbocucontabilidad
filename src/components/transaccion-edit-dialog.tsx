@@ -13,6 +13,7 @@ import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
 import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; onSaved: () => void }) {
   const [fecha, setFecha] = useState<string>(tx.fecha);
@@ -52,7 +53,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
     let cancelado = false;
     (async () => {
       const [{ data: b }, { data: p }] = await Promise.all([
-        supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+        tasaBcvQuery(fecha, "tasa"),
         supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
       ]);
       if (cancelado) return;

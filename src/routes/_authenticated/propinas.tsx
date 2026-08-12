@@ -27,6 +27,7 @@ import {
 } from "recharts";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView } from "@/lib/usd-view-context";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 export const Route = createFileRoute("/_authenticated/propinas")({ component: PropinasPage });
 
@@ -391,7 +392,7 @@ function RegistrarPropinaDialog({ onClose }: { onClose: () => void }) {
 
     // tasas del día
     const [{ data: rateBcv }, { data: rateP }] = await Promise.all([
-      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("tasas_bcv").select("tasa"),
       supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
     ]);
     const tBcv = Number((rateBcv as any)?.tasa) || 0;
@@ -544,7 +545,7 @@ function DistribuirPropinaDialog({ propina, onClose }: { propina: Propina; onClo
     setBusy(true);
 
     const [{ data: rateBcv }, { data: rateP }] = await Promise.all([
-      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      tasaBcvQuery(fecha, "tasa"),
       supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
     ]);
     const tBcv = Number((rateBcv as any)?.tasa) || Number(entrada?.tasa_bcv) || 0;
@@ -647,7 +648,7 @@ function EditarPropinaDialog({ propina, onClose }: { propina: Propina; onClose: 
 
     // Tasas a la fecha (recalculamos por si cambió)
     const [{ data: rateBcv }, { data: rateP }] = await Promise.all([
-      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      tasaBcvQuery(fecha, "tasa"),
       supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
     ]);
     const tBcv = Number((rateBcv as any)?.tasa) || Number(propina.tasa_paralela) || 0;

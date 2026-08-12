@@ -17,6 +17,7 @@ import { logAudit } from "@/lib/audit";
 import { METODOS } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 export const Route = createFileRoute("/_authenticated/cxc")({ component: CxCPage });
 
@@ -196,7 +197,7 @@ function CobroModal({ cxc, userId, onClose, onDone }: { cxc: any; userId: string
   useQuery({
     queryKey: ["tasa-cobro", fecha],
     queryFn: async () => {
-      const { data } = await supabase.from("tasas_bcv").select("*").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+      const { data } = await tasaBcvQuery(fecha, "*");
       if (data && !tasa) setTasa(String(data.tasa));
       return data;
     },
