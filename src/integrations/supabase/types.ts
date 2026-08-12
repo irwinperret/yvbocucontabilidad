@@ -1430,6 +1430,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      tasa_bcv_para_fecha: { Args: { _fecha: string }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "contador" | "usuario"
