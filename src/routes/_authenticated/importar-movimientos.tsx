@@ -810,8 +810,9 @@ function ImportarMovimientosInner() {
                           )}
 
                           {!m.duplicado && dif !== null && dif > 0.01 && (
-                            <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente → anticipo</Badge>
+                            <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente sin aplicar</Badge>
                           )}
+
                         </div>
                       </td>
                       <td className="p-2 text-right mono">{m.bankRow.montoBs ? fmtBs(m.bankRow.montoBs) : "—"}</td>
