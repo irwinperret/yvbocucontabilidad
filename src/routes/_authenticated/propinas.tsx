@@ -94,7 +94,7 @@ function PropinasPage() {
   const { data: tasasBcv } = useQuery({
     queryKey: ["tasas-bcv-propinas", anio],
     queryFn: async () => {
-      const { data } = await tasaBcvQuery(fecha, "fecha,tasa")
+      const { data } = await supabase.from("tasas_bcv").select("fecha,tasa")
         .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`);
       return (data ?? []) as { fecha: string; tasa: number }[];
     },
