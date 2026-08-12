@@ -24,7 +24,7 @@ export function huellaBancaria(args: {
   monto: number;
 }): string {
   const banco = String(args.banco ?? "").trim().toUpperCase();
-  const ref = String(args.referencia ?? "").trim().toUpperCase().replace(/\s+/g, "");
+  const ref = limpiarReferencia(args.referencia).toUpperCase().replace(/\s+/g, "");
   const monto = Math.abs(Number(args.monto) || 0).toFixed(2);
   return `BANK:${banco}|${args.fecha}|${ref || "SINREF"}|${monto}`;
 }
