@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
-import { readSheetAOA, numFromCell, parseDateCell } from "@/lib/xetux-parse";
+import { readSheetAOASmart, numFromCell, parseDateCell } from "@/lib/xetux-parse";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 import { logAudit } from "@/lib/audit";
 import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
@@ -196,7 +196,11 @@ function ImportarMovimientosInner() {
     setFileName(file.name);
     setFileSize(file.size);
     try {
-      const aoa = await readSheetAOA(file);
+      const aoa = await readSheetAOASmart(file, [
+        ["fecha"],
+        ["concepto", "descripci"],
+        ["monto bs", "monto usd", "bs", "usd"],
+      ]);
       if (aoa.length < 2) return toast.error("El archivo no tiene filas de datos");
       const header = aoa[0].map((h) => String(h ?? "").toLowerCase().trim());
       const idx = (name: string) => header.findIndex((h) => h.includes(name));

@@ -66,3 +66,33 @@ export async function readSheetAOA(file: File): Promise<any[][]> {
   if (!ws) return [];
   return XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: true, defval: "" });
 }
+
+/**
+ * Read xls/xlsx → 2D array, picking the sheet (and header row) that best matches
+ * the required column keywords. Falls back to the first sheet.
+ * The returned array starts at the detected header row.
+ */
+export async function readSheetAOASmart(
+  file: File,
+  required: string[][],
+): Promise<any[][]> {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array", cellDates: true });
+  const matches = (row: any[]) => {
+    const cells = row.map((c) => String(c ?? "").toLowerCase().trim());
+    return required.every((alts) =>
+      alts.some((a) => cells.some((c) => c.includes(a.toLowerCase()))),
+    );
+  };
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    if (!ws) continue;
+    const aoa = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: true, defval: "" });
+    for (let i = 0; i < Math.min(aoa.length, 15); i++) {
+      if (matches(aoa[i] ?? [])) return aoa.slice(i);
+    }
+  }
+  const ws0 = wb.Sheets[wb.SheetNames[0]];
+  if (!ws0) return [];
+  return XLSX.utils.sheet_to_json<any[]>(ws0, { header: 1, raw: true, defval: "" });
+}
