@@ -3832,21 +3832,51 @@ function CierreForm() {
     return tasa > 0 ? +(bs / tasa).toFixed(2) : null;
   }, [prevMonthFinal]);
 
+  // Inventario final ya registrado del período actual (pestaña Inventarios)
+  const { data: currMonthFinal } = useQuery({
+    queryKey: ["inv-snapshot-final", periodo],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("inventario_snapshots")
+        .select("id, monto_bs, monto_usd, tasa_bcv")
+        .eq("periodo", periodo)
+        .eq("tipo", "final")
+        .maybeSingle();
+      return data;
+    },
+  });
+  const currFinalUsd = useMemo(() => {
+    if (!currMonthFinal) return null;
+    const usd = Number((currMonthFinal as any).monto_usd);
+    if (Number.isFinite(usd) && usd > 0) return usd;
+    const bs = Number((currMonthFinal as any).monto_bs) || 0;
+    const tasa = Number((currMonthFinal as any).tasa_bcv) || 0;
+    return tasa > 0 ? +(bs / tasa).toFixed(2) : null;
+  }, [currMonthFinal]);
+
   // Prefill inventario inicial cuando cambia el período (solo si el usuario no tocó el campo aún)
   const [invIniTocado, setInvIniTocado] = useState(false);
+  const [invFinTocado, setInvFinTocado] = useState(false);
   useEffect(() => {
     if (invIniTocado) return;
     if (cierreActual) return;
     if (prevFinalUsd != null) setInvIniUsd(String(prevFinalUsd));
     else setInvIniUsd("");
-    // No tocar invFinUsd — siempre en blanco al abrir el período.
-    setInvFinUsd("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo, prevFinalUsd, cierreActual]);
+  // Prefill inventario final con el valor ya registrado en Inventarios
+  useEffect(() => {
+    if (invFinTocado) return;
+    if (cierreActual) return;
+    setInvFinUsd(currFinalUsd != null ? String(currFinalUsd) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, currFinalUsd, cierreActual]);
   // Reset "tocado" al cambiar de período
   useEffect(() => {
     setInvIniTocado(false);
+    setInvFinTocado(false);
   }, [periodo]);
+
 
   const mostrarRecordatorioAnterior = !cierreAnterior && (comprasAnteriorCount ?? 0) > 0 && (compras?.length ?? 0) > 0;
 
@@ -4903,7 +4933,10 @@ function CierreForm() {
               type="number"
               step="0.01"
               value={invFinUsd}
-              onChange={(e) => setInvFinUsd(e.target.value)}
+              onChange={(e) => {
+                setInvFinTocado(true);
+                setInvFinUsd(e.target.value);
+              }}
               className="mono"
               placeholder="0.00"
             />
