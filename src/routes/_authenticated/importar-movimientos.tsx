@@ -451,6 +451,10 @@ function ImportarMovimientosInner() {
             : Math.abs(bankRow.montoBs);
         const toUsd = (bs: number) =>
           rates.paralela > 0 ? +(bs / rates.paralela).toFixed(2) : (rates.bcv > 0 ? +(bs / rates.bcv).toFixed(2) : 0);
+        // Monto USD del movimiento: si el banco es en USD, el Excel manda (variable independiente).
+        const montoUsdMov =
+          bankRow.moneda === "USD" ? +Math.abs(bankRow.montoUsd).toFixed(2) : toUsd(montoBs);
+
 
         if (m.cxps.length === 0) {
           // ── Movimiento sin CxP emparejada ──
