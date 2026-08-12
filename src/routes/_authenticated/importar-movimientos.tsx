@@ -437,7 +437,7 @@ function ImportarMovimientosInner() {
       filasLeidas: matches.length,
       userId: user.id,
     });
-    let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0, anticipos = 0;
+    let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0;
     const importados = new Set<string>();
 
     for (const m of toImport) {
@@ -603,7 +603,7 @@ function ImportarMovimientosInner() {
     setProgress(null);
     qc.invalidateQueries();
     toast.success(
-      `Facturas pagadas: ${ok} · Parciales: ${partial} · Anticipos: ${anticipos} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
+      `Facturas pagadas: ${ok} · Parciales: ${partial} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
     );
     if (sinFactura > 0 || noAplicaCount > 0) {
       toast("Movimientos sin factura identificada", {
