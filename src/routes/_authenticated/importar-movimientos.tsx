@@ -24,6 +24,8 @@ import {
   cuentaSinFactura,
   cuentaServicio,
   monedaBase,
+  limpiarReferencia,
+
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
@@ -233,6 +235,8 @@ function ImportarMovimientosInner() {
         if (!bancoRaw) continue;
         const valBs = idxBs >= 0 ? numFromCell(row[idxBs]) : 0;
         const valUsd = idxUsd >= 0 ? numFromCell(row[idxUsd]) : 0;
+        // No se descartan filas con Monto Bs = 0 (BOFA/CASH pagan en USD).
+        if (Math.abs(valBs) === 0 && Math.abs(valUsd) === 0) continue;
         // La moneda base depende del banco (col. C), no de qué celda venga llena.
         let moneda = monedaBase(bancoRaw);
         if (moneda === "Bs" && Math.abs(valBs) === 0 && Math.abs(valUsd) > 0) moneda = "USD";
@@ -242,7 +246,8 @@ function ImportarMovimientosInner() {
         const cuentaBancariaId = bankAccount ? bankAccount.id : null;
         const categoria = idxCat >= 0 ? String(row[idxCat] ?? "") : "";
         const banco = normalizeBank(bancoRaw);
-        const referencia = idxRef >= 0 ? String(row[idxRef] ?? "") : "";
+        // BA/Banesco exporta las referencias con apóstrofe inicial ('122347217146)
+        const referencia = idxRef >= 0 ? limpiarReferencia(row[idxRef]) : "";
 
         cuentaPorFila.push(
           (idxSug >= 0 ? parseCuentaCodigo(row[idxSug]) : null) ??
@@ -258,14 +263,16 @@ function ImportarMovimientosInner() {
           banco,
           referencia,
           concepto: String(row[idxConcepto] ?? ""),
-          montoBs: moneda === "Bs" ? monto : 0,
-          montoUsd: moneda === "USD" ? monto : 0,
+          // Se conservan ambos montos tal cual vienen del Excel.
+          montoBs: -Math.abs(valBs),
+          montoUsd: -Math.abs(valUsd),
           categoria,
           cuentaBancariaId,
           moneda,
           codigos: idxCodigos >= 0 ? parseCodigosDoc(row[idxCodigos]) : [],
           huella: huellaBancaria({ banco, fecha, referencia, monto: Math.abs(monto) }),
         });
+
       }
       setRows(parsed);
 
@@ -328,7 +335,7 @@ function ImportarMovimientosInner() {
           cxps: auto,
           manual: false,
           selected: !duplicado && (auto.length > 0 || !!cuentaCodigo),
-          montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd * 1),
+          montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd),
           cuentaCodigo,
           duplicado,
         };
@@ -451,14 +458,16 @@ function ImportarMovimientosInner() {
         const rates = await getRatesForDate(bankRow.fecha);
         // Variable independiente según el banco: Bs (BA/BCV/BM/BVC/MERC/CxP) o USD (CASH/BOFA).
         const montoBs =
-          bankRow.moneda === "USD"
+          bankRow.moneda === "USD" || Math.abs(bankRow.montoBs) === 0
             ? +(Math.abs(bankRow.montoUsd) * (rates.paralela || rates.bcv || 1)).toFixed(2)
             : Math.abs(bankRow.montoBs);
         const toUsd = (bs: number) =>
           rates.paralela > 0 ? +(bs / rates.paralela).toFixed(2) : (rates.bcv > 0 ? +(bs / rates.bcv).toFixed(2) : 0);
         // Monto USD del movimiento: si el banco es en USD, el Excel manda (variable independiente).
         const montoUsdMov =
-          bankRow.moneda === "USD" ? +Math.abs(bankRow.montoUsd).toFixed(2) : toUsd(montoBs);
+          bankRow.moneda === "USD" || Math.abs(bankRow.montoBs) === 0
+            ? +Math.abs(bankRow.montoUsd).toFixed(2)
+            : toUsd(montoBs);
 
 
         if (m.cxps.length === 0) {
