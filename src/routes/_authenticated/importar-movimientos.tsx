@@ -482,8 +482,8 @@ function ImportarMovimientosInner() {
             tipo_iva: null,
             tasa_bcv: rates.bcv || null,
             tasa_paralela: rates.paralela || null,
-            monto_usd:
-              bankRow.moneda === "USD" ? +Math.abs(bankRow.montoUsd).toFixed(2) : toUsd(montoBs),
+            monto_usd: montoUsdMov,
+
             metodo_pago: "transferencia" as any,
             referencia: bankRow.huella,
             detalle: detalle.slice(0, 255),
