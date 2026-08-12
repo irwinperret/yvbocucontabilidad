@@ -3899,7 +3899,7 @@ function CierreForm() {
       const finDate = new Date(`${periodo}-01T00:00:00`);
       finDate.setMonth(finDate.getMonth() + 1);
       const fin = finDate.toISOString().slice(0, 10);
-      const { data } = await tasaBcvQuery(primerDiaMes, "fecha, tasa").gte("fecha", ini).lt("fecha", fin);
+      const { data } = await supabase.from("tasas_bcv").select("fecha, tasa").gte("fecha", ini).lt("fecha", fin);
       return data ?? [];
     },
   });
