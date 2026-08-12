@@ -1,32 +1,41 @@
-# Borrar todos los movimientos importados desde "Importar movimientos bancarios"
+# Borrar todo lo que no fue registrado manualmente
 
-## Situación actual (consultada en la base de datos)
+## Qué hay hoy (consultado en la base de datos)
 
-- **1.005 transacciones** provienen del importador de movimientos bancarios (llevan la huella `BANK:` en referencia). 890 activas y 115 en standby.
-- Fechas cubiertas: **06/04/2026 al 06/11/2026**.
-- Desglose principal por cuenta: 297 en 13.2 (pagos de facturas), 152 en 14.2 (anticipos), 115 en 2.1, 97 en 3.4, 53 en 5.6, y el resto en gastos varios.
-- **322 registros de conciliación bancaria** están ligados a esos movimientos.
-- **259 facturas por pagar** están hoy en pagada (208) o parcial (51), y todas fueron marcadas así por estos movimientos. No hay facturas pagadas por otra vía.
-- Ninguna de estas cargas quedó registrada en el historial de importaciones (ese log solo tiene ventas y compras), por eso no se pueden revertir desde ahí.
+Transacciones activas (no standby):
+
+- **7.487** de importación Xetux (ventas y compras)
+- **999** de importación de movimientos bancarios (huella `BANK:`)
+- **3** ligadas a un lote de importación
+- **120** manuales
+
+Además hay **35 transacciones manuales en standby**, que no se tocan.
+
+Registros derivados de esas importaciones:
+
+- **604 cuentas por pagar** creadas por Xetux (345 pendientes, 208 pagadas, 51 parciales). Solo 2 CxP son manuales.
+- **322 registros de conciliación bancaria**.
+- **1.504 propinas** ligadas a transacciones Xetux (de 752 filas de propinas, 312 con lote de importación).
+- **0 cuentas por cobrar** registradas.
 
 ## Qué se va a hacer
 
-1. Eliminar las **1.005 transacciones** con huella `BANK:`, incluidas las de standby y las líneas derivadas (anticipos, IVA, parejas).
-2. Eliminar los **322 registros de conciliación** asociados (se van en cascada con las transacciones).
-3. **Restaurar las 259 facturas por pagar**: vuelven a estado "pendiente", con el monto pendiente igual al monto original de la factura y sin fecha de pago.
-4. Dejar constancia de la operación en la auditoría.
+1. Eliminar las **8.489 transacciones activas** que no son manuales: Xetux (ventas y compras), movimientos bancarios y las de lote de importación.
+2. Eliminar en cascada sus registros derivados: cuentas por pagar de Xetux, conciliación bancaria y propinas asociadas.
+3. Conservar intactas: las **120 transacciones manuales activas**, las **35 manuales en standby**, las 2 CxP manuales, el plan de cuentas, terceros, cuentas bancarias, tasas e inventarios.
+4. Marcar el historial de importaciones como revertido y dejar constancia en la auditoría.
 
-Después de esto el sistema queda como antes de cualquier conciliación bancaria y los archivos se pueden volver a importar desde cero (la deduplicación por huella ya no bloquea porque las huellas se eliminan junto con las transacciones).
+Después de esto el sistema queda solo con lo registrado a mano, y todos los archivos se pueden volver a importar desde cero (la deduplicación por huella ya no bloquea).
 
 ## Puntos importantes
 
-- Los meses **abril, junio y julio de 2026 están cerrados**. El borrado se ejecuta directamente sobre los datos, por lo que se hará igual sin reabrirlos; los cierres de esos meses quedarán desactualizados y conviene recalcularlos después desde Registrar → COGS.
-- Las facturas de compras de Xetux **no se tocan**: se conservan intactas, solo vuelven a quedar pendientes de pago.
+- Los meses **abril, junio y julio de 2026 están cerrados**. El borrado se ejecuta igual sobre los datos; esos cierres quedarán desactualizados y conviene recalcularlos después desde Registrar → COGS.
+- Los **inventarios inicial/final** (4 y 4 registros) se conservan; sus montos ya no cuadrarán con las compras y habrá que revisarlos.
 - La operación **no tiene deshacer**.
 
 ## Detalles técnicos
 
-- Criterio: `transacciones.referencia LIKE 'BANK:%'`.
-- Orden de borrado: conciliación bancaria → romper FK `pareja_off_balance_id` → transacciones.
-- Restauración de CxP: `estado = 'pendiente'`, `monto_pendiente_bs = monto_bs`, `monto_pendiente_usd_bcv = usd_bcv_factura`, `pagada_at = null`, limpiando también las columnas de respaldo `revert_*`.
-- Se ejecuta como operación de datos (sin cambios de esquema ni de código).
+- Criterio de borrado: `standby = false` AND (`referencia LIKE 'BANK:%'` OR `referencia IN ('xetux','xetux-iva')` OR `import_batch_id IS NOT NULL`).
+- Orden: propinas → conciliación bancaria → cuentas por pagar (de esas transacciones) → romper FK `pareja_off_balance_id` → transacciones.
+- `importaciones`: marcar todas como `revertida`.
+- Se ejecuta como operación de datos, sin cambios de esquema ni de código.
