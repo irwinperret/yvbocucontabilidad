@@ -4933,7 +4933,10 @@ function CierreForm() {
               type="number"
               step="0.01"
               value={invFinUsd}
-              onChange={(e) => setInvFinUsd(e.target.value)}
+              onChange={(e) => {
+                setInvFinTocado(true);
+                setInvFinUsd(e.target.value);
+              }}
               className="mono"
               placeholder="0.00"
             />
