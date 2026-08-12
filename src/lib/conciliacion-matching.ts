@@ -42,7 +42,8 @@ export function bancoDeReferencia(referencia?: string | null) {
 export function refBancaria(referencia?: string | null) {
   if (!referencia || !referencia.startsWith("BANK:")) return "";
   const parts = referencia.slice(5).split("|");
-  return parts[2] ?? "";
+  // BA (Banco de Venezuela/Banesco) guarda referencias con apóstrofe inicial.
+  return (parts[2] ?? "").replace(/^['´`‘’]+/, "");
 }
 
 /** Extrae posibles números de factura del memo bancario */

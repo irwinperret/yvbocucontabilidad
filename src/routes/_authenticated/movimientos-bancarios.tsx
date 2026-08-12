@@ -405,7 +405,7 @@ function MovimientosBancariosPage() {
         fecha: f.mov.fecha,
         banco: bancoDeReferencia(f.mov.referencia),
         ref: refBancaria(f.mov.referencia),
-        bs: Number(f.mov.monto_bs),
+        bs: Math.abs(Number(f.mov.monto_bs) || 0),
         usdBcv: usdBcvDe(f.mov),
         usdPar: Number(f.mov.monto_usd ?? 0),
         cuenta: `${f.mov.cuenta_codigo} · ${nombreCuenta(f.mov.cuenta_codigo)}`,
