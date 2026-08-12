@@ -3925,9 +3925,7 @@ function CierreForm() {
   const { data: tasaBcvIniDia } = useQuery({
     queryKey: ["tasa-bcv-on-or-before", primerDiaMes],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tasas_bcv")
-        .select("fecha, tasa");
+      const { data } = await tasaBcvQuery(primerDiaMes, "fecha, tasa");
       return data as { fecha: string; tasa: number } | null;
     },
   });
