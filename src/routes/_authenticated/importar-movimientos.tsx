@@ -27,6 +27,7 @@ import {
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 export const Route = createFileRoute("/_authenticated/importar-movimientos")({
   component: ImportarMovimientos,
@@ -410,7 +411,7 @@ function ImportarMovimientosInner() {
   };
 
   const getRatesForDate = async (fecha: string) => {
-    const { data: bcv } = await supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+    const { data: bcv } = await tasaBcvQuery(fecha, "tasa");
     const { data: par } = await supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
     return { bcv: Number(bcv?.tasa ?? 0), paralela: Number(par?.tasa ?? 0) };
   };

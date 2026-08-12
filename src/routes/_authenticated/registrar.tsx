@@ -36,6 +36,7 @@ import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/antici
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { PagarCxPInline } from "@/components/pagar-cxp-inline";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 const CUENTA_PAGO_CXP = "13.2";
 
@@ -49,13 +50,7 @@ function useTasaForDate(fecha: string) {
   return useQuery({
     queryKey: ["tasa-for", fecha],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tasas_bcv")
-        .select("*")
-        .lte("fecha", fecha)
-        .order("fecha", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data } = await tasaBcvQuery(fecha, "*");
       return data;
     },
   });
@@ -3904,7 +3899,7 @@ function CierreForm() {
       const finDate = new Date(`${periodo}-01T00:00:00`);
       finDate.setMonth(finDate.getMonth() + 1);
       const fin = finDate.toISOString().slice(0, 10);
-      const { data } = await supabase.from("tasas_bcv").select("fecha, tasa").gte("fecha", ini).lt("fecha", fin);
+      const { data } = await tasaBcvQuery(primerDiaMes, "fecha, tasa").gte("fecha", ini).lt("fecha", fin);
       return data ?? [];
     },
   });
@@ -3932,24 +3927,14 @@ function CierreForm() {
     queryFn: async () => {
       const { data } = await supabase
         .from("tasas_bcv")
-        .select("fecha, tasa")
-        .lte("fecha", primerDiaMes)
-        .order("fecha", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .select("fecha, tasa");
       return data as { fecha: string; tasa: number } | null;
     },
   });
   const { data: tasaBcvFinDia } = useQuery({
     queryKey: ["tasa-bcv-on-or-before", ultimoDiaMes],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tasas_bcv")
-        .select("fecha, tasa")
-        .lte("fecha", ultimoDiaMes)
-        .order("fecha", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data } = await tasaBcvQuery(ultimoDiaMes, "fecha, tasa");
       return data as { fecha: string; tasa: number } | null;
     },
   });
@@ -4408,13 +4393,7 @@ function CierreForm() {
         .select("id, tasa_bcv_promedio")
         .eq("periodo", periodoAnterior)
         .maybeSingle();
-      const { data: tasaPrevDia } = await supabase
-        .from("tasas_bcv")
-        .select("tasa")
-        .lte("fecha", finDatePrevStr)
-        .order("fecha", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: tasaPrevDia } = await tasaBcvQuery(finDatePrevStr, "tasa");
       const tasaAnt =
         Number((tasaPrevDia as any)?.tasa) ||
         Number((cierrePrev as any)?.tasa_bcv_promedio) ||
@@ -5486,13 +5465,7 @@ function LiquidacionesForm() {
   const { data: bcvRow } = useQuery({
     queryKey: ["tasa-bcv-paralela-for", fecha],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tasas_bcv")
-        .select("fecha, tasa, tasa_paralela")
-        .lte("fecha", fecha)
-        .order("fecha", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data } = await tasaBcvQuery(fecha, "fecha, tasa, tasa_paralela");
       return data;
     },
   });

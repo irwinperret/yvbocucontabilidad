@@ -18,6 +18,7 @@ import { METODOS } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 const CUENTA_PAGO_CXP = "13.2";
 
@@ -241,7 +242,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   const { data: bcvSug } = useQuery({
     queryKey: ["tasa-pago", fecha],
     queryFn: async () => {
-      const { data } = await supabase.from("tasas_bcv").select("*").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle();
+      const { data } = await tasaBcvQuery(fecha, "*");
       if (data && !tasa) setTasa(String(data.tasa));
       return data;
     },

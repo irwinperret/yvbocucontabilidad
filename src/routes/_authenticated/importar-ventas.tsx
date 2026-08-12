@@ -16,6 +16,7 @@ import { numFromCell, parseDateCell, readSheetAOA } from "@/lib/xetux-parse";
 import { toast } from "sonner";
 import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
 import { ImportacionFallidasWizard, type FilaFallida } from "@/components/importacion-fallidas-wizard";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 export const Route = createFileRoute("/_authenticated/importar-ventas")({
   component: ImportarVentasPage,
@@ -226,7 +227,7 @@ function ImportarVentasPage() {
   const fetchTasa = async (fecha: string): Promise<{ paralela: number; bcv: number; esParalela: boolean }> => {
     const [{ data: par }, { data: bcv }] = await Promise.all([
       supabase.from("tasas_paralela").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
-      supabase.from("tasas_bcv").select("tasa").lte("fecha", fecha).order("fecha", { ascending: false }).limit(1).maybeSingle(),
+      tasaBcvQuery(fecha, "tasa"),
     ]);
     const paralela = Number(par?.tasa ?? 0);
     const bcvN = Number(bcv?.tasa ?? 0);
