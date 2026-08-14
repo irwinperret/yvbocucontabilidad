@@ -581,13 +581,14 @@ function MovimientosBancariosPage() {
             )}
           </div>
 
-          {(desde || hasta || provSel.length > 0 || cuentasSel.length > 0 || centrosSel.length > 0) && (
+          {(desde || hasta || provSel.length > 0 || cuentasSel.length > 0 || centrosSel.length > 0 || conciliacionF.length > 0) && (
             <div className="flex flex-wrap gap-2">
               {desde && <Badge variant="outline">Desde {fmtDate(desde)}</Badge>}
               {hasta && <Badge variant="outline">Hasta {fmtDate(hasta)}</Badge>}
               {provSel.length > 0 && <Badge variant="outline">{provSel.length} proveedor(es)</Badge>}
               {cuentasSel.length > 0 && <Badge variant="outline">{cuentasSel.length} cuenta(s)</Badge>}
               {centrosSel.length > 0 && <Badge variant="outline">{centrosSel.length} centro(s)</Badge>}
+              {conciliacionF.length > 0 && <Badge variant="outline">{conciliacionF.length} conciliación(es)</Badge>}
             </div>
           )}
         </CardContent>
