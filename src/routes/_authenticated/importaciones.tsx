@@ -18,11 +18,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Undo2, Loader2 } from "lucide-react";
+import { Undo2, Loader2, Trash2 } from "lucide-react";
 import { fmtUsd } from "@/lib/format";
 import {
   analizarReversion,
   ejecutarReversion,
+  purgarRevertidas,
   TIPO_LABEL,
   type ImportBatch,
   type RevertPlan,
@@ -51,6 +52,8 @@ function ImportacionesPage() {
   const [plan, setPlan] = useState<RevertPlan | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [reverting, setReverting] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purging, setPurging] = useState(false);
 
   const { data: isAdmin = false } = useQuery({
     queryKey: ["is-admin", user?.id],
@@ -105,6 +108,23 @@ function ImportacionesPage() {
     qc.invalidateQueries();
   };
 
+  const revertidas = batches.filter((b) => b.estado === "revertida");
+
+  const confirmarPurga = async () => {
+    setPurging(true);
+    const res = await purgarRevertidas();
+    setPurging(false);
+    if (!res.ok) return toast.error(res.error ?? "No se pudieron borrar las cargas revertidas");
+    const r = res.resumen;
+    toast.success(
+      r
+        ? `Se borraron ${r.cargas} cargas revertidas (${r.transacciones} transacciones, ${r.cxp} CxP, ${r.cxc} CxC, ${r.propinas} propinas, ${r.conciliaciones} conciliaciones).`
+        : "Cargas revertidas borradas"
+    );
+    setPurgeOpen(false);
+    qc.invalidateQueries();
+  };
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div>
@@ -116,7 +136,14 @@ function ImportacionesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Cargas registradas</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base">Cargas registradas</CardTitle>
+            {isAdmin && revertidas.length > 0 && (
+              <Button size="sm" variant="destructive" onClick={() => setPurgeOpen(true)}>
+                <Trash2 className="mr-1 h-4 w-4" /> Borrar revertidas ({revertidas.length})
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -232,6 +259,36 @@ function ImportacionesPage() {
               }}
             >
               {reverting ? "Revirtiendo…" : "Sí, revertir todo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={purgeOpen} onOpenChange={(o) => !o && setPurgeOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Borrar cargas revertidas</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Se eliminarán del historial {revertidas.length} carga(s) revertida(s) junto con cualquier
+                  resto que hubiera quedado asociado (transacciones, cuentas por pagar/cobrar, propinas y
+                  conciliaciones).
+                </p>
+                <p className="text-muted-foreground">Esta acción no se puede deshacer.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={purging}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={purging}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmarPurga();
+              }}
+            >
+              {purging ? "Borrando…" : "Sí, borrar definitivamente"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
