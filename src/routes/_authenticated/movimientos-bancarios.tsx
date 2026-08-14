@@ -264,6 +264,7 @@ function MovimientosBancariosPage() {
     return filas.filter((f) => {
       if (banco !== "todos" && bancoDeReferencia(f.mov.referencia) !== banco) return false;
       if (estadoF !== "todos" && f.estado !== estadoF) return false;
+      if (conciliacionF.length && !conciliacionF.includes(f.estado)) return false;
       if (origenF !== "todos" && (f.origen ?? "ninguno") !== origenF) return false;
       if (cuentasSel.length && !cuentasSel.includes(f.mov.cuenta_codigo)) return false;
       if (centrosSel.length && !centrosSel.includes(f.mov.centro_costo)) return false;
@@ -273,9 +274,9 @@ function MovimientosBancariosPage() {
       if (q && !`${f.mov.notas ?? ""} ${f.proveedor?.nombre ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [filas, banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel]);
+  }, [filas, banco, estadoF, conciliacionF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel]);
 
-  useEffect(() => { setPage(0); }, [banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel, pageSize]);
+  useEffect(() => { setPage(0); }, [banco, estadoF, conciliacionF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel, pageSize]);
 
   const proveedoresOpts = useMemo(() => {
     const s = new Set<string>();
