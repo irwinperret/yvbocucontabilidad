@@ -815,6 +815,16 @@ function MovimientosBancariosPage() {
           onSaved={async () => { setEditando(null); await recargarDatos(); }}
         />
       )}
+
+      {pareando && (
+        <PareoManualDialog
+          mov={pareando.mov}
+          proveedorActual={pareando.proveedor ?? null}
+          onClose={() => setPareando(null)}
+          onSaved={recargarDatos}
+        />
+      )}
+
     </div>
 
   );
