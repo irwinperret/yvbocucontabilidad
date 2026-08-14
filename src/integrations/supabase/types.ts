@@ -1450,6 +1450,8 @@ export type Database = {
         Returns: boolean
       }
       periodo_cerrado: { Args: { _fecha: string }; Returns: boolean }
+      purgar_filas_importacion: { Args: { p_batch: string }; Returns: Json }
+      purgar_importaciones_revertidas: { Args: never; Returns: Json }
       registrar_auditoria: {
         Args: {
           _accion: string
@@ -1460,6 +1462,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      revertir_importacion: { Args: { p_batch: string }; Returns: Json }
       tasa_bcv_para_fecha: { Args: { _fecha: string }; Returns: number }
     }
     Enums: {
