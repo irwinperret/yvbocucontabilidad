@@ -59,6 +59,7 @@ function MovimientosBancariosPage() {
 
   const [banco, setBanco] = useState("todos");
   const [estadoF, setEstadoF] = useState("todos");
+  const [conciliacionF, setConciliacionF] = useState<string[]>([]);
   const [origenF, setOrigenF] = useState("todos");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -263,6 +264,7 @@ function MovimientosBancariosPage() {
     return filas.filter((f) => {
       if (banco !== "todos" && bancoDeReferencia(f.mov.referencia) !== banco) return false;
       if (estadoF !== "todos" && f.estado !== estadoF) return false;
+      if (conciliacionF.length && !conciliacionF.includes(f.estado)) return false;
       if (origenF !== "todos" && (f.origen ?? "ninguno") !== origenF) return false;
       if (cuentasSel.length && !cuentasSel.includes(f.mov.cuenta_codigo)) return false;
       if (centrosSel.length && !centrosSel.includes(f.mov.centro_costo)) return false;
@@ -272,9 +274,9 @@ function MovimientosBancariosPage() {
       if (q && !`${f.mov.notas ?? ""} ${f.proveedor?.nombre ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [filas, banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel]);
+  }, [filas, banco, estadoF, conciliacionF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel]);
 
-  useEffect(() => { setPage(0); }, [banco, estadoF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel, pageSize]);
+  useEffect(() => { setPage(0); }, [banco, estadoF, conciliacionF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel, pageSize]);
 
   const proveedoresOpts = useMemo(() => {
     const s = new Set<string>();
@@ -579,13 +581,14 @@ function MovimientosBancariosPage() {
             )}
           </div>
 
-          {(desde || hasta || provSel.length > 0 || cuentasSel.length > 0 || centrosSel.length > 0) && (
+          {(desde || hasta || provSel.length > 0 || cuentasSel.length > 0 || centrosSel.length > 0 || conciliacionF.length > 0) && (
             <div className="flex flex-wrap gap-2">
               {desde && <Badge variant="outline">Desde {fmtDate(desde)}</Badge>}
               {hasta && <Badge variant="outline">Hasta {fmtDate(hasta)}</Badge>}
               {provSel.length > 0 && <Badge variant="outline">{provSel.length} proveedor(es)</Badge>}
               {cuentasSel.length > 0 && <Badge variant="outline">{cuentasSel.length} cuenta(s)</Badge>}
               {centrosSel.length > 0 && <Badge variant="outline">{centrosSel.length} centro(s)</Badge>}
+              {conciliacionF.length > 0 && <Badge variant="outline">{conciliacionF.length} conciliación(es)</Badge>}
             </div>
           )}
         </CardContent>
@@ -655,7 +658,15 @@ function MovimientosBancariosPage() {
                         onChange={setProvSel}
                       />
                     </th>
-                    <th className="text-left py-2 px-2">Conciliación</th>
+                    <th className="text-left py-2 px-2">
+                      Conciliación
+                      <MultiSelectFilter
+                        label="Conciliación"
+                        options={Object.entries(ESTADO_LABEL).map(([value, label]) => ({ value, label }))}
+                        selected={conciliacionF}
+                        onChange={setConciliacionF}
+                      />
+                    </th>
                     <th className="text-right py-2 px-2">Acciones</th>
 
                   </tr>
