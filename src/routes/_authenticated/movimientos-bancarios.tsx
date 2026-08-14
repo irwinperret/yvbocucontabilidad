@@ -18,6 +18,8 @@ import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CENTROS } from "@/lib/account-helpers";
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
+import { PareoManualDialog, quitarPareoManual } from "@/components/pareo-manual-dialog";
+
 import {
   bancoDeReferencia,
   refBancaria,
