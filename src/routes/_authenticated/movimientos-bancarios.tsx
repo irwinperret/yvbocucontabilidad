@@ -362,14 +362,24 @@ function MovimientosBancariosPage() {
   };
 
   const [editando, setEditando] = useState<any | null>(null);
+  const [pareando, setPareando] = useState<any | null>(null);
 
   const recargarDatos = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["mov-bancarios"] }),
       qc.invalidateQueries({ queryKey: ["facturas-compra-para-conciliar"] }),
       qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] }),
+      qc.invalidateQueries({ queryKey: ["cxp-pareo-manual"] }),
     ]);
   };
+
+  const quitarPareo = async (movId: string) => {
+    const r = await quitarPareoManual(movId);
+    if (!r.ok) { toast.error(r.error ?? "No se pudo quitar el pareo"); return; }
+    toast.success("Pareo eliminado — el movimiento vuelve a 'Sin pareo'");
+    await recargarDatos();
+  };
+
 
 
 
