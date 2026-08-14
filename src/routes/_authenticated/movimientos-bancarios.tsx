@@ -714,10 +714,21 @@ function MovimientosBancariosPage() {
 
                       </td>
                       <td className="py-2 px-2 text-right">
-                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditando(f.mov)}>
-                          <Pencil className="h-3 w-3 mr-1" /> Editar
-                        </Button>
+                        <div className="flex flex-col items-end gap-1">
+                          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setPareando(f)}>
+                            <Pencil className="h-3 w-3 mr-1" /> Editar / Parear
+                          </Button>
+                          {(f.estado === "pareado" || f.estado === "parcial") && (
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => quitarPareo(f.mov.id)}>
+                              <X className="h-3 w-3 mr-1" /> Quitar pareo
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditando(f.mov)}>
+                            Editar transacción
+                          </Button>
+                        </div>
                       </td>
+
                     </tr>
 
                   ))}
