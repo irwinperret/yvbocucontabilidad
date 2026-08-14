@@ -18,6 +18,8 @@ import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CENTROS } from "@/lib/account-helpers";
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
+import { PareoManualDialog, quitarPareoManual } from "@/components/pareo-manual-dialog";
+
 import {
   bancoDeReferencia,
   refBancaria,
@@ -362,14 +364,24 @@ function MovimientosBancariosPage() {
   };
 
   const [editando, setEditando] = useState<any | null>(null);
+  const [pareando, setPareando] = useState<any | null>(null);
 
   const recargarDatos = async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["mov-bancarios"] }),
       qc.invalidateQueries({ queryKey: ["facturas-compra-para-conciliar"] }),
       qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] }),
+      qc.invalidateQueries({ queryKey: ["cxp-pareo-manual"] }),
     ]);
   };
+
+  const quitarPareo = async (movId: string) => {
+    const r = await quitarPareoManual(movId);
+    if (!r.ok) { toast.error(r.error ?? "No se pudo quitar el pareo"); return; }
+    toast.success("Pareo eliminado — el movimiento vuelve a 'Sin pareo'");
+    await recargarDatos();
+  };
+
 
 
 
@@ -714,10 +726,21 @@ function MovimientosBancariosPage() {
 
                       </td>
                       <td className="py-2 px-2 text-right">
-                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditando(f.mov)}>
-                          <Pencil className="h-3 w-3 mr-1" /> Editar
-                        </Button>
+                        <div className="flex flex-col items-end gap-1">
+                          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setPareando(f)}>
+                            <Pencil className="h-3 w-3 mr-1" /> Editar / Parear
+                          </Button>
+                          {(f.estado === "pareado" || f.estado === "parcial") && (
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => quitarPareo(f.mov.id)}>
+                              <X className="h-3 w-3 mr-1" /> Quitar pareo
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditando(f.mov)}>
+                            Editar transacción
+                          </Button>
+                        </div>
                       </td>
+
                     </tr>
 
                   ))}
@@ -792,6 +815,16 @@ function MovimientosBancariosPage() {
           onSaved={async () => { setEditando(null); await recargarDatos(); }}
         />
       )}
+
+      {pareando && (
+        <PareoManualDialog
+          mov={pareando.mov}
+          proveedorActual={pareando.proveedor ?? null}
+          onClose={() => setPareando(null)}
+          onSaved={recargarDatos}
+        />
+      )}
+
     </div>
 
   );
