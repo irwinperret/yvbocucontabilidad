@@ -98,11 +98,28 @@ export function PareoManualDialog({
     },
   });
 
+  // Tasa BCV del día del movimiento: la deuda (USD BCV) se revalúa a esa tasa.
+  const { data: tasaMov } = useQuery({
+    queryKey: ["tasa-bcv-pareo", fecha],
+    queryFn: async () => {
+      const { data } = await tasaBcvQuery(fecha, "tasa");
+      return Number(data?.tasa) || Number(mov.tasa_bcv) || 0;
+    },
+  });
+  const tasaBcvMov = Number(tasaMov) || Number(mov.tasa_bcv) || 0;
+
   useEffect(() => { setSel([]); }, [terceroId]);
 
+  const pendienteHoy = (c: any) => pendienteBsAFecha(c, tasaBcvMov);
+
   const seleccionadas = useMemo(() => (cxps ?? []).filter((c) => sel.includes(c.id)), [cxps, sel]);
-  const totalSel = useMemo(() => seleccionadas.reduce((s, c) => s + pendienteBsDe(c), 0), [seleccionadas]);
+  const totalSel = useMemo(
+    () => seleccionadas.reduce((s, c) => s + pendienteBsAFecha(c, tasaBcvMov), 0),
+    [seleccionadas, tasaBcvMov],
+  );
   const diferencia = +(montoMov - totalSel).toFixed(2);
+  const difDespreciable = totalSel > 0 && dentroDeTolerancia(diferencia, totalSel);
+
 
   const toggle = (id: string) =>
     setSel((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
