@@ -208,6 +208,8 @@ export function PareoManualDialog({
         const usdBcvAplicado = tasaBcv > 0 ? +(aplicar / tasaBcv).toFixed(2) : 0;
         const usdRestante = +Math.max(0, pendienteUsdBcvDe(c) - usdBcvAplicado).toFixed(2);
         const saldada = saldaCompleta || usdRestante <= 0.01;
+        if (!saldada) quedoPendiente = true;
+
         await supabase.from("cuentas_por_pagar").update(
           saldada
             ? { estado: "pagada", pagada_at: new Date().toISOString(), monto_pendiente_bs: 0, monto_pendiente_usd_bcv: 0 }
