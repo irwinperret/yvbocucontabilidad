@@ -23,13 +23,9 @@ export const marcaPareo = (movId: string) => `PAREO:${movId}`;
 /** Marca en `detalle` que enlaza el pago con la CxP aplicada. */
 const marcaCxp = (cxpId: string, monto: number) => `PAREO_CXP:${cxpId}|${monto.toFixed(2)}`;
 
-const pendienteBsDe = (c: any) => Number(c.monto_pendiente_bs ?? c.monto_bs ?? 0);
-const pendienteUsdBcvDe = (c: any) => {
-  if (c.monto_pendiente_usd_bcv != null) return Number(c.monto_pendiente_usd_bcv);
-  const base = Number(c.usd_bcv_factura ?? c.monto_usd ?? 0);
-  const ratio = Number(c.monto_bs) > 0 ? pendienteBsDe(c) / Number(c.monto_bs) : 1;
-  return +(base * ratio).toFixed(2);
-};
+const pendienteBsDe = (c: any) => pendienteBsHistorico(c);
+const pendienteUsdBcvDe = (c: any) => pendienteUsdBcv(c);
+
 
 export type TerceroOpt = { id: string; razon_social: string; nombre_comercial?: string | null; tipo_rif?: string | null; rif?: string | null };
 
