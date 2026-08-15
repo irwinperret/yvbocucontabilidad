@@ -154,8 +154,12 @@ export function PareoManualDialog({
       let restante = montoMov;
 
       for (const c of seleccionadas) {
-        const pend = pendienteBsDe(c);
-        const aplicar = +Math.min(pend, restante).toFixed(2);
+        // Deuda revaluada a la tasa BCV del día del pago
+        const pend = pendienteBsAFecha(c, tasaBcv);
+        let aplicar = +Math.min(pend, restante).toFixed(2);
+        // Si lo que queda por cubrir es despreciable, se salda la factura completa
+        const saldaCompleta = dentroDeTolerancia(pend - aplicar, pend);
+        if (saldaCompleta) aplicar = +Math.min(pend, restante).toFixed(2);
         if (aplicar <= 0.01) continue;
         restante = +(restante - aplicar).toFixed(2);
 
@@ -200,14 +204,42 @@ export function PareoManualDialog({
         if (tx) { creadas.push(tx.id); await logAudit("transacciones", "INSERT", tx.id, null, tx); }
 
         const usdBcvAplicado = tasaBcv > 0 ? +(aplicar / tasaBcv).toFixed(2) : 0;
-        const nuevoBs = +Math.max(0, pend - aplicar).toFixed(2);
-        const nuevoUsd = +Math.max(0, pendienteUsdBcvDe(c) - usdBcvAplicado).toFixed(2);
+        const usdRestante = +Math.max(0, pendienteUsdBcvDe(c) - usdBcvAplicado).toFixed(2);
+        const saldada = saldaCompleta || usdRestante <= 0.01;
         await supabase.from("cuentas_por_pagar").update(
-          nuevoBs <= 0.01
+          saldada
             ? { estado: "pagada", pagada_at: new Date().toISOString(), monto_pendiente_bs: 0, monto_pendiente_usd_bcv: 0 }
-            : { estado: "parcial", monto_pendiente_bs: nuevoBs, monto_pendiente_usd_bcv: nuevoUsd },
+            : {
+                estado: "parcial",
+                monto_pendiente_usd_bcv: usdRestante,
+                monto_pendiente_bs: +(usdRestante * (tasaBcvFactura(c) || tasaBcv)).toFixed(2),
+              },
         ).eq("id", c.id);
+
+        // Diferencial cambiario: la deuda nació a la tasa de la factura y se
+        // paga a la tasa del día → la diferencia va a 7.2 / 11.1.
+        const delta = diferencialCambiario({
+          usdBcvAplicado,
+          tasaPago: tasaBcv,
+          tasaFactura: tasaBcvFactura(c),
+        });
+        if (Math.abs(delta) >= 0.01) {
+          const idDif = await registrarDiferencialCambiario({
+            delta,
+            fecha,
+            centro_costo: (txOrig?.centro_costo ?? c.centro_costo ?? mov.centro_costo ?? "Compartido") as string,
+            tercero_id: terceroId,
+            grupo_transaccion_id: grupoId,
+            tasa_bcv: tasaBcv,
+            tasa_paralela: tasaPar || null,
+            referencia: marcaPareo(mov.id),
+            notas: `Diferencial cambiario — Fact ${c.numero_factura ?? "s/n"}`,
+            created_by: user.id,
+          });
+          if (idDif) creadas.push(idDif);
+        }
       }
+
 
       // Excedente → anticipo a proveedor (14.2)
       if (restante > 0.01 && excedente === "anticipo") {
