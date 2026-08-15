@@ -361,7 +361,7 @@ export function PareoManualDialog({
                     <th className="w-8 py-2 px-2"></th>
                     <th className="text-left py-2 px-2">N° Factura</th>
                     <th className="text-left py-2 px-2">Fecha</th>
-                    <th className="text-right py-2 px-2">Pendiente Bs</th>
+                    <th className="text-right py-2 px-2">Pendiente Bs (a la fecha del pago)</th>
                     <th className="text-right py-2 px-2">Pendiente USD (BCV)</th>
                     <th className="text-left py-2 px-2">Estado</th>
                   </tr>
@@ -374,7 +374,14 @@ export function PareoManualDialog({
                       </td>
                       <td className="py-1.5 px-2 mono">{c.numero_factura ?? "—"}</td>
                       <td className="py-1.5 px-2 mono">{c.created_at ? fmtDate(String(c.created_at).slice(0, 10)) : "—"}</td>
-                      <td className="py-1.5 px-2 text-right mono">{fmtBs(pendienteBsDe(c))}</td>
+                      <td className="py-1.5 px-2 text-right mono">
+                        {fmtBs(pendienteHoy(c))}
+                        {Math.abs(pendienteHoy(c) - pendienteBsDe(c)) > 0.01 && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {fmtBs(pendienteBsDe(c))} a la tasa de la factura
+                          </div>
+                        )}
+                      </td>
                       <td className="py-1.5 px-2 text-right mono">{fmtUsd(pendienteUsdBcvDe(c))}</td>
                       <td className="py-1.5 px-2">
                         <Badge variant={c.estado === "parcial" ? "secondary" : "outline"} className="text-[10px]">
@@ -391,13 +398,23 @@ export function PareoManualDialog({
 
         <div className="rounded-md border p-3 space-y-1 text-sm">
           <div className="flex justify-between"><span>Movimiento bancario:</span><span className="mono">{fmtBs(montoMov)}</span></div>
-          <div className="flex justify-between"><span>Seleccionado:</span><span className="mono">{fmtBs(totalSel)}</span></div>
-          <div className={`flex justify-between font-semibold ${Math.abs(diferencia) < 0.01 ? "text-green-600" : "text-destructive"}`}>
+          <div className="flex justify-between">
+            <span>Seleccionado (deuda al {fmtDate(fecha)}):</span>
+            <span className="mono">{fmtBs(totalSel)}</span>
+          </div>
+          <div className={`flex justify-between font-semibold ${Math.abs(diferencia) < 0.01 || difDespreciable ? "text-green-600" : "text-destructive"}`}>
             <span>Diferencia:</span><span className="mono">{fmtBs(diferencia)}</span>
           </div>
+          {difDespreciable && Math.abs(diferencia) >= 0.01 && (
+            <p className="text-[11px] text-muted-foreground">
+              Diferencia despreciable (dentro de la tolerancia): la factura se marcará como pagada y el delta se
+              registra como diferencial cambiario.
+            </p>
+          )}
         </div>
 
-        {diferencia > 0.01 && seleccionadas.length > 0 && (
+        {diferencia > 0.01 && !difDespreciable && seleccionadas.length > 0 && (
+
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">Excedente del movimiento ({fmtBs(diferencia)})</Label>
             <RadioGroup value={excedente} onValueChange={(v) => setExcedente(v as any)} className="space-y-1">
