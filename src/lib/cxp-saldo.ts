@@ -69,3 +69,54 @@ export function diferencialCambiario(opts: {
   if (!(usdBcvAplicado > 0) || !(tasaPago > 0) || !(tasaFactura > 0)) return 0;
   return +(usdBcvAplicado * (tasaPago - tasaFactura)).toFixed(2);
 }
+
+/**
+ * Registra el asiento de diferencial cambiario de un pago de CxP.
+ * `delta` > 0 se registra como pérdida (7.2), < 0 como ganancia (11.1).
+ * Devuelve el id de la transacción creada, o null si no hubo diferencia.
+ */
+export async function registrarDiferencialCambiario(opts: {
+  delta: number;
+  fecha: string;
+  centro_costo: string;
+  tercero_id?: string | null;
+  grupo_transaccion_id?: string | null;
+  tasa_bcv?: number | null;
+  tasa_paralela?: number | null;
+  cuenta_bancaria_id?: string | null;
+  referencia?: string | null;
+  notas?: string | null;
+  created_by: string;
+}): Promise<string | null> {
+  const monto = +Math.abs(opts.delta).toFixed(2);
+  if (monto < 0.01) return null;
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data, error } = await supabase.from("transacciones").insert({
+    fecha: opts.fecha,
+    cuenta_codigo: opts.delta > 0 ? CUENTA_DIF_PERDIDA : CUENTA_DIF_GANANCIA,
+    centro_costo: opts.centro_costo as any,
+    modo: "on_balance" as any,
+    monto_bs: monto,
+    monto_base_bs: monto,
+    iva_bs: 0,
+    iva_aplica: false,
+    tasa_bcv: opts.tasa_bcv ?? null,
+    tasa_paralela: opts.tasa_paralela ?? null,
+    monto_usd:
+      Number(opts.tasa_paralela) > 0
+        ? +(monto / Number(opts.tasa_paralela)).toFixed(2)
+        : Number(opts.tasa_bcv) > 0
+          ? +(monto / Number(opts.tasa_bcv)).toFixed(2)
+          : 0,
+    metodo_pago: null as any,
+    tercero_id: opts.tercero_id ?? null,
+    cuenta_bancaria_id: null,
+    grupo_transaccion_id: opts.grupo_transaccion_id ?? null,
+    referencia: opts.referencia ?? null,
+    detalle: "DIF_CAMBIARIO",
+    notas: opts.notas ?? "Diferencial cambiario por pago de factura en USD BCV",
+    created_by: opts.created_by,
+  } as any).select("id").single();
+  if (error) return null;
+  return (data as any)?.id ?? null;
+}
