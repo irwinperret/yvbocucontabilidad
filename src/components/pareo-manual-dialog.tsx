@@ -14,6 +14,15 @@ import { toast } from "sonner";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import { logAudit } from "@/lib/audit";
+import {
+  pendienteBsHistorico,
+  pendienteUsdBcv,
+  pendienteBsAFecha,
+  dentroDeTolerancia,
+  tasaBcvFactura,
+  diferencialCambiario,
+  registrarDiferencialCambiario,
+} from "@/lib/cxp-saldo";
 
 const CUENTA_PAGO_CXP = "13.2";
 const CUENTA_ANTICIPO = "14.2";
@@ -23,13 +32,9 @@ export const marcaPareo = (movId: string) => `PAREO:${movId}`;
 /** Marca en `detalle` que enlaza el pago con la CxP aplicada. */
 const marcaCxp = (cxpId: string, monto: number) => `PAREO_CXP:${cxpId}|${monto.toFixed(2)}`;
 
-const pendienteBsDe = (c: any) => Number(c.monto_pendiente_bs ?? c.monto_bs ?? 0);
-const pendienteUsdBcvDe = (c: any) => {
-  if (c.monto_pendiente_usd_bcv != null) return Number(c.monto_pendiente_usd_bcv);
-  const base = Number(c.usd_bcv_factura ?? c.monto_usd ?? 0);
-  const ratio = Number(c.monto_bs) > 0 ? pendienteBsDe(c) / Number(c.monto_bs) : 1;
-  return +(base * ratio).toFixed(2);
-};
+const pendienteBsDe = (c: any) => pendienteBsHistorico(c);
+const pendienteUsdBcvDe = (c: any) => pendienteUsdBcv(c);
+
 
 export type TerceroOpt = { id: string; razon_social: string; nombre_comercial?: string | null; tipo_rif?: string | null; rif?: string | null };
 
@@ -93,11 +98,28 @@ export function PareoManualDialog({
     },
   });
 
+  // Tasa BCV del día del movimiento: la deuda (USD BCV) se revalúa a esa tasa.
+  const { data: tasaMov } = useQuery({
+    queryKey: ["tasa-bcv-pareo", fecha],
+    queryFn: async () => {
+      const { data } = await tasaBcvQuery(fecha, "tasa");
+      return Number(data?.tasa) || Number(mov.tasa_bcv) || 0;
+    },
+  });
+  const tasaBcvMov = Number(tasaMov) || Number(mov.tasa_bcv) || 0;
+
   useEffect(() => { setSel([]); }, [terceroId]);
 
+  const pendienteHoy = (c: any) => pendienteBsAFecha(c, tasaBcvMov);
+
   const seleccionadas = useMemo(() => (cxps ?? []).filter((c) => sel.includes(c.id)), [cxps, sel]);
-  const totalSel = useMemo(() => seleccionadas.reduce((s, c) => s + pendienteBsDe(c), 0), [seleccionadas]);
+  const totalSel = useMemo(
+    () => seleccionadas.reduce((s, c) => s + pendienteBsAFecha(c, tasaBcvMov), 0),
+    [seleccionadas, tasaBcvMov],
+  );
   const diferencia = +(montoMov - totalSel).toFixed(2);
+  const difDespreciable = totalSel > 0 && dentroDeTolerancia(diferencia, totalSel);
+
 
   const toggle = (id: string) =>
     setSel((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -130,10 +152,16 @@ export function PareoManualDialog({
       }));
       const creadas: string[] = [];
       let restante = montoMov;
+      let quedoPendiente = false;
+
 
       for (const c of seleccionadas) {
-        const pend = pendienteBsDe(c);
-        const aplicar = +Math.min(pend, restante).toFixed(2);
+        // Deuda revaluada a la tasa BCV del día del pago
+        const pend = pendienteBsAFecha(c, tasaBcv);
+        let aplicar = +Math.min(pend, restante).toFixed(2);
+        // Si lo que queda por cubrir es despreciable, se salda la factura completa
+        const saldaCompleta = dentroDeTolerancia(pend - aplicar, pend);
+        if (saldaCompleta) aplicar = +Math.min(pend, restante).toFixed(2);
         if (aplicar <= 0.01) continue;
         restante = +(restante - aplicar).toFixed(2);
 
@@ -178,28 +206,60 @@ export function PareoManualDialog({
         if (tx) { creadas.push(tx.id); await logAudit("transacciones", "INSERT", tx.id, null, tx); }
 
         const usdBcvAplicado = tasaBcv > 0 ? +(aplicar / tasaBcv).toFixed(2) : 0;
-        const nuevoBs = +Math.max(0, pend - aplicar).toFixed(2);
-        const nuevoUsd = +Math.max(0, pendienteUsdBcvDe(c) - usdBcvAplicado).toFixed(2);
+        const usdRestante = +Math.max(0, pendienteUsdBcvDe(c) - usdBcvAplicado).toFixed(2);
+        const saldada = saldaCompleta || usdRestante <= 0.01;
+        if (!saldada) quedoPendiente = true;
+
         await supabase.from("cuentas_por_pagar").update(
-          nuevoBs <= 0.01
+          saldada
             ? { estado: "pagada", pagada_at: new Date().toISOString(), monto_pendiente_bs: 0, monto_pendiente_usd_bcv: 0 }
-            : { estado: "parcial", monto_pendiente_bs: nuevoBs, monto_pendiente_usd_bcv: nuevoUsd },
+            : {
+                estado: "parcial",
+                monto_pendiente_usd_bcv: usdRestante,
+                monto_pendiente_bs: +(usdRestante * (tasaBcvFactura(c) || tasaBcv)).toFixed(2),
+              },
         ).eq("id", c.id);
+
+        // Diferencial cambiario: la deuda nació a la tasa de la factura y se
+        // paga a la tasa del día → la diferencia va a 7.2 / 11.1.
+        const delta = diferencialCambiario({
+          usdBcvAplicado,
+          tasaPago: tasaBcv,
+          tasaFactura: tasaBcvFactura(c),
+        });
+        if (Math.abs(delta) >= 0.01) {
+          const idDif = await registrarDiferencialCambiario({
+            delta,
+            fecha,
+            centro_costo: (txOrig?.centro_costo ?? c.centro_costo ?? mov.centro_costo ?? "Compartido") as string,
+            tercero_id: terceroId,
+            grupo_transaccion_id: grupoId,
+            tasa_bcv: tasaBcv,
+            tasa_paralela: tasaPar || null,
+            referencia: marcaPareo(mov.id),
+            notas: `Diferencial cambiario — Fact ${c.numero_factura ?? "s/n"}`,
+            created_by: user.id,
+          });
+          if (idDif) creadas.push(idDif);
+        }
       }
 
-      // Excedente → anticipo a proveedor (14.2)
-      if (restante > 0.01 && excedente === "anticipo") {
+
+      // Excedente por encima de la tolerancia → anticipo a proveedor (14.2).
+      // Diferencias despreciables (redondeos / tasa) no generan anticipo.
+      const excedenteReal = dentroDeTolerancia(restante, montoMov) ? 0 : restante;
+      if (excedenteReal > 0.01 && excedente === "anticipo") {
         const { data: tx, error } = await supabase.from("transacciones").insert({
           fecha,
           cuenta_codigo: CUENTA_ANTICIPO,
           centro_costo: (mov.centro_costo ?? "Compartido") as any,
-          monto_bs: restante,
-          monto_base_bs: restante,
+          monto_bs: excedenteReal,
+          monto_base_bs: excedenteReal,
           iva_bs: 0,
           iva_aplica: false,
           tasa_bcv: tasaBcv,
           tasa_paralela: tasaPar || null,
-          monto_usd: tasaPar > 0 ? +(restante / tasaPar).toFixed(2) : 0,
+          monto_usd: tasaPar > 0 ? +(excedenteReal / tasaPar).toFixed(2) : 0,
           metodo_pago: (mov.metodo_pago ?? "transferencia") as any,
           referencia: marcaPareo(mov.id),
           detalle: "PAREO_ANTICIPO",
@@ -216,7 +276,9 @@ export function PareoManualDialog({
 
       // Vínculo de conciliación (contra las transacciones-factura de las CxP)
       const facturaIds = seleccionadas.map((c) => c.transaccion_id).filter(Boolean) as string[];
-      const estadoVinculo = restante > 0.01 ? "parcial" : "pareado";
+      const estadoVinculo = excedenteReal > 0.01 || quedoPendiente ? "parcial" : "pareado";
+
+
       if (facturaIds.length) {
         const r = await guardarVinculosConciliacion({
           movimientoId: mov.id,
@@ -299,7 +361,7 @@ export function PareoManualDialog({
                     <th className="w-8 py-2 px-2"></th>
                     <th className="text-left py-2 px-2">N° Factura</th>
                     <th className="text-left py-2 px-2">Fecha</th>
-                    <th className="text-right py-2 px-2">Pendiente Bs</th>
+                    <th className="text-right py-2 px-2">Pendiente Bs (a la fecha del pago)</th>
                     <th className="text-right py-2 px-2">Pendiente USD (BCV)</th>
                     <th className="text-left py-2 px-2">Estado</th>
                   </tr>
@@ -312,7 +374,14 @@ export function PareoManualDialog({
                       </td>
                       <td className="py-1.5 px-2 mono">{c.numero_factura ?? "—"}</td>
                       <td className="py-1.5 px-2 mono">{c.created_at ? fmtDate(String(c.created_at).slice(0, 10)) : "—"}</td>
-                      <td className="py-1.5 px-2 text-right mono">{fmtBs(pendienteBsDe(c))}</td>
+                      <td className="py-1.5 px-2 text-right mono">
+                        {fmtBs(pendienteHoy(c))}
+                        {Math.abs(pendienteHoy(c) - pendienteBsDe(c)) > 0.01 && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {fmtBs(pendienteBsDe(c))} a la tasa de la factura
+                          </div>
+                        )}
+                      </td>
                       <td className="py-1.5 px-2 text-right mono">{fmtUsd(pendienteUsdBcvDe(c))}</td>
                       <td className="py-1.5 px-2">
                         <Badge variant={c.estado === "parcial" ? "secondary" : "outline"} className="text-[10px]">
@@ -329,13 +398,23 @@ export function PareoManualDialog({
 
         <div className="rounded-md border p-3 space-y-1 text-sm">
           <div className="flex justify-between"><span>Movimiento bancario:</span><span className="mono">{fmtBs(montoMov)}</span></div>
-          <div className="flex justify-between"><span>Seleccionado:</span><span className="mono">{fmtBs(totalSel)}</span></div>
-          <div className={`flex justify-between font-semibold ${Math.abs(diferencia) < 0.01 ? "text-green-600" : "text-destructive"}`}>
+          <div className="flex justify-between">
+            <span>Seleccionado (deuda al {fmtDate(fecha)}):</span>
+            <span className="mono">{fmtBs(totalSel)}</span>
+          </div>
+          <div className={`flex justify-between font-semibold ${Math.abs(diferencia) < 0.01 || difDespreciable ? "text-green-600" : "text-destructive"}`}>
             <span>Diferencia:</span><span className="mono">{fmtBs(diferencia)}</span>
           </div>
+          {difDespreciable && Math.abs(diferencia) >= 0.01 && (
+            <p className="text-[11px] text-muted-foreground">
+              Diferencia despreciable (dentro de la tolerancia): la factura se marcará como pagada y el delta se
+              registra como diferencial cambiario.
+            </p>
+          )}
         </div>
 
-        {diferencia > 0.01 && seleccionadas.length > 0 && (
+        {diferencia > 0.01 && !difDespreciable && seleccionadas.length > 0 && (
+
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">Excedente del movimiento ({fmtBs(diferencia)})</Label>
             <RadioGroup value={excedente} onValueChange={(v) => setExcedente(v as any)} className="space-y-1">
