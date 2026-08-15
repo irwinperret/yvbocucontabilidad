@@ -276,9 +276,8 @@ export function PareoManualDialog({
 
       // Vínculo de conciliación (contra las transacciones-factura de las CxP)
       const facturaIds = seleccionadas.map((c) => c.transaccion_id).filter(Boolean) as string[];
-      const estadoVinculo = excedenteReal > 0.01 || (restante < -0.01 && !dentroDeTolerancia(restante, montoMov))
-        ? "parcial"
-        : "pareado";
+      const estadoVinculo = excedenteReal > 0.01 || quedoPendiente ? "parcial" : "pareado";
+
 
       if (facturaIds.length) {
         const r = await guardarVinculosConciliacion({
