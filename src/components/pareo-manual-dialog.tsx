@@ -152,6 +152,8 @@ export function PareoManualDialog({
       }));
       const creadas: string[] = [];
       let restante = montoMov;
+      let quedoPendiente = false;
+
 
       for (const c of seleccionadas) {
         // Deuda revaluada a la tasa BCV del día del pago
