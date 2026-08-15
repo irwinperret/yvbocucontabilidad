@@ -14,6 +14,15 @@ import { toast } from "sonner";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import { logAudit } from "@/lib/audit";
+import {
+  pendienteBsHistorico,
+  pendienteUsdBcv,
+  pendienteBsAFecha,
+  dentroDeTolerancia,
+  tasaBcvFactura,
+  diferencialCambiario,
+  registrarDiferencialCambiario,
+} from "@/lib/cxp-saldo";
 
 const CUENTA_PAGO_CXP = "13.2";
 const CUENTA_ANTICIPO = "14.2";
