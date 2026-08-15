@@ -241,19 +241,21 @@ export function PareoManualDialog({
       }
 
 
-      // Excedente → anticipo a proveedor (14.2)
-      if (restante > 0.01 && excedente === "anticipo") {
+      // Excedente por encima de la tolerancia → anticipo a proveedor (14.2).
+      // Diferencias despreciables (redondeos / tasa) no generan anticipo.
+      const excedenteReal = dentroDeTolerancia(restante, montoMov) ? 0 : restante;
+      if (excedenteReal > 0.01 && excedente === "anticipo") {
         const { data: tx, error } = await supabase.from("transacciones").insert({
           fecha,
           cuenta_codigo: CUENTA_ANTICIPO,
           centro_costo: (mov.centro_costo ?? "Compartido") as any,
-          monto_bs: restante,
-          monto_base_bs: restante,
+          monto_bs: excedenteReal,
+          monto_base_bs: excedenteReal,
           iva_bs: 0,
           iva_aplica: false,
           tasa_bcv: tasaBcv,
           tasa_paralela: tasaPar || null,
-          monto_usd: tasaPar > 0 ? +(restante / tasaPar).toFixed(2) : 0,
+          monto_usd: tasaPar > 0 ? +(excedenteReal / tasaPar).toFixed(2) : 0,
           metodo_pago: (mov.metodo_pago ?? "transferencia") as any,
           referencia: marcaPareo(mov.id),
           detalle: "PAREO_ANTICIPO",
@@ -270,7 +272,10 @@ export function PareoManualDialog({
 
       // Vínculo de conciliación (contra las transacciones-factura de las CxP)
       const facturaIds = seleccionadas.map((c) => c.transaccion_id).filter(Boolean) as string[];
-      const estadoVinculo = restante > 0.01 ? "parcial" : "pareado";
+      const estadoVinculo = excedenteReal > 0.01 || (restante < -0.01 && !dentroDeTolerancia(restante, montoMov))
+        ? "parcial"
+        : "pareado";
+
       if (facturaIds.length) {
         const r = await guardarVinculosConciliacion({
           movimientoId: mov.id,
