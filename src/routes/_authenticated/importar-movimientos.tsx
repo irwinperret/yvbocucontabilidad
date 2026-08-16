@@ -789,6 +789,8 @@ function ImportarMovimientosInner() {
                     <th className="p-2 bg-muted">CxP emparejadas</th>
                     <th className="p-2 bg-muted text-right">Dif. Bs</th>
                     <th className="p-2 bg-muted">Cuenta contable (sin factura)</th>
+                    <th className="p-2 bg-muted">Tipo de registro</th>
+
                   </tr>
                 </thead>
                 <tbody>
@@ -940,6 +942,25 @@ function ImportarMovimientosInner() {
                           options={planComboOptions}
                         />
                       </td>
+                      <td className="p-2">
+                        {(() => {
+                          const t = tipoDe(m);
+                          return (
+                            <>
+                              <Badge
+                                variant={t.tipo === "pasivo" ? "secondary" : t.tipo === "sin_clasificar" ? "destructive" : "outline"}
+                                className="text-[9px] px-1 py-0"
+                              >
+                                {TIPO_REGISTRO_LABEL[t.tipo]}
+                              </Badge>
+                              {t.nota && (
+                                <div className="text-[10px] text-muted-foreground mt-1 max-w-[180px]">{t.nota}</div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </td>
+
 
                     </tr>
                     );
