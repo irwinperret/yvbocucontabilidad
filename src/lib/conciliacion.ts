@@ -98,7 +98,7 @@ export function parseCodigosDoc(cell: unknown): CodigoDoc[] {
 /** Cuentas específicas sin factura (además de todo el grupo 3.x). */
 const CUENTAS_SIN_FACTURA_FIJAS = new Set([
   "14.1", "14.3",           // activos transitorios
-  "13.1", "13.2",           // pasivos transitorios / pago CxP
+  "13.1", "13.2", "13.4",   // pasivos transitorios / pago CxP / bonos 10%
   "10.1", "10.2", "10.4", "10.5", "10.7", // financiamiento y depreciación
   "12.1", "12.2", "12.3", "12.4", "12.5", // impuestos
   "7.1", "7.2",             // financieros

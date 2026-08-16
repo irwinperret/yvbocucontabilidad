@@ -30,6 +30,15 @@ import {
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
 import { tasaBcvQuery } from "@/lib/tasas";
+import {
+  clasificarPagoPersonal,
+  esPagoPersonal,
+  descargaPasivo,
+  tipoRegistroDeCuenta,
+  TIPO_REGISTRO_LABEL,
+  type TipoRegistro,
+} from "@/lib/clasificar-personal";
+
 
 export const Route = createFileRoute("/_authenticated/importar-movimientos")({
   component: ImportarMovimientos,
