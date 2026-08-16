@@ -280,8 +280,29 @@ function ImportarVentasPage() {
       } else {
         await supabase.from("transacciones").insert(bonoPayload);
       }
+
+      // Pasivo 13.4 — Bonos 10% por pagar al personal: el gasto se devenga aquí y
+      // el pago bancario lo descarga (negativo). Así no se cuenta dos veces.
+      const { data: pasivoExist } = await supabase.from("transacciones")
+        .select("id")
+        .eq("referencia", referencia)
+        .eq("cuenta_codigo", "13.4")
+        .eq("numero_factura", r.numero_factura)
+        .limit(1).maybeSingle();
+      const pasivoPayload: any = {
+        ...bonoPayload,
+        cuenta_codigo: "13.4",
+        metodo_pago: "pendiente",
+        notas: `Xetux · Bono 10% por pagar · factura ${r.numero_factura} · ${r.cliente}`,
+      };
+      if (pasivoExist) {
+        await supabase.from("transacciones").update(pasivoPayload).eq("id", pasivoExist.id);
+      } else {
+        await supabase.from("transacciones").insert(pasivoPayload);
+      }
       legs.bono++;
     };
+
 
     const syncPropina = async (
       r: ParsedRow,
