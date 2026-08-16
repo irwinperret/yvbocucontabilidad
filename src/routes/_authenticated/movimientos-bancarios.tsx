@@ -17,7 +17,7 @@ import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CENTROS } from "@/lib/account-helpers";
-import { guardarVinculosConciliacion } from "@/lib/conciliacion";
+import { guardarVinculosConciliacion, marcarEstadoConciliacion, ESTADO_MANUAL_LABEL, type EstadoManual } from "@/lib/conciliacion";
 import { PareoManualDialog, quitarPareoManual } from "@/components/pareo-manual-dialog";
 
 import {
@@ -213,6 +213,10 @@ function MovimientosBancariosPage() {
       const vs = vinculosPorMov.get(mov.id) ?? [];
       const confirmados = vs.filter((v) => v.transaccion_factura_id && v.estado !== "rechazado");
       const filaRechazo = vs.find((v) => v.estado === "rechazado");
+      const filaManual = vs.find(
+        (v) => !v.transaccion_factura_id && ["no_aplica", "sin_pareo", "pareado"].includes(v.estado),
+      );
+      const estadoManual: EstadoManual | null = (filaManual?.estado as EstadoManual) ?? null;
       const rechazadas: string[] = (filaRechazo?.facturas_rechazadas ?? []) as string[];
       const idsSug = auto.facturas.map((f) => f.id);
       const mismoRechazo =
@@ -234,6 +238,11 @@ function MovimientosBancariosPage() {
         motivo = cob.completa
           ? origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente"
           : `Pareo parcial: cubre ${cob.total.toFixed(2)} de ${cob.monto.toFixed(2)} Bs (faltan ${cob.diferencia.toFixed(2)} Bs)`;
+      } else if (estadoManual) {
+        estado = estadoManual as EstadoConciliacion;
+        facturas = [];
+        origen = "manual";
+        motivo = `Marcado a mano: ${ESTADO_MANUAL_LABEL[estadoManual]}`;
       } else if (filaRechazo && mismoRechazo) {
         estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
         facturas = [];
@@ -241,6 +250,7 @@ function MovimientosBancariosPage() {
       } else if (filaRechazo) {
         motivo = `${auto.motivo} · sugerencia nueva tras un rechazo anterior`;
       }
+
 
       const total = facturas.reduce(
         (s, f) => s + (Number(mov.tasa_bcv) > 0 && Number(f.usd_bcv) > 0
@@ -264,9 +274,12 @@ function MovimientosBancariosPage() {
         confirmadasIds: confirmados.map((v) => v.transaccion_factura_id as string),
         rechazado: !!filaRechazo,
         rechazadas,
+        estadoManual,
+        tienePareoFactura: confirmados.length > 0,
         manual: confirmados.some((v) => v.origen === "manual"),
-        confirmable: (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
+        confirmable: (!confirmados.length && !estadoManual) && (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
         estadoSugerido: (auto.estado === "parcial" ? "parcial" : "pareado") as "pareado" | "parcial",
+
       };
 
     });
@@ -315,6 +328,14 @@ function MovimientosBancariosPage() {
     for (const f of filtradas) c[f.estado]++;
     return c;
   }, [filtradas]);
+
+  const marcarEstado = async (movId: string, estado: EstadoManual | null) => {
+    const r = await marcarEstadoConciliacion({ movimientoId: movId, estado, userId: user?.id ?? null });
+    if (!r.ok) { toast.error(r.error ?? "No se pudo guardar el estado"); return; }
+    toast.success(estado ? `Marcado como ${ESTADO_MANUAL_LABEL[estado]}` : "Estado devuelto a automático");
+    qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+  };
+
 
   const guardarVinculo = async (
     movId: string,
@@ -752,7 +773,28 @@ function MovimientosBancariosPage() {
                               </Button>
                             </div>
                           )}
+                          {f.tienePareoFactura ? (
+                            <span className="text-[11px] text-muted-foreground pt-1">
+                              Para cambiar el estado a mano, primero quita el pareo.
+                            </span>
+                          ) : (
+                            <Select
+                              value={f.estadoManual ?? "auto"}
+                              onValueChange={(v) => marcarEstado(f.mov.id, v === "auto" ? null : (v as EstadoManual))}
+                            >
+                              <SelectTrigger className="h-7 w-[190px] text-xs mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="auto">Automático (sugerido)</SelectItem>
+                                {(Object.keys(ESTADO_MANUAL_LABEL) as EstadoManual[]).map((k) => (
+                                  <SelectItem key={k} value={k}>{ESTADO_MANUAL_LABEL[k]}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
+
 
                       </td>
                       <td className="py-2 px-2 text-right">
