@@ -228,6 +228,9 @@ function TransaccionesPage() {
   const [wipeOpen, setWipeOpen] = useState(false);
   const [wipePwd, setWipePwd] = useState("");
   const [wipeBusy, setWipeBusy] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgePwd, setPurgePwd] = useState("");
+  const [purgeBusy, setPurgeBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -638,6 +641,27 @@ function TransaccionesPage() {
     }
   };
 
+  const purgarImportado = async () => {
+    if (!canWipeAll) return toast.error("No autorizado");
+    if (purgePwd !== "12345678") return toast.error("Contraseña incorrecta");
+    setPurgeBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("purgar_todo_importado" as any, {} as any);
+      if (error) { toast.error(error.message); return; }
+      const r = (data ?? {}) as any;
+      await logAudit("transacciones", "DELETE", "IMPORTADO" as any, r, null);
+      toast.success(
+        `Borrado: ${r.transacciones ?? 0} transacciones, ${r.cuentas_por_pagar ?? 0} CxP, ${r.cuentas_por_cobrar ?? 0} CxC, ${r.propinas ?? 0} propinas, ${r.conciliaciones ?? 0} conciliaciones, ${r.importaciones ?? 0} cargas`
+      );
+      setPurgeOpen(false);
+      setPurgePwd("");
+      qc.invalidateQueries();
+    } finally {
+      setPurgeBusy(false);
+    }
+  };
+
+
   // --- Date range presets
   const applyPreset = (preset: string) => {
     const today = new Date();
@@ -835,6 +859,12 @@ function TransaccionesPage() {
                 <Download className="h-4 w-4 mr-1.5" />
                 {exporting ? "Exportando…" : "Exportar a Excel"}
               </Button>
+              {canWipeAll && (
+                <Button variant="destructive" size="sm" onClick={() => setPurgeOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Borrar todo lo importado
+                </Button>
+              )}
               {canWipeAll && (
                 <Button variant="destructive" size="sm" onClick={() => setWipeOpen(true)}>
                   <Trash2 className="h-4 w-4 mr-1.5" />
@@ -1174,6 +1204,29 @@ function TransaccionesPage() {
             <Button variant="ghost" onClick={() => { setWipeOpen(false); setWipePwd(""); }} disabled={wipeBusy}>Cancelar</Button>
             <Button variant="destructive" onClick={borrarTodo} disabled={wipeBusy || !wipePwd}>
               {wipeBusy ? "Borrando…" : "Sí, borrar todo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={purgeOpen} onOpenChange={(o) => { if (!o) { setPurgeOpen(false); setPurgePwd(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Borrar todo lo importado</DialogTitle>
+            <DialogDescription>
+              Se eliminará automáticamente todo lo que provenga de importaciones (ventas y compras Xetux, movimientos bancarios y pareos), junto con sus cuentas por cobrar, cuentas por pagar, propinas y conciliaciones, y se vaciará el historial de importaciones.
+              Se conservan únicamente las transacciones registradas manualmente (incluidas las de standby). Esta acción es irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Contraseña</Label>
+            <Input type="password" value={purgePwd} onChange={(e) => setPurgePwd(e.target.value)}
+                   placeholder="Contraseña de la página" autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setPurgeOpen(false); setPurgePwd(""); }} disabled={purgeBusy}>Cancelar</Button>
+            <Button variant="destructive" onClick={purgarImportado} disabled={purgeBusy || !purgePwd}>
+              {purgeBusy ? "Borrando…" : "Sí, borrar lo importado"}
             </Button>
           </DialogFooter>
         </DialogContent>
