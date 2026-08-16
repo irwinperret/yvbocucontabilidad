@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -49,6 +49,7 @@ export function OperacionesCambioForm() {
   const [recibido, setRecibido] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recibidoTocado, setRecibidoTocado] = useState(false);
 
   const { data: tasas } = useTasasDia(fecha);
   const tasaBcv = tasas?.bcv ?? 0;
