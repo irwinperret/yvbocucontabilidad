@@ -770,14 +770,22 @@ function ImportarMovimientosInner() {
     }
   };
 
-  /** Diferencia (solo informativa) entre lo que valen las facturas y lo que se paga. */
+  /**
+   * Diferencia (solo informativa) entre la deuda revaluada a la tasa BCV del
+   * día del pago y lo que efectivamente se paga.
+   */
   const difBs = (m: Match) => {
     if (m.cxps.length === 0) return null;
-    const facturado = m.cxps.reduce((s, c) => s + pendienteBs(c), 0);
+    const tasa = tasaBcvDe(m.bankRow.fecha);
+    const facturado = m.cxps.reduce(
+      (s, c) => s + (tasa > 0 ? pendienteUsdBcv(c) * tasa : pendienteBs(c)),
+      0,
+    );
     const pagado = Math.abs(m.bankRow.montoBs || 0);
     if (!pagado) return null;
     return +(pagado - facturado).toFixed(2);
   };
+
 
   const noAplicaFactura = (m: Match) =>
     !requiereCxP(m.bankRow.categoria) &&
