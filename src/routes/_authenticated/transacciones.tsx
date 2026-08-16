@@ -860,6 +860,12 @@ function TransaccionesPage() {
                 {exporting ? "Exportando…" : "Exportar a Excel"}
               </Button>
               {canWipeAll && (
+                <Button variant="destructive" size="sm" onClick={() => setPurgeOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Borrar todo lo importado
+                </Button>
+              )}
+              {canWipeAll && (
                 <Button variant="destructive" size="sm" onClick={() => setWipeOpen(true)}>
                   <Trash2 className="h-4 w-4 mr-1.5" />
                   Borrar todo
