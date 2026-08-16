@@ -1452,6 +1452,7 @@ export type Database = {
       periodo_cerrado: { Args: { _fecha: string }; Returns: boolean }
       purgar_filas_importacion: { Args: { p_batch: string }; Returns: Json }
       purgar_importaciones_revertidas: { Args: never; Returns: Json }
+      purgar_todo_importado: { Args: never; Returns: Json }
       registrar_auditoria: {
         Args: {
           _accion: string
