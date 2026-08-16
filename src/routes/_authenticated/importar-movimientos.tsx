@@ -503,18 +503,26 @@ function ImportarMovimientosInner() {
             ? `Conciliación bancaria (no aplica factura) · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
             : `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`;
 
+          // Propinas (13.1) y bono 10% (13.4) ya se devengaron al importar las
+          // ventas: el pago bancario descarga el pasivo (signo negativo) y no
+          // vuelve a registrar gasto.
+          const signo = descargaPasivo(m.cuentaCodigo) ? -1 : 1;
+          const montoBsFirmado = +(signo * montoBs).toFixed(2);
+          const montoUsdFirmado = +(signo * montoUsdMov).toFixed(2);
+
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
             cuenta_codigo: m.cuentaCodigo!,
             centro_costo: "Compartido" as any,
-            monto_bs: montoBs,
-            monto_base_bs: montoBs,
+            monto_bs: montoBsFirmado,
+            monto_base_bs: montoBsFirmado,
             iva_bs: 0,
             iva_aplica: false,
             tipo_iva: null,
             tasa_bcv: rates.bcv || null,
             tasa_paralela: rates.paralela || null,
-            monto_usd: montoUsdMov,
+            monto_usd: montoUsdFirmado,
+
 
             metodo_pago: "transferencia" as any,
             referencia: bankRow.huella,
