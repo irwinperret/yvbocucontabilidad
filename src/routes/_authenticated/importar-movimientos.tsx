@@ -30,6 +30,15 @@ import {
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
 import { tasaBcvQuery } from "@/lib/tasas";
+import {
+  clasificarPagoPersonal,
+  esPagoPersonal,
+  descargaPasivo,
+  tipoRegistroDeCuenta,
+  TIPO_REGISTRO_LABEL,
+  type TipoRegistro,
+} from "@/lib/clasificar-personal";
+
 
 export const Route = createFileRoute("/_authenticated/importar-movimientos")({
   component: ImportarMovimientos,
@@ -249,11 +258,20 @@ function ImportarMovimientosInner() {
         // BA/Banesco exporta las referencias con apóstrofe inicial ('122347217146)
         const referencia = idxRef >= 0 ? limpiarReferencia(row[idxRef]) : "";
 
+        const conceptoRaw = String(row[idxConcepto] ?? "");
+        // Pagos al personal: clasificación por palabras clave (nómina, parafiscales,
+        // propinas 13.1, bono 10% 13.4, liquidaciones, anticipos…).
+        const clasifPersonal = esPagoPersonal(conceptoRaw, categoria)
+          ? clasificarPagoPersonal(conceptoRaw, categoria)
+          : null;
+
         cuentaPorFila.push(
           (idxSug >= 0 ? parseCuentaCodigo(row[idxSug]) : null) ??
             (idxCuentaPlan >= 0 ? parseCuentaCodigo(row[idxCuentaPlan]) : null) ??
+            clasifPersonal?.cuenta ??
             cuentaDesdeCategoria(categoria)
         );
+
 
         parsed.push({
           id: crypto.randomUUID(),
@@ -485,18 +503,26 @@ function ImportarMovimientosInner() {
             ? `Conciliación bancaria (no aplica factura) · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
             : `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`;
 
+          // Propinas (13.1) y bono 10% (13.4) ya se devengaron al importar las
+          // ventas: el pago bancario descarga el pasivo (signo negativo) y no
+          // vuelve a registrar gasto.
+          const signo = descargaPasivo(m.cuentaCodigo) ? -1 : 1;
+          const montoBsFirmado = +(signo * montoBs).toFixed(2);
+          const montoUsdFirmado = +(signo * montoUsdMov).toFixed(2);
+
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
             cuenta_codigo: m.cuentaCodigo!,
             centro_costo: "Compartido" as any,
-            monto_bs: montoBs,
-            monto_base_bs: montoBs,
+            monto_bs: montoBsFirmado,
+            monto_base_bs: montoBsFirmado,
             iva_bs: 0,
             iva_aplica: false,
             tipo_iva: null,
             tasa_bcv: rates.bcv || null,
             tasa_paralela: rates.paralela || null,
-            monto_usd: montoUsdMov,
+            monto_usd: montoUsdFirmado,
+
 
             metodo_pago: "transferencia" as any,
             referencia: bankRow.huella,
@@ -648,6 +674,17 @@ function ImportarMovimientosInner() {
     !requiereCxP(m.bankRow.categoria) &&
     (cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo));
 
+  /** Tipo de registro + nota explicativa para la columna de la vista previa. */
+  const tipoDe = (m: Match): { tipo: TipoRegistro; nota?: string } => {
+    if (m.cxps.length > 0) return { tipo: "pasivo", nota: "Pago de factura (CxP)" };
+    const clasif = esPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)
+      ? clasificarPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)
+      : null;
+    const tipo = tipoRegistroDeCuenta(m.cuentaCodigo);
+    const nota = clasif && clasif.cuenta === m.cuentaCodigo ? clasif.nota : undefined;
+    return { tipo, nota };
+  };
+
 
   const cxpComboOptions = useMemo(
     () =>
@@ -752,6 +789,8 @@ function ImportarMovimientosInner() {
                     <th className="p-2 bg-muted">CxP emparejadas</th>
                     <th className="p-2 bg-muted text-right">Dif. Bs</th>
                     <th className="p-2 bg-muted">Cuenta contable (sin factura)</th>
+                    <th className="p-2 bg-muted">Tipo de registro</th>
+
                   </tr>
                 </thead>
                 <tbody>
@@ -903,6 +942,25 @@ function ImportarMovimientosInner() {
                           options={planComboOptions}
                         />
                       </td>
+                      <td className="p-2">
+                        {(() => {
+                          const t = tipoDe(m);
+                          return (
+                            <>
+                              <Badge
+                                variant={t.tipo === "pasivo" ? "secondary" : t.tipo === "sin_clasificar" ? "destructive" : "outline"}
+                                className="text-[9px] px-1 py-0"
+                              >
+                                {TIPO_REGISTRO_LABEL[t.tipo]}
+                              </Badge>
+                              {t.nota && (
+                                <div className="text-[10px] text-muted-foreground mt-1 max-w-[180px]">{t.nota}</div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </td>
+
 
                     </tr>
                     );

@@ -99,6 +99,25 @@ function PropinasPage() {
       return (data ?? []) as { fecha: string; tasa: number }[];
     },
   });
+
+  // Saldos de los pasivos al personal: 13.1 propinas por pagar y 13.4 bono 10%.
+  // Devengo (+) desde ventas, pago bancario (−). El saldo es lo que aún se debe.
+  const { data: saldosPersonal } = useQuery({
+    queryKey: ["saldos-pasivos-personal", anio],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("cuenta_codigo,monto_usd")
+        .in("cuenta_codigo", ["13.1", "13.4"])
+        .eq("standby", false)
+        .gte("fecha", `${anio}-01-01`)
+        .lte("fecha", `${anio}-12-31`);
+      const acc = { "13.1": 0, "13.4": 0 } as Record<string, number>;
+      for (const r of (data ?? []) as any[]) acc[r.cuenta_codigo] += Number(r.monto_usd) || 0;
+      return acc;
+    },
+  });
+
   const bcvByFecha = useMemo(() => {
     const m: Record<string, number> = {};
     (tasasBcv ?? []).forEach((r) => { m[r.fecha] = Number(r.tasa) || 0; });
@@ -270,6 +289,28 @@ function PropinasPage() {
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase text-muted-foreground">13.1 · Propinas por pagar (saldo {anio})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{fmtUsd(saldosPersonal?.["13.1"] ?? 0)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Devengado en ventas menos lo pagado por banco</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase text-muted-foreground">13.4 · Bonos 10% por pagar (saldo {anio})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{fmtUsd(saldosPersonal?.["13.4"] ?? 0)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Devengado en ventas menos lo pagado por banco</div>
+          </CardContent>
+        </Card>
+      </div>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Propinas mensuales · {anio}</CardTitle></CardHeader>

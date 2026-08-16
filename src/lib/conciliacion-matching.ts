@@ -11,7 +11,7 @@ export const ESTADO_LABEL: Record<EstadoConciliacion, string> = {
 /** Cuentas que por naturaleza no requieren una factura asociada */
 const PREFIJOS_SIN_FACTURA = ["3.", "7.", "10.", "11.", "12."];
 /** Cuentas puntuales sin factura (p. ej. Condo + Alquiler, pasivos transitorios) */
-const CUENTAS_SIN_FACTURA = new Set(["4.10", "13.1", "13.3", "14.1", "14.3"]);
+const CUENTAS_SIN_FACTURA = new Set(["4.10", "13.1", "13.3", "13.4", "14.1", "14.3"]);
 /** Cuentas que sí pueden llevar factura pese al prefijo (CapEx, pagos de CxP, anticipos) */
 const EXCEPCIONES_CON_FACTURA = new Set(["10.6", "13.2", "14.2"]);
 
