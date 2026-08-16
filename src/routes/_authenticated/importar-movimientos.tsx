@@ -518,6 +518,49 @@ function ImportarMovimientosInner() {
             : toUsd(montoBs);
 
 
+        if (m.esCambio) {
+          // ── Operación de cambio: dos patas en la cuenta 98 (efecto neto cero) ──
+          const recibido = Math.abs(Number(m.cambioRecibido) || 0);
+          const recibeUsd = (m.cambioMoneda ?? "USD") === "USD";
+          const opBs = recibeUsd ? montoBs : recibido;
+          const opUsd = recibeUsd ? recibido : montoUsdMov;
+          const tipoOp = recibeUsd ? "Compra USD" : "Venta USD";
+          const implicita = opUsd > 0 ? +(opBs / opUsd).toFixed(4) : 0;
+          const grupo = crypto.randomUUID();
+          const nota = `${tipoOp} · ${bankRow.banco} · Tasa implícita ${implicita} · ${bankRow.concepto}`.slice(0, 255);
+          const leg = (signo: 1 | -1, refer: string | null, cuentaBancaria: string | null) => ({
+            fecha: bankRow.fecha,
+            cuenta_codigo: CUENTA_CAMBIO,
+            centro_costo: "Compartido" as any,
+            monto_bs: +(signo * opBs).toFixed(2),
+            monto_base_bs: +(signo * opBs).toFixed(2),
+            iva_bs: 0,
+            iva_aplica: false,
+            tasa_bcv: rates.bcv || null,
+            tasa_paralela: rates.paralela || null,
+            monto_usd: +(signo * opUsd).toFixed(2),
+            metodo_pago: "transferencia" as any,
+            referencia: refer,
+            detalle: `${tipoOp} — ${signo < 0 ? "salida" : "entrada"}`,
+            notas: nota,
+            modo: "on_balance" as any,
+            cuenta_bancaria_id: cuentaBancaria,
+            grupo_transaccion_id: grupo,
+            import_batch_id: batch?.id ?? null,
+            created_by: user.id,
+          });
+          const { data: legs, error: errCambio } = await supabase
+            .from("transacciones")
+            .insert([leg(-1, bankRow.huella, bankRow.cuentaBancariaId), leg(1, null, null)] as any)
+            .select();
+          if (errCambio) throw new Error(errCambio.message);
+          for (const tx of legs ?? []) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+          noAplicaCount++;
+          importados.add(bankRow.id);
+          setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
+          continue;
+        }
+
         if (m.cxps.length === 0) {
           // ── Movimiento sin CxP emparejada ──
           const noAplica =
