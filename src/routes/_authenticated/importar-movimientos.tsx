@@ -163,6 +163,24 @@ function ImportarMovimientosInner() {
     },
   });
 
+  const { data: tasasBcv } = useQuery({
+    queryKey: ["tasas-bcv-import-mov"],
+    queryFn: async () => {
+      const { data } = await supabase.from("tasas_bcv").select("fecha,tasa").order("fecha");
+      return (data ?? []) as { fecha: string; tasa: number }[];
+    },
+  });
+
+  /** Tasa BCV de la fecha; si no hay, la PRÓXIMA publicada (regla del sistema). */
+  const tasaBcvDe = (fecha: string) => {
+    const lista = tasasBcv ?? [];
+    if (!fecha || lista.length === 0) return 0;
+    const next = lista.find((t) => t.fecha >= fecha);
+    if (next) return Number(next.tasa) || 0;
+    return Number(lista[lista.length - 1]?.tasa) || 0;
+  };
+
+
   const bankOptions = useMemo(() => banks ?? [], [banks]);
   const cxpOptions = useMemo(() => cxpData ?? [], [cxpData]);
   const planOptions = useMemo(() => plan ?? [], [plan]);
