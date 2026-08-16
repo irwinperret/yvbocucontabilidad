@@ -258,11 +258,20 @@ function ImportarMovimientosInner() {
         // BA/Banesco exporta las referencias con apóstrofe inicial ('122347217146)
         const referencia = idxRef >= 0 ? limpiarReferencia(row[idxRef]) : "";
 
+        const conceptoRaw = String(row[idxConcepto] ?? "");
+        // Pagos al personal: clasificación por palabras clave (nómina, parafiscales,
+        // propinas 13.1, bono 10% 13.4, liquidaciones, anticipos…).
+        const clasifPersonal = esPagoPersonal(conceptoRaw, categoria)
+          ? clasificarPagoPersonal(conceptoRaw, categoria)
+          : null;
+
         cuentaPorFila.push(
           (idxSug >= 0 ? parseCuentaCodigo(row[idxSug]) : null) ??
             (idxCuentaPlan >= 0 ? parseCuentaCodigo(row[idxCuentaPlan]) : null) ??
+            clasifPersonal?.cuenta ??
             cuentaDesdeCategoria(categoria)
         );
+
 
         parsed.push({
           id: crypto.randomUUID(),
