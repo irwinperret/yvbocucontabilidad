@@ -106,7 +106,7 @@ function RegistrarPage() {
         <p className="text-sm text-muted-foreground">Elige el tipo de transacción</p>
       </div>
       <Tabs value={current} onValueChange={(v) => navigate({ to: "/registrar", search: { tab: v } })}>
-        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 w-full h-auto gap-1 p-1">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-8 w-full h-auto gap-1 p-1">
           <TabsTrigger value="ventas" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
             Ventas
           </TabsTrigger>

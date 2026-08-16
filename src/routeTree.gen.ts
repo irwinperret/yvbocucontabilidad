@@ -23,6 +23,7 @@ import { Route as AuthenticatedProveedoresRouteImport } from './routes/_authenti
 import { Route as AuthenticatedPropinasRouteImport } from './routes/_authenticated/propinas'
 import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenticated/plan-cuentas'
 import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticated/pagar-cxp'
+import { Route as AuthenticatedOperacionesCambioRouteImport } from './routes/_authenticated/operaciones-cambio'
 import { Route as AuthenticatedOffBalanceRouteImport } from './routes/_authenticated/off-balance'
 import { Route as AuthenticatedMovimientosBancariosRouteImport } from './routes/_authenticated/movimientos-bancarios'
 import { Route as AuthenticatedLiquidacionesRouteImport } from './routes/_authenticated/liquidaciones'
@@ -122,6 +123,12 @@ const AuthenticatedPagarCxpRoute = AuthenticatedPagarCxpRouteImport.update({
   path: '/pagar-cxp',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedOperacionesCambioRoute =
+  AuthenticatedOperacionesCambioRouteImport.update({
+    id: '/operaciones-cambio',
+    path: '/operaciones-cambio',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedOffBalanceRoute = AuthenticatedOffBalanceRouteImport.update({
   id: '/off-balance',
   path: '/off-balance',
@@ -281,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/movimientos-bancarios': typeof AuthenticatedMovimientosBancariosRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
+  '/operaciones-cambio': typeof AuthenticatedOperacionesCambioRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/propinas': typeof AuthenticatedPropinasRoute
@@ -320,6 +328,7 @@ export interface FileRoutesByTo {
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/movimientos-bancarios': typeof AuthenticatedMovimientosBancariosRoute
   '/off-balance': typeof AuthenticatedOffBalanceRoute
+  '/operaciones-cambio': typeof AuthenticatedOperacionesCambioRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/propinas': typeof AuthenticatedPropinasRoute
@@ -361,6 +370,7 @@ export interface FileRoutesById {
   '/_authenticated/liquidaciones': typeof AuthenticatedLiquidacionesRoute
   '/_authenticated/movimientos-bancarios': typeof AuthenticatedMovimientosBancariosRoute
   '/_authenticated/off-balance': typeof AuthenticatedOffBalanceRoute
+  '/_authenticated/operaciones-cambio': typeof AuthenticatedOperacionesCambioRoute
   '/_authenticated/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/_authenticated/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/_authenticated/propinas': typeof AuthenticatedPropinasRoute
@@ -402,6 +412,7 @@ export interface FileRouteTypes {
     | '/liquidaciones'
     | '/movimientos-bancarios'
     | '/off-balance'
+    | '/operaciones-cambio'
     | '/pagar-cxp'
     | '/plan-cuentas'
     | '/propinas'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/liquidaciones'
     | '/movimientos-bancarios'
     | '/off-balance'
+    | '/operaciones-cambio'
     | '/pagar-cxp'
     | '/plan-cuentas'
     | '/propinas'
@@ -481,6 +493,7 @@ export interface FileRouteTypes {
     | '/_authenticated/liquidaciones'
     | '/_authenticated/movimientos-bancarios'
     | '/_authenticated/off-balance'
+    | '/_authenticated/operaciones-cambio'
     | '/_authenticated/pagar-cxp'
     | '/_authenticated/plan-cuentas'
     | '/_authenticated/propinas'
@@ -602,6 +615,13 @@ declare module '@tanstack/react-router' {
       path: '/pagar-cxp'
       fullPath: '/pagar-cxp'
       preLoaderRoute: typeof AuthenticatedPagarCxpRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/operaciones-cambio': {
+      id: '/_authenticated/operaciones-cambio'
+      path: '/operaciones-cambio'
+      fullPath: '/operaciones-cambio'
+      preLoaderRoute: typeof AuthenticatedOperacionesCambioRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/off-balance': {
@@ -798,6 +818,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedLiquidacionesRoute: typeof AuthenticatedLiquidacionesRoute
   AuthenticatedMovimientosBancariosRoute: typeof AuthenticatedMovimientosBancariosRoute
   AuthenticatedOffBalanceRoute: typeof AuthenticatedOffBalanceRoute
+  AuthenticatedOperacionesCambioRoute: typeof AuthenticatedOperacionesCambioRoute
   AuthenticatedPagarCxpRoute: typeof AuthenticatedPagarCxpRoute
   AuthenticatedPlanCuentasRoute: typeof AuthenticatedPlanCuentasRoute
   AuthenticatedPropinasRoute: typeof AuthenticatedPropinasRoute
@@ -837,6 +858,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedMovimientosBancariosRoute:
     AuthenticatedMovimientosBancariosRoute,
   AuthenticatedOffBalanceRoute: AuthenticatedOffBalanceRoute,
+  AuthenticatedOperacionesCambioRoute: AuthenticatedOperacionesCambioRoute,
   AuthenticatedPagarCxpRoute: AuthenticatedPagarCxpRoute,
   AuthenticatedPlanCuentasRoute: AuthenticatedPlanCuentasRoute,
   AuthenticatedPropinasRoute: AuthenticatedPropinasRoute,
