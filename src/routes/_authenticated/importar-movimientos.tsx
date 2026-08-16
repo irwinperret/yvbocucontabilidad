@@ -740,6 +740,7 @@ function ImportarMovimientosInner() {
               tasa_paralela: rates.paralela || null,
               referencia: bankRow.huella,
               notas: `Diferencial cambiario · pago factura ${cxp.numero_factura ?? "—"} · ${cxp.proveedor ?? ""}`.slice(0, 255),
+              import_batch_id: batch?.id ?? null,
               created_by: user.id,
             });
           }
