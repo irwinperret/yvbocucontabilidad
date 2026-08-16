@@ -667,15 +667,28 @@ function ImportarMovimientosInner() {
         if (error) throw new Error(error.message);
         if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
 
-        // ── Aplicación del pago a las facturas (solo saldos, sin líneas extra) ──
+        // ── Aplicación del pago a las facturas (deuda revaluada a la tasa BCV del día) ──
+        const {
+          pendienteUsdBcv: pendUsdBcvFn,
+          tasaBcvFactura,
+          diferencialCambiario,
+          registrarDiferencialCambiario,
+          dentroDeTolerancia,
+        } = await import("@/lib/cxp-saldo");
+
         let restanteUsdBcv = rates.bcv > 0 ? +(montoBs / rates.bcv).toFixed(2) : 0;
         for (const cxp of m.cxps) {
           if (restanteUsdBcv <= 0.01) break;
-          const pendUsdBcv = pendienteUsdBcv(cxp);
+          const pendUsdBcv = pendUsdBcvFn(cxp);
           const aplicarUsdBcv = Math.min(pendUsdBcv, restanteUsdBcv);
           if (aplicarUsdBcv <= 0.01) continue;
 
-          const nuevoUsdBcv = Math.max(0, +(pendUsdBcv - aplicarUsdBcv).toFixed(2));
+          let nuevoUsdBcv = Math.max(0, +(pendUsdBcv - aplicarUsdBcv).toFixed(2));
+          // Diferencia despreciable frente a la deuda revaluada → factura pagada.
+          const deudaBs = +(pendUsdBcv * (rates.bcv || 1)).toFixed(2);
+          const pagadoBs = +(aplicarUsdBcv * (rates.bcv || 1)).toFixed(2);
+          if (nuevoUsdBcv > 0 && dentroDeTolerancia(pagadoBs - deudaBs, deudaBs)) nuevoUsdBcv = 0;
+
           const nuevoBs = Math.max(0, +(nuevoUsdBcv * (Number(cxp.tasa_bcv_factura) || rates.bcv || 1)).toFixed(2));
           const cubreTodo = nuevoUsdBcv <= 0.01;
 
@@ -691,9 +704,32 @@ function ImportarMovimientosInner() {
             monto_pendiente_usd_bcv: nuevoUsdBcv,
           }).eq("id", cxp.id);
 
+          // Diferencial cambiario: la deuda nació a la tasa de la factura y se
+          // paga a la tasa BCV del día del pago.
+          const delta = diferencialCambiario({
+            usdBcvAplicado: aplicarUsdBcv,
+            tasaPago: rates.bcv,
+            tasaFactura: tasaBcvFactura(cxp),
+          });
+          if (Math.abs(delta) >= 0.01) {
+            await registrarDiferencialCambiario({
+              delta,
+              fecha: bankRow.fecha,
+              centro_costo: (txOrig?.centro_costo ?? primera.centro_costo ?? "Compartido") as string,
+              tercero_id: cxp.tercero_id ?? null,
+              grupo_transaccion_id: grupoId,
+              tasa_bcv: rates.bcv || null,
+              tasa_paralela: rates.paralela || null,
+              referencia: bankRow.huella,
+              notas: `Diferencial cambiario · pago factura ${cxp.numero_factura ?? "—"} · ${cxp.proveedor ?? ""}`.slice(0, 255),
+              created_by: user.id,
+            });
+          }
+
           if (cubreTodo) ok++; else partial++;
           restanteUsdBcv = +(restanteUsdBcv - aplicarUsdBcv).toFixed(2);
         }
+
 
 
         importados.add(bankRow.id);
