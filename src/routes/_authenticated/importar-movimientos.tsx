@@ -674,6 +674,17 @@ function ImportarMovimientosInner() {
     !requiereCxP(m.bankRow.categoria) &&
     (cuentaSinFactura(m.cuentaCodigo) || cuentaServicio(m.cuentaCodigo));
 
+  /** Tipo de registro + nota explicativa para la columna de la vista previa. */
+  const tipoDe = (m: Match): { tipo: TipoRegistro; nota?: string } => {
+    if (m.cxps.length > 0) return { tipo: "pasivo", nota: "Pago de factura (CxP)" };
+    const clasif = esPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)
+      ? clasificarPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)
+      : null;
+    const tipo = tipoRegistroDeCuenta(m.cuentaCodigo);
+    const nota = clasif && clasif.cuenta === m.cuentaCodigo ? clasif.nota : undefined;
+    return { tipo, nota };
+  };
+
 
   const cxpComboOptions = useMemo(
     () =>
