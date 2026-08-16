@@ -641,6 +641,27 @@ function TransaccionesPage() {
     }
   };
 
+  const purgarImportado = async () => {
+    if (!canWipeAll) return toast.error("No autorizado");
+    if (purgePwd !== "12345678") return toast.error("Contraseña incorrecta");
+    setPurgeBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("purgar_todo_importado" as any, {} as any);
+      if (error) { toast.error(error.message); return; }
+      const r = (data ?? {}) as any;
+      await logAudit("transacciones", "DELETE", "IMPORTADO" as any, r, null);
+      toast.success(
+        `Borrado: ${r.transacciones ?? 0} transacciones, ${r.cuentas_por_pagar ?? 0} CxP, ${r.cuentas_por_cobrar ?? 0} CxC, ${r.propinas ?? 0} propinas, ${r.conciliaciones ?? 0} conciliaciones, ${r.importaciones ?? 0} cargas`
+      );
+      setPurgeOpen(false);
+      setPurgePwd("");
+      qc.invalidateQueries();
+    } finally {
+      setPurgeBusy(false);
+    }
+  };
+
+
   // --- Date range presets
   const applyPreset = (preset: string) => {
     const today = new Date();
