@@ -205,3 +205,47 @@ export async function guardarVinculosConciliacion(
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// ─────────────────────────────────────────────────────────────
+// Estado de conciliación marcado a mano
+// ─────────────────────────────────────────────────────────────
+
+/** Estados que el usuario puede fijar manualmente sobre un movimiento. */
+export type EstadoManual = "no_aplica" | "sin_pareo" | "pareado";
+
+export const ESTADO_MANUAL_LABEL: Record<EstadoManual, string> = {
+  no_aplica: "No aplica",
+  sin_pareo: "Sin pareo (revisado)",
+  pareado: "Pareado (sin factura)",
+};
+
+/**
+ * Fija (o quita, con estado = null) el estado de conciliación de un movimiento.
+ * Se guarda como un vínculo sin factura; reemplaza cualquier marca previa.
+ */
+export async function marcarEstadoConciliacion(args: {
+  movimientoId: string;
+  estado: EstadoManual | null;
+  userId?: string | null;
+  notas?: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const tabla = () => (supabase.from as any)("conciliacion_bancaria");
+  const del = await tabla()
+    .delete()
+    .eq("transaccion_bancaria_id", args.movimientoId)
+    .is("transaccion_factura_id", null);
+  if (del.error) return { ok: false, error: del.error.message };
+  if (!args.estado) return { ok: true };
+
+  const { error } = await tabla().insert({
+    transaccion_bancaria_id: args.movimientoId,
+    transaccion_factura_id: null,
+    estado: args.estado,
+    origen: "manual",
+    confirmado_por: args.userId ?? null,
+    confirmado_en: new Date().toISOString(),
+    facturas_rechazadas: [],
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
