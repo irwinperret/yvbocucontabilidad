@@ -92,6 +92,7 @@ const analisisDetalles = [
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Diferencial cambiario", url: "/diferencial-cambiario", icon: ArrowLeftRight },
+  { title: "Operaciones de Cambio", url: "/operaciones-cambio", icon: ArrowLeftRight },
 ];
 
 export function AppSidebar() {
