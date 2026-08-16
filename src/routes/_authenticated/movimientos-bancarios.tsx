@@ -94,7 +94,7 @@ function MovimientosBancariosPage() {
       const rows = await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("id,fecha,numero_factura,monto_bs,cuenta_codigo,notas,tercero_id").neq("standby", true)
+          .select("id,fecha,numero_factura,monto_bs,tasa_bcv,cuenta_codigo,notas,tercero_id").neq("standby", true)
           .not("numero_factura", "is", null)
           .range(from, to),
       );

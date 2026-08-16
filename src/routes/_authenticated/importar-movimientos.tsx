@@ -1040,7 +1040,7 @@ function ImportarMovimientosInner() {
                           <div key={c.id} className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                             <span className="truncate max-w-[190px]">
                               {i > 0 ? `+ Fact ${c.numero_factura ?? "—"} · ` : ""}
-                              Pendiente: {fmtBs(pendienteBs(c))}
+                              Pendiente al {fmtDate(m.bankRow.fecha)}: {fmtBs(pendienteBs(c, tasaBcvDe(m.bankRow.fecha)))}
                               {c.monto_pendiente_usd_bcv ? ` · ${fmtUsd(Number(c.monto_pendiente_usd_bcv))} USD BCV` : ""}
                             </span>
                             {i > 0 && (
@@ -1063,7 +1063,7 @@ function ImportarMovimientosInner() {
                             onChange={(v) => { if (v) addMatchCxp(m.bankRow.id, v); }}
                             options={candidatas.map((c) => ({
                               value: c.id,
-                              label: `Fact ${c.numero_factura ?? "—"} · ${fmtBs(pendienteBs(c))}`,
+                              label: `Fact ${c.numero_factura ?? "—"} · ${fmtUsd(pendienteUsdBcv(c))} USD BCV · ${fmtBs(pendienteBs(c, tasaBcvDe(m.bankRow.fecha)))} al pago`,
                               keywords: `${c.proveedor ?? ""} ${c.numero_factura ?? ""}`,
                             }))}
                           />

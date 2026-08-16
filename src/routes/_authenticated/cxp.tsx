@@ -46,6 +46,7 @@ type MovLite = {
   notas: string | null;
   referencia: string | null;
   cuenta_codigo: string;
+  tasa_bcv: number;
 };
 
 function CxPAnalisisPage() {
@@ -79,7 +80,7 @@ function CxPAnalisisPage() {
       const rows = await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("id,fecha,monto_bs,notas,referencia,cuenta_codigo").neq("standby", true)
+          .select("id,fecha,monto_bs,notas,referencia,cuenta_codigo,tasa_bcv").neq("standby", true)
           .like("referencia", "BANK:%")
           .order("fecha", { ascending: false })
           .range(from, to),
@@ -482,7 +483,6 @@ function ManualDialog({
   const totalSel = movimientos
     .filter((m) => sel.includes(m.id))
     .reduce((s, m) => s + Math.abs(Number(m.monto_bs) || 0), 0);
-  const tasaMov = movimientos.find((m) => sel.includes(m.id))?.fecha;
   const pendBs = pendienteBsHistorico(fila.c);
 
   return (
