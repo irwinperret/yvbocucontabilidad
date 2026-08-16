@@ -329,6 +329,14 @@ function MovimientosBancariosPage() {
     return c;
   }, [filtradas]);
 
+  const marcarEstado = async (movId: string, estado: EstadoManual | null) => {
+    const r = await marcarEstadoConciliacion({ movimientoId: movId, estado, userId: user?.id ?? null });
+    if (!r.ok) { toast.error(r.error ?? "No se pudo guardar el estado"); return; }
+    toast.success(estado ? `Marcado como ${ESTADO_MANUAL_LABEL[estado]}` : "Estado devuelto a automático");
+    qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+  };
+
+
   const guardarVinculo = async (
     movId: string,
     facturaIds: string[],
