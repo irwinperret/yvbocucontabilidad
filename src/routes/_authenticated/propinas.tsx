@@ -99,6 +99,25 @@ function PropinasPage() {
       return (data ?? []) as { fecha: string; tasa: number }[];
     },
   });
+
+  // Saldos de los pasivos al personal: 13.1 propinas por pagar y 13.4 bono 10%.
+  // Devengo (+) desde ventas, pago bancario (−). El saldo es lo que aún se debe.
+  const { data: saldosPersonal } = useQuery({
+    queryKey: ["saldos-pasivos-personal", anio],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transacciones")
+        .select("cuenta_codigo,monto_usd")
+        .in("cuenta_codigo", ["13.1", "13.4"])
+        .eq("standby", false)
+        .gte("fecha", `${anio}-01-01`)
+        .lte("fecha", `${anio}-12-31`);
+      const acc = { "13.1": 0, "13.4": 0 } as Record<string, number>;
+      for (const r of (data ?? []) as any[]) acc[r.cuenta_codigo] += Number(r.monto_usd) || 0;
+      return acc;
+    },
+  });
+
   const bcvByFecha = useMemo(() => {
     const m: Record<string, number> = {};
     (tasasBcv ?? []).forEach((r) => { m[r.fecha] = Number(r.tasa) || 0; });
