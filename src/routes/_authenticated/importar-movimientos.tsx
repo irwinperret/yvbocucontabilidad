@@ -935,6 +935,11 @@ function ImportarMovimientosInner() {
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
                           )}
 
+                          {!m.duplicado && m.esCambio && (
+                            <Badge className="text-[9px] px-1 py-0 bg-violet-600 text-white hover:bg-violet-600">
+                              Operación de cambio — no afecta G&P ni FC
+                            </Badge>
+                          )}
                           {!m.duplicado && dif !== null && dif > 0.01 && (
                             <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente sin aplicar</Badge>
                           )}
@@ -1014,6 +1019,33 @@ function ImportarMovimientosInner() {
                           disabled={m.cxps.length > 0}
                           options={planComboOptions}
                         />
+                        {m.esCambio && (
+                          <div className="mt-1 space-y-1">
+                            <div className="text-[10px] text-muted-foreground">
+                              Indica la contrapartida recibida para registrar las dos patas:
+                            </div>
+                            <div className="flex gap-1">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="h-7 w-[110px] text-xs"
+                                placeholder="Recibido"
+                                value={m.cambioRecibido ?? ""}
+                                onChange={(e) => setCambioRecibido(m.bankRow.id, e.target.value)}
+                              />
+                              <Select
+                                value={m.cambioMoneda ?? "USD"}
+                                onValueChange={(v) => setCambioMoneda(m.bankRow.id, v as "Bs" | "USD")}
+                              >
+                                <SelectTrigger className="h-7 w-[80px] text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="USD">USD</SelectItem>
+                                  <SelectItem value="Bs">Bs</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td className="p-2">
                         {(() => {
