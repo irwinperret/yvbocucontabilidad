@@ -213,6 +213,10 @@ function MovimientosBancariosPage() {
       const vs = vinculosPorMov.get(mov.id) ?? [];
       const confirmados = vs.filter((v) => v.transaccion_factura_id && v.estado !== "rechazado");
       const filaRechazo = vs.find((v) => v.estado === "rechazado");
+      const filaManual = vs.find(
+        (v) => !v.transaccion_factura_id && ["no_aplica", "sin_pareo", "pareado"].includes(v.estado),
+      );
+      const estadoManual: EstadoManual | null = (filaManual?.estado as EstadoManual) ?? null;
       const rechazadas: string[] = (filaRechazo?.facturas_rechazadas ?? []) as string[];
       const idsSug = auto.facturas.map((f) => f.id);
       const mismoRechazo =
@@ -234,6 +238,11 @@ function MovimientosBancariosPage() {
         motivo = cob.completa
           ? origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente"
           : `Pareo parcial: cubre ${cob.total.toFixed(2)} de ${cob.monto.toFixed(2)} Bs (faltan ${cob.diferencia.toFixed(2)} Bs)`;
+      } else if (estadoManual) {
+        estado = estadoManual as EstadoConciliacion;
+        facturas = [];
+        origen = "manual";
+        motivo = `Marcado a mano: ${ESTADO_MANUAL_LABEL[estadoManual]}`;
       } else if (filaRechazo && mismoRechazo) {
         estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
         facturas = [];
@@ -241,6 +250,7 @@ function MovimientosBancariosPage() {
       } else if (filaRechazo) {
         motivo = `${auto.motivo} · sugerencia nueva tras un rechazo anterior`;
       }
+
 
       const total = facturas.reduce(
         (s, f) => s + (Number(mov.tasa_bcv) > 0 && Number(f.usd_bcv) > 0
