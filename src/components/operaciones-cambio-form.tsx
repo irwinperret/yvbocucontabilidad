@@ -204,7 +204,23 @@ export function OperacionesCambioForm() {
           </div>
           <div>
             <Label>Monto recibido ({monedaRecibida})</Label>
-            <Input type="number" step="0.01" value={recibido} onChange={(e) => setRecibido(e.target.value)} required />
+            <Input
+              type="number"
+              step="0.01"
+              value={recibido}
+              onChange={(e) => {
+                setRecibidoTocado(true);
+                setRecibido(e.target.value);
+              }}
+              required
+            />
+            {tipo === "compra" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {tasaParalela
+                  ? "Calculado a tasa paralela del día — puedes ajustarlo"
+                  : "Sin tasa paralela para esta fecha — ingrésalo manualmente"}
+              </p>
+            )}
           </div>
 
           <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3 rounded-md border p-3 text-sm">
