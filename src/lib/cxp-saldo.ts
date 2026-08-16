@@ -86,6 +86,7 @@ export async function registrarDiferencialCambiario(opts: {
   cuenta_bancaria_id?: string | null;
   referencia?: string | null;
   notas?: string | null;
+  import_batch_id?: string | null;
   created_by: string;
 }): Promise<string | null> {
   const monto = +Math.abs(opts.delta).toFixed(2);
