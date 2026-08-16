@@ -22,6 +22,8 @@ import {
   parearMovimiento,
   type FacturaRef,
 } from "@/lib/conciliacion-matching";
+import { pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv } from "@/lib/cxp-saldo";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 export const Route = createFileRoute("/_authenticated/cxp")({
   component: CxPAnalisisPage,
@@ -96,6 +98,13 @@ function CxPAnalisisPage() {
   });
 
   const items = (data ?? []) as any[];
+  const { data: tasaHoy = 0 } = useQuery({
+    queryKey: ["tasa-bcv-cxp-analisis", todayISO()],
+    queryFn: async () => {
+      const { data } = await tasaBcvQuery(todayISO(), "tasa");
+      return Number(data?.tasa) || 0;
+    },
+  });
 
   /** Índice de facturas de CxP (por su transacción asociada) */
   const indice = useMemo(() => {
@@ -106,6 +115,7 @@ function CxPAnalisisPage() {
         fecha: (c.created_at ? String(c.created_at).slice(0, 10) : todayISO()),
         numero_factura: c.numero_factura ?? null,
         monto_bs: Number(c.monto_bs),
+        usd_bcv: pendienteUsdBcv(c),
         cuenta_codigo: "2.1",
         proveedor: c.proveedor ?? null,
       }));
@@ -228,11 +238,7 @@ function CxPAnalisisPage() {
     return <Badge variant="destructive">Sin pareo</Badge>;
   };
 
-  const pendUsdOf = (c: any) => {
-    const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
-    const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
-    return Number(c.monto_usd) * ratio;
-  };
+  const pendUsdOf = (c: any) => pendienteUsdBcv(c);
 
   const lista = filtradas.map((f) => f.c);
   const vencidas = lista.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento < todayISO());
@@ -256,8 +262,9 @@ function CxPAnalisisPage() {
           { header: "Proveedor", key: "prov", width: 30 },
           { header: "N° factura", key: "fact", width: 16 },
           { header: "Origen", key: "origen", width: 12 },
-          { header: "Pendiente Bs", key: "bs", width: 16, fmt: "bs" },
-          { header: "Pendiente USD", key: "usd", width: 16, fmt: "usd" },
+          { header: "Bs histórico", key: "bsHistorico", width: 16, fmt: "bs" },
+          { header: "Pendiente hoy Bs", key: "bs", width: 18, fmt: "bs" },
+          { header: "Pendiente USD BCV", key: "usd", width: 18, fmt: "usd" },
           { header: "Vence", key: "vence", width: 12 },
           { header: "Estado de pareo", key: "estPareo", width: 18 },
           { header: "Movimientos pareados", key: "movs", width: 46 },
@@ -268,7 +275,8 @@ function CxPAnalisisPage() {
           prov: f.c.proveedor ?? "",
           fact: f.c.numero_factura ?? "",
           origen: f.c.origen === "xetux" ? "Xetux" : "Manual",
-          bs: Number(f.c.monto_pendiente_bs ?? f.c.monto_bs),
+          bsHistorico: pendienteBsHistorico(f.c),
+          bs: pendienteBsAFecha(f.c, tasaHoy),
           usd: pendUsdOf(f.c),
           vence: f.c.fecha_vencimiento ?? "",
           estPareo: f.estado === "pareada" ? "Pareada" : f.estado === "posible" ? "Posible pareo" : "Sin pareo",
@@ -368,7 +376,7 @@ function CxPAnalisisPage() {
                 <tbody>
                   {filtradas.map((f) => {
                     const c = f.c;
-                    const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
+                     const pendBs = pendienteBsAFecha(c, tasaHoy);
                     const saldo = pendBs - f.totalPareado;
                     return (
                       <tr key={c.id} className="border-b last:border-0 align-top">
@@ -377,7 +385,10 @@ function CxPAnalisisPage() {
                         <td className="py-2 px-2">
                           <Badge variant="outline" className="text-[10px]">{c.origen === "xetux" ? "Xetux" : "Manual"}</Badge>
                         </td>
-                        <td className="py-2 px-2 text-right mono">{fmtBs(pendBs)}</td>
+                         <td className="py-2 px-2 text-right mono">
+                           {fmtBs(pendBs)}
+                           <div className="text-[10px] text-muted-foreground">Histórico {fmtBs(pendienteBsHistorico(c))}</div>
+                         </td>
                         <td className="py-2 px-2 text-right mono">{fmtUsd(pendUsdOf(c))}</td>
                         <td className="py-2 px-2 mono">{c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</td>
                         <td className="py-2 px-2">{badge(c)}</td>
@@ -471,7 +482,8 @@ function ManualDialog({
   const totalSel = movimientos
     .filter((m) => sel.includes(m.id))
     .reduce((s, m) => s + Math.abs(Number(m.monto_bs) || 0), 0);
-  const pendBs = Number(fila.c.monto_pendiente_bs ?? fila.c.monto_bs);
+  const tasaMov = movimientos.find((m) => sel.includes(m.id))?.fecha;
+  const pendBs = pendienteBsHistorico(fila.c);
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>

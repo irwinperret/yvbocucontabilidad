@@ -19,6 +19,7 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { dentroDeTolerancia, pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv } from "@/lib/cxp-saldo";
 
 const CUENTA_PAGO_CXP = "13.2";
 
@@ -36,6 +37,14 @@ function PagarCxPPage() {
         .from("cuentas_por_pagar").select("*")
         .neq("estado", "pagada").order("fecha_vencimiento", { ascending: true });
       return data ?? [];
+    },
+  });
+
+  const { data: tasaHoy = 0 } = useQuery({
+    queryKey: ["tasa-bcv-cxp-hoy", todayISO()],
+    queryFn: async () => {
+      const { data } = await tasaBcvQuery(todayISO(), "tasa");
+      return Number(data?.tasa) || 0;
     },
   });
 
@@ -87,11 +96,8 @@ function PagarCxPPage() {
         { header: "Centro de costo", key: "centro", width: 14 },
       ],
       rows: (data ?? []).map((c: any) => {
-        const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
-        const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
-        const pendUsdBcv = c.monto_pendiente_usd_bcv != null
-          ? Number(c.monto_pendiente_usd_bcv)
-          : Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) * ratio;
+        const pendBs = pendienteBsAFecha(c, tasaHoy);
+        const pendUsdBcv = pendienteUsdBcv(c);
         return {
           proveedor: c.proveedor ?? "",
           rif: rifDe(c),
@@ -136,13 +142,8 @@ function PagarCxPPage() {
                 </thead>
                 <tbody>
                   {data.map((c: any) => {
-                    const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
-                    const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
-                    // Saldo pendiente en USD BCV (preferir snapshot frozen)
-                    const usdBcvBase = Number(c.monto_pendiente_usd_bcv ?? c.usd_bcv_factura ?? c.monto_usd ?? 0);
-                    const pendUsdBcv = c.monto_pendiente_usd_bcv != null
-                      ? Number(c.monto_pendiente_usd_bcv)
-                      : usdBcvBase * ratio;
+                    const pendBs = pendienteBsAFecha(c, tasaHoy);
+                    const pendUsdBcv = pendienteUsdBcv(c);
                     const tasaBcvSnap = Number(c.tasa_bcv_factura) || (Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0);
                     const fechaRef = c.created_at ? String(c.created_at).slice(0, 10) : null;
                     return (
@@ -213,12 +214,8 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
     },
   });
 
-  const pendiente = Number(cxp.monto_pendiente_bs ?? cxp.monto_bs);
-  // USD BCV pendiente (deuda inmutable expresada en USD BCV)
-  const usdBcvFactura = Number(cxp.usd_bcv_factura ?? cxp.monto_usd ?? 0);
-  const pendienteUsdBcv = cxp.monto_pendiente_usd_bcv != null
-    ? Number(cxp.monto_pendiente_usd_bcv)
-    : (Number(cxp.monto_bs) > 0 ? usdBcvFactura * (pendiente / Number(cxp.monto_bs)) : usdBcvFactura);
+  const pendienteHistorico = pendienteBsHistorico(cxp);
+  const pendienteUsdBcv = pendienteUsdBcv(cxp);
   const tasaFactura = Number(cxp.tasa_bcv_factura ?? txOrigData?.tasa_bcv ?? 0);
 
   // Anticipos: cantidades en USD BCV. Reverso en Bs se calcula a la tasa BCV de la factura/pago.
@@ -261,7 +258,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   // Monto Bs a pagar = USD BCV restante × tasa BCV del pago
   const montoBsSugerido = +(usdBcvTrasAnticipo * tasaN).toFixed(2);
   const [touchedMonto, setTouchedMonto] = useState(false);
-  const [montoBs, setMontoBs] = useState(String(pendiente));
+  const [montoBs, setMontoBs] = useState(String(pendienteHistorico));
   useEffect(() => {
     if (!touchedMonto) setMontoBs(String(montoBsSugerido));
   }, [montoBsSugerido, touchedMonto]);
@@ -272,7 +269,9 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   // USD paralela para FC/contabilidad (mismo patrón que CxC)
   const usd = tasaParalelaN > 0 ? +(total / tasaParalelaN).toFixed(2) : (tasaN ? total / tasaN : 0);
 
-  const cubreTodo = +(aplicadoUsd + usdBcvPagado).toFixed(2) >= +pendienteUsdBcv.toFixed(2) - 0.01;
+  const deudaBsPago = pendienteBsAFecha(cxp, tasaN);
+  const cubreTodo = +(aplicadoUsd + usdBcvPagado).toFixed(2) >= +pendienteUsdBcv.toFixed(2) - 0.01 ||
+    dentroDeTolerancia(deudaBsPago - aplicadoUsd * tasaN - total, deudaBsPago);
 
   const confirmar = async () => {
     if (total > 0 && !tasaN) return toast.error("Falta tasa");
@@ -434,7 +433,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
           <div><Label>Notas</Label><Input value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
           {!cubreTodo && (aplicadoBs + total) > 0 && (
             <div className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
-              Pago parcial — quedará un saldo de {fmtBs(pendiente - aplicadoBs - total)}
+               Pago parcial — quedará un saldo de {fmtBs(Math.max(0, deudaBsPago - aplicadoUsd * tasaN - total))} a la tasa BCV del pago
             </div>
           )}
           <div className="flex justify-end gap-2">

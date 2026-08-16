@@ -134,11 +134,15 @@ export function proveedorDeMemo(memo: string | null | undefined, terceros: Terce
   return mejorScore >= 5 ? mejor : null;
 }
 
+import { dentroDeTolerancia } from "@/lib/cxp-saldo";
+
 export type FacturaRef = {
   id: string;
   fecha: string;
   numero_factura: string | null;
   monto_bs: number;
+  /** Deuda denominada en USD BCV; monto_bs es solo el valor histórico. */
+  usd_bcv?: number | null;
   cuenta_codigo: string;
   proveedor?: string | null;
   tercero_id?: string | null;
@@ -161,7 +165,13 @@ export type ResultadoPareo = {
 const diasEntre = (a: string, b: string) =>
   Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
 
-const montoCoincide = (a: number, b: number) => b > 0 && Math.abs(Math.abs(a) - b) / b <= 0.01;
+const montoFacturaBs = (f: FacturaRef, tasaBcv?: number) =>
+  Number(tasaBcv) > 0 && Number(f.usd_bcv) > 0
+    ? +(Number(f.usd_bcv) * Number(tasaBcv)).toFixed(2)
+    : Math.abs(Number(f.monto_bs) || 0);
+
+const montoCoincide = (a: number, b: number) =>
+  b > 0 && dentroDeTolerancia(Math.abs(a) - b, b);
 
 /** Tokens numéricos del memo, en orden de aparición */
 function tokensNumericos(texto?: string | null): string[] {
@@ -218,6 +228,7 @@ export function buscarCombinacionPorMonto(
   candidatas: FacturaRef[],
   monto: number,
   max = 4,
+  tasaBcv?: number,
 ): FacturaRef[] | null {
   if (monto <= 0 || candidatas.length === 0) return null;
   const lista = candidatas.slice(0, 14);
@@ -229,7 +240,7 @@ export function buscarCombinacionPorMonto(
       if (mask & (1 << i)) {
         count++;
         if (count > max) break;
-        suma += Math.abs(lista[i].monto_bs);
+        suma += montoFacturaBs(lista[i], tasaBcv);
       }
     }
     if (count === 0 || count > max) continue;
@@ -242,18 +253,20 @@ export function buscarCombinacionPorMonto(
   return null;
 }
 
-const sumaBs = (fs: FacturaRef[]) => fs.reduce((s, f) => s + Math.abs(Number(f.monto_bs) || 0), 0);
+const sumaBs = (fs: FacturaRef[], tasaBcv?: number) =>
+  fs.reduce((s, f) => s + montoFacturaBs(f, tasaBcv), 0);
 
 const res = (
   estado: EstadoConciliacion,
   facturas: FacturaRef[],
   motivo: string,
   faltantes: string[] = [],
+  tasaBcv?: number,
 ): ResultadoPareo => ({
   estado,
   facturas,
   factura: facturas[0],
-  total: sumaBs(facturas),
+  total: sumaBs(facturas, tasaBcv),
   motivo,
   faltantes,
 });
@@ -262,8 +275,8 @@ const res = (
  * Cobertura de un conjunto de facturas frente al monto del movimiento.
  * "completa" si suman el monto (±1%), "parcial" en cualquier otro caso.
  */
-export function coberturaPareo(facturas: FacturaRef[], montoMov: number) {
-  const total = sumaBs(facturas);
+export function coberturaPareo(facturas: FacturaRef[], montoMov: number, tasaBcv?: number) {
+  const total = sumaBs(facturas, tasaBcv);
   const monto = Math.abs(Number(montoMov) || 0);
   const completa = monto > 0 ? montoCoincide(total, monto) : facturas.length > 0;
   return { total, monto, completa, diferencia: monto - total };
@@ -290,6 +303,7 @@ export function parearMovimiento(
     notas?: string | null;
     monto_bs: number;
     cuenta_codigo: string;
+    tasa_bcv?: number | null;
     tercero_id?: string | null;
   },
   facturasPorNumero: Map<string, FacturaRef[]>,
@@ -303,6 +317,7 @@ export function parearMovimiento(
   }
 
   const montoMov = Math.abs(Number(mov.monto_bs) || 0);
+  const tasaBcvMov = Number(mov.tasa_bcv) || 0;
   const memo = mov.notas ?? "";
   const provId = proveedorMov?.id ?? mov.tercero_id ?? null;
   const provNombre = proveedorMov?.nombre ?? null;
@@ -325,12 +340,12 @@ export function parearMovimiento(
       const candidatos = facturasPorNumero.get(num) ?? [];
       if (!candidatos.length) continue;
       const conProv = candidatos.find((f) => esDelProveedor(f));
-      const conMonto = candidatos.find((f) => montoCoincide(f.monto_bs, montoMov));
+      const conMonto = candidatos.find((f) => montoCoincide(montoFacturaBs(f, tasaBcvMov), montoMov));
       const elegida = conProv ?? conMonto ?? candidatos[0];
       if (!grupo.some((g) => g.id === elegida.id)) grupo.push(elegida);
     }
     if (grupo.length) {
-      const { total, completa, diferencia } = coberturaPareo(grupo, montoMov);
+      const { total, completa, diferencia } = coberturaPareo(grupo, montoMov, tasaBcvMov);
       const nums = grupo.map((g) => g.numero_factura).join(", ");
       if (completa) {
         return res(
@@ -340,12 +355,13 @@ export function parearMovimiento(
             ? `N° factura ${nums} hallado en el memo${sufijo}`
             : `${grupo.length} facturas del memo (${nums}) suman el monto del pago`,
           noUbicados,
+          tasaBcvMov,
         );
       }
       // intentar subconjunto que sí cuadre exactamente
-      const sub = buscarCombinacionPorMonto(grupo, montoMov, grupo.length);
+      const sub = buscarCombinacionPorMonto(grupo, montoMov, grupo.length, tasaBcvMov);
       if (sub && sub.length !== grupo.length) {
-        return res("pareado", sub, `${sub.length} facturas del memo suman el monto del pago`, noUbicados);
+        return res("pareado", sub, `${sub.length} facturas del memo suman el monto del pago`, noUbicados, tasaBcvMov);
       }
       const detalleFaltan = noUbicados.length
         ? ` · ${noUbicados.length} número(s) del memo sin factura registrada (${noUbicados.join(", ")})`
@@ -355,6 +371,7 @@ export function parearMovimiento(
         grupo,
         `${grupo.length} factura(s) del memo (${nums}) cubren ${total.toFixed(2)} de ${montoMov.toFixed(2)} Bs; faltan ${diferencia.toFixed(2)} Bs${detalleFaltan}`,
         noUbicados,
+        tasaBcvMov,
       );
     }
   }
@@ -367,9 +384,9 @@ export function parearMovimiento(
     const cercanas = conProveedor
       .filter((f) => diasEntre(f.fecha, mov.fecha) <= 30)
       .sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha));
-    const combo = buscarCombinacionPorMonto(cercanas, montoMov, 4);
+    const combo = buscarCombinacionPorMonto(cercanas, montoMov, 4, tasaBcvMov);
     if (combo && combo.length > 1) {
-      return res("posible", combo, `${combo.length} facturas del proveedor suman el monto del pago${sufijo}`, noUbicados);
+      return res("posible", combo, `${combo.length} facturas del proveedor suman el monto del pago${sufijo}`, noUbicados, tasaBcvMov);
     }
   }
 
@@ -380,13 +397,13 @@ export function parearMovimiento(
   }
 
   // (d) proveedor + monto igual
-  const provMonto = conProveedor.find((f) => montoCoincide(f.monto_bs, montoMov));
+  const provMonto = conProveedor.find((f) => montoCoincide(montoFacturaBs(f, tasaBcvMov), montoMov));
   if (provMonto) return res("posible", [provMonto], `Proveedor y monto coinciden${sufijo}`, noUbicados);
 
   // (e) monto + fecha cercana
   if (montoMov > 0) {
     const cerca = facturas.filter(
-      (f) => montoCoincide(f.monto_bs, montoMov) && diasEntre(f.fecha, mov.fecha) <= 5,
+      (f) => montoCoincide(montoFacturaBs(f, tasaBcvMov), montoMov) && diasEntre(f.fecha, mov.fecha) <= 5,
     );
     if (cerca.length) {
       const f = cerca.sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha))[0];

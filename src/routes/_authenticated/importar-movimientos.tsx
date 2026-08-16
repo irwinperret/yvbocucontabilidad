@@ -31,6 +31,7 @@ import {
 import { SearchCombobox } from "@/components/search-combobox";
 import { CUENTA_CAMBIO, esCambio } from "@/lib/operaciones-cambio";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { pendienteBsAFecha, pendienteUsdBcv } from "@/lib/cxp-saldo";
 import {
   clasificarPagoPersonal,
   esPagoPersonal,
@@ -111,8 +112,7 @@ type Match = {
   cambioMoneda?: "Bs" | "USD";
 };
 
-const pendienteBs = (c: CxPRow) => Number(c.monto_pendiente_bs ?? c.monto_bs) || 0;
-const pendienteUsdBcv = (c: CxPRow) => Number(c.monto_pendiente_usd_bcv ?? c.usd_bcv_factura ?? 0) || 0;
+const pendienteBs = (c: CxPRow, tasaBcv?: number) => pendienteBsAFecha(c, Number(tasaBcv) || 0);
 
 function ImportarMovimientos() {
   return (
@@ -797,7 +797,7 @@ function ImportarMovimientosInner() {
     if (m.cxps.length === 0) return null;
     const tasa = tasaBcvDe(m.bankRow.fecha);
     const facturado = m.cxps.reduce(
-      (s, c) => s + (tasa > 0 ? pendienteUsdBcv(c) * tasa : pendienteBs(c)),
+      (s, c) => s + pendienteBs(c, tasa),
       0,
     );
     const pagado = Math.abs(m.bankRow.montoBs || 0);
@@ -826,7 +826,7 @@ function ImportarMovimientosInner() {
     () =>
       cxpOptions.map((c) => ({
         value: c.id,
-        label: `${c.proveedor ?? "—"} · Fact ${c.numero_factura ?? "—"} · ${fmtBs(pendienteBs(c))}`,
+        label: `${c.proveedor ?? "—"} · Fact ${c.numero_factura ?? "—"} · ${fmtUsd(pendienteUsdBcv(c))} USD BCV`,
         keywords: `${c.proveedor ?? ""} ${c.numero_factura ?? ""}`,
       })),
     [cxpOptions]
