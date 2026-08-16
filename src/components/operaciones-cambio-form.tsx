@@ -65,6 +65,13 @@ export function OperacionesCambioForm() {
   const montoBs = tipo === "compra" ? nEntregado : nRecibido;
   const montoUsd = tipo === "compra" ? nRecibido : nEntregado;
 
+  // Compra USD: el monto recibido en USD se sugiere a tasa paralela del día.
+  useEffect(() => {
+    if (tipo !== "compra" || recibidoTocado) return;
+    if (!tasaParalela || !nEntregado) return;
+    setRecibido((nEntregado / tasaParalela).toFixed(2));
+  }, [tipo, recibidoTocado, tasaParalela, nEntregado]);
+
   const implicita = tasaImplicita(montoBs, montoUsd);
   const diferencia = implicita && tasaParalela ? +(implicita - tasaParalela).toFixed(4) : 0;
   // Comprar más barato que el paralelo (o vender más caro) es favorable.
