@@ -1208,6 +1208,29 @@ function TransaccionesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={purgeOpen} onOpenChange={(o) => { if (!o) { setPurgeOpen(false); setPurgePwd(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Borrar todo lo importado</DialogTitle>
+            <DialogDescription>
+              Se eliminará automáticamente todo lo que provenga de importaciones (ventas y compras Xetux, movimientos bancarios y pareos), junto con sus cuentas por cobrar, cuentas por pagar, propinas y conciliaciones, y se vaciará el historial de importaciones.
+              Se conservan únicamente las transacciones registradas manualmente (incluidas las de standby). Esta acción es irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Contraseña</Label>
+            <Input type="password" value={purgePwd} onChange={(e) => setPurgePwd(e.target.value)}
+                   placeholder="Contraseña de la página" autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setPurgeOpen(false); setPurgePwd(""); }} disabled={purgeBusy}>Cancelar</Button>
+            <Button variant="destructive" onClick={purgarImportado} disabled={purgeBusy || !purgePwd}>
+              {purgeBusy ? "Borrando…" : "Sí, borrar lo importado"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
