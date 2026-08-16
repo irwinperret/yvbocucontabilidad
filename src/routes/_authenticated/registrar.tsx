@@ -153,6 +153,9 @@ function RegistrarPage() {
         <TabsContent value="financiamiento">
           <FinanciamientoForm />
         </TabsContent>
+        <TabsContent value="cambio">
+          <OperacionesCambioForm />
+        </TabsContent>
       </Tabs>
     </div>
     </MesCerradoProvider>
