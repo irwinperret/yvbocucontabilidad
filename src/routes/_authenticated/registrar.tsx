@@ -128,6 +128,9 @@ function RegistrarPage() {
           <TabsTrigger value="financiamiento" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
             Financiamiento
           </TabsTrigger>
+          <TabsTrigger value="cambio" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
+            Operaciones de Cambio
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="ventas">
           <VentasForm />
