@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { recalcCierrePeriodo } from "@/lib/inventario.functions";
 import { useEffect, useMemo, useState } from "react";
+import { OperacionesCambioForm } from "@/components/operaciones-cambio-form";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
