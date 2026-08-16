@@ -274,9 +274,12 @@ function MovimientosBancariosPage() {
         confirmadasIds: confirmados.map((v) => v.transaccion_factura_id as string),
         rechazado: !!filaRechazo,
         rechazadas,
+        estadoManual,
+        tienePareoFactura: confirmados.length > 0,
         manual: confirmados.some((v) => v.origen === "manual"),
-        confirmable: (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
+        confirmable: (!confirmados.length && !estadoManual) && (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
         estadoSugerido: (auto.estado === "parcial" ? "parcial" : "pareado") as "pareado" | "parcial",
+
       };
 
     });
