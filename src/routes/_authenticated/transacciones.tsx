@@ -228,6 +228,9 @@ function TransaccionesPage() {
   const [wipeOpen, setWipeOpen] = useState(false);
   const [wipePwd, setWipePwd] = useState("");
   const [wipeBusy, setWipeBusy] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgePwd, setPurgePwd] = useState("");
+  const [purgeBusy, setPurgeBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
