@@ -765,7 +765,28 @@ function MovimientosBancariosPage() {
                               </Button>
                             </div>
                           )}
+                          {f.tienePareoFactura ? (
+                            <span className="text-[11px] text-muted-foreground pt-1">
+                              Para cambiar el estado a mano, primero quita el pareo.
+                            </span>
+                          ) : (
+                            <Select
+                              value={f.estadoManual ?? "auto"}
+                              onValueChange={(v) => marcarEstado(f.mov.id, v === "auto" ? null : (v as EstadoManual))}
+                            >
+                              <SelectTrigger className="h-7 w-[190px] text-xs mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="auto">Automático (sugerido)</SelectItem>
+                                {(Object.keys(ESTADO_MANUAL_LABEL) as EstadoManual[]).map((k) => (
+                                  <SelectItem key={k} value={k}>{ESTADO_MANUAL_LABEL[k]}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
+
 
                       </td>
                       <td className="py-2 px-2 text-right">
