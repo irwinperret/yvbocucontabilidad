@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -49,6 +49,7 @@ export function OperacionesCambioForm() {
   const [recibido, setRecibido] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recibidoTocado, setRecibidoTocado] = useState(false);
 
   const { data: tasas } = useTasasDia(fecha);
   const tasaBcv = tasas?.bcv ?? 0;
@@ -63,6 +64,13 @@ export function OperacionesCambioForm() {
   // Montos de la operación: siempre un par (Bs, USD)
   const montoBs = tipo === "compra" ? nEntregado : nRecibido;
   const montoUsd = tipo === "compra" ? nRecibido : nEntregado;
+
+  // Compra USD: el monto recibido en USD se sugiere a tasa paralela del día.
+  useEffect(() => {
+    if (tipo !== "compra" || recibidoTocado) return;
+    if (!tasaParalela || !nEntregado) return;
+    setRecibido((nEntregado / tasaParalela).toFixed(2));
+  }, [tipo, recibidoTocado, tasaParalela, nEntregado]);
 
   const implicita = tasaImplicita(montoBs, montoUsd);
   const diferencia = implicita && tasaParalela ? +(implicita - tasaParalela).toFixed(4) : 0;
@@ -137,7 +145,15 @@ export function OperacionesCambioForm() {
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label>Tipo de operación</Label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as TipoCambio)}>
+            <Select
+              value={tipo}
+              onValueChange={(v) => {
+                setTipo(v as TipoCambio);
+                setEntregado("");
+                setRecibido("");
+                setRecibidoTocado(false);
+              }}
+            >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="compra">Compra USD (entrego Bs, recibo USD)</SelectItem>
@@ -147,7 +163,15 @@ export function OperacionesCambioForm() {
           </div>
           <div>
             <Label>Fecha</Label>
-            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
+            <Input
+              type="date"
+              value={fecha}
+              onChange={(e) => {
+                setFecha(e.target.value);
+                setRecibidoTocado(false);
+              }}
+              required
+            />
           </div>
 
           <div>
@@ -180,7 +204,23 @@ export function OperacionesCambioForm() {
           </div>
           <div>
             <Label>Monto recibido ({monedaRecibida})</Label>
-            <Input type="number" step="0.01" value={recibido} onChange={(e) => setRecibido(e.target.value)} required />
+            <Input
+              type="number"
+              step="0.01"
+              value={recibido}
+              onChange={(e) => {
+                setRecibidoTocado(true);
+                setRecibido(e.target.value);
+              }}
+              required
+            />
+            {tipo === "compra" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {tasaParalela
+                  ? "Calculado a tasa paralela del día — puedes ajustarlo"
+                  : "Sin tasa paralela para esta fecha — ingrésalo manualmente"}
+              </p>
+            )}
           </div>
 
           <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3 rounded-md border p-3 text-sm">
