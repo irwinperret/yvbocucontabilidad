@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { PagoModal } from "@/routes/_authenticated/pagar-cxp";
+import { pendienteBsAFecha, pendienteUsdBcv } from "@/lib/cxp-saldo";
+import { tasaBcvQuery } from "@/lib/tasas";
 
 type Tercero = { id: string; razon_social: string; tipo_rif: string; rif: string };
 
@@ -48,9 +50,17 @@ export function PagarCxPInline({
     },
   });
 
+  const { data: tasaHoy = 0 } = useQuery({
+    queryKey: ["tasa-bcv-cxp-inline", todayISO()],
+    queryFn: async () => {
+      const { data } = await tasaBcvQuery(todayISO(), "tasa");
+      return Number(data?.tasa) || 0;
+    },
+  });
+
   const totalAbierto = useMemo(
-    () => (cxps ?? []).reduce((s, c) => s + Number(c.monto_pendiente_bs ?? c.monto_bs ?? 0), 0),
-    [cxps],
+    () => (cxps ?? []).reduce((s, c) => s + pendienteBsAFecha(c, tasaHoy), 0),
+    [cxps, tasaHoy],
   );
 
   const diasVencida = (c: any) => {
@@ -112,12 +122,8 @@ export function PagarCxPInline({
                   <tbody>
                     {cxps.map((c: any) => {
                       const dv = diasVencida(c);
-                      const pendBs = Number(c.monto_pendiente_bs ?? c.monto_bs);
-                      const ratio = Number(c.monto_bs) > 0 ? pendBs / Number(c.monto_bs) : 1;
-                      const usdBcvBase = Number(c.usd_bcv_factura ?? c.monto_usd ?? 0);
-                      const pendUsdBcv = c.monto_pendiente_usd_bcv != null
-                        ? Number(c.monto_pendiente_usd_bcv)
-                        : usdBcvBase * ratio;
+                       const pendBs = pendienteBsAFecha(c, tasaHoy);
+                       const pendUsdBcv = pendienteUsdBcv(c);
                       const tasa = Number(c.tasa_bcv_factura) || (Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0);
                       const fechaRef = c.created_at ? String(c.created_at).slice(0, 10) : null;
                       return (

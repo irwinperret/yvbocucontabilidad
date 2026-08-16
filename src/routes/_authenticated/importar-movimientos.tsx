@@ -31,6 +31,7 @@ import {
 import { SearchCombobox } from "@/components/search-combobox";
 import { CUENTA_CAMBIO, esCambio } from "@/lib/operaciones-cambio";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { pendienteBsAFecha, pendienteUsdBcv } from "@/lib/cxp-saldo";
 import {
   clasificarPagoPersonal,
   esPagoPersonal,
@@ -111,8 +112,7 @@ type Match = {
   cambioMoneda?: "Bs" | "USD";
 };
 
-const pendienteBs = (c: CxPRow) => Number(c.monto_pendiente_bs ?? c.monto_bs) || 0;
-const pendienteUsdBcv = (c: CxPRow) => Number(c.monto_pendiente_usd_bcv ?? c.usd_bcv_factura ?? 0) || 0;
+const pendienteBs = (c: CxPRow, tasaBcv?: number) => pendienteBsAFecha(c, Number(tasaBcv) || 0);
 
 function ImportarMovimientos() {
   return (
@@ -797,7 +797,7 @@ function ImportarMovimientosInner() {
     if (m.cxps.length === 0) return null;
     const tasa = tasaBcvDe(m.bankRow.fecha);
     const facturado = m.cxps.reduce(
-      (s, c) => s + (tasa > 0 ? pendienteUsdBcv(c) * tasa : pendienteBs(c)),
+      (s, c) => s + pendienteBs(c, tasa),
       0,
     );
     const pagado = Math.abs(m.bankRow.montoBs || 0);
@@ -826,7 +826,7 @@ function ImportarMovimientosInner() {
     () =>
       cxpOptions.map((c) => ({
         value: c.id,
-        label: `${c.proveedor ?? "—"} · Fact ${c.numero_factura ?? "—"} · ${fmtBs(pendienteBs(c))}`,
+        label: `${c.proveedor ?? "—"} · Fact ${c.numero_factura ?? "—"} · ${fmtUsd(pendienteUsdBcv(c))} USD BCV`,
         keywords: `${c.proveedor ?? ""} ${c.numero_factura ?? ""}`,
       })),
     [cxpOptions]
@@ -1040,7 +1040,7 @@ function ImportarMovimientosInner() {
                           <div key={c.id} className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                             <span className="truncate max-w-[190px]">
                               {i > 0 ? `+ Fact ${c.numero_factura ?? "—"} · ` : ""}
-                              Pendiente: {fmtBs(pendienteBs(c))}
+                              Pendiente al {fmtDate(m.bankRow.fecha)}: {fmtBs(pendienteBs(c, tasaBcvDe(m.bankRow.fecha)))}
                               {c.monto_pendiente_usd_bcv ? ` · ${fmtUsd(Number(c.monto_pendiente_usd_bcv))} USD BCV` : ""}
                             </span>
                             {i > 0 && (
@@ -1063,7 +1063,7 @@ function ImportarMovimientosInner() {
                             onChange={(v) => { if (v) addMatchCxp(m.bankRow.id, v); }}
                             options={candidatas.map((c) => ({
                               value: c.id,
-                              label: `Fact ${c.numero_factura ?? "—"} · ${fmtBs(pendienteBs(c))}`,
+                              label: `Fact ${c.numero_factura ?? "—"} · ${fmtUsd(pendienteUsdBcv(c))} USD BCV · ${fmtBs(pendienteBs(c, tasaBcvDe(m.bankRow.fecha)))} al pago`,
                               keywords: `${c.proveedor ?? ""} ${c.numero_factura ?? ""}`,
                             }))}
                           />

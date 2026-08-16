@@ -93,7 +93,7 @@ function MovimientosBancariosPage() {
       const rows = await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("id,fecha,numero_factura,monto_bs,cuenta_codigo,notas,tercero_id").neq("standby", true)
+          .select("id,fecha,numero_factura,monto_bs,tasa_bcv,cuenta_codigo,notas,tercero_id").neq("standby", true)
           .not("numero_factura", "is", null)
           .range(from, to),
       );
@@ -107,7 +107,20 @@ function MovimientosBancariosPage() {
           .in("id", ids.slice(i, i + 200) as string[]);
         (data ?? []).forEach((t: any) => nombreById.set(t.id, t.nombre_comercial || t.razon_social));
       }
-      return compras.map((r) => ({ ...r, proveedor: r.tercero_id ? nombreById.get(r.tercero_id) ?? null : null }));
+      const txIds = compras.map((r) => r.id);
+      const cxpByTx = new Map<string, any>();
+      for (let i = 0; i < txIds.length; i += 200) {
+        const { data } = await supabase
+          .from("cuentas_por_pagar")
+          .select("transaccion_id,usd_bcv_factura,monto_pendiente_usd_bcv,monto_bs,monto_pendiente_bs,tasa_bcv_factura")
+          .in("transaccion_id", txIds.slice(i, i + 200));
+        (data ?? []).forEach((c: any) => cxpByTx.set(c.transaccion_id, c));
+      }
+      return compras.map((r) => ({
+        ...r,
+        proveedor: r.tercero_id ? nombreById.get(r.tercero_id) ?? null : null,
+        cxp: cxpByTx.get(r.id) ?? null,
+      }));
     },
   });
 
@@ -153,6 +166,7 @@ function MovimientosBancariosPage() {
       fecha: f.fecha,
       numero_factura: f.numero_factura,
       monto_bs: Number(f.monto_bs),
+      usd_bcv: Number(f.cxp?.usd_bcv_factura) || (Number(f.tasa_bcv) > 0 ? Number(f.monto_bs) / Number(f.tasa_bcv) : null),
       cuenta_codigo: f.cuenta_codigo,
       proveedor: f.proveedor ?? null,
       tercero_id: f.tercero_id ?? null,
@@ -214,7 +228,7 @@ function MovimientosBancariosPage() {
         facturas = confirmados
           .map((v) => indice.lista.find((f) => f.id === v.transaccion_factura_id))
           .filter(Boolean) as FacturaRef[];
-        const cob = coberturaPareo(facturas, Number(mov.monto_bs));
+        const cob = coberturaPareo(facturas, Number(mov.monto_bs), Number(mov.tasa_bcv));
         estado = cob.completa ? "pareado" : "parcial";
         origen = confirmados.every((v) => v.origen === "auto") ? "auto" : "manual";
         motivo = cob.completa
@@ -228,7 +242,12 @@ function MovimientosBancariosPage() {
         motivo = `${auto.motivo} · sugerencia nueva tras un rechazo anterior`;
       }
 
-      const total = facturas.reduce((s, f) => s + Math.abs(Number(f.monto_bs) || 0), 0);
+      const total = facturas.reduce(
+        (s, f) => s + (Number(mov.tasa_bcv) > 0 && Number(f.usd_bcv) > 0
+          ? Number(f.usd_bcv) * Number(mov.tasa_bcv)
+          : Math.abs(Number(f.monto_bs) || 0)),
+        0,
+      );
       return {
         mov,
         estado,
@@ -705,7 +724,7 @@ function MovimientosBancariosPage() {
                           <span className="text-[11px] text-muted-foreground">{f.motivo}</span>
                           {(f.facturas ?? []).map((fa) => (
                             <span key={fa.id} className="text-[11px] mono">
-                              Fact {fa.numero_factura} · {fa.proveedor ?? "—"} · {fmtDate(fa.fecha)} · {fmtBs(fa.monto_bs)}
+                              Fact {fa.numero_factura} · {fa.proveedor ?? "—"} · {fmtDate(fa.fecha)} · {fmtUsd(Number(fa.usd_bcv) || 0)} USD BCV · {fmtBs(Number(fa.usd_bcv) > 0 ? Number(fa.usd_bcv) * Number(f.mov.tasa_bcv) : fa.monto_bs)} al {fmtDate(f.mov.fecha)}
                             </span>
                           ))}
                           {f.facturas.length > 1 && (
