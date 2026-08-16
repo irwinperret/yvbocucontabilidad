@@ -29,6 +29,7 @@ import {
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
+import { CUENTA_CAMBIO, esCambio } from "@/lib/operaciones-cambio";
 import { tasaBcvQuery } from "@/lib/tasas";
 import {
   clasificarPagoPersonal,
@@ -270,7 +271,8 @@ function ImportarMovimientosInner() {
           : null;
 
         cuentaPorFila.push(
-          (idxSug >= 0 ? parseCuentaCodigo(row[idxSug]) : null) ??
+          (esCambio(conceptoRaw) ? CUENTA_CAMBIO : null) ??
+            (idxSug >= 0 ? parseCuentaCodigo(row[idxSug]) : null) ??
             (idxCuentaPlan >= 0 ? parseCuentaCodigo(row[idxCuentaPlan]) : null) ??
             clasifPersonal?.cuenta ??
             cuentaDesdeCategoria(categoria)
@@ -352,14 +354,20 @@ function ImportarMovimientosInner() {
         const auto = found.length === 1 || bankRow.codigos.length > 1 ? found : [];
         const duplicado = yaImportadas.has(bankRow.huella) || vistas.has(bankRow.huella);
         vistas.add(bankRow.huella);
+        const cambio = cuentaCodigo === CUENTA_CAMBIO;
         return {
           bankRow,
-          cxps: auto,
+          cxps: cambio ? [] : auto,
           manual: false,
-          selected: !duplicado && (auto.length > 0 || !!cuentaCodigo),
+          // Las operaciones de cambio requieren que el usuario indique la
+          // contrapartida (lo recibido) antes de poder confirmarse.
+          selected: !duplicado && !cambio && (auto.length > 0 || !!cuentaCodigo),
           montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd),
           cuentaCodigo,
           duplicado,
+          esCambio: cambio,
+          cambioRecibido: "",
+          cambioMoneda: bankRow.moneda === "USD" ? "Bs" : "USD",
         };
       });
       setMatches(initialMatches);
@@ -446,7 +454,25 @@ function ImportarMovimientosInner() {
   };
 
   const importable = (m: Match) =>
-    m.selected && !m.duplicado && !!m.bankRow.cuentaBancariaId && (m.cxps.length > 0 || !!m.cuentaCodigo);
+    m.selected &&
+    !m.duplicado &&
+    !!m.bankRow.cuentaBancariaId &&
+    (m.cxps.length > 0 || !!m.cuentaCodigo) &&
+    (!m.esCambio || Number(m.cambioRecibido) > 0);
+
+  const setCambioRecibido = (bankRowId: string, valor: string) => {
+    setMatches((prev) =>
+      prev.map((m) =>
+        m.bankRow.id === bankRowId
+          ? { ...m, cambioRecibido: valor, selected: !m.duplicado && Number(valor) > 0 }
+          : m
+      )
+    );
+  };
+
+  const setCambioMoneda = (bankRowId: string, moneda: "Bs" | "USD") => {
+    setMatches((prev) => prev.map((m) => (m.bankRow.id === bankRowId ? { ...m, cambioMoneda: moneda } : m)));
+  };
 
   const confirmar = async () => {
     if (!user) return;
