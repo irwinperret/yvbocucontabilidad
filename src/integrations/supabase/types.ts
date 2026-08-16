@@ -44,6 +44,39 @@ export type Database = {
         }
         Relationships: []
       }
+      _backup_pagos_bank_20260816: {
+        Row: {
+          created_at: string
+          fecha: string | null
+          id: string
+          monto_base_bs_anterior: number | null
+          monto_bs_anterior: number | null
+          monto_bs_nuevo: number | null
+          monto_usd_anterior: number | null
+          numero: number | null
+        }
+        Insert: {
+          created_at?: string
+          fecha?: string | null
+          id: string
+          monto_base_bs_anterior?: number | null
+          monto_bs_anterior?: number | null
+          monto_bs_nuevo?: number | null
+          monto_usd_anterior?: number | null
+          numero?: number | null
+        }
+        Update: {
+          created_at?: string
+          fecha?: string | null
+          id?: string
+          monto_base_bs_anterior?: number | null
+          monto_bs_anterior?: number | null
+          monto_bs_nuevo?: number | null
+          monto_usd_anterior?: number | null
+          numero?: number | null
+        }
+        Relationships: []
+      }
       _recalc_bcv_backup_20260618: {
         Row: {
           anticipo_aplicado_usd_anterior: number | null
