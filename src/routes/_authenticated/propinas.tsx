@@ -290,6 +290,28 @@ function PropinasPage() {
         </Card>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase text-muted-foreground">13.1 · Propinas por pagar (saldo {anio})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{fmtUsd(saldosPersonal?.["13.1"] ?? 0)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Devengado en ventas menos lo pagado por banco</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs uppercase text-muted-foreground">13.4 · Bonos 10% por pagar (saldo {anio})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{fmtUsd(saldosPersonal?.["13.4"] ?? 0)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Devengado en ventas menos lo pagado por banco</div>
+          </CardContent>
+        </Card>
+      </div>
+
+
       <Card>
         <CardHeader><CardTitle className="text-base">Propinas mensuales · {anio}</CardTitle></CardHeader>
         <CardContent style={{ height: 340 }}>
