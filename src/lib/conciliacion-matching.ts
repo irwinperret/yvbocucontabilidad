@@ -393,12 +393,12 @@ export function parearMovimiento(
   // (c) proveedor + número de factura parecido
   if (numsMemo.length) {
     const casi = conProveedor.find((f) => numsMemo.some((n) => numeroSimilar(f.numero_factura, n)));
-    if (casi) return res("posible", [casi], `Proveedor y N° de factura ${casi.numero_factura} parecidos`, noUbicados);
+    if (casi) return res("posible", [casi], `Proveedor y N° de factura ${casi.numero_factura} parecidos`, noUbicados, tasaBcvMov);
   }
 
   // (d) proveedor + monto igual
   const provMonto = conProveedor.find((f) => montoCoincide(montoFacturaBs(f, tasaBcvMov), montoMov));
-  if (provMonto) return res("posible", [provMonto], `Proveedor y monto coinciden${sufijo}`, noUbicados);
+  if (provMonto) return res("posible", [provMonto], `Proveedor y monto coinciden${sufijo}`, noUbicados, tasaBcvMov);
 
   // (e) monto + fecha cercana
   if (montoMov > 0) {
@@ -407,7 +407,7 @@ export function parearMovimiento(
     );
     if (cerca.length) {
       const f = cerca.sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha))[0];
-      return res("posible", [f], "Monto y fecha cercanos", noUbicados);
+      return res("posible", [f], "Monto y fecha cercanos", noUbicados, tasaBcvMov);
     }
   }
 
@@ -415,7 +415,7 @@ export function parearMovimiento(
   const provFecha = conProveedor
     .filter((f) => diasEntre(f.fecha, mov.fecha) <= 10)
     .sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha))[0];
-  if (provFecha) return res("posible", [provFecha], `Proveedor y fecha cercanos (monto distinto)${sufijo}`, noUbicados);
+  if (provFecha) return res("posible", [provFecha], `Proveedor y fecha cercanos (monto distinto)${sufijo}`, noUbicados, tasaBcvMov);
 
   return res("sin_pareo", [], "Sin factura identificada", noUbicados);
 

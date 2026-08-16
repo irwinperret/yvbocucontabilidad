@@ -19,7 +19,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { CENTROS } from "@/lib/account-helpers";
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import { PareoManualDialog, quitarPareoManual } from "@/components/pareo-manual-dialog";
-import { pendienteBsAFecha } from "@/lib/cxp-saldo";
 
 import {
   bancoDeReferencia,
