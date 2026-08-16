@@ -116,6 +116,7 @@ export async function registrarDiferencialCambiario(opts: {
     referencia: opts.referencia ?? null,
     detalle: "DIF_CAMBIARIO",
     notas: opts.notas ?? "Diferencial cambiario por pago de factura en USD BCV",
+    import_batch_id: opts.import_batch_id ?? null,
     created_by: opts.created_by,
   } as any).select("id").single();
   if (error) return null;
