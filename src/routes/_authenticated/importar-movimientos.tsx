@@ -104,6 +104,10 @@ type Match = {
   montoBs: number;
   cuentaCodigo: string | null;
   duplicado: boolean;
+  /** Operación de cambio: contrapartida recibida (la otra pata). */
+  esCambio?: boolean;
+  cambioRecibido?: string;
+  cambioMoneda?: "Bs" | "USD";
 };
 
 const pendienteBs = (c: CxPRow) => Number(c.monto_pendiente_bs ?? c.monto_bs) || 0;
