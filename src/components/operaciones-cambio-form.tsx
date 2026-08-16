@@ -145,7 +145,15 @@ export function OperacionesCambioForm() {
         <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label>Tipo de operación</Label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as TipoCambio)}>
+            <Select
+              value={tipo}
+              onValueChange={(v) => {
+                setTipo(v as TipoCambio);
+                setEntregado("");
+                setRecibido("");
+                setRecibidoTocado(false);
+              }}
+            >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="compra">Compra USD (entrego Bs, recibo USD)</SelectItem>
