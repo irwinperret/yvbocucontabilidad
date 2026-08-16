@@ -163,7 +163,15 @@ export function OperacionesCambioForm() {
           </div>
           <div>
             <Label>Fecha</Label>
-            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
+            <Input
+              type="date"
+              value={fecha}
+              onChange={(e) => {
+                setFecha(e.target.value);
+                setRecibidoTocado(false);
+              }}
+              required
+            />
           </div>
 
           <div>
