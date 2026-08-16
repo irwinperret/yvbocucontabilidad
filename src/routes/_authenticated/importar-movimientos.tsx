@@ -29,6 +29,7 @@ import {
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
+import { CUENTA_CAMBIO, esCambio } from "@/lib/operaciones-cambio";
 import { tasaBcvQuery } from "@/lib/tasas";
 import {
   clasificarPagoPersonal,
@@ -104,6 +105,10 @@ type Match = {
   montoBs: number;
   cuentaCodigo: string | null;
   duplicado: boolean;
+  /** Operación de cambio: contrapartida recibida (la otra pata). */
+  esCambio?: boolean;
+  cambioRecibido?: string;
+  cambioMoneda?: "Bs" | "USD";
 };
 
 const pendienteBs = (c: CxPRow) => Number(c.monto_pendiente_bs ?? c.monto_bs) || 0;
@@ -266,7 +271,8 @@ function ImportarMovimientosInner() {
           : null;
 
         cuentaPorFila.push(
-          (idxSug >= 0 ? parseCuentaCodigo(row[idxSug]) : null) ??
+          (esCambio(conceptoRaw) ? CUENTA_CAMBIO : null) ??
+            (idxSug >= 0 ? parseCuentaCodigo(row[idxSug]) : null) ??
             (idxCuentaPlan >= 0 ? parseCuentaCodigo(row[idxCuentaPlan]) : null) ??
             clasifPersonal?.cuenta ??
             cuentaDesdeCategoria(categoria)
@@ -348,14 +354,20 @@ function ImportarMovimientosInner() {
         const auto = found.length === 1 || bankRow.codigos.length > 1 ? found : [];
         const duplicado = yaImportadas.has(bankRow.huella) || vistas.has(bankRow.huella);
         vistas.add(bankRow.huella);
+        const cambio = cuentaCodigo === CUENTA_CAMBIO;
         return {
           bankRow,
-          cxps: auto,
+          cxps: cambio ? [] : auto,
           manual: false,
-          selected: !duplicado && (auto.length > 0 || !!cuentaCodigo),
+          // Las operaciones de cambio requieren que el usuario indique la
+          // contrapartida (lo recibido) antes de poder confirmarse.
+          selected: !duplicado && !cambio && (auto.length > 0 || !!cuentaCodigo),
           montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd),
           cuentaCodigo,
           duplicado,
+          esCambio: cambio,
+          cambioRecibido: "",
+          cambioMoneda: bankRow.moneda === "USD" ? "Bs" : "USD",
         };
       });
       setMatches(initialMatches);
@@ -442,7 +454,25 @@ function ImportarMovimientosInner() {
   };
 
   const importable = (m: Match) =>
-    m.selected && !m.duplicado && !!m.bankRow.cuentaBancariaId && (m.cxps.length > 0 || !!m.cuentaCodigo);
+    m.selected &&
+    !m.duplicado &&
+    !!m.bankRow.cuentaBancariaId &&
+    (m.cxps.length > 0 || !!m.cuentaCodigo) &&
+    (!m.esCambio || Number(m.cambioRecibido) > 0);
+
+  const setCambioRecibido = (bankRowId: string, valor: string) => {
+    setMatches((prev) =>
+      prev.map((m) =>
+        m.bankRow.id === bankRowId
+          ? { ...m, cambioRecibido: valor, selected: !m.duplicado && Number(valor) > 0 }
+          : m
+      )
+    );
+  };
+
+  const setCambioMoneda = (bankRowId: string, moneda: "Bs" | "USD") => {
+    setMatches((prev) => prev.map((m) => (m.bankRow.id === bankRowId ? { ...m, cambioMoneda: moneda } : m)));
+  };
 
   const confirmar = async () => {
     if (!user) return;
@@ -487,6 +517,49 @@ function ImportarMovimientosInner() {
             ? +Math.abs(bankRow.montoUsd).toFixed(2)
             : toUsd(montoBs);
 
+
+        if (m.esCambio) {
+          // ── Operación de cambio: dos patas en la cuenta 98 (efecto neto cero) ──
+          const recibido = Math.abs(Number(m.cambioRecibido) || 0);
+          const recibeUsd = (m.cambioMoneda ?? "USD") === "USD";
+          const opBs = recibeUsd ? montoBs : recibido;
+          const opUsd = recibeUsd ? recibido : montoUsdMov;
+          const tipoOp = recibeUsd ? "Compra USD" : "Venta USD";
+          const implicita = opUsd > 0 ? +(opBs / opUsd).toFixed(4) : 0;
+          const grupo = crypto.randomUUID();
+          const nota = `${tipoOp} · ${bankRow.banco} · Tasa implícita ${implicita} · ${bankRow.concepto}`.slice(0, 255);
+          const leg = (signo: 1 | -1, refer: string | null, cuentaBancaria: string | null) => ({
+            fecha: bankRow.fecha,
+            cuenta_codigo: CUENTA_CAMBIO,
+            centro_costo: "Compartido" as any,
+            monto_bs: +(signo * opBs).toFixed(2),
+            monto_base_bs: +(signo * opBs).toFixed(2),
+            iva_bs: 0,
+            iva_aplica: false,
+            tasa_bcv: rates.bcv || null,
+            tasa_paralela: rates.paralela || null,
+            monto_usd: +(signo * opUsd).toFixed(2),
+            metodo_pago: "transferencia" as any,
+            referencia: refer,
+            detalle: `${tipoOp} — ${signo < 0 ? "salida" : "entrada"}`,
+            notas: nota,
+            modo: "on_balance" as any,
+            cuenta_bancaria_id: cuentaBancaria,
+            grupo_transaccion_id: grupo,
+            import_batch_id: batch?.id ?? null,
+            created_by: user.id,
+          });
+          const { data: legs, error: errCambio } = await supabase
+            .from("transacciones")
+            .insert([leg(-1, bankRow.huella, bankRow.cuentaBancariaId), leg(1, null, null)] as any)
+            .select();
+          if (errCambio) throw new Error(errCambio.message);
+          for (const tx of legs ?? []) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+          noAplicaCount++;
+          importados.add(bankRow.id);
+          setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
+          continue;
+        }
 
         if (m.cxps.length === 0) {
           // ── Movimiento sin CxP emparejada ──
@@ -862,6 +935,11 @@ function ImportarMovimientosInner() {
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
                           )}
 
+                          {!m.duplicado && m.esCambio && (
+                            <Badge className="text-[9px] px-1 py-0 bg-violet-600 text-white hover:bg-violet-600">
+                              Operación de cambio — no afecta G&P ni FC
+                            </Badge>
+                          )}
                           {!m.duplicado && dif !== null && dif > 0.01 && (
                             <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente sin aplicar</Badge>
                           )}
@@ -941,6 +1019,33 @@ function ImportarMovimientosInner() {
                           disabled={m.cxps.length > 0}
                           options={planComboOptions}
                         />
+                        {m.esCambio && (
+                          <div className="mt-1 space-y-1">
+                            <div className="text-[10px] text-muted-foreground">
+                              Indica la contrapartida recibida para registrar las dos patas:
+                            </div>
+                            <div className="flex gap-1">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="h-7 w-[110px] text-xs"
+                                placeholder="Recibido"
+                                value={m.cambioRecibido ?? ""}
+                                onChange={(e) => setCambioRecibido(m.bankRow.id, e.target.value)}
+                              />
+                              <Select
+                                value={m.cambioMoneda ?? "USD"}
+                                onValueChange={(v) => setCambioMoneda(m.bankRow.id, v as "Bs" | "USD")}
+                              >
+                                <SelectTrigger className="h-7 w-[80px] text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="USD">USD</SelectItem>
+                                  <SelectItem value="Bs">Bs</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td className="p-2">
                         {(() => {

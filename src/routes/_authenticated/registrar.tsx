@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { recalcCierrePeriodo } from "@/lib/inventario.functions";
 import { useEffect, useMemo, useState } from "react";
+import { OperacionesCambioForm } from "@/components/operaciones-cambio-form";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -106,7 +107,7 @@ function RegistrarPage() {
         <p className="text-sm text-muted-foreground">Elige el tipo de transacción</p>
       </div>
       <Tabs value={current} onValueChange={(v) => navigate({ to: "/registrar", search: { tab: v } })}>
-        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 w-full h-auto gap-1 p-1">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-8 w-full h-auto gap-1 p-1">
           <TabsTrigger value="ventas" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
             Ventas
           </TabsTrigger>
@@ -127,6 +128,9 @@ function RegistrarPage() {
           </TabsTrigger>
           <TabsTrigger value="financiamiento" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
             Financiamiento
+          </TabsTrigger>
+          <TabsTrigger value="cambio" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
+            Operaciones de Cambio
           </TabsTrigger>
         </TabsList>
         <TabsContent value="ventas">
@@ -149,6 +153,9 @@ function RegistrarPage() {
         </TabsContent>
         <TabsContent value="financiamiento">
           <FinanciamientoForm />
+        </TabsContent>
+        <TabsContent value="cambio">
+          <OperacionesCambioForm />
         </TabsContent>
       </Tabs>
     </div>
