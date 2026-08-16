@@ -19,7 +19,7 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/anticipo-proveedor-banner";
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { tasaBcvQuery } from "@/lib/tasas";
-import { dentroDeTolerancia, pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv } from "@/lib/cxp-saldo";
+import { dentroDeTolerancia, pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv as saldoUsdBcv } from "@/lib/cxp-saldo";
 
 const CUENTA_PAGO_CXP = "13.2";
 
@@ -97,7 +97,7 @@ function PagarCxPPage() {
       ],
       rows: (data ?? []).map((c: any) => {
         const pendBs = pendienteBsAFecha(c, tasaHoy);
-        const pendUsdBcv = pendienteUsdBcv(c);
+        const pendUsdBcv = saldoUsdBcv(c);
         return {
           proveedor: c.proveedor ?? "",
           rif: rifDe(c),
@@ -143,7 +143,7 @@ function PagarCxPPage() {
                 <tbody>
                   {data.map((c: any) => {
                     const pendBs = pendienteBsAFecha(c, tasaHoy);
-                    const pendUsdBcv = pendienteUsdBcv(c);
+                    const pendUsdBcv = saldoUsdBcv(c);
                     const tasaBcvSnap = Number(c.tasa_bcv_factura) || (Number(c.monto_bs) > 0 && Number(c.monto_usd) > 0 ? Number(c.monto_bs) / Number(c.monto_usd) : 0);
                     const fechaRef = c.created_at ? String(c.created_at).slice(0, 10) : null;
                     return (
@@ -215,7 +215,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
   });
 
   const pendienteHistorico = pendienteBsHistorico(cxp);
-  const pendienteUsdBcv = pendienteUsdBcv(cxp);
+  const pendienteUsdBcv = saldoUsdBcv(cxp);
   const tasaFactura = Number(cxp.tasa_bcv_factura ?? txOrigData?.tasa_bcv ?? 0);
 
   // Anticipos: cantidades en USD BCV. Reverso en Bs se calcula a la tasa BCV de la factura/pago.

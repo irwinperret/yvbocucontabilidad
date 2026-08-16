@@ -1,3 +1,5 @@
+import { dentroDeTolerancia } from "@/lib/cxp-saldo";
+
 export type EstadoConciliacion = "pareado" | "parcial" | "posible" | "no_aplica" | "sin_pareo";
 
 export const ESTADO_LABEL: Record<EstadoConciliacion, string> = {
@@ -133,8 +135,6 @@ export function proveedorDeMemo(memo: string | null | undefined, terceros: Terce
   // exigir una coincidencia mínimamente significativa
   return mejorScore >= 5 ? mejor : null;
 }
-
-import { dentroDeTolerancia } from "@/lib/cxp-saldo";
 
 export type FacturaRef = {
   id: string;
