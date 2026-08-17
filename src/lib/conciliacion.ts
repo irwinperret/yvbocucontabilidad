@@ -103,6 +103,7 @@ const CUENTAS_SIN_FACTURA_FIJAS = new Set([
   "12.1", "12.2", "12.3", "12.4", "12.5", // impuestos
   "7.1", "7.2",             // financieros
   "11.1", "11.2",           // ganancia/pérdida cambiaria
+  "98", "99",               // operaciones de cambio / no contable
 ]);
 
 /** Servicios públicos: se cruzan con la referencia bancaria, no con factura. */
