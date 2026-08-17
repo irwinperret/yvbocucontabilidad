@@ -474,7 +474,9 @@ function MovimientosBancariosPage() {
         { header: "Notas/memo", key: "notas", width: 50 },
         { header: "Proveedor (si aplica)", key: "proveedor", width: 28 },
         { header: "Origen del proveedor", key: "provFuente", width: 18 },
-        { header: "Estado de conciliación", key: "estado", width: 20 },
+        { header: "Estado de conciliación", key: "estado", width: 26 },
+        { header: "Impacto en reportes", key: "impactoReportes", width: 20 },
+
         { header: "Facturas pareadas", key: "factura", width: 26 },
         { header: "Total pareado Bs", key: "totalPareado", width: 16, fmt: "bs" },
         { header: "Diferencia Bs", key: "dif", width: 16, fmt: "bs" },
