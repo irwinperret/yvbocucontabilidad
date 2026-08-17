@@ -4789,9 +4789,43 @@ function CierreForm() {
                         <th></th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {(compras ?? []).map((c: any) => {
+                    {[
+                      { key: "xetux", label: "Compras Xetux (con factura)", rows: comprasXetux },
+                      { key: "banco", label: "Movimientos bancarios sin factura", rows: comprasBanco },
+                    ]
+                      .filter((g) => g.rows.length > 0)
+                      .map((g) => {
+                        const st = subtotalCompras(g.rows);
+                        const abierto = comprasGrupoAbierto[g.key] !== false;
+                        return (
+                          <tbody key={g.key}>
+                            <tr className="border-t bg-muted/40">
+                              <td colSpan={11} className="py-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setComprasGrupoAbierto((p) => ({ ...p, [g.key]: !abierto }))
+                                  }
+                                  className="flex items-center gap-1 font-semibold uppercase tracking-wide text-[11px]"
+                                >
+                                  {abierto ? (
+                                    <ChevronDown className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                  )}
+                                  {g.label}
+                                  <span className="ml-1 font-normal text-muted-foreground">
+                                    ({st.count})
+                                  </span>
+                                </button>
+                              </td>
+                            </tr>
+                            {abierto &&
+                              g.rows.map((c: any) => {
                         const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
+                        const conceptoBanco = (c.detalle ?? c.notas ?? "")
+                          .replace(/^SIN FACTURA XETUX\s*·\s*/i, "")
+                          .trim();
                         const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
                         const ivaBs = Number(c.iva_bs) || 0;
                         const totalBs = Number(c.monto_bs) || netoBs + ivaBs;
@@ -4810,7 +4844,9 @@ function CierreForm() {
                         return (
                           <tr key={c.id} className="border-t">
                             <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0, 10)}</td>
-                            <td>{prov?.razon_social ?? "—"}</td>
+                            <td className="max-w-[280px] truncate" title={prov?.razon_social ?? conceptoBanco}>
+                              {prov?.razon_social ?? (conceptoBanco || "—")}
+                            </td>
                             <td>{c.numero_factura ?? "—"}</td>
                             <td className="text-right mono">{fmtBs(netoBs)}</td>
                             <td className="text-right mono text-muted-foreground">{fmtBs(ivaBs)}</td>
@@ -4854,7 +4890,21 @@ function CierreForm() {
                           </tr>
                         );
                       })}
-                    </tbody>
+                            <tr className="border-t bg-muted/20 font-medium">
+                              <td colSpan={3} className="py-1.5">
+                                Subtotal · {g.label}
+                              </td>
+                              <td className="text-right mono">{fmtBs(st.netoBs)}</td>
+                              <td className="text-right mono text-muted-foreground">{fmtBs(st.ivaBs)}</td>
+                              <td className="text-right mono">{fmtBs(st.totalBs)}</td>
+                              <td className="text-right mono">{fmtUsd(st.netoUsdBcv)}</td>
+                              <td className="text-right mono text-muted-foreground">{fmtUsd(st.ivaUsdBcv)}</td>
+                              <td className="text-right mono">{fmtUsd(st.totalUsdBcv)}</td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          </tbody>
+                        );
+                      })}
                     <tfoot>
                       <tr className="border-t font-semibold">
                         <td colSpan={3} className="py-2">
