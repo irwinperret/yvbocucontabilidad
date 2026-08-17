@@ -132,23 +132,50 @@ export function AppSidebar() {
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {registroDirectos.map((item) => {
-                    const highlight = item.url === "/registrar";
-                    return (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/inicio")}>
+                      <Link to="/inicio" className="flex items-center gap-2">
+                        <Home className="h-4 w-4" />
+                        {!collapsed && <span>Inicio</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton onClick={() => setImportarOpen((v) => !v)} className="flex items-center gap-2">
+                      <Upload className="h-4 w-4" />
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1 text-left">Importar Archivos</span>
+                          {importarOpen ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          )}
+                        </>
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {importarOpen &&
+                    registroImportar.map((item) => (
                       <SidebarMenuItem key={item.url}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={isActive(item.url)}
-                          className={highlight ? "font-bold" : ""}
-                        >
+                        <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
                           <Link to={item.url} className="flex items-center gap-2">
-                            <item.icon className="h-4 w-4" />
-                            {!collapsed && <span>{item.title}</span>}
+                            <item.icon className="h-3.5 w-3.5" />
+                            {!collapsed && <span className="text-sm">{item.title}</span>}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                    );
-                  })}
+                    ))}
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/registrar")} className="font-bold">
+                      <Link to="/registrar" className="flex items-center gap-2">
+                        <PlusCircle className="h-4 w-4" />
+                        {!collapsed && <span>Registrar Movimiento</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
