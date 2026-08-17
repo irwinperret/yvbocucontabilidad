@@ -17,6 +17,8 @@ import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CENTROS } from "@/lib/account-helpers";
+import { useUsdView, usdVisual } from "@/lib/usd-view-context";
+import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { guardarVinculosConciliacion, marcarEstadoConciliacion, ESTADO_MANUAL_LABEL, ESTADOS_MANUALES, normalizarEstadoManual, type EstadoManual } from "@/lib/conciliacion";
 import { PareoManualDialog, quitarPareoManual } from "@/components/pareo-manual-dialog";
 
@@ -56,6 +58,7 @@ const usdBcvDe = (t: any) => (Number(t.tasa_bcv) > 0 ? Number(t.monto_bs) / Numb
 function MovimientosBancariosPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { mode: usdMode, label: usdLabel } = useUsdView();
 
   const [banco, setBanco] = useState("todos");
   const [estadoF, setEstadoF] = useState("todos");
@@ -573,6 +576,7 @@ function MovimientosBancariosPage() {
           <p className="text-sm text-muted-foreground">Conciliación de movimientos importados del banco contra las facturas registradas</p>
         </div>
         <div className="flex items-center gap-2">
+          <UsdViewToggle />
           <Button variant="outline" onClick={async () => { await recargarDatos(); setRecalcOpen(true); }}>
             <RefreshCw className="h-4 w-4 mr-2" /> Recalcular pareos
             {propuestas.length > 0 && (
@@ -595,16 +599,16 @@ function MovimientosBancariosPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Kpi label="Pagado contra facturas (CxP)" value={fmtBs(resumen.bsPareado)} tone="text-green-600" sub="Afecta G&P y FC" />
-        <Kpi label="Gasto directo sin factura" value={fmtBs(resumen.bsGastoDirecto)} sub="Afecta G&P y FC" />
+        <Kpi label={`Pagado contra facturas (CxP) · ${usdLabel}`} value={fmtUsd(resumen.bsPareado)} tone="text-green-600" sub="Afecta G&P y FC" />
+        <Kpi label={`Gasto directo sin factura · ${usdLabel}`} value={fmtUsd(resumen.bsGastoDirecto)} sub="Afecta G&P y FC" />
         <Kpi
-          label="En 99 — POR DETERMINAR"
-          value={fmtBs(resumen.bsPorDeterminar)}
+          label={`En 99 — POR DETERMINAR · ${usdLabel}`}
+          value={fmtUsd(resumen.bsPorDeterminar)}
           tone={resumen.porDeterminar > 0 ? "text-destructive" : undefined}
           highlight={resumen.porDeterminar > 0}
           sub={`${resumen.porDeterminar} movimiento(s) · no entran a G&P/FC hasta reclasificarse`}
         />
-        <Kpi label="No contable" value={fmtBs(resumen.bsNoContable)} tone="text-muted-foreground" sub="Traspasos y operaciones de cambio" />
+        <Kpi label={`No contable · ${usdLabel}`} value={fmtUsd(resumen.bsNoContable)} tone="text-muted-foreground" sub="Traspasos y operaciones de cambio" />
       </div>
 
 
