@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { DeleteButton } from "@/components/delete-button";
 import { logAudit } from "@/lib/audit";
 
-export const Route = createFileRoute("/_authenticated/proveedores")({ component: ProveedoresPage });
+export const Route = createFileRoute("/_authenticated/proveedores/")({ component: ProveedoresPage });
 
 function ProveedoresPage() {
   const qc = useQueryClient();
