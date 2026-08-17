@@ -73,7 +73,7 @@ function TableroProveedor() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const esSin = id === SIN;
-  const [filtroEstado, setFiltroEstado] = useState("abiertas");
+  const [filtroEstado, setFiltroEstado] = useState("todas");
   const [busca, setBusca] = useState("");
   const [busy, setBusy] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
