@@ -33,6 +33,7 @@ import { Route as AuthenticatedImpuestosRouteImport } from './routes/_authentica
 import { Route as AuthenticatedImportarVentasRouteImport } from './routes/_authenticated/importar-ventas'
 import { Route as AuthenticatedImportarMovimientosRouteImport } from './routes/_authenticated/importar-movimientos'
 import { Route as AuthenticatedImportarComprasRouteImport } from './routes/_authenticated/importar-compras'
+import { Route as AuthenticatedImportarAjustesRouteImport } from './routes/_authenticated/importar-ajustes'
 import { Route as AuthenticatedImportacionesRouteImport } from './routes/_authenticated/importaciones'
 import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
 import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
@@ -180,6 +181,12 @@ const AuthenticatedImportarComprasRoute =
     path: '/importar-compras',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedImportarAjustesRoute =
+  AuthenticatedImportarAjustesRouteImport.update({
+    id: '/importar-ajustes',
+    path: '/importar-ajustes',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedImportacionesRoute =
   AuthenticatedImportacionesRouteImport.update({
     id: '/importaciones',
@@ -279,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
   '/importaciones': typeof AuthenticatedImportacionesRoute
+  '/importar-ajustes': typeof AuthenticatedImportarAjustesRoute
   '/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
@@ -319,6 +327,7 @@ export interface FileRoutesByTo {
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
   '/importaciones': typeof AuthenticatedImportacionesRoute
+  '/importar-ajustes': typeof AuthenticatedImportarAjustesRoute
   '/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
@@ -361,6 +370,7 @@ export interface FileRoutesById {
   '/_authenticated/fc': typeof AuthenticatedFcRoute
   '/_authenticated/gyp': typeof AuthenticatedGypRoute
   '/_authenticated/importaciones': typeof AuthenticatedImportacionesRoute
+  '/_authenticated/importar-ajustes': typeof AuthenticatedImportarAjustesRoute
   '/_authenticated/importar-compras': typeof AuthenticatedImportarComprasRoute
   '/_authenticated/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/_authenticated/importar-ventas': typeof AuthenticatedImportarVentasRoute
@@ -403,6 +413,7 @@ export interface FileRouteTypes {
     | '/fc'
     | '/gyp'
     | '/importaciones'
+    | '/importar-ajustes'
     | '/importar-compras'
     | '/importar-movimientos'
     | '/importar-ventas'
@@ -443,6 +454,7 @@ export interface FileRouteTypes {
     | '/fc'
     | '/gyp'
     | '/importaciones'
+    | '/importar-ajustes'
     | '/importar-compras'
     | '/importar-movimientos'
     | '/importar-ventas'
@@ -484,6 +496,7 @@ export interface FileRouteTypes {
     | '/_authenticated/fc'
     | '/_authenticated/gyp'
     | '/_authenticated/importaciones'
+    | '/_authenticated/importar-ajustes'
     | '/_authenticated/importar-compras'
     | '/_authenticated/importar-movimientos'
     | '/_authenticated/importar-ventas'
@@ -687,6 +700,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedImportarComprasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/importar-ajustes': {
+      id: '/_authenticated/importar-ajustes'
+      path: '/importar-ajustes'
+      fullPath: '/importar-ajustes'
+      preLoaderRoute: typeof AuthenticatedImportarAjustesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/importaciones': {
       id: '/_authenticated/importaciones'
       path: '/importaciones'
@@ -809,6 +829,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFcRoute: typeof AuthenticatedFcRoute
   AuthenticatedGypRoute: typeof AuthenticatedGypRoute
   AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRoute
+  AuthenticatedImportarAjustesRoute: typeof AuthenticatedImportarAjustesRoute
   AuthenticatedImportarComprasRoute: typeof AuthenticatedImportarComprasRoute
   AuthenticatedImportarMovimientosRoute: typeof AuthenticatedImportarMovimientosRoute
   AuthenticatedImportarVentasRoute: typeof AuthenticatedImportarVentasRoute
@@ -848,6 +869,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFcRoute: AuthenticatedFcRoute,
   AuthenticatedGypRoute: AuthenticatedGypRoute,
   AuthenticatedImportacionesRoute: AuthenticatedImportacionesRoute,
+  AuthenticatedImportarAjustesRoute: AuthenticatedImportarAjustesRoute,
   AuthenticatedImportarComprasRoute: AuthenticatedImportarComprasRoute,
   AuthenticatedImportarMovimientosRoute: AuthenticatedImportarMovimientosRoute,
   AuthenticatedImportarVentasRoute: AuthenticatedImportarVentasRoute,
