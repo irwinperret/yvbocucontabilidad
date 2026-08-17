@@ -129,140 +129,14 @@ export function PareoManualDialog({
     if (!seleccionadas.length) return toast.error("Selecciona al menos una factura");
     setBusy(true);
     try {
-      const { data: bcv } = await tasaBcvQuery(fecha, "tasa");
-      const tasaBcv = Number(bcv?.tasa) || Number(mov.tasa_bcv) || 0;
-      const { data: par } = await supabase
-        .from("tasas_paralela").select("tasa").lte("fecha", fecha)
-        .order("fecha", { ascending: false }).limit(1).maybeSingle();
-      const tasaPar = Number(par?.tasa) || Number(mov.tasa_paralela) || 0;
+      const { estadoVinculo, creadas, previos } = await aplicarPareoCxp({
+        mov,
+        terceroId,
+        cxps: seleccionadas,
+        excedente: excedente as "anticipo" | "nada",
+        userId: user.id,
+      });
 
-      const previos = seleccionadas.map((c) => ({
-        id: c.id,
-        estado: c.estado,
-        monto_pendiente_bs: c.monto_pendiente_bs,
-        monto_pendiente_usd_bcv: c.monto_pendiente_usd_bcv,
-        pagada_at: c.pagada_at,
-      }));
-      const creadas: string[] = [];
-      let restante = montoMov;
-      let quedoPendiente = false;
-
-
-      for (const c of seleccionadas) {
-        // Deuda revaluada a la tasa BCV del día del pago
-        const pend = pendienteBsAFecha(c, tasaBcv);
-        let aplicar = +Math.min(pend, restante).toFixed(2);
-        // Si lo que queda por cubrir es despreciable, se salda la factura completa
-        const saldaCompleta = dentroDeTolerancia(pend - aplicar, pend);
-        if (saldaCompleta) aplicar = +Math.min(pend, restante).toFixed(2);
-        if (aplicar <= 0.01) continue;
-        restante = +(restante - aplicar).toFixed(2);
-
-        const { data: txOrig } = await supabase
-          .from("transacciones")
-          .select("cuenta_codigo, centro_costo, grupo_transaccion_id")
-          .eq("id", c.transaccion_id)
-          .maybeSingle();
-        const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
-        if (c.transaccion_id && !txOrig?.grupo_transaccion_id) {
-          await supabase.from("transacciones").update({ grupo_transaccion_id: grupoId } as any).eq("id", c.transaccion_id);
-        }
-
-        const { calcularSplitIvaPagoCxp } = await import("@/lib/iva-helpers");
-        const { data: ivaLegs } = await supabase
-          .from("transacciones").select("id").eq("grupo_transaccion_id", grupoId)
-          .eq("cuenta_codigo", "12.5").gt("monto_bs", 0).limit(1);
-        const split = await calcularSplitIvaPagoCxp(grupoId, aplicar, (ivaLegs?.length ?? 0) > 0);
-
-        const { data: tx, error } = await supabase.from("transacciones").insert({
-          fecha,
-          cuenta_codigo: CUENTA_PAGO_CXP,
-          centro_costo: (txOrig?.centro_costo ?? c.centro_costo ?? mov.centro_costo ?? "Compartido") as any,
-          monto_bs: aplicar,
-          monto_base_bs: split.monto_base_bs,
-          iva_bs: split.iva_bs,
-          iva_aplica: split.iva_bs > 0,
-          tasa_bcv: tasaBcv,
-          tasa_paralela: tasaPar || null,
-          monto_usd: tasaPar > 0 ? +(aplicar / tasaPar).toFixed(2) : (tasaBcv > 0 ? +(aplicar / tasaBcv).toFixed(2) : 0),
-          metodo_pago: (mov.metodo_pago ?? "transferencia") as any,
-          referencia: marcaPareo(mov.id),
-          detalle: marcaCxp(c.id, aplicar),
-          notas: `Pareo manual de movimiento bancario — Fact ${c.numero_factura ?? "s/n"}`,
-          modo: "on_balance" as any,
-          cuenta_bancaria_id: mov.cuenta_bancaria_id ?? null,
-          tercero_id: terceroId,
-          grupo_transaccion_id: grupoId,
-          created_by: user.id,
-        } as any).select().single();
-        if (error) throw new Error(error.message);
-        if (tx) { creadas.push(tx.id); await logAudit("transacciones", "INSERT", tx.id, null, tx); }
-
-        const usdBcvAplicado = tasaBcv > 0 ? +(aplicar / tasaBcv).toFixed(2) : 0;
-        const usdRestante = +Math.max(0, pendienteUsdBcvDe(c) - usdBcvAplicado).toFixed(2);
-        const saldada = saldaCompleta || usdRestante <= 0.01;
-        if (!saldada) quedoPendiente = true;
-
-        await supabase.from("cuentas_por_pagar").update(
-          saldada
-            ? { estado: "pagada", pagada_at: new Date().toISOString(), monto_pendiente_bs: 0, monto_pendiente_usd_bcv: 0 }
-            : {
-                estado: "parcial",
-                monto_pendiente_usd_bcv: usdRestante,
-                monto_pendiente_bs: +(usdRestante * (tasaBcvFactura(c) || tasaBcv)).toFixed(2),
-              },
-        ).eq("id", c.id);
-
-        // Sin asiento de diferencial cambiario: la variación de tasa queda
-        // absorbida en el monto realmente pagado.
-
-      }
-
-
-      // Excedente por encima de la tolerancia → anticipo a proveedor (14.2).
-      // Diferencias despreciables (redondeos / tasa) no generan anticipo.
-      const excedenteReal = dentroDeTolerancia(restante, montoMov) ? 0 : restante;
-      if (excedenteReal > 0.01 && excedente === "anticipo") {
-        const { data: tx, error } = await supabase.from("transacciones").insert({
-          fecha,
-          cuenta_codigo: CUENTA_ANTICIPO,
-          centro_costo: (mov.centro_costo ?? "Compartido") as any,
-          monto_bs: excedenteReal,
-          monto_base_bs: excedenteReal,
-          iva_bs: 0,
-          iva_aplica: false,
-          tasa_bcv: tasaBcv,
-          tasa_paralela: tasaPar || null,
-          monto_usd: tasaPar > 0 ? +(excedenteReal / tasaPar).toFixed(2) : 0,
-          metodo_pago: (mov.metodo_pago ?? "transferencia") as any,
-          referencia: marcaPareo(mov.id),
-          detalle: "PAREO_ANTICIPO",
-          notas: "Excedente de pareo manual registrado como anticipo a proveedor",
-          modo: "on_balance" as any,
-          cuenta_bancaria_id: mov.cuenta_bancaria_id ?? null,
-          tercero_id: terceroId,
-          anticipo_estado: "abierto",
-          created_by: user.id,
-        } as any).select().single();
-        if (error) throw new Error(error.message);
-        if (tx) creadas.push(tx.id);
-      }
-
-      // Vínculo de conciliación (contra las transacciones-factura de las CxP)
-      const facturaIds = seleccionadas.map((c) => c.transaccion_id).filter(Boolean) as string[];
-      const estadoVinculo = excedenteReal > 0.01 || quedoPendiente ? "parcial" : "pareado";
-
-
-      if (facturaIds.length) {
-        const r = await guardarVinculosConciliacion({
-          movimientoId: mov.id,
-          contrapartes: facturaIds,
-          estado: estadoVinculo,
-          origen: "manual",
-          userId: user.id,
-        });
-        if (!r.ok) throw new Error(r.error ?? "No se pudo guardar el vínculo");
-      }
 
       toast.success(
         estadoVinculo === "pareado" ? "Movimiento pareado" : "Pareo parcial guardado",
