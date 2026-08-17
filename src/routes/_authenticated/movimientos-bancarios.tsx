@@ -523,11 +523,15 @@ function MovimientosBancariosPage() {
     }
   };
 
-  const badgeEstado = (e: EstadoConciliacion) => {
+  const badgeEstado = (e: EstadoConciliacion, clase?: string | null) => {
     if (e === "pareado") return <Badge className="bg-green-600">Pareado</Badge>;
     if (e === "parcial") return <Badge className="bg-amber-600">Pareado parcial</Badge>;
     if (e === "posible") return <Badge className="bg-orange-500">Posible pareo</Badge>;
-    if (e === "no_aplica") return <Badge variant="secondary">No aplica</Badge>;
+    if (e === "no_aplica")
+      return clase === "no_contable"
+        ? <Badge variant="outline">No aplica (no contable)</Badge>
+        : <Badge variant="secondary">Gasto directo (sin factura)</Badge>;
+
     return <Badge variant="destructive">Sin pareo</Badge>;
   };
 
