@@ -8,10 +8,25 @@ Son gastos reales (sí deben contar en el COGS del mes), el problema es cómo se
 
 ### Qué se hará
 
+Reorganizar la tabla de compras del mes en dos bloques, agrupados por vía de importación, cada uno con su subtotal:
+
+```text
+COMPRAS XETUX (con factura)
+  ...filas ordenadas por fecha...
+  Subtotal Xetux            Neto Bs | IVA Bs | Total Bs | USD BCV
+
+MOVIMIENTOS BANCARIOS SIN FACTURA (no pareados)
+  ...filas ordenadas por fecha...
+  Subtotal sin factura      Neto Bs | IVA Bs | Total Bs | USD BCV
+
+TOTAL COMPRAS DEL PERÍODO   (suma de ambos bloques, igual que hoy)
+```
+
+- El bloque de "sin factura" muestra el concepto del movimiento (banco/proveedor del memo) en la columna Proveedor, en vez de "—", más el banco y la referencia.
+- Cada bloque se puede colapsar/expandir; el total del período no cambia (sigue incluyendo ambos bloques) y el COGS se calcula igual.
 - Al importar movimientos bancarios sin factura hacia 2.1: extraer del concepto el nombre del proveedor y, cuando el memo contenga "FACT xxxx", el número de factura, y guardarlos en la transacción (enlazando al tercero existente si ya está registrado por nombre similar).
-- En la tabla de compras del mes (COGS/Inventarios): si no hay proveedor, mostrar el concepto del movimiento en vez de "—", y marcar la fila con una etiqueta "Banco s/factura" para distinguirla de las compras importadas de Xetux.
-- Añadir un filtro/checkbox "Solo compras con factura" en esa tabla, para poder revisar el mes sin esas filas (los totales del mes siguen incluyendo todo).
-- Backfill: rellenar proveedor/concepto en las filas ya existentes (las 28 de julio y equivalentes de otros meses) a partir de su campo detalle, sin tocar montos ni fechas.
+- Backfill: rellenar proveedor/número de factura en las filas ya existentes (las 28 de julio y equivalentes de otros meses) a partir de su campo detalle, sin tocar montos ni fechas.
+
 
 ## 2. Movimientos de cuenta 98 → "No aplica (no contable)" por defecto
 
