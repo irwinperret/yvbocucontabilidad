@@ -688,11 +688,10 @@ function ImportarMovimientosInner() {
         // ── Aplicación del pago a las facturas (deuda revaluada a la tasa BCV del día) ──
         const {
           pendienteUsdBcv: pendUsdBcvFn,
-          tasaBcvFactura,
-          diferencialCambiario,
-          registrarDiferencialCambiario,
           dentroDeTolerancia,
         } = await import("@/lib/cxp-saldo");
+
+
 
         let restanteUsdBcv = rates.bcv > 0 ? +(montoBs / rates.bcv).toFixed(2) : 0;
         for (const cxp of m.cxps) {
