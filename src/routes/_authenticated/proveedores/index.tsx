@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,12 +8,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus } from "lucide-react";
+import { Plus, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { DeleteButton } from "@/components/delete-button";
 import { logAudit } from "@/lib/audit";
 
-export const Route = createFileRoute("/_authenticated/proveedores/")({ component: ProveedoresPage });
+export const Route = createFileRoute("/_authenticated/proveedores/")({
+  component: ProveedoresPage,
+  head: () => ({
+    meta: [
+      { title: "Proveedores | Yvbocu Contabilidad" },
+      { name: "description", content: "Catálogo de proveedores y acceso al tablero de conciliación de facturas y pagos." },
+      { property: "og:title", content: "Proveedores | Yvbocu Contabilidad" },
+      { property: "og:description", content: "Catálogo de proveedores y acceso al tablero de conciliación de facturas y pagos." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+});
+
 
 function ProveedoresPage() {
   const qc = useQueryClient();
