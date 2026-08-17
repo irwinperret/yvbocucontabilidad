@@ -688,11 +688,10 @@ function ImportarMovimientosInner() {
         // ── Aplicación del pago a las facturas (deuda revaluada a la tasa BCV del día) ──
         const {
           pendienteUsdBcv: pendUsdBcvFn,
-          tasaBcvFactura,
-          diferencialCambiario,
-          registrarDiferencialCambiario,
           dentroDeTolerancia,
         } = await import("@/lib/cxp-saldo");
+
+
 
         let restanteUsdBcv = rates.bcv > 0 ? +(montoBs / rates.bcv).toFixed(2) : 0;
         for (const cxp of m.cxps) {
@@ -722,28 +721,9 @@ function ImportarMovimientosInner() {
             monto_pendiente_usd_bcv: nuevoUsdBcv,
           }).eq("id", cxp.id);
 
-          // Diferencial cambiario: la deuda nació a la tasa de la factura y se
-          // paga a la tasa BCV del día del pago.
-          const delta = diferencialCambiario({
-            usdBcvAplicado: aplicarUsdBcv,
-            tasaPago: rates.bcv,
-            tasaFactura: tasaBcvFactura(cxp),
-          });
-          if (Math.abs(delta) >= 0.01) {
-            await registrarDiferencialCambiario({
-              delta,
-              fecha: bankRow.fecha,
-              centro_costo: (txOrig?.centro_costo ?? primera.centro_costo ?? "Compartido") as string,
-              tercero_id: cxp.tercero_id ?? null,
-              grupo_transaccion_id: grupoId,
-              tasa_bcv: rates.bcv || null,
-              tasa_paralela: rates.paralela || null,
-              referencia: bankRow.huella,
-              notas: `Diferencial cambiario · pago factura ${cxp.numero_factura ?? "—"} · ${cxp.proveedor ?? ""}`.slice(0, 255),
-              import_batch_id: batch?.id ?? null,
-              created_by: user.id,
-            });
-          }
+          // Sin asiento de diferencial cambiario: la variación de tasa queda
+          // absorbida en el monto realmente pagado.
+
 
           if (cubreTodo) ok++; else partial++;
           restanteUsdBcv = +(restanteUsdBcv - aplicarUsdBcv).toFixed(2);

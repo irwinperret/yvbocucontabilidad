@@ -20,9 +20,8 @@ import {
   pendienteBsAFecha,
   dentroDeTolerancia,
   tasaBcvFactura,
-  diferencialCambiario,
-  registrarDiferencialCambiario,
 } from "@/lib/cxp-saldo";
+
 
 const CUENTA_PAGO_CXP = "13.2";
 const CUENTA_ANTICIPO = "14.2";
@@ -220,28 +219,9 @@ export function PareoManualDialog({
               },
         ).eq("id", c.id);
 
-        // Diferencial cambiario: la deuda nació a la tasa de la factura y se
-        // paga a la tasa del día → la diferencia va a 7.2 / 11.1.
-        const delta = diferencialCambiario({
-          usdBcvAplicado,
-          tasaPago: tasaBcv,
-          tasaFactura: tasaBcvFactura(c),
-        });
-        if (Math.abs(delta) >= 0.01) {
-          const idDif = await registrarDiferencialCambiario({
-            delta,
-            fecha,
-            centro_costo: (txOrig?.centro_costo ?? c.centro_costo ?? mov.centro_costo ?? "Compartido") as string,
-            tercero_id: terceroId,
-            grupo_transaccion_id: grupoId,
-            tasa_bcv: tasaBcv,
-            tasa_paralela: tasaPar || null,
-            referencia: marcaPareo(mov.id),
-            notas: `Diferencial cambiario — Fact ${c.numero_factura ?? "s/n"}`,
-            created_by: user.id,
-          });
-          if (idDif) creadas.push(idDif);
-        }
+        // Sin asiento de diferencial cambiario: la variación de tasa queda
+        // absorbida en el monto realmente pagado.
+
       }
 
 
