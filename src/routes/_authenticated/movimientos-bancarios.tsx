@@ -590,9 +590,23 @@ function MovimientosBancariosPage() {
         <Kpi label="Pareados" value={resumen.pareado} tone="text-green-600" />
         <Kpi label="Pareo parcial" value={resumen.parcial} tone="text-amber-600" />
         <Kpi label="Posible pareo" value={resumen.posible} tone="text-orange-600" />
-        <Kpi label="No aplica" value={resumen.no_aplica} tone="text-muted-foreground" />
+        <Kpi label="Gasto directo (sin factura)" value={resumen.gasto_directo} tone="text-muted-foreground" />
         <Kpi label="Sin pareo" value={resumen.sin_pareo} tone="text-destructive" highlight={resumen.sin_pareo > 0} />
       </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Kpi label="Pagado contra facturas (CxP)" value={fmtBs(resumen.bsPareado)} tone="text-green-600" sub="Afecta G&P y FC" />
+        <Kpi label="Gasto directo sin factura" value={fmtBs(resumen.bsGastoDirecto)} sub="Afecta G&P y FC" />
+        <Kpi
+          label="En 99 — POR DETERMINAR"
+          value={fmtBs(resumen.bsPorDeterminar)}
+          tone={resumen.porDeterminar > 0 ? "text-destructive" : undefined}
+          highlight={resumen.porDeterminar > 0}
+          sub={`${resumen.porDeterminar} movimiento(s) · no entran a G&P/FC hasta reclasificarse`}
+        />
+        <Kpi label="No contable" value={fmtBs(resumen.bsNoContable)} tone="text-muted-foreground" sub="Traspasos y operaciones de cambio" />
+      </div>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
