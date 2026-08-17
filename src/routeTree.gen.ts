@@ -47,6 +47,7 @@ import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/
 import { Route as AuthenticatedAnalisisAiRouteImport } from './routes/_authenticated/analisis-ai'
 import { Route as AuthenticatedActivosTransitoriosRouteImport } from './routes/_authenticated/activos-transitorios'
 import { Route as AuthenticatedProveedoresIndexRouteImport } from './routes/_authenticated/proveedores/index'
+import { Route as AuthenticatedProveedoresIdRouteImport } from './routes/_authenticated/proveedores/$id'
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
@@ -258,6 +259,12 @@ const AuthenticatedProveedoresIndexRoute =
     path: '/proveedores/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProveedoresIdRoute =
+  AuthenticatedProveedoresIdRouteImport.update({
+    id: '/proveedores/$id',
+    path: '/proveedores/$id',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicHooksSyncParalelaRoute =
   ApiPublicHooksSyncParalelaRouteImport.update({
     id: '/api/public/hooks/sync-paralela',
@@ -307,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
   '/proveedores/': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
@@ -348,6 +356,7 @@ export interface FileRoutesByTo {
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
   '/proveedores': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
@@ -391,6 +400,7 @@ export interface FileRoutesById {
   '/_authenticated/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
   '/_authenticated/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/_authenticated/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
   '/_authenticated/proveedores/': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
@@ -434,6 +444,7 @@ export interface FileRouteTypes {
     | '/tasa-paralela'
     | '/terceros'
     | '/transacciones'
+    | '/proveedores/$id'
     | '/proveedores/'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
@@ -475,6 +486,7 @@ export interface FileRouteTypes {
     | '/tasa-paralela'
     | '/terceros'
     | '/transacciones'
+    | '/proveedores/$id'
     | '/proveedores'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
@@ -517,6 +529,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tasa-paralela'
     | '/_authenticated/terceros'
     | '/_authenticated/transacciones'
+    | '/_authenticated/proveedores/$id'
     | '/_authenticated/proveedores/'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
@@ -798,6 +811,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProveedoresIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/proveedores/$id': {
+      id: '/_authenticated/proveedores/$id'
+      path: '/proveedores/$id'
+      fullPath: '/proveedores/$id'
+      preLoaderRoute: typeof AuthenticatedProveedoresIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/sync-paralela': {
       id: '/api/public/hooks/sync-paralela'
       path: '/api/public/hooks/sync-paralela'
@@ -850,6 +870,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTasaParalelaRoute: typeof AuthenticatedTasaParalelaRoute
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
   AuthenticatedTransaccionesRoute: typeof AuthenticatedTransaccionesRoute
+  AuthenticatedProveedoresIdRoute: typeof AuthenticatedProveedoresIdRoute
   AuthenticatedProveedoresIndexRoute: typeof AuthenticatedProveedoresIndexRoute
 }
 
@@ -891,6 +912,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTasaParalelaRoute: AuthenticatedTasaParalelaRoute,
   AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,
   AuthenticatedTransaccionesRoute: AuthenticatedTransaccionesRoute,
+  AuthenticatedProveedoresIdRoute: AuthenticatedProveedoresIdRoute,
   AuthenticatedProveedoresIndexRoute: AuthenticatedProveedoresIndexRoute,
 }
 
