@@ -240,10 +240,14 @@ function MovimientosBancariosPage() {
           ? origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente"
           : `Pareo parcial: cubre ${cob.total.toFixed(2)} de ${cob.monto.toFixed(2)} Bs (faltan ${cob.diferencia.toFixed(2)} Bs)`;
       } else if (estadoManual) {
-        estado = estadoManual as EstadoConciliacion;
+        estado =
+          estadoManual === "gasto_directo" || estadoManual === "no_contable"
+            ? "no_aplica"
+            : (estadoManual as EstadoConciliacion);
         facturas = [];
         origen = "manual";
         motivo = `Marcado a mano: ${ESTADO_MANUAL_LABEL[estadoManual]}`;
+
       } else if (filaRechazo && mismoRechazo) {
         estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
         facturas = [];
