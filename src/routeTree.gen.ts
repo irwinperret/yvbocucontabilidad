@@ -19,7 +19,6 @@ import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/t
 import { Route as AuthenticatedStandbyRouteImport } from './routes/_authenticated/standby'
 import { Route as AuthenticatedSaldosBancariosRouteImport } from './routes/_authenticated/saldos-bancarios'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
-import { Route as AuthenticatedProveedoresRouteImport } from './routes/_authenticated/proveedores'
 import { Route as AuthenticatedPropinasRouteImport } from './routes/_authenticated/propinas'
 import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenticated/plan-cuentas'
 import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticated/pagar-cxp'
@@ -47,6 +46,8 @@ import { Route as AuthenticatedAumentoCapitalRouteImport } from './routes/_authe
 import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/_authenticated/anticipos-proveedores'
 import { Route as AuthenticatedAnalisisAiRouteImport } from './routes/_authenticated/analisis-ai'
 import { Route as AuthenticatedActivosTransitoriosRouteImport } from './routes/_authenticated/activos-transitorios'
+import { Route as AuthenticatedProveedoresIndexRouteImport } from './routes/_authenticated/proveedores/index'
+import { Route as AuthenticatedProveedoresIdRouteImport } from './routes/_authenticated/proveedores/$id'
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
@@ -102,12 +103,6 @@ const AuthenticatedRegistrarRoute = AuthenticatedRegistrarRouteImport.update({
   path: '/registrar',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedProveedoresRoute =
-  AuthenticatedProveedoresRouteImport.update({
-    id: '/proveedores',
-    path: '/proveedores',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedPropinasRoute = AuthenticatedPropinasRouteImport.update({
   id: '/propinas',
   path: '/propinas',
@@ -258,6 +253,18 @@ const AuthenticatedActivosTransitoriosRoute =
     path: '/activos-transitorios',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedProveedoresIndexRoute =
+  AuthenticatedProveedoresIndexRouteImport.update({
+    id: '/proveedores/',
+    path: '/proveedores/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProveedoresIdRoute =
+  AuthenticatedProveedoresIdRouteImport.update({
+    id: '/proveedores/$id',
+    path: '/proveedores/$id',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicHooksSyncParalelaRoute =
   ApiPublicHooksSyncParalelaRouteImport.update({
     id: '/api/public/hooks/sync-paralela',
@@ -300,7 +307,6 @@ export interface FileRoutesByFullPath {
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/propinas': typeof AuthenticatedPropinasRoute
-  '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/standby': typeof AuthenticatedStandbyRoute
@@ -308,6 +314,8 @@ export interface FileRoutesByFullPath {
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
+  '/proveedores/': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
 }
@@ -341,7 +349,6 @@ export interface FileRoutesByTo {
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/propinas': typeof AuthenticatedPropinasRoute
-  '/proveedores': typeof AuthenticatedProveedoresRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/standby': typeof AuthenticatedStandbyRoute
@@ -349,6 +356,8 @@ export interface FileRoutesByTo {
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
+  '/proveedores': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
 }
@@ -384,7 +393,6 @@ export interface FileRoutesById {
   '/_authenticated/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/_authenticated/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/_authenticated/propinas': typeof AuthenticatedPropinasRoute
-  '/_authenticated/proveedores': typeof AuthenticatedProveedoresRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/_authenticated/standby': typeof AuthenticatedStandbyRoute
@@ -392,6 +400,8 @@ export interface FileRoutesById {
   '/_authenticated/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
   '/_authenticated/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/_authenticated/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
+  '/_authenticated/proveedores/': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
 }
@@ -427,7 +437,6 @@ export interface FileRouteTypes {
     | '/pagar-cxp'
     | '/plan-cuentas'
     | '/propinas'
-    | '/proveedores'
     | '/registrar'
     | '/saldos-bancarios'
     | '/standby'
@@ -435,6 +444,8 @@ export interface FileRouteTypes {
     | '/tasa-paralela'
     | '/terceros'
     | '/transacciones'
+    | '/proveedores/$id'
+    | '/proveedores/'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
   fileRoutesByTo: FileRoutesByTo
@@ -468,7 +479,6 @@ export interface FileRouteTypes {
     | '/pagar-cxp'
     | '/plan-cuentas'
     | '/propinas'
-    | '/proveedores'
     | '/registrar'
     | '/saldos-bancarios'
     | '/standby'
@@ -476,6 +486,8 @@ export interface FileRouteTypes {
     | '/tasa-paralela'
     | '/terceros'
     | '/transacciones'
+    | '/proveedores/$id'
+    | '/proveedores'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
   id:
@@ -510,7 +522,6 @@ export interface FileRouteTypes {
     | '/_authenticated/pagar-cxp'
     | '/_authenticated/plan-cuentas'
     | '/_authenticated/propinas'
-    | '/_authenticated/proveedores'
     | '/_authenticated/registrar'
     | '/_authenticated/saldos-bancarios'
     | '/_authenticated/standby'
@@ -518,6 +529,8 @@ export interface FileRouteTypes {
     | '/_authenticated/tasa-paralela'
     | '/_authenticated/terceros'
     | '/_authenticated/transacciones'
+    | '/_authenticated/proveedores/$id'
+    | '/_authenticated/proveedores/'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
   fileRoutesById: FileRoutesById
@@ -600,13 +613,6 @@ declare module '@tanstack/react-router' {
       path: '/registrar'
       fullPath: '/registrar'
       preLoaderRoute: typeof AuthenticatedRegistrarRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/proveedores': {
-      id: '/_authenticated/proveedores'
-      path: '/proveedores'
-      fullPath: '/proveedores'
-      preLoaderRoute: typeof AuthenticatedProveedoresRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/propinas': {
@@ -798,6 +804,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedActivosTransitoriosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/proveedores/': {
+      id: '/_authenticated/proveedores/'
+      path: '/proveedores'
+      fullPath: '/proveedores/'
+      preLoaderRoute: typeof AuthenticatedProveedoresIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/proveedores/$id': {
+      id: '/_authenticated/proveedores/$id'
+      path: '/proveedores/$id'
+      fullPath: '/proveedores/$id'
+      preLoaderRoute: typeof AuthenticatedProveedoresIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/sync-paralela': {
       id: '/api/public/hooks/sync-paralela'
       path: '/api/public/hooks/sync-paralela'
@@ -843,7 +863,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPagarCxpRoute: typeof AuthenticatedPagarCxpRoute
   AuthenticatedPlanCuentasRoute: typeof AuthenticatedPlanCuentasRoute
   AuthenticatedPropinasRoute: typeof AuthenticatedPropinasRoute
-  AuthenticatedProveedoresRoute: typeof AuthenticatedProveedoresRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
   AuthenticatedSaldosBancariosRoute: typeof AuthenticatedSaldosBancariosRoute
   AuthenticatedStandbyRoute: typeof AuthenticatedStandbyRoute
@@ -851,6 +870,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTasaParalelaRoute: typeof AuthenticatedTasaParalelaRoute
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
   AuthenticatedTransaccionesRoute: typeof AuthenticatedTransaccionesRoute
+  AuthenticatedProveedoresIdRoute: typeof AuthenticatedProveedoresIdRoute
+  AuthenticatedProveedoresIndexRoute: typeof AuthenticatedProveedoresIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -884,7 +905,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPagarCxpRoute: AuthenticatedPagarCxpRoute,
   AuthenticatedPlanCuentasRoute: AuthenticatedPlanCuentasRoute,
   AuthenticatedPropinasRoute: AuthenticatedPropinasRoute,
-  AuthenticatedProveedoresRoute: AuthenticatedProveedoresRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
   AuthenticatedSaldosBancariosRoute: AuthenticatedSaldosBancariosRoute,
   AuthenticatedStandbyRoute: AuthenticatedStandbyRoute,
@@ -892,6 +912,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTasaParalelaRoute: AuthenticatedTasaParalelaRoute,
   AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,
   AuthenticatedTransaccionesRoute: AuthenticatedTransaccionesRoute,
+  AuthenticatedProveedoresIdRoute: AuthenticatedProveedoresIdRoute,
+  AuthenticatedProveedoresIndexRoute: AuthenticatedProveedoresIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,12 +8,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus } from "lucide-react";
+import { Plus, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { DeleteButton } from "@/components/delete-button";
 import { logAudit } from "@/lib/audit";
 
-export const Route = createFileRoute("/_authenticated/proveedores")({ component: ProveedoresPage });
+export const Route = createFileRoute("/_authenticated/proveedores/")({
+  component: ProveedoresPage,
+  head: () => ({
+    meta: [
+      { title: "Proveedores | Yvbocu Contabilidad" },
+      { name: "description", content: "Catálogo de proveedores y acceso al tablero de conciliación de facturas y pagos." },
+      { property: "og:title", content: "Proveedores | Yvbocu Contabilidad" },
+      { property: "og:description", content: "Catálogo de proveedores y acceso al tablero de conciliación de facturas y pagos." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+});
+
 
 function ProveedoresPage() {
   const qc = useQueryClient();
@@ -107,6 +120,11 @@ function ProveedoresPage() {
         <CardHeader>
           <div className="flex justify-between items-center gap-4">
             <CardTitle className="text-base">Listado</CardTitle>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/proveedores/$id" params={{ id: "sin-proveedor" }}>
+                <Inbox className="h-4 w-4 mr-1" />Sin proveedor
+              </Link>
+            </Button>
             <Input placeholder="Buscar por RIF o razón social…" value={busca} onChange={(e) => setBusca(e.target.value)} className="max-w-xs" />
           </div>
         </CardHeader>
@@ -127,7 +145,15 @@ function ProveedoresPage() {
                 <tbody>
                   {filtrados.map((t: any) => (
                     <tr key={t.id} className="border-b last:border-0">
-                      <td className="py-2 px-2">{t.razon_social}</td>
+                      <td className="py-2 px-2">
+                        <Link
+                          to="/proveedores/$id"
+                          params={{ id: t.id }}
+                          className="text-primary hover:underline"
+                        >
+                          {t.razon_social}
+                        </Link>
+                      </td>
                       <td className="py-2 px-2 mono text-xs">{t.tipo_rif}-{t.rif}</td>
                       <td className="py-2 px-2">{t.tipo}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.email ?? "—"}</td>

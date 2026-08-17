@@ -1,0 +1,476 @@
+import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
+import { toast } from "sonner";
+import { ArrowLeft, GripVertical, Link2Off, Wand2, Download } from "lucide-react";
+import { exportTableToExcel } from "@/lib/excel-table";
+import { aplicarPareoCxp, quitarPareoCxp } from "@/lib/pareo-cxp";
+import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib/cxp-saldo";
+import { bancoDeReferencia } from "@/lib/conciliacion-matching";
+
+export const Route = createFileRoute("/_authenticated/proveedores/$id")({
+  component: TableroProveedor,
+  head: () => ({
+    meta: [
+      { title: "Conciliación por proveedor | Yvbocu Contabilidad" },
+      { name: "description", content: "Asigna movimientos bancarios a las facturas de cada proveedor arrastrando y soltando." },
+      { property: "og:title", content: "Conciliación por proveedor | Yvbocu Contabilidad" },
+      { property: "og:description", content: "Asigna movimientos bancarios a las facturas de cada proveedor arrastrando y soltando." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+});
+
+const SIN = "sin-proveedor";
+
+function MovChip({ mov, disabled }: { mov: any; disabled?: boolean }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `mov:${mov.id}`, disabled });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={`flex items-center gap-2 rounded-md border bg-card px-2 py-1 text-xs ${isDragging ? "opacity-50" : ""} ${disabled ? "" : "cursor-grab active:cursor-grabbing"}`}
+    >
+      <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+      <span className="text-muted-foreground">{fmtDate(mov.fecha)}</span>
+      <span className="font-medium">{bancoDeReferencia(mov.referencia) || "banco"}</span>
+      <span className="mono">{fmtBs(Math.abs(Number(mov.monto_bs) || 0))}</span>
+      <span className="truncate text-muted-foreground max-w-[16rem]">{mov.notas ?? ""}</span>
+    </div>
+  );
+}
+
+function Zona({ id, children, className }: { id: string; children: React.ReactNode; className?: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={`${className ?? ""} ${isOver ? "ring-2 ring-primary rounded-md" : ""}`}>
+      {children}
+    </div>
+  );
+}
+
+function TableroProveedor() {
+  const { id } = useParams({ from: "/_authenticated/proveedores/$id" });
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const esSin = id === SIN;
+  const [filtroEstado, setFiltroEstado] = useState("abiertas");
+  const [busca, setBusca] = useState("");
+  const [busy, setBusy] = useState(false);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const { data: terceros } = useQuery({
+    queryKey: ["terceros-tablero"],
+    queryFn: async () => {
+      const { data } = await supabase.from("terceros").select("id,razon_social,nombre_comercial").order("razon_social");
+      return (data ?? []) as any[];
+    },
+  });
+  const nombreProveedor = esSin
+    ? "Sin proveedor"
+    : (terceros ?? []).find((t) => t.id === id)?.nombre_comercial ||
+      (terceros ?? []).find((t) => t.id === id)?.razon_social ||
+      "Proveedor";
+
+  const { data: cxps } = useQuery({
+    queryKey: ["tablero-cxp", id],
+    queryFn: async () => {
+      let q = supabase.from("cuentas_por_pagar").select("*").order("fecha_vencimiento", { ascending: true });
+      q = esSin ? q.is("tercero_id", null) : q.eq("tercero_id", id);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  const { data: movimientos } = useQuery({
+    queryKey: ["tablero-movs"],
+    queryFn: async () => {
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return (await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("*")
+          .neq("standby", true)
+          .like("referencia", "BANK:%")
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      )) as any[];
+    },
+  });
+
+  const { data: vinculos } = useQuery({
+    queryKey: ["conciliacion-bancaria"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as any)("conciliacion_bancaria").select("*");
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  const facturaIds = useMemo(
+    () => new Set((cxps ?? []).map((c) => c.transaccion_id).filter(Boolean) as string[]),
+    [cxps],
+  );
+
+  /** movId -> facturaTxIds */
+  const movAFacturas = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const v of vinculos ?? []) {
+      if (!v.transaccion_factura_id || v.estado === "rechazado") continue;
+      const arr = m.get(v.transaccion_bancaria_id) ?? [];
+      arr.push(v.transaccion_factura_id);
+      m.set(v.transaccion_bancaria_id, arr);
+    }
+    return m;
+  }, [vinculos]);
+
+  const movsDelProveedor = useMemo(() => {
+    return (movimientos ?? []).filter((mv) => {
+      const ligados = movAFacturas.get(mv.id) ?? [];
+      if (ligados.some((f) => facturaIds.has(f))) return true;
+      if (ligados.length) return false; // pareado con otro proveedor
+      return esSin ? !mv.tercero_id : mv.tercero_id === id;
+    });
+  }, [movimientos, movAFacturas, facturaIds, esSin, id]);
+
+  const movsPorFactura = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const mv of movsDelProveedor) {
+      for (const f of movAFacturas.get(mv.id) ?? []) {
+        const arr = m.get(f) ?? [];
+        arr.push(mv);
+        m.set(f, arr);
+      }
+    }
+    return m;
+  }, [movsDelProveedor, movAFacturas]);
+
+  const movsHuerfanos = useMemo(
+    () => movsDelProveedor.filter((mv) => !(movAFacturas.get(mv.id) ?? []).length),
+    [movsDelProveedor, movAFacturas],
+  );
+
+  const facturas = useMemo(() => {
+    const txt = busca.trim().toLowerCase();
+    return (cxps ?? []).filter((c) => {
+      if (filtroEstado === "abiertas" && c.estado === "pagada") return false;
+      if (filtroEstado === "pagadas" && c.estado !== "pagada") return false;
+      if (txt && !`${c.numero_factura ?? ""} ${c.proveedor ?? ""}`.toLowerCase().includes(txt)) return false;
+      return true;
+    });
+  }, [cxps, filtroEstado, busca]);
+
+  const facturasHuerfanas = facturas.filter(
+    (c) => !(movsPorFactura.get(c.transaccion_id ?? "") ?? []).length,
+  );
+
+  const refrescar = async () => {
+    await qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+    await qc.invalidateQueries({ queryKey: ["tablero-cxp", id] });
+    await qc.invalidateQueries({ queryKey: ["tablero-movs"] });
+    await qc.invalidateQueries({ queryKey: ["cxp-analisis"] });
+    await qc.invalidateQueries({ queryKey: ["mov-bancarios"] });
+  };
+
+  const asignar = async (movId: string, cxpId: string) => {
+    if (!user) return;
+    const mov = (movimientos ?? []).find((m) => m.id === movId);
+    const cxp = (cxps ?? []).find((c) => c.id === cxpId);
+    if (!mov || !cxp) return;
+    if (!cxp.transaccion_id) return toast.error("La factura no tiene transacción asociada.");
+    setBusy(true);
+    try {
+      if ((movAFacturas.get(movId) ?? []).length) await quitarPareoCxp(movId);
+      await aplicarPareoCxp({
+        mov,
+        terceroId: (cxp.tercero_id ?? mov.tercero_id ?? null) as string,
+        cxps: [cxp],
+        userId: user.id,
+      });
+      toast.success("Movimiento asignado");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo asignar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const desasignar = async (movId: string) => {
+    setBusy(true);
+    const r = await quitarPareoCxp(movId);
+    setBusy(false);
+    if (!r.ok) return toast.error(r.error ?? "No se pudo desasignar");
+    toast.success("Movimiento liberado");
+    await refrescar();
+  };
+
+  const cambiarProveedorMov = async (movId: string, nuevo: string | null) => {
+    const { error } = await supabase.from("transacciones").update({ tercero_id: nuevo } as any).eq("id", movId);
+    if (error) return toast.error(error.message);
+    toast.success(nuevo ? "Proveedor asignado al movimiento" : "Movimiento sin proveedor");
+    await refrescar();
+  };
+
+  const cambiarProveedorFactura = async (cxp: any, nuevo: string | null) => {
+    const nombre = nuevo
+      ? (terceros ?? []).find((t) => t.id === nuevo)?.nombre_comercial ||
+        (terceros ?? []).find((t) => t.id === nuevo)?.razon_social
+      : null;
+    const { error } = await supabase
+      .from("cuentas_por_pagar")
+      .update({ tercero_id: nuevo, proveedor: nombre } as any)
+      .eq("id", cxp.id);
+    if (error) return toast.error(error.message);
+    if (cxp.transaccion_id) {
+      await supabase.from("transacciones").update({ tercero_id: nuevo } as any).eq("id", cxp.transaccion_id);
+    }
+    toast.success("Proveedor de la factura actualizado");
+    await refrescar();
+  };
+
+  /** Parea automáticamente los huérfanos cuyo monto coincide con una sola factura. */
+  const parearEvidentes = async () => {
+    if (!user) return;
+    const pendientes = facturasHuerfanas.filter((c) => c.estado !== "pagada" && c.transaccion_id);
+    const usados = new Set<string>();
+    let n = 0;
+    setBusy(true);
+    try {
+      for (const mv of movsHuerfanos) {
+        const monto = Math.abs(Number(mv.monto_bs) || 0);
+        const cands = pendientes.filter(
+          (c) => !usados.has(c.id) && dentroDeTolerancia(Math.abs(pendienteBsHistorico(c) - monto), monto),
+        );
+        if (cands.length !== 1) continue;
+        const cxp = cands[0];
+        await aplicarPareoCxp({
+          mov: mv,
+          terceroId: (cxp.tercero_id ?? mv.tercero_id ?? null) as string,
+          cxps: [cxp],
+          userId: user.id,
+        });
+        usados.add(cxp.id);
+        n++;
+      }
+      toast[n ? "success" : "info"](n ? `${n} movimiento(s) pareado(s)` : "No hay coincidencias evidentes");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error al parear");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    const movId = String(e.active.id).replace("mov:", "");
+    const over = e.over ? String(e.over.id) : null;
+    if (!over) return;
+    if (over === "huerfanos") return void desasignar(movId);
+    if (over.startsWith("cxp:")) return void asignar(movId, over.slice(4));
+  };
+
+  const exportar = async () => {
+    await exportTableToExcel({
+      filename: `conciliacion-${nombreProveedor.replace(/\s+/g, "-").toLowerCase()}.xlsx`,
+      sheetName: "Conciliación",
+      columns: [
+        { header: "N° factura", key: "fact", width: 18 },
+        { header: "Estado", key: "estado", width: 12 },
+        { header: "Pendiente Bs", key: "bs", width: 16, fmt: "bs" },
+        { header: "Pendiente USD BCV", key: "usd", width: 18, fmt: "usd" },
+        { header: "Movimientos pareados", key: "movs", width: 60 },
+      ],
+      rows: facturas.map((c) => ({
+        fact: c.numero_factura ?? "s/n",
+        estado: c.estado,
+        bs: pendienteBsHistorico(c),
+        usd: pendienteUsdBcv(c),
+        movs: (movsPorFactura.get(c.transaccion_id ?? "") ?? [])
+          .map((m) => `${fmtDate(m.fecha)} ${fmtBs(Math.abs(Number(m.monto_bs) || 0))}`)
+          .join(" | "),
+      })),
+    });
+    toast.success("Excel generado");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/proveedores"><ArrowLeft className="h-4 w-4 mr-1" />Proveedores</Link>
+          </Button>
+          <h1 className="text-xl font-semibold">{nombreProveedor}</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="abiertas">Abiertas</SelectItem>
+              <SelectItem value="pagadas">Pagadas</SelectItem>
+              <SelectItem value="todas">Todas</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input placeholder="Buscar factura…" value={busca} onChange={(e) => setBusca(e.target.value)} className="w-48" />
+          <Button variant="outline" size="sm" onClick={parearEvidentes} disabled={busy}>
+            <Wand2 className="h-4 w-4 mr-1" />Parear lo evidente
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportar}>
+            <Download className="h-4 w-4 mr-1" />Excel
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-sm text-muted-foreground">
+        Arrastra un movimiento a una factura para asignarlo, o a la bandeja de huérfanos para liberarlo.
+      </p>
+
+      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              Facturas / órdenes <Badge variant="secondary">{facturas.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {facturas.length === 0 && <p className="text-sm text-muted-foreground">Sin facturas para este filtro.</p>}
+            {facturas.map((c) => {
+              const movs = movsPorFactura.get(c.transaccion_id ?? "") ?? [];
+              const cubierto = movs.reduce((s, m) => s + Math.abs(Number(m.monto_bs) || 0), 0);
+              return (
+                <Zona key={c.id} id={`cxp:${c.id}`} className="border rounded-md p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm">
+                      <span className="font-medium">Fact. {c.numero_factura ?? "s/n"}</span>{" "}
+                      <span className="text-muted-foreground">· vence {c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</span>
+                      <div className="text-xs text-muted-foreground">
+                        Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV · pareado {fmtBs(cubierto)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={c.estado === "pagada" ? "secondary" : movs.length ? "default" : "destructive"}>
+                        {c.estado === "pagada" ? "Pagada" : movs.length ? "Con pareo" : "Huérfana"}
+                      </Badge>
+                      <Select
+                        value={c.tercero_id ?? "none"}
+                        onValueChange={(v) => cambiarProveedorFactura(c, v === "none" ? null : v)}
+                      >
+                        <SelectTrigger className="w-52 h-8 text-xs"><SelectValue placeholder="Proveedor" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sin proveedor</SelectItem>
+                          {(terceros ?? []).map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="mt-2 space-y-1">
+                    {movs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">Suelta aquí un movimiento…</p>
+                    ) : (
+                      movs.map((m) => (
+                        <div key={m.id} className="flex items-center gap-2">
+                          <MovChip mov={m} />
+                          <Button variant="ghost" size="sm" onClick={() => desasignar(m.id)} disabled={busy}>
+                            <Link2Off className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </Zona>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 md:grid-cols-2 mt-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                Movimientos huérfanos <Badge variant="destructive">{movsHuerfanos.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Zona id="huerfanos" className="space-y-2 min-h-24 border border-dashed rounded-md p-2">
+                {movsHuerfanos.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Sin movimientos huérfanos.</p>
+                )}
+                {movsHuerfanos.map((m) => (
+                  <div key={m.id} className="space-y-1">
+                    <MovChip mov={m} />
+                    <div className="flex gap-2">
+                      <Select onValueChange={(v) => asignar(m.id, v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Asignar a factura…" /></SelectTrigger>
+                        <SelectContent>
+                          {facturas
+                            .filter((c) => c.transaccion_id)
+                            .map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.numero_factura ?? "s/n"} · {fmtBs(pendienteBsHistorico(c))}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={m.tercero_id ?? "none"}
+                        onValueChange={(v) => cambiarProveedorMov(m.id, v === "none" ? null : v)}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-44"><SelectValue placeholder="Proveedor" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sin proveedor</SelectItem>
+                          {(terceros ?? []).map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </Zona>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                Facturas huérfanas <Badge variant="destructive">{facturasHuerfanas.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {facturasHuerfanas.length === 0 && <p className="text-xs text-muted-foreground">Ninguna.</p>}
+              {facturasHuerfanas.map((c) => (
+                <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
+                  <span>Fact. {c.numero_factura ?? "s/n"}</span>
+                  <span className="mono">{fmtBs(pendienteBsHistorico(c))}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </DndContext>
+    </div>
+  );
+}
