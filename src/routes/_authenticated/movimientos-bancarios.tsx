@@ -339,10 +339,23 @@ function MovimientosBancariosPage() {
   );
 
   const resumen = useMemo(() => {
-    const c = { total: filtradas.length, pareado: 0, parcial: 0, posible: 0, no_aplica: 0, sin_pareo: 0 } as any;
-    for (const f of filtradas) c[f.estado]++;
+    const c = {
+      total: filtradas.length,
+      pareado: 0, parcial: 0, posible: 0, no_aplica: 0, sin_pareo: 0,
+      gasto_directo: 0, no_contable: 0, porDeterminar: 0,
+      bsPareado: 0, bsGastoDirecto: 0, bsPorDeterminar: 0, bsNoContable: 0,
+    } as any;
+    for (const f of filtradas) {
+      c[f.estado]++;
+      const bs = Math.abs(Number(f.mov.monto_bs) || 0);
+      if (f.mov.cuenta_codigo === "99") { c.porDeterminar++; c.bsPorDeterminar += bs; }
+      if (f.estado === "pareado" || f.estado === "parcial") c.bsPareado += bs;
+      if (f.claseNoAplica === "gasto_directo") { c.gasto_directo++; c.bsGastoDirecto += bs; }
+      if (f.claseNoAplica === "no_contable") { c.no_contable++; c.bsNoContable += bs; }
+    }
     return c;
   }, [filtradas]);
+
 
   const marcarEstado = async (movId: string, estado: EstadoManual | null) => {
     const r = await marcarEstadoConciliacion({ movimientoId: movId, estado, userId: user?.id ?? null });
