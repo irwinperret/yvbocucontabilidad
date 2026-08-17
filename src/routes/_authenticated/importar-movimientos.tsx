@@ -992,11 +992,19 @@ function ImportarMovimientosInner() {
                             </Badge>
                           )}
                           {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && noAplicaFactura(m) && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0">No aplica factura</Badge>
+                            <Badge variant="outline" className="text-[9px] px-1 py-0">
+                              Gasto directo (sin factura) — afecta G&P y FC
+                            </Badge>
                           )}
                           {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && !noAplicaFactura(m) && !requiereCxP(m.bankRow.categoria) && (
                             <Badge className="text-[9px] px-1 py-0 bg-orange-500 text-white hover:bg-orange-500">Sin factura</Badge>
                           )}
+                          {!m.duplicado && m.cuentaCodigo === "99" && (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                              Por determinar — no entra a G&P/FC hasta reclasificar
+                            </Badge>
+                          )}
+
 
                           {!m.duplicado && m.esCambio && (
                             <Badge className="text-[9px] px-1 py-0 bg-violet-600 text-white hover:bg-violet-600">

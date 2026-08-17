@@ -17,7 +17,7 @@ import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CENTROS } from "@/lib/account-helpers";
-import { guardarVinculosConciliacion, marcarEstadoConciliacion, ESTADO_MANUAL_LABEL, type EstadoManual } from "@/lib/conciliacion";
+import { guardarVinculosConciliacion, marcarEstadoConciliacion, ESTADO_MANUAL_LABEL, ESTADOS_MANUALES, normalizarEstadoManual, type EstadoManual } from "@/lib/conciliacion";
 import { PareoManualDialog, quitarPareoManual } from "@/components/pareo-manual-dialog";
 
 import {
@@ -214,9 +214,10 @@ function MovimientosBancariosPage() {
       const confirmados = vs.filter((v) => v.transaccion_factura_id && v.estado !== "rechazado");
       const filaRechazo = vs.find((v) => v.estado === "rechazado");
       const filaManual = vs.find(
-        (v) => !v.transaccion_factura_id && ["no_aplica", "sin_pareo", "pareado"].includes(v.estado),
+        (v) => !v.transaccion_factura_id && (ESTADOS_MANUALES as readonly string[]).includes(v.estado),
       );
-      const estadoManual: EstadoManual | null = (filaManual?.estado as EstadoManual) ?? null;
+      const estadoManual: EstadoManual | null = normalizarEstadoManual(filaManual?.estado);
+
       const rechazadas: string[] = (filaRechazo?.facturas_rechazadas ?? []) as string[];
       const idsSug = auto.facturas.map((f) => f.id);
       const mismoRechazo =
@@ -239,10 +240,14 @@ function MovimientosBancariosPage() {
           ? origen === "auto" ? "Confirmado (sugerencia automática)" : "Pareado manualmente"
           : `Pareo parcial: cubre ${cob.total.toFixed(2)} de ${cob.monto.toFixed(2)} Bs (faltan ${cob.diferencia.toFixed(2)} Bs)`;
       } else if (estadoManual) {
-        estado = estadoManual as EstadoConciliacion;
+        estado =
+          estadoManual === "gasto_directo" || estadoManual === "no_contable"
+            ? "no_aplica"
+            : (estadoManual as EstadoConciliacion);
         facturas = [];
         origen = "manual";
         motivo = `Marcado a mano: ${ESTADO_MANUAL_LABEL[estadoManual]}`;
+
       } else if (filaRechazo && mismoRechazo) {
         estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
         facturas = [];
@@ -275,6 +280,16 @@ function MovimientosBancariosPage() {
         rechazado: !!filaRechazo,
         rechazadas,
         estadoManual,
+        /** Naturaleza del movimiento sin factura: gasto que sí entra a reportes vs. no contable */
+        claseNoAplica:
+          estado !== "no_aplica"
+            ? null
+            : estadoManual === "no_contable"
+              ? "no_contable"
+              : mov.cuenta_codigo === "99" || mov.cuenta_codigo === "98"
+                ? "no_contable"
+                : "gasto_directo",
+
         tienePareoFactura: confirmados.length > 0,
         manual: confirmados.some((v) => v.origen === "manual"),
         confirmable: (!confirmados.length && !estadoManual) && (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
@@ -324,10 +339,23 @@ function MovimientosBancariosPage() {
   );
 
   const resumen = useMemo(() => {
-    const c = { total: filtradas.length, pareado: 0, parcial: 0, posible: 0, no_aplica: 0, sin_pareo: 0 } as any;
-    for (const f of filtradas) c[f.estado]++;
+    const c = {
+      total: filtradas.length,
+      pareado: 0, parcial: 0, posible: 0, no_aplica: 0, sin_pareo: 0,
+      gasto_directo: 0, no_contable: 0, porDeterminar: 0,
+      bsPareado: 0, bsGastoDirecto: 0, bsPorDeterminar: 0, bsNoContable: 0,
+    } as any;
+    for (const f of filtradas) {
+      c[f.estado]++;
+      const bs = Math.abs(Number(f.mov.monto_bs) || 0);
+      if (f.mov.cuenta_codigo === "99") { c.porDeterminar++; c.bsPorDeterminar += bs; }
+      if (f.estado === "pareado" || f.estado === "parcial") c.bsPareado += bs;
+      if (f.claseNoAplica === "gasto_directo") { c.gasto_directo++; c.bsGastoDirecto += bs; }
+      if (f.claseNoAplica === "no_contable") { c.no_contable++; c.bsNoContable += bs; }
+    }
     return c;
   }, [filtradas]);
+
 
   const marcarEstado = async (movId: string, estado: EstadoManual | null) => {
     const r = await marcarEstadoConciliacion({ movimientoId: movId, estado, userId: user?.id ?? null });
@@ -446,7 +474,9 @@ function MovimientosBancariosPage() {
         { header: "Notas/memo", key: "notas", width: 50 },
         { header: "Proveedor (si aplica)", key: "proveedor", width: 28 },
         { header: "Origen del proveedor", key: "provFuente", width: 18 },
-        { header: "Estado de conciliación", key: "estado", width: 20 },
+        { header: "Estado de conciliación", key: "estado", width: 26 },
+        { header: "Impacto en reportes", key: "impactoReportes", width: 20 },
+
         { header: "Facturas pareadas", key: "factura", width: 26 },
         { header: "Total pareado Bs", key: "totalPareado", width: 16, fmt: "bs" },
         { header: "Diferencia Bs", key: "dif", width: 16, fmt: "bs" },
@@ -467,7 +497,13 @@ function MovimientosBancariosPage() {
         notas: f.mov.notas ?? "",
         proveedor: f.proveedor?.nombre ?? "",
         provFuente: f.provFuente === "asignado" ? "Asignado" : f.provFuente === "memo" ? "Deducido del memo" : "—",
-        estado: ESTADO_LABEL[f.estado],
+        estado:
+          f.estado === "no_aplica"
+            ? (f.claseNoAplica === "no_contable" ? "No aplica (no contable)" : "Gasto directo (sin factura)")
+            : ESTADO_LABEL[f.estado],
+        impactoReportes:
+          f.estado === "no_aplica" && f.claseNoAplica === "no_contable" ? "No afecta G&P/FC" : "Afecta G&P y FC",
+
         factura: f.facturas.map((x) => x.numero_factura).filter(Boolean).join(", "),
         totalPareado: f.facturas.length ? f.total : 0,
         dif: f.facturas.length ? Math.abs(Number(f.mov.monto_bs)) - f.total : 0,
@@ -495,11 +531,15 @@ function MovimientosBancariosPage() {
     }
   };
 
-  const badgeEstado = (e: EstadoConciliacion) => {
+  const badgeEstado = (e: EstadoConciliacion, clase?: string | null) => {
     if (e === "pareado") return <Badge className="bg-green-600">Pareado</Badge>;
     if (e === "parcial") return <Badge className="bg-amber-600">Pareado parcial</Badge>;
     if (e === "posible") return <Badge className="bg-orange-500">Posible pareo</Badge>;
-    if (e === "no_aplica") return <Badge variant="secondary">No aplica</Badge>;
+    if (e === "no_aplica")
+      return clase === "no_contable"
+        ? <Badge variant="outline">No aplica (no contable)</Badge>
+        : <Badge variant="secondary">Gasto directo (sin factura)</Badge>;
+
     return <Badge variant="destructive">Sin pareo</Badge>;
   };
 
@@ -550,9 +590,23 @@ function MovimientosBancariosPage() {
         <Kpi label="Pareados" value={resumen.pareado} tone="text-green-600" />
         <Kpi label="Pareo parcial" value={resumen.parcial} tone="text-amber-600" />
         <Kpi label="Posible pareo" value={resumen.posible} tone="text-orange-600" />
-        <Kpi label="No aplica" value={resumen.no_aplica} tone="text-muted-foreground" />
+        <Kpi label="Gasto directo (sin factura)" value={resumen.gasto_directo} tone="text-muted-foreground" />
         <Kpi label="Sin pareo" value={resumen.sin_pareo} tone="text-destructive" highlight={resumen.sin_pareo > 0} />
       </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Kpi label="Pagado contra facturas (CxP)" value={fmtBs(resumen.bsPareado)} tone="text-green-600" sub="Afecta G&P y FC" />
+        <Kpi label="Gasto directo sin factura" value={fmtBs(resumen.bsGastoDirecto)} sub="Afecta G&P y FC" />
+        <Kpi
+          label="En 99 — POR DETERMINAR"
+          value={fmtBs(resumen.bsPorDeterminar)}
+          tone={resumen.porDeterminar > 0 ? "text-destructive" : undefined}
+          highlight={resumen.porDeterminar > 0}
+          sub={`${resumen.porDeterminar} movimiento(s) · no entran a G&P/FC hasta reclasificarse`}
+        />
+        <Kpi label="No contable" value={fmtBs(resumen.bsNoContable)} tone="text-muted-foreground" sub="Traspasos y operaciones de cambio" />
+      </div>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
@@ -572,7 +626,7 @@ function MovimientosBancariosPage() {
                 <SelectItem value="pareado">Pareado</SelectItem>
                 <SelectItem value="parcial">Pareado parcial</SelectItem>
                 <SelectItem value="posible">Posible pareo</SelectItem>
-                <SelectItem value="no_aplica">No aplica</SelectItem>
+                <SelectItem value="no_aplica">Gasto directo / no aplica</SelectItem>
                 <SelectItem value="sin_pareo">Sin pareo</SelectItem>
               </SelectContent>
             </Select>
@@ -735,7 +789,7 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1 flex-wrap">
-                            {badgeEstado(f.estado)}
+                            {badgeEstado(f.estado, f.claseNoAplica)}
                             {f.origen && (
                               <Badge variant="outline" className="text-[10px]">
                                 {f.origen === "auto" ? "Automático" : "Manual"}
@@ -902,13 +956,15 @@ function MovimientosBancariosPage() {
   );
 }
 
-function Kpi({ label, value, tone, highlight }: { label: string; value: number; tone?: string; highlight?: boolean }) {
+function Kpi({ label, value, tone, highlight, sub }: { label: string; value: number | string; tone?: string; highlight?: boolean; sub?: string }) {
   return (
     <Card className={highlight ? "border-destructive" : undefined}>
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className={`text-2xl font-bold ${tone ?? ""}`}>{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
       </CardContent>
     </Card>
   );
 }
+
