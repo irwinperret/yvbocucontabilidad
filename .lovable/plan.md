@@ -1,6 +1,6 @@
 # Ver y editar todas las facturas pareadas en el portal del proveedor
 
-Hoy el tablero del proveedor abre con el filtro **Abiertas**, así que las facturas que ya quedaron pagadas (justamente las que tienen su pareo) no se ven. Los movimientos pareados sí se muestran bajo su factura, pero solo si esa factura pasa el filtro.
+- Cada movimiento huérfano muestra su monto en **USD BCV** (además del Bs) para identificar rápidamente coincidencias con facturas.
 
 ## Cambios
 
