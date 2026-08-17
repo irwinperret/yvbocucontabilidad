@@ -626,7 +626,7 @@ function MovimientosBancariosPage() {
                 <SelectItem value="pareado">Pareado</SelectItem>
                 <SelectItem value="parcial">Pareado parcial</SelectItem>
                 <SelectItem value="posible">Posible pareo</SelectItem>
-                <SelectItem value="no_aplica">No aplica</SelectItem>
+                <SelectItem value="no_aplica">Gasto directo / no aplica</SelectItem>
                 <SelectItem value="sin_pareo">Sin pareo</SelectItem>
               </SelectContent>
             </Select>
