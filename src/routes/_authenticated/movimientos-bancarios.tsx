@@ -495,7 +495,13 @@ function MovimientosBancariosPage() {
         notas: f.mov.notas ?? "",
         proveedor: f.proveedor?.nombre ?? "",
         provFuente: f.provFuente === "asignado" ? "Asignado" : f.provFuente === "memo" ? "Deducido del memo" : "—",
-        estado: ESTADO_LABEL[f.estado],
+        estado:
+          f.estado === "no_aplica"
+            ? (f.claseNoAplica === "no_contable" ? "No aplica (no contable)" : "Gasto directo (sin factura)")
+            : ESTADO_LABEL[f.estado],
+        impactoReportes:
+          f.estado === "no_aplica" && f.claseNoAplica === "no_contable" ? "No afecta G&P/FC" : "Afecta G&P y FC",
+
         factura: f.facturas.map((x) => x.numero_factura).filter(Boolean).join(", "),
         totalPareado: f.facturas.length ? f.total : 0,
         dif: f.facturas.length ? Math.abs(Number(f.mov.monto_bs)) - f.total : 0,
