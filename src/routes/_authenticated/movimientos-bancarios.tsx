@@ -214,9 +214,10 @@ function MovimientosBancariosPage() {
       const confirmados = vs.filter((v) => v.transaccion_factura_id && v.estado !== "rechazado");
       const filaRechazo = vs.find((v) => v.estado === "rechazado");
       const filaManual = vs.find(
-        (v) => !v.transaccion_factura_id && ["no_aplica", "sin_pareo", "pareado"].includes(v.estado),
+        (v) => !v.transaccion_factura_id && (ESTADOS_MANUALES as readonly string[]).includes(v.estado),
       );
-      const estadoManual: EstadoManual | null = (filaManual?.estado as EstadoManual) ?? null;
+      const estadoManual: EstadoManual | null = normalizarEstadoManual(filaManual?.estado);
+
       const rechazadas: string[] = (filaRechazo?.facturas_rechazadas ?? []) as string[];
       const idsSug = auto.facturas.map((f) => f.id);
       const mismoRechazo =
