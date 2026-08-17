@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Pencil } from "lucide-react";
+import { Pencil, ChevronDown, ChevronRight } from "lucide-react";
 import { fmtBs, fmtUsd, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
@@ -3653,6 +3653,10 @@ function CierreForm() {
   const [busy, setBusy] = useState(false);
   const [modoCompra, setModoCompra] = useState<"factura" | "anticipo" | "pagar">("factura");
   const [editingCompra, setEditingCompra] = useState<any | null>(null);
+  const [comprasGrupoAbierto, setComprasGrupoAbierto] = useState<Record<string, boolean>>({
+    xetux: true,
+    banco: true,
+  });
 
   // Compras individuales del período
   const [compraFecha, setCompraFecha] = useState(todayISO());
@@ -4002,6 +4006,33 @@ function CierreForm() {
     return s + (tasa > 0 ? +(ivaBs / tasa).toFixed(2) : Number(c.iva_usd) || 0);
   }, 0);
   const totalComprasUsdBcv = totalComprasNetoUsdBcv + totalComprasIvaUsdBcv;
+
+  // ── Agrupación por vía de importación ─────────────────────────────
+  // Bloque 1: compras importadas de Xetux (o registradas a mano, con factura)
+  // Bloque 2: movimientos bancarios sin factura pareada (referencia BANK:...)
+  const esCompraDeBanco = (c: any) =>
+    String(c.referencia ?? "").startsWith("BANK:") ||
+    String(c.detalle ?? "").toUpperCase().includes("SIN FACTURA");
+  const comprasBanco = (compras ?? []).filter(esCompraDeBanco);
+  const comprasXetux = (compras ?? []).filter((c: any) => !esCompraDeBanco(c));
+  const subtotalCompras = (arr: any[]) => {
+    const on = arr.filter((c) => c.modo !== "off_balance");
+    const netoBs = on.reduce((s, c) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
+    const ivaBs = on.reduce((s, c) => s + (Number(c.iva_bs) || 0), 0);
+    const totalBs = on.reduce((s, c) => s + (Number(c.monto_bs) || 0), 0);
+    const netoUsdBcv = on.reduce((s, c) => {
+      const nBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+      const t = Number(c.tasa_bcv) || 0;
+      if (t > 0) return s + +(nBs / t).toFixed(2);
+      const n = Number(c.monto_base_usd);
+      return s + (Number.isFinite(n) && n !== 0 ? n : Number(c.monto_usd) || 0);
+    }, 0);
+    const ivaUsdBcv = on.reduce((s, c) => {
+      const t = Number(c.tasa_bcv) || 0;
+      return s + (t > 0 ? +((Number(c.iva_bs) || 0) / t).toFixed(2) : Number(c.iva_usd) || 0);
+    }, 0);
+    return { netoBs, ivaBs, totalBs, netoUsdBcv, ivaUsdBcv, totalUsdBcv: netoUsdBcv + ivaUsdBcv, count: on.length };
+  };
 
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
@@ -4762,9 +4793,43 @@ function CierreForm() {
                         <th></th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {(compras ?? []).map((c: any) => {
+                    {[
+                      { key: "xetux", label: "Compras Xetux (con factura)", rows: comprasXetux },
+                      { key: "banco", label: "Movimientos bancarios sin factura", rows: comprasBanco },
+                    ]
+                      .filter((g) => g.rows.length > 0)
+                      .map((g) => {
+                        const st = subtotalCompras(g.rows);
+                        const abierto = comprasGrupoAbierto[g.key] !== false;
+                        return (
+                          <tbody key={g.key}>
+                            <tr className="border-t bg-muted/40">
+                              <td colSpan={11} className="py-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setComprasGrupoAbierto((p) => ({ ...p, [g.key]: !abierto }))
+                                  }
+                                  className="flex items-center gap-1 font-semibold uppercase tracking-wide text-[11px]"
+                                >
+                                  {abierto ? (
+                                    <ChevronDown className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                  )}
+                                  {g.label}
+                                  <span className="ml-1 font-normal text-muted-foreground">
+                                    ({st.count})
+                                  </span>
+                                </button>
+                              </td>
+                            </tr>
+                            {abierto &&
+                              g.rows.map((c: any) => {
                         const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
+                        const conceptoBanco = (c.detalle ?? c.notas ?? "")
+                          .replace(/^SIN FACTURA XETUX\s*·\s*/i, "")
+                          .trim();
                         const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
                         const ivaBs = Number(c.iva_bs) || 0;
                         const totalBs = Number(c.monto_bs) || netoBs + ivaBs;
@@ -4783,7 +4848,9 @@ function CierreForm() {
                         return (
                           <tr key={c.id} className="border-t">
                             <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0, 10)}</td>
-                            <td>{prov?.razon_social ?? "—"}</td>
+                            <td className="max-w-[280px] truncate" title={prov?.razon_social ?? conceptoBanco}>
+                              {prov?.razon_social ?? (conceptoBanco || "—")}
+                            </td>
                             <td>{c.numero_factura ?? "—"}</td>
                             <td className="text-right mono">{fmtBs(netoBs)}</td>
                             <td className="text-right mono text-muted-foreground">{fmtBs(ivaBs)}</td>
@@ -4827,7 +4894,21 @@ function CierreForm() {
                           </tr>
                         );
                       })}
-                    </tbody>
+                            <tr className="border-t bg-muted/20 font-medium">
+                              <td colSpan={3} className="py-1.5">
+                                Subtotal · {g.label}
+                              </td>
+                              <td className="text-right mono">{fmtBs(st.netoBs)}</td>
+                              <td className="text-right mono text-muted-foreground">{fmtBs(st.ivaBs)}</td>
+                              <td className="text-right mono">{fmtBs(st.totalBs)}</td>
+                              <td className="text-right mono">{fmtUsd(st.netoUsdBcv)}</td>
+                              <td className="text-right mono text-muted-foreground">{fmtUsd(st.ivaUsdBcv)}</td>
+                              <td className="text-right mono">{fmtUsd(st.totalUsdBcv)}</td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          </tbody>
+                        );
+                      })}
                     <tfoot>
                       <tr className="border-t font-semibold">
                         <td colSpan={3} className="py-2">

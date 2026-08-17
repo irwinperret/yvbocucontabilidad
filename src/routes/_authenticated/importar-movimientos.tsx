@@ -518,6 +518,18 @@ function ImportarMovimientosInner() {
     let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0;
     const importados = new Set<string>();
 
+    // Catálogo de proveedores para adivinar el tercero de los movimientos
+    // sin factura (evita filas "en blanco" en la tabla de compras del mes).
+    const { proveedorDeMemo } = await import("@/lib/conciliacion-matching");
+    const { data: tercerosCat } = await supabase.from("terceros").select("id, razon_social");
+    const tercerosRef = (tercerosCat ?? []).map((t: any) => ({ id: t.id, nombre: t.razon_social as string }));
+    const facturaDeMemo = (texto: string) => {
+      const m = String(texto ?? "")
+        .toUpperCase()
+        .match(/\b(?:FACT|FACTURA|FAC|F)[\s.:#-]*([A-Z0-9-]{3,20})\b/);
+      return m?.[1] ?? null;
+    };
+
     for (const m of toImport) {
       try {
         const bankRow = m.bankRow;
@@ -601,6 +613,11 @@ function ImportarMovimientosInner() {
           const montoBsFirmado = +(signo * montoBs).toFixed(2);
           const montoUsdFirmado = +(signo * montoUsdMov).toFixed(2);
 
+          // Proveedor y N° de factura deducidos del concepto bancario, para que
+          // la fila no quede "en blanco" en la tabla de compras del mes.
+          const provAdivinado = noAplica ? null : proveedorDeMemo(bankRow.concepto, tercerosRef);
+          const factAdivinada = noAplica ? null : facturaDeMemo(bankRow.concepto);
+
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
             cuenta_codigo: m.cuentaCodigo!,
@@ -621,6 +638,8 @@ function ImportarMovimientosInner() {
             notas: notas.slice(0, 255),
             modo: "on_balance" as any,
             cuenta_bancaria_id: bankRow.cuentaBancariaId,
+            tercero_id: provAdivinado?.id ?? null,
+            numero_factura: factAdivinada,
             grupo_transaccion_id: crypto.randomUUID(),
             created_by: user.id,
           } as any).select().single();
