@@ -942,13 +942,15 @@ function MovimientosBancariosPage() {
   );
 }
 
-function Kpi({ label, value, tone, highlight }: { label: string; value: number; tone?: string; highlight?: boolean }) {
+function Kpi({ label, value, tone, highlight, sub }: { label: string; value: number | string; tone?: string; highlight?: boolean; sub?: string }) {
   return (
     <Card className={highlight ? "border-destructive" : undefined}>
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className={`text-2xl font-bold ${tone ?? ""}`}>{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
       </CardContent>
     </Card>
   );
 }
+
