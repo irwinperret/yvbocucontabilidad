@@ -12,27 +12,21 @@ import { SearchCombobox } from "@/components/search-combobox";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
 import { tasaBcvQuery } from "@/lib/tasas";
-import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import { logAudit } from "@/lib/audit";
+import { aplicarPareoCxp, marcaPareo, quitarPareoCxp } from "@/lib/pareo-cxp";
 import {
   pendienteBsHistorico,
   pendienteUsdBcv,
   pendienteBsAFecha,
   dentroDeTolerancia,
-  tasaBcvFactura,
 } from "@/lib/cxp-saldo";
 
 
-const CUENTA_PAGO_CXP = "13.2";
-const CUENTA_ANTICIPO = "14.2";
-
-/** Marca en `referencia` de los pagos creados desde el pareo manual. */
-export const marcaPareo = (movId: string) => `PAREO:${movId}`;
-/** Marca en `detalle` que enlaza el pago con la CxP aplicada. */
-const marcaCxp = (cxpId: string, monto: number) => `PAREO_CXP:${cxpId}|${monto.toFixed(2)}`;
+export { marcaPareo };
 
 const pendienteBsDe = (c: any) => pendienteBsHistorico(c);
 const pendienteUsdBcvDe = (c: any) => pendienteUsdBcv(c);
+
 
 
 export type TerceroOpt = { id: string; razon_social: string; nombre_comercial?: string | null; tipo_rif?: string | null; rif?: string | null };
