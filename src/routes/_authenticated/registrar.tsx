@@ -4003,6 +4003,33 @@ function CierreForm() {
   }, 0);
   const totalComprasUsdBcv = totalComprasNetoUsdBcv + totalComprasIvaUsdBcv;
 
+  // ── Agrupación por vía de importación ─────────────────────────────
+  // Bloque 1: compras importadas de Xetux (o registradas a mano, con factura)
+  // Bloque 2: movimientos bancarios sin factura pareada (referencia BANK:...)
+  const esCompraDeBanco = (c: any) =>
+    String(c.referencia ?? "").startsWith("BANK:") ||
+    String(c.detalle ?? "").toUpperCase().includes("SIN FACTURA");
+  const comprasBanco = (compras ?? []).filter(esCompraDeBanco);
+  const comprasXetux = (compras ?? []).filter((c: any) => !esCompraDeBanco(c));
+  const subtotalCompras = (arr: any[]) => {
+    const on = arr.filter((c) => c.modo !== "off_balance");
+    const netoBs = on.reduce((s, c) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
+    const ivaBs = on.reduce((s, c) => s + (Number(c.iva_bs) || 0), 0);
+    const totalBs = on.reduce((s, c) => s + (Number(c.monto_bs) || 0), 0);
+    const netoUsdBcv = on.reduce((s, c) => {
+      const nBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+      const t = Number(c.tasa_bcv) || 0;
+      if (t > 0) return s + +(nBs / t).toFixed(2);
+      const n = Number(c.monto_base_usd);
+      return s + (Number.isFinite(n) && n !== 0 ? n : Number(c.monto_usd) || 0);
+    }, 0);
+    const ivaUsdBcv = on.reduce((s, c) => {
+      const t = Number(c.tasa_bcv) || 0;
+      return s + (t > 0 ? +((Number(c.iva_bs) || 0) / t).toFixed(2) : Number(c.iva_usd) || 0);
+    }, 0);
+    return { netoBs, ivaBs, totalBs, netoUsdBcv, ivaUsdBcv, totalUsdBcv: netoUsdBcv + ivaUsdBcv, count: on.length };
+  };
+
   const iniUsd = Number(invIniUsd) || 0;
   const finUsd = Number(invFinUsd) || 0;
   // Invariante nueva: monto_bs del inventario inicial usa la tasa BCV del PRIMER día del mes,
