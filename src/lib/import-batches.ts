@@ -1,12 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
 
-export type ImportTipo = "ventas" | "compras" | "movimientos";
+export type ImportTipo = "ventas" | "compras" | "movimientos" | "ajustes";
 
 export const TIPO_LABEL: Record<string, string> = {
   ventas: "Importar ventas (Xetux)",
   compras: "Importar compras (Xetux)",
   movimientos: "Importar movimientos bancarios",
+  ajustes: "Importar ajustes",
 };
 
 export type ImportBatch = {
