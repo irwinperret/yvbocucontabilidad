@@ -3653,6 +3653,10 @@ function CierreForm() {
   const [busy, setBusy] = useState(false);
   const [modoCompra, setModoCompra] = useState<"factura" | "anticipo" | "pagar">("factura");
   const [editingCompra, setEditingCompra] = useState<any | null>(null);
+  const [comprasGrupoAbierto, setComprasGrupoAbierto] = useState<Record<string, boolean>>({
+    xetux: true,
+    banco: true,
+  });
 
   // Compras individuales del período
   const [compraFecha, setCompraFecha] = useState(todayISO());
