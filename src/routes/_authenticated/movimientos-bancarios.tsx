@@ -280,6 +280,16 @@ function MovimientosBancariosPage() {
         rechazado: !!filaRechazo,
         rechazadas,
         estadoManual,
+        /** Naturaleza del movimiento sin factura: gasto que sí entra a reportes vs. no contable */
+        claseNoAplica:
+          estado !== "no_aplica"
+            ? null
+            : estadoManual === "no_contable"
+              ? "no_contable"
+              : mov.cuenta_codigo === "99" || mov.cuenta_codigo === "98"
+                ? "no_contable"
+                : "gasto_directo",
+
         tienePareoFactura: confirmados.length > 0,
         manual: confirmados.some((v) => v.origen === "manual"),
         confirmable: (!confirmados.length && !estadoManual) && (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
