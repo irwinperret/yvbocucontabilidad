@@ -449,7 +449,7 @@ function TableroProveedor() {
                           <Button variant="ghost" size="sm" onClick={() => desasignar(m.id)} disabled={busy}>
                             <Link2Off className="h-3.5 w-3.5" />
                           </Button>
-                          <Select onValueChange={(v) => asignar(m.id, v)}>
+                          <Select onValueChange={(v) => v === "huerfanos" ? desasignar(m.id) : asignar(m.id, v)}>
                             <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Mover a…" /></SelectTrigger>
                             <SelectContent>
                               {facturasAsignables.map((f) => (
