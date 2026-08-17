@@ -613,6 +613,11 @@ function ImportarMovimientosInner() {
           const montoBsFirmado = +(signo * montoBs).toFixed(2);
           const montoUsdFirmado = +(signo * montoUsdMov).toFixed(2);
 
+          // Proveedor y N° de factura deducidos del concepto bancario, para que
+          // la fila no quede "en blanco" en la tabla de compras del mes.
+          const provAdivinado = noAplica ? null : proveedorDeMemo(bankRow.concepto, tercerosRef);
+          const factAdivinada = noAplica ? null : facturaDeMemo(bankRow.concepto);
+
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
             cuenta_codigo: m.cuentaCodigo!,
@@ -633,6 +638,8 @@ function ImportarMovimientosInner() {
             notas: notas.slice(0, 255),
             modo: "on_balance" as any,
             cuenta_bancaria_id: bankRow.cuentaBancariaId,
+            tercero_id: provAdivinado?.id ?? null,
+            numero_factura: factAdivinada,
             grupo_transaccion_id: crypto.randomUUID(),
             created_by: user.id,
           } as any).select().single();
