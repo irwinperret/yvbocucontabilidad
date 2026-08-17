@@ -347,14 +347,14 @@ function MovimientosBancariosPage() {
     } as any;
     for (const f of filtradas) {
       c[f.estado]++;
-      const bs = Math.abs(Number(f.mov.monto_bs) || 0);
+      const bs = Math.abs(Number(usdVisual(f.mov as any, usdMode)) || 0);
       if (f.mov.cuenta_codigo === "99") { c.porDeterminar++; c.bsPorDeterminar += bs; }
       if (f.estado === "pareado" || f.estado === "parcial") c.bsPareado += bs;
       if (f.claseNoAplica === "gasto_directo") { c.gasto_directo++; c.bsGastoDirecto += bs; }
       if (f.claseNoAplica === "no_contable") { c.no_contable++; c.bsNoContable += bs; }
     }
     return c;
-  }, [filtradas]);
+  }, [filtradas, usdMode]);
 
 
   const marcarEstado = async (movId: string, estado: EstadoManual | null) => {
