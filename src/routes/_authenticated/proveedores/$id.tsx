@@ -41,6 +41,13 @@ export const Route = createFileRoute("/_authenticated/proveedores/$id")({
 
 const SIN = "sin-proveedor";
 
+function usdBcvDeMov(mov: any): number {
+  const bs = Math.abs(Number(mov?.monto_bs) || 0);
+  const tasa = Number(mov?.tasa_bcv) || 0;
+  if (tasa > 0 && bs > 0) return +(bs / tasa).toFixed(2);
+  return 0;
+}
+
 function MovChip({ mov, disabled }: { mov: any; disabled?: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `mov:${mov.id}`, disabled });
   return (
@@ -54,6 +61,7 @@ function MovChip({ mov, disabled }: { mov: any; disabled?: boolean }) {
       <span className="text-muted-foreground">{fmtDate(mov.fecha)}</span>
       <span className="font-medium">{bancoDeReferencia(mov.referencia) || "banco"}</span>
       <span className="mono">{fmtBs(Math.abs(Number(mov.monto_bs) || 0))}</span>
+      <span className="mono text-muted-foreground">{fmtUsd(usdBcvDeMov(mov))} BCV</span>
       <span className="truncate text-muted-foreground max-w-[16rem]">{mov.notas ?? ""}</span>
     </div>
   );
@@ -73,7 +81,7 @@ function TableroProveedor() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const esSin = id === SIN;
-  const [filtroEstado, setFiltroEstado] = useState("abiertas");
+  const [filtroEstado, setFiltroEstado] = useState("todas");
   const [busca, setBusca] = useState("");
   const [busy, setBusy] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -173,16 +181,26 @@ function TableroProveedor() {
   const facturas = useMemo(() => {
     const txt = busca.trim().toLowerCase();
     return (cxps ?? []).filter((c) => {
-      if (filtroEstado === "abiertas" && c.estado === "pagada") return false;
-      if (filtroEstado === "pagadas" && c.estado !== "pagada") return false;
+      const movs = movsPorFactura.get(c.transaccion_id ?? "") ?? [];
+      const conPareo = movs.length > 0;
+      const pagada = c.estado === "pagada";
+      if (filtroEstado === "abiertas" && pagada) return false;
+      if (filtroEstado === "pagadas" && !pagada) return false;
+      if (filtroEstado === "con-pareo" && !conPareo) return false;
+      if (filtroEstado === "sin-pareo" && conPareo) return false;
       if (txt && !`${c.numero_factura ?? ""} ${c.proveedor ?? ""}`.toLowerCase().includes(txt)) return false;
       return true;
     });
-  }, [cxps, filtroEstado, busca]);
+  }, [cxps, filtroEstado, busca, movsPorFactura]);
 
   const facturasHuerfanas = facturas.filter(
     (c) => !(movsPorFactura.get(c.transaccion_id ?? "") ?? []).length,
   );
+  const facturasConPareo = facturas.filter(
+    (c) => (movsPorFactura.get(c.transaccion_id ?? "") ?? []).length > 0,
+  );
+  const facturasPagadas = facturas.filter((c) => c.estado === "pagada");
+  const facturasAbiertas = facturas.filter((c) => c.estado !== "pagada");
 
   const refrescar = async () => {
     await qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
@@ -296,6 +314,7 @@ function TableroProveedor() {
       sheetName: "Conciliación",
       columns: [
         { header: "N° factura", key: "fact", width: 18 },
+        { header: "Fecha emisión", key: "emision", width: 14 },
         { header: "Estado", key: "estado", width: 12 },
         { header: "Pendiente Bs", key: "bs", width: 16, fmt: "bs" },
         { header: "Pendiente USD BCV", key: "usd", width: 18, fmt: "usd" },
@@ -303,6 +322,7 @@ function TableroProveedor() {
       ],
       rows: facturas.map((c) => ({
         fact: c.numero_factura ?? "s/n",
+        emision: c.fecha ? fmtDate(c.fecha) : "—",
         estado: c.estado,
         bs: pendienteBsHistorico(c),
         usd: pendienteUsdBcv(c),
@@ -325,11 +345,13 @@ function TableroProveedor() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="abiertas">Abiertas</SelectItem>
-              <SelectItem value="pagadas">Pagadas</SelectItem>
-              <SelectItem value="todas">Todas</SelectItem>
+              <SelectItem value="todas">Todas ({facturas.length})</SelectItem>
+              <SelectItem value="con-pareo">Con pareo ({facturasConPareo.length})</SelectItem>
+              <SelectItem value="sin-pareo">Sin pareo ({facturas.length - facturasConPareo.length})</SelectItem>
+              <SelectItem value="abiertas">Abiertas ({facturasAbiertas.length})</SelectItem>
+              <SelectItem value="pagadas">Pagadas ({facturasPagadas.length})</SelectItem>
             </SelectContent>
           </Select>
           <Input placeholder="Buscar factura…" value={busca} onChange={(e) => setBusca(e.target.value)} className="w-48" />
@@ -340,6 +362,33 @@ function TableroProveedor() {
             <Download className="h-4 w-4 mr-1" />Excel
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Facturas</div>
+            <div className="text-lg font-semibold">{facturas.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Con pareo</div>
+            <div className="text-lg font-semibold">{facturasConPareo.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Facturas huérfanas</div>
+            <div className="text-lg font-semibold">{facturasHuerfanas.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Movimientos huérfanos</div>
+            <div className="text-lg font-semibold">{movsHuerfanos.length}</div>
+          </CardContent>
+        </Card>
       </div>
 
       <p className="text-sm text-muted-foreground">
@@ -358,11 +407,15 @@ function TableroProveedor() {
             {facturas.map((c) => {
               const movs = movsPorFactura.get(c.transaccion_id ?? "") ?? [];
               const cubierto = movs.reduce((s, m) => s + Math.abs(Number(m.monto_bs) || 0), 0);
+              const facturasAsignables = facturas.filter((f) => f.id !== c.id && f.transaccion_id);
               return (
                 <Zona key={c.id} id={`cxp:${c.id}`} className="border rounded-md p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm">
                       <span className="font-medium">Fact. {c.numero_factura ?? "s/n"}</span>{" "}
+                      {c.fecha && (
+                        <span className="text-muted-foreground">· emisión {fmtDate(c.fecha)}</span>
+                      )}{" "}
                       <span className="text-muted-foreground">· vence {c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</span>
                       <div className="text-xs text-muted-foreground">
                         Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV · pareado {fmtBs(cubierto)}
@@ -396,6 +449,17 @@ function TableroProveedor() {
                           <Button variant="ghost" size="sm" onClick={() => desasignar(m.id)} disabled={busy}>
                             <Link2Off className="h-3.5 w-3.5" />
                           </Button>
+                          <Select onValueChange={(v) => v === "huerfanos" ? desasignar(m.id) : asignar(m.id, v)}>
+                            <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Mover a…" /></SelectTrigger>
+                            <SelectContent>
+                              {facturasAsignables.map((f) => (
+                                <SelectItem key={f.id} value={f.id}>
+                                  {f.numero_factura ?? "s/n"} · {fmtBs(pendienteBsHistorico(f))}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="huerfanos">Dejar huérfano</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       ))
                     )}
@@ -463,7 +527,10 @@ function TableroProveedor() {
               {facturasHuerfanas.length === 0 && <p className="text-xs text-muted-foreground">Ninguna.</p>}
               {facturasHuerfanas.map((c) => (
                 <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
-                  <span>Fact. {c.numero_factura ?? "s/n"}</span>
+                  <span>
+                    Fact. {c.numero_factura ?? "s/n"}
+                    {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
+                  </span>
                   <span className="mono">{fmtBs(pendienteBsHistorico(c))}</span>
                 </div>
               ))}

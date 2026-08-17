@@ -1,6 +1,7 @@
 # Ver y editar todas las facturas pareadas en el portal del proveedor
 
 - Cada movimiento huérfano muestra su monto en **USD BCV** (además del Bs) para identificar rápidamente coincidencias con facturas.
+- Cada factura/orden muestra su **fecha de emisión** en el portal del proveedor.
 
 ## Cambios
 
@@ -9,9 +10,9 @@
 3. **Resumen arriba**: tarjetas con total de facturas, cuántas tienen pareo, cuántas huérfanas y cuántos movimientos huérfanos del proveedor.
 4. **Editar el pareo sin arrastrar**: cada movimiento ya pareado tendrá, además del botón de liberar, un selector **"Mover a factura…"** para reasignarlo directamente a otra factura del proveedor (útil en pantallas chicas o con listas largas).
 5. **Arrastre entre facturas**: se mantiene tal cual — soltar sobre otra factura reasigna (revierte el pago anterior y aplica el nuevo), soltar en huérfanos libera.
-6. **Orden**: las facturas se listan por fecha de vencimiento, con las que tienen pareo claramente marcadas ("Con pareo" / "Pagada" / "Huérfana").
+6. **Orden**: las facturas se listan por fecha de vencimiento, con las que tienen pareo claramente marcadas ("Con pareo" / "Pagada" / "Huérfana"). Cada tarjeta de factura incluye la fecha de emisión junto al número y el monto.
 
 ## Detalles técnicos
 
-- Solo cambia `src/routes/_authenticated/proveedores/$id.tsx`: estado inicial `filtroEstado = "todas"`, nuevas ramas del filtro basadas en `movsPorFactura`, tarjetas de resumen y un `Select` de reasignación por movimiento que llama al mismo `asignar(movId, cxpId)` ya existente.
+- Solo cambia `src/routes/_authenticated/proveedores/$id.tsx`: estado inicial `filtroEstado = "todas"`, nuevas ramas del filtro basadas en `movsPorFactura`, tarjetas de resumen, un `Select` de reasignación por movimiento que llama al mismo `asignar(movId, cxpId)` ya existente, y un campo de fecha de emisión visible en la cabecera de cada factura.
 - No cambia la lógica contable: sigue usando `aplicarPareoCxp` / `quitarPareoCxp` de `src/lib/pareo-cxp.ts`.
