@@ -518,6 +518,18 @@ function ImportarMovimientosInner() {
     let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0;
     const importados = new Set<string>();
 
+    // Catálogo de proveedores para adivinar el tercero de los movimientos
+    // sin factura (evita filas "en blanco" en la tabla de compras del mes).
+    const { proveedorDeMemo } = await import("@/lib/conciliacion-matching");
+    const { data: tercerosCat } = await supabase.from("terceros").select("id, razon_social");
+    const tercerosRef = (tercerosCat ?? []).map((t: any) => ({ id: t.id, nombre: t.razon_social as string }));
+    const facturaDeMemo = (texto: string) => {
+      const m = String(texto ?? "")
+        .toUpperCase()
+        .match(/\b(?:FACT|FACTURA|FAC|F)[\s.:#-]*([A-Z0-9-]{3,20})\b/);
+      return m?.[1] ?? null;
+    };
+
     for (const m of toImport) {
       try {
         const bankRow = m.bankRow;
