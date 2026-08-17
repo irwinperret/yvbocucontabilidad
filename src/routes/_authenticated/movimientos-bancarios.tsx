@@ -767,7 +767,7 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1 flex-wrap">
-                            {badgeEstado(f.estado)}
+                            {badgeEstado(f.estado, f.claseNoAplica)}
                             {f.origen && (
                               <Badge variant="outline" className="text-[10px]">
                                 {f.origen === "auto" ? "Automático" : "Manual"}
