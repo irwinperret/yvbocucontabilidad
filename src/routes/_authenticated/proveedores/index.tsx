@@ -120,6 +120,11 @@ function ProveedoresPage() {
         <CardHeader>
           <div className="flex justify-between items-center gap-4">
             <CardTitle className="text-base">Listado</CardTitle>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/proveedores/$id" params={{ id: "sin-proveedor" }}>
+                <Inbox className="h-4 w-4 mr-1" />Sin proveedor
+              </Link>
+            </Button>
             <Input placeholder="Buscar por RIF o razón social…" value={busca} onChange={(e) => setBusca(e.target.value)} className="max-w-xs" />
           </div>
         </CardHeader>
@@ -140,7 +145,15 @@ function ProveedoresPage() {
                 <tbody>
                   {filtrados.map((t: any) => (
                     <tr key={t.id} className="border-b last:border-0">
-                      <td className="py-2 px-2">{t.razon_social}</td>
+                      <td className="py-2 px-2">
+                        <Link
+                          to="/proveedores/$id"
+                          params={{ id: t.id }}
+                          className="text-primary hover:underline"
+                        >
+                          {t.razon_social}
+                        </Link>
+                      </td>
                       <td className="py-2 px-2 mono text-xs">{t.tipo_rif}-{t.rif}</td>
                       <td className="py-2 px-2">{t.tipo}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.email ?? "—"}</td>
