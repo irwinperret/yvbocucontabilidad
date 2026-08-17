@@ -12,7 +12,6 @@ import { SearchCombobox } from "@/components/search-combobox";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
 import { tasaBcvQuery } from "@/lib/tasas";
-import { logAudit } from "@/lib/audit";
 import { aplicarPareoCxp, marcaPareo, quitarPareoCxp } from "@/lib/pareo-cxp";
 import {
   pendienteBsHistorico,
@@ -289,41 +288,5 @@ export function PareoManualDialog({
   );
 }
 
-/**
- * Revierte un pareo manual: elimina los pagos 13.2 (y el anticipo si lo hubo),
- * restituye los saldos de las CxP y borra los vínculos de conciliación.
- */
-export async function quitarPareoManual(movId: string): Promise<{ ok: boolean; error?: string }> {
-  const { data: pagos, error } = await supabase
-    .from("transacciones")
-    .select("id, detalle, monto_bs, tasa_bcv")
-    .eq("referencia", marcaPareo(movId));
-  if (error) return { ok: false, error: error.message };
-
-  for (const p of pagos ?? []) {
-    const m = String((p as any).detalle ?? "").match(/^PAREO_CXP:([^|]+)\|([\d.]+)$/);
-    if (!m) continue;
-    const [, cxpId, montoStr] = m;
-    const monto = Number(montoStr) || 0;
-    const { data: cxp } = await supabase.from("cuentas_por_pagar").select("*").eq("id", cxpId).maybeSingle();
-    if (!cxp) continue;
-    const tasa = Number((p as any).tasa_bcv) || 0;
-    const nuevoBs = +(Number(cxp.monto_pendiente_bs ?? 0) + monto).toFixed(2);
-    const nuevoUsd = +(Number(cxp.monto_pendiente_usd_bcv ?? 0) + (tasa > 0 ? monto / tasa : 0)).toFixed(2);
-    await supabase.from("cuentas_por_pagar").update({
-      estado: nuevoBs >= Number(cxp.monto_bs) - 0.01 ? "pendiente" : "parcial",
-      monto_pendiente_bs: nuevoBs,
-      monto_pendiente_usd_bcv: nuevoUsd,
-      pagada_at: null,
-    } as any).eq("id", cxpId);
-  }
-
-  const ids = (pagos ?? []).map((p: any) => p.id);
-  if (ids.length) {
-    const del = await supabase.from("transacciones").delete().in("id", ids);
-    if (del.error) return { ok: false, error: del.error.message };
-  }
-  const delV = await (supabase.from as any)("conciliacion_bancaria").delete().eq("transaccion_bancaria_id", movId);
-  if (delV.error) return { ok: false, error: delV.error.message };
-  return { ok: true };
-}
+/** Revierte un pareo manual (delegado a la librería compartida). */
+export const quitarPareoManual = quitarPareoCxp;
