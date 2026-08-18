@@ -438,6 +438,7 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
         </table>
       </CardContent>
     </Card>
+    </>
   );
 }
 
