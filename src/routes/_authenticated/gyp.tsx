@@ -234,6 +234,8 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
   const uo = mb - totalOp;
   const ut = uo - totalImp;
   return (
+    <>
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} />
     <Card>
       <CardContent className="pt-4">
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
