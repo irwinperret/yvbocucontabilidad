@@ -418,9 +418,10 @@ function TableroProveedor() {
       ],
       rows: facturas.map((c) => ({
         fact: c.numero_factura ?? "s/n",
-        emision: c.transaccion_id && fechaEmisionPorFactura.get(c.transaccion_id)
-          ? fmtDate(fechaEmisionPorFactura.get(c.transaccion_id))
-          : "—",
+        emision: (() => {
+          const fecha = c.transaccion_id ? fechaEmisionPorFactura.get(c.transaccion_id) : undefined;
+          return fecha ? fmtDate(fecha) : "—";
+        })(),
         estado: c.estado,
         factBs: Number(c.monto_bs) || 0,
         factUsd: Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0,
