@@ -512,9 +512,13 @@ function TableroProveedor() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Badge variant={c.estado === "pagada" ? "secondary" : movs.length ? "default" : "destructive"}>
-                        {c.estado === "pagada" ? "Pagada" : movs.length ? "Con pareo" : "Huérfana"}
+                      <Badge variant={c.estado === "pagada" ? "secondary" : c.estado === "parcial" ? "default" : "outline"}>
+                        {c.estado === "pagada" ? "Pagada" : c.estado === "parcial" ? "Parcial" : "Pendiente"}
                       </Badge>
+                      <Badge variant={movs.length ? "default" : "destructive"}>
+                        {movs.length ? `Con pareo (${movs.length})` : "Sin pareo"}
+                      </Badge>
+
                       <Select
                         value={c.tercero_id ?? "none"}
                         onValueChange={(v) => cambiarProveedorFactura(c, v === "none" ? null : v)}
