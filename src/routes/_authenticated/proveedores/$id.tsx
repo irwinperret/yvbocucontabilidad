@@ -463,7 +463,7 @@ function TableroProveedor() {
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Facturas huérfanas</div>
+            <div className="text-xs text-muted-foreground">Abiertas sin pareo</div>
             <div className="text-lg font-semibold">{facturasHuerfanas.length}</div>
           </CardContent>
         </Card>
