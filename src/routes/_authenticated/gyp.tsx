@@ -197,6 +197,8 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
   const ut = uo - totalImp;
 
   return (
+    <>
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`${MESES[mes - 1]}`} />
     <Card>
       <CardContent className="pt-4">
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
