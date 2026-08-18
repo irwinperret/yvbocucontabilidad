@@ -71,7 +71,7 @@ export function GyPCharts({ rows, cuentas, sumFn, titulo }: {
   const colors: string[] = [];
   let cursor = ingresos;
   bars.push([0, ingresos]);
-  colors.push("#10b981");
+  colors.push(INGRESOS_COLOR);
   cats.forEach((c) => {
     const next = cursor - c.value;
     bars.push([next, cursor]);
@@ -79,7 +79,7 @@ export function GyPCharts({ rows, cuentas, sumFn, titulo }: {
     cursor = next;
   });
   bars.push([Math.min(0, utilidad), Math.max(0, utilidad)]);
-  colors.push(utilidad >= 0 ? "#10b981" : "#ef4444");
+  colors.push(utilidad >= 0 ? UTILIDAD_POSITIVE : UTILIDAD_NEGATIVE);
   const netos = [ingresos, ...cats.map((c) => -c.value), utilidad];
 
   const labelPlugin: Plugin<"bar"> = {
