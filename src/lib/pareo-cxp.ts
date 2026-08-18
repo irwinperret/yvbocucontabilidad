@@ -342,54 +342,76 @@ export async function liberarPagoDirecto(mov: any, cxps: any[]): Promise<{ ok: b
 }
 
 /**
- * Reasigna un pago directo a otra factura: devuelve el saldo a las CxP
- * anteriores, aplica el pago a la nueva y deja el vínculo formal registrado.
+ * Reasigna un pago directo a una o varias facturas: devuelve el saldo a las CxP
+ * anteriores, reparte el USD BCV del pago entre las facturas destino (en orden)
+ * y deja los vínculos formales registrados.
  */
 export async function reasignarPagoDirecto(args: {
   mov: any;
   cxpsActuales: any[];
-  destino: any;
+  /** Factura destino única (compatibilidad) */
+  destino?: any;
+  /** Facturas destino (una o varias) */
+  destinos?: any[];
   userId: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { mov, cxpsActuales, destino, userId } = args;
+  const { mov, cxpsActuales, userId } = args;
+  const destinos = (args.destinos ?? (args.destino ? [args.destino] : [])).filter(Boolean);
   const lib = await liberarPagoDirecto(mov, cxpsActuales);
   if (!lib.ok) return lib;
+  if (!destinos.length) return { ok: true };
 
-  const { data: fresh } = await supabase
-    .from("cuentas_por_pagar")
-    .select("*")
-    .eq("id", destino.id)
-    .maybeSingle();
-  const c: any = fresh ?? destino;
   const tasaPago = Number(mov?.tasa_bcv) || 0;
-  await aplicarUsdACxp(c, usdBcvDelPago(mov), tasaPago);
+  let restante = usdBcvDelPago(mov);
+  const aplicadas: any[] = [];
 
+  for (const d of destinos) {
+    const { data: fresh } = await supabase
+      .from("cuentas_por_pagar")
+      .select("*")
+      .eq("id", d.id)
+      .maybeSingle();
+    const c: any = fresh ?? d;
+    if (restante > 0.01) {
+      const pend = pendienteUsdBcv(c);
+      const aplicar = Math.min(pend, restante);
+      if (aplicar > 0.01) {
+        await aplicarUsdACxp(c, aplicar, tasaPago);
+        restante = +(restante - aplicar).toFixed(2);
+      }
+    }
+    aplicadas.push(c);
+  }
+
+  // Grupo contable: el de la primera factura destino.
+  const primera = aplicadas[0];
   const { data: txf } = await supabase
     .from("transacciones")
     .select("grupo_transaccion_id")
-    .eq("id", c.transaccion_id ?? "")
+    .eq("id", primera.transaccion_id ?? "")
     .maybeSingle();
   const grupo = txf?.grupo_transaccion_id ?? crypto.randomUUID();
-  if (c.transaccion_id && !txf?.grupo_transaccion_id) {
+  if (primera.transaccion_id && !txf?.grupo_transaccion_id) {
     await supabase
       .from("transacciones")
       .update({ grupo_transaccion_id: grupo } as any)
-      .eq("id", c.transaccion_id);
+      .eq("id", primera.transaccion_id);
   }
   await supabase
     .from("transacciones")
     .update({
       grupo_transaccion_id: grupo,
-      detalle: `Pago facturas ${c.numero_factura ?? "s/n"}`.slice(0, 255),
-      tercero_id: c.tercero_id ?? mov.tercero_id ?? null,
+      detalle: `Pago facturas ${aplicadas.map((c) => c.numero_factura ?? "s/n").join(", ")}`.slice(0, 255),
+      tercero_id: primera.tercero_id ?? mov.tercero_id ?? null,
     } as any)
     .eq("id", mov.id);
 
-  if (c.transaccion_id) {
+  const contrapartes = aplicadas.map((c) => c.transaccion_id).filter(Boolean) as string[];
+  if (contrapartes.length) {
     const r = await guardarVinculosConciliacion({
       movimientoId: mov.id,
-      contrapartes: [c.transaccion_id],
-      estado: "pareado",
+      contrapartes,
+      estado: restante > 0.01 ? "parcial" : "pareado",
       origen: "manual",
       userId,
     });
@@ -397,4 +419,5 @@ export async function reasignarPagoDirecto(args: {
   }
   return { ok: true };
 }
+
 
