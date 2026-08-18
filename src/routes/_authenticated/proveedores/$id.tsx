@@ -745,7 +745,7 @@ function TableroProveedor() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="bandeja-facturas">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
                 Facturas sin movimiento <Badge variant="destructive">{facturasSinMov.length}</Badge>
