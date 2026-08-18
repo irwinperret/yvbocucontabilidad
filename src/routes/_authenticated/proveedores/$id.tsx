@@ -336,6 +336,10 @@ function TableroProveedor() {
   const movsSinFacturas = movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).length);
   const totalSinAplicar = movsDelProveedor.reduce((s, mv) => s + resumenMov(mv).sinAplicar, 0);
 
+  const totalUsdBcvFacturasSinMov = facturasSinMov.reduce((s, c) => s + pendienteUsdBcv(c), 0);
+  const totalUsdBcvMovsSinFactura = movsSinFacturas.reduce((s, mv) => s + usdBcvDeMov(mv), 0);
+
+
   const refrescar = async () => {
     await qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
     await qc.invalidateQueries({ queryKey: ["tablero-cxp", id] });
