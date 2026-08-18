@@ -583,7 +583,7 @@ function TableroProveedor() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card>
           <CardContent className="p-3">
             <div className="text-xs text-muted-foreground">Movimientos</div>
@@ -608,7 +608,26 @@ function TableroProveedor() {
             <div className="text-lg font-semibold mono">{fmtBs(totalSinAplicar)}</div>
           </CardContent>
         </Card>
+        <Card
+          className={`cursor-pointer transition-colors ${focusResumen === "facturas-sin-mov" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => onResumenClick("facturas-sin-mov")}
+        >
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Facturas sin movimiento (USD BCV)</div>
+            <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvFacturasSinMov)}</div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`cursor-pointer transition-colors ${focusResumen === "movs-sin-factura" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => onResumenClick("movs-sin-factura")}
+        >
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Movimientos sin factura (USD BCV)</div>
+            <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvMovsSinFactura)}</div>
+          </CardContent>
+        </Card>
       </div>
+
 
       <p className="text-sm text-muted-foreground">
         Arrastra una factura al movimiento bancario que la paga. Un movimiento puede tener varias facturas; arrastra la
