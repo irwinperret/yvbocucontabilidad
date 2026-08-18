@@ -52,8 +52,10 @@ function usdBcvDeMov(mov: any): number {
   const bs = Math.abs(Number(mov?.monto_bs) || 0);
   const tasa = Number(mov?.tasa_bcv) || 0;
   if (tasa > 0 && bs > 0) return +(bs / tasa).toFixed(2);
-  return 0;
+  const usd = Number(mov?.monto_usd) || 0;
+  return usd > 0 ? +usd.toFixed(2) : 0;
 }
+
 
 function usdBcvFactura(c: any): number {
   return Number(c?.usd_bcv_factura ?? c?.monto_usd ?? 0) || 0;
@@ -121,8 +123,12 @@ function TableroProveedor() {
   const esSin = id === SIN;
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [busca, setBusca] = useState("");
+  const [focusResumen, setFocusResumen] = useState<null | "movs-sin-factura" | "facturas-sin-mov">(null);
   const [busy, setBusy] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+
+
 
   const { data: terceros } = useQuery({
     queryKey: ["terceros-tablero"],
@@ -332,6 +338,10 @@ function TableroProveedor() {
   const movsSinFacturas = movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).length);
   const totalSinAplicar = movsDelProveedor.reduce((s, mv) => s + resumenMov(mv).sinAplicar, 0);
 
+  const totalUsdBcvFacturasSinMov = facturasSinMov.reduce((s, c) => s + pendienteUsdBcv(c), 0);
+  const totalUsdBcvMovsSinFactura = movsSinFacturas.reduce((s, mv) => s + usdBcvDeMov(mv), 0);
+
+
   const refrescar = async () => {
     await qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
     await qc.invalidateQueries({ queryKey: ["tablero-cxp", id] });
@@ -481,9 +491,23 @@ function TableroProveedor() {
     if (over === BANDEJA) return void moverFactura(cxpId, null);
     if (over.startsWith("mov:")) return void moverFactura(cxpId, over.slice(4));
   };
-
+  const onResumenClick = (tipo: "movs-sin-factura" | "facturas-sin-mov") => {
+    if (focusResumen === tipo) {
+      setFocusResumen(null);
+      setFiltroEstado("todos");
+    } else {
+      setFocusResumen(tipo);
+      if (tipo === "movs-sin-factura") {
+        setFiltroEstado("sin-facturas");
+      } else {
+        setFiltroEstado("todos");
+        setTimeout(() => document.getElementById("bandeja-facturas")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      }
+    }
+  };
   const exportar = async () => {
     const filas = movsFiltrados.map((mv) => {
+
       const { lista, montoMov, aplicado, sinAplicar } = resumenMov(mv);
       return {
         tipo: "Movimiento",
@@ -575,7 +599,7 @@ function TableroProveedor() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <Card>
           <CardContent className="p-3">
             <div className="text-xs text-muted-foreground">Movimientos</div>
@@ -600,7 +624,26 @@ function TableroProveedor() {
             <div className="text-lg font-semibold mono">{fmtBs(totalSinAplicar)}</div>
           </CardContent>
         </Card>
+        <Card
+          className={`cursor-pointer transition-colors ${focusResumen === "facturas-sin-mov" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => onResumenClick("facturas-sin-mov")}
+        >
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Facturas sin movimiento (USD BCV)</div>
+            <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvFacturasSinMov)}</div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`cursor-pointer transition-colors ${focusResumen === "movs-sin-factura" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => onResumenClick("movs-sin-factura")}
+        >
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Movimientos sin factura (USD BCV)</div>
+            <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvMovsSinFactura)}</div>
+          </CardContent>
+        </Card>
       </div>
+
 
       <p className="text-sm text-muted-foreground">
         Arrastra una factura al movimiento bancario que la paga. Un movimiento puede tener varias facturas; arrastra la
@@ -704,7 +747,7 @@ function TableroProveedor() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="bandeja-facturas">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
                 Facturas sin movimiento <Badge variant="destructive">{facturasSinMov.length}</Badge>
