@@ -156,7 +156,7 @@ function TableroProveedor() {
       for (let i = 0; i < ids.length; i += 200) {
         const { data } = await supabase
           .from("transacciones")
-          .select("id, grupo_transaccion_id")
+          .select("id, grupo_transaccion_id, fecha")
           .in("id", ids.slice(i, i + 200));
         out.push(...(data ?? []));
       }
@@ -169,6 +169,15 @@ function TableroProveedor() {
     const m = new Map<string, string>();
     for (const t of facturasTx ?? []) {
       if (t.grupo_transaccion_id) m.set(t.grupo_transaccion_id, t.id);
+    }
+    return m;
+  }, [facturasTx]);
+
+  /** transaccion_factura_id -> fecha de emisión de la factura. */
+  const fechaEmisionPorFactura = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of facturasTx ?? []) {
+      if (t.id && t.fecha) m.set(t.id, t.fecha);
     }
     return m;
   }, [facturasTx]);
@@ -409,7 +418,9 @@ function TableroProveedor() {
       ],
       rows: facturas.map((c) => ({
         fact: c.numero_factura ?? "s/n",
-        emision: c.fecha ? fmtDate(c.fecha) : "—",
+        emision: c.transaccion_id && fechaEmisionPorFactura.get(c.transaccion_id)
+          ? fmtDate(fechaEmisionPorFactura.get(c.transaccion_id))
+          : "—",
         estado: c.estado,
         factBs: Number(c.monto_bs) || 0,
         factUsd: Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0,
@@ -502,15 +513,16 @@ function TableroProveedor() {
               const movs = movsPorFactura.get(c.transaccion_id ?? "") ?? [];
               const cubierto = movs.reduce((s, m) => s + Math.abs(Number(m.monto_bs) || 0), 0);
               const facturasAsignables = facturas.filter((f) => f.id !== c.id && f.transaccion_id);
+              const fechaEmision = c.transaccion_id ? fechaEmisionPorFactura.get(c.transaccion_id) : undefined;
               return (
                 <Zona key={c.id} id={`cxp:${c.id}`} className="border rounded-md p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm">
                       <span className="font-medium">Fact. {c.numero_factura ?? "s/n"}</span>{" "}
-                      {c.fecha && (
-                        <span className="text-muted-foreground">· emisión {fmtDate(c.fecha)}</span>
-                      )}{" "}
                       <span className="text-muted-foreground">· vence {c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</span>
+                      <div className="text-xs font-medium">
+                        Fecha de emisión: {fechaEmision ? fmtDate(fechaEmision) : "—"}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         Factura {fmtBs(Number(c.monto_bs) || 0)} ·{" "}
                         {fmtUsd(Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0)} USD BCV
