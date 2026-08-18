@@ -14,6 +14,7 @@ import { Download, ChevronRight, ChevronDown } from "lucide-react";
 import { exportGyP } from "@/lib/excel-export";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
+import { GyPCharts } from "@/components/gyp-charts";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
@@ -197,6 +198,8 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
   const ut = uo - totalImp;
 
   return (
+    <>
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`${MESES[mes - 1]}`} />
     <Card>
       <CardContent className="pt-4">
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
@@ -216,6 +219,7 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
         <Total label={`UTILIDAD / PÉRDIDA NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
+    </>
   );
 }
 
@@ -231,6 +235,8 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
   const uo = mb - totalOp;
   const ut = uo - totalImp;
   return (
+    <>
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} />
     <Card>
       <CardContent className="pt-4">
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
@@ -248,6 +254,7 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
         <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
+    </>
   );
 }
 
@@ -386,6 +393,8 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
   };
 
   return (
+    <>
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={() => true} titulo={`Año ${anioRows}`} />
     <Card>
       <CardContent className="pt-4 overflow-x-auto">
         <table className="w-full text-xs border-separate border-spacing-0">
@@ -432,6 +441,7 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
         </table>
       </CardContent>
     </Card>
+    </>
   );
 }
 
