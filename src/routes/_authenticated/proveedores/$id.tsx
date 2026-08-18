@@ -21,7 +21,13 @@ import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
 import { ArrowLeft, GripVertical, Link2Off, Wand2, Download } from "lucide-react";
 import { exportTableToExcel } from "@/lib/excel-table";
-import { aplicarPareoCxp, quitarPareoCxp } from "@/lib/pareo-cxp";
+import {
+  aplicarPareoCxp,
+  quitarPareoCxp,
+  esPagoDirecto,
+  liberarPagoDirecto,
+  reasignarPagoDirecto,
+} from "@/lib/pareo-cxp";
 import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib/cxp-saldo";
 import { bancoDeReferencia } from "@/lib/conciliacion-matching";
 
