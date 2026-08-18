@@ -236,7 +236,6 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
   const ut = uo - totalImp;
   return (
     <>
-    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} />
     <Card>
       <CardContent className="pt-4">
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
@@ -254,6 +253,7 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
         <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} />
     </>
   );
 }
