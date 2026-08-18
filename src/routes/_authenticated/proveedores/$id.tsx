@@ -284,7 +284,7 @@ function TableroProveedor() {
     for (const lista of cxpsPorMov.values()) for (const c of lista) asignadas.add(c.id);
     return (cxps ?? [])
       .filter((c) => !asignadas.has(c.id))
-      .sort((a, b) => String(emisionDeCxp(a) ?? "").localeCompare(String(emisionDeCxp(b) ?? "")));
+      .sort((a, b) => String(emisionDeCxp(b) ?? "").localeCompare(String(emisionDeCxp(a) ?? "")));
   }, [cxps, cxpsPorMov, fechaEmisionPorFactura]);
 
   /** Bs de la factura valorados a la tasa BCV del día del pago. */
