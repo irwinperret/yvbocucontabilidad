@@ -140,7 +140,44 @@ function TableroProveedor() {
     [cxps],
   );
 
-  /** movId -> facturaTxIds */
+  /** Transacciones de las facturas (para conocer su grupo contable). */
+  const { data: facturasTx } = useQuery({
+    queryKey: ["tablero-facturas-tx", id, [...facturaIds].sort().join(",")],
+    enabled: facturaIds.size > 0,
+    queryFn: async () => {
+      const ids = [...facturaIds];
+      const out: any[] = [];
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await supabase
+          .from("transacciones")
+          .select("id, grupo_transaccion_id")
+          .in("id", ids.slice(i, i + 200));
+        out.push(...(data ?? []));
+      }
+      return out;
+    },
+  });
+
+  /** grupo_transaccion_id -> transaccion_factura_id */
+  const grupoAFactura = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of facturasTx ?? []) {
+      if (t.grupo_transaccion_id) m.set(t.grupo_transaccion_id, t.id);
+    }
+    return m;
+  }, [facturasTx]);
+
+  /** numero_factura -> transaccion_factura_id */
+  const numeroAFactura = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of cxps ?? []) {
+      const n = String(c.numero_factura ?? "").trim();
+      if (n && c.transaccion_id) m.set(n, c.transaccion_id);
+    }
+    return m;
+  }, [cxps]);
+
+  /** movId -> facturaTxIds (vínculo formal + pareo manual + pago directo del importador) */
   const movAFacturas = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const v of vinculos ?? []) {
@@ -149,8 +186,24 @@ function TableroProveedor() {
       arr.push(v.transaccion_factura_id);
       m.set(v.transaccion_bancaria_id, arr);
     }
+    // Pagos directos: el movimiento es la propia transacción 13.2.
+    for (const mv of movimientos ?? []) {
+      if (m.has(mv.id)) continue;
+      if (String(mv.cuenta_codigo) !== "13.2") continue;
+      const ligados = new Set<string>();
+      const porGrupo = mv.grupo_transaccion_id ? grupoAFactura.get(mv.grupo_transaccion_id) : undefined;
+      if (porGrupo) ligados.add(porGrupo);
+      const det = String(mv.detalle ?? "");
+      if (det.startsWith("Pago facturas")) {
+        for (const n of det.replace("Pago facturas", "").split(",")) {
+          const f = numeroAFactura.get(n.trim());
+          if (f) ligados.add(f);
+        }
+      }
+      if (ligados.size) m.set(mv.id, [...ligados]);
+    }
     return m;
-  }, [vinculos]);
+  }, [vinculos, movimientos, grupoAFactura, numeroAFactura]);
 
   const movsDelProveedor = useMemo(() => {
     return (movimientos ?? []).filter((mv) => {
@@ -193,14 +246,19 @@ function TableroProveedor() {
     });
   }, [cxps, filtroEstado, busca, movsPorFactura]);
 
-  const facturasHuerfanas = facturas.filter(
+  const sinMovimiento = facturas.filter(
     (c) => !(movsPorFactura.get(c.transaccion_id ?? "") ?? []).length,
   );
+  /** Abiertas sin ningún movimiento asignado. */
+  const facturasHuerfanas = sinMovimiento.filter((c) => c.estado !== "pagada");
+  /** Pagadas pero sin movimiento identificable → casos a revisar. */
+  const pagadasSinMov = sinMovimiento.filter((c) => c.estado === "pagada");
   const facturasConPareo = facturas.filter(
     (c) => (movsPorFactura.get(c.transaccion_id ?? "") ?? []).length > 0,
   );
   const facturasPagadas = facturas.filter((c) => c.estado === "pagada");
   const facturasAbiertas = facturas.filter((c) => c.estado !== "pagada");
+
 
   const refrescar = async () => {
     await qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
