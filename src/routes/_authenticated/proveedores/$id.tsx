@@ -648,7 +648,11 @@ function TableroProveedor() {
                   <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
                     <span>
                       Fact. {c.numero_factura ?? "s/n"}
-                      {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
+                      <span className="text-muted-foreground ml-1">
+                        ({c.transaccion_id && fechaEmisionPorFactura.get(c.transaccion_id)
+                          ? fmtDate(fechaEmisionPorFactura.get(c.transaccion_id) as string)
+                          : "sin fecha de emisión"})
+                      </span>
                     </span>
                     <span className="mono">
                       {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} BCV
@@ -671,7 +675,11 @@ function TableroProveedor() {
                   <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
                     <span>
                       Fact. {c.numero_factura ?? "s/n"}
-                      {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
+                      <span className="text-muted-foreground ml-1">
+                        ({c.transaccion_id && fechaEmisionPorFactura.get(c.transaccion_id)
+                          ? fmtDate(fechaEmisionPorFactura.get(c.transaccion_id) as string)
+                          : "sin fecha de emisión"})
+                      </span>
                     </span>
                     <span className="mono">
                       {fmtBs(Number(c.monto_bs) || 0)} · {fmtUsd(Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0)} BCV
