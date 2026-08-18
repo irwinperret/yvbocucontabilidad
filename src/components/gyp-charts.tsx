@@ -16,14 +16,18 @@ const CATS = ["COGS", "Nómina", "Administrativos", "Operativos", "Generales", "
 type Cat = (typeof CATS)[number];
 
 const CAT_COLORS: Record<Cat, string> = {
-  COGS: "#065f46",
-  "Nómina": "#047857",
-  Administrativos: "#059669",
-  Operativos: "#10b981",
-  Generales: "#34d399",
-  Impuestos: "#6ee7b7",
-  Otros: "#a7f3d0",
+  COGS: "#0ea5e9",
+  "Nómina": "#f59e0b",
+  Administrativos: "#8b5cf6",
+  Operativos: "#ec4899",
+  Generales: "#10b981",
+  Impuestos: "#ef4444",
+  Otros: "#64748b",
 };
+
+const INGRESOS_COLOR = "#22c55e";
+const UTILIDAD_POSITIVE = "#22c55e";
+const UTILIDAD_NEGATIVE = "#ef4444";
 
 function catDeCuenta(c: Cuenta): Cat | null {
   if (c.codigo.startsWith("1.")) return null;
@@ -67,7 +71,7 @@ export function GyPCharts({ rows, cuentas, sumFn, titulo }: {
   const colors: string[] = [];
   let cursor = ingresos;
   bars.push([0, ingresos]);
-  colors.push("#10b981");
+  colors.push(INGRESOS_COLOR);
   cats.forEach((c) => {
     const next = cursor - c.value;
     bars.push([next, cursor]);
@@ -75,7 +79,7 @@ export function GyPCharts({ rows, cuentas, sumFn, titulo }: {
     cursor = next;
   });
   bars.push([Math.min(0, utilidad), Math.max(0, utilidad)]);
-  colors.push(utilidad >= 0 ? "#10b981" : "#ef4444");
+  colors.push(utilidad >= 0 ? UTILIDAD_POSITIVE : UTILIDAD_NEGATIVE);
   const netos = [ingresos, ...cats.map((c) => -c.value), utilidad];
 
   const labelPlugin: Plugin<"bar"> = {
