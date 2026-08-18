@@ -21,7 +21,13 @@ import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
 import { ArrowLeft, GripVertical, Link2Off, Wand2, Download } from "lucide-react";
 import { exportTableToExcel } from "@/lib/excel-table";
-import { aplicarPareoCxp, quitarPareoCxp } from "@/lib/pareo-cxp";
+import {
+  aplicarPareoCxp,
+  quitarPareoCxp,
+  esPagoDirecto,
+  liberarPagoDirecto,
+  reasignarPagoDirecto,
+} from "@/lib/pareo-cxp";
 import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib/cxp-saldo";
 import { bancoDeReferencia } from "@/lib/conciliacion-matching";
 
@@ -140,7 +146,44 @@ function TableroProveedor() {
     [cxps],
   );
 
-  /** movId -> facturaTxIds */
+  /** Transacciones de las facturas (para conocer su grupo contable). */
+  const { data: facturasTx } = useQuery({
+    queryKey: ["tablero-facturas-tx", id, [...facturaIds].sort().join(",")],
+    enabled: facturaIds.size > 0,
+    queryFn: async () => {
+      const ids = [...facturaIds];
+      const out: any[] = [];
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await supabase
+          .from("transacciones")
+          .select("id, grupo_transaccion_id")
+          .in("id", ids.slice(i, i + 200));
+        out.push(...(data ?? []));
+      }
+      return out;
+    },
+  });
+
+  /** grupo_transaccion_id -> transaccion_factura_id */
+  const grupoAFactura = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of facturasTx ?? []) {
+      if (t.grupo_transaccion_id) m.set(t.grupo_transaccion_id, t.id);
+    }
+    return m;
+  }, [facturasTx]);
+
+  /** numero_factura -> transaccion_factura_id */
+  const numeroAFactura = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of cxps ?? []) {
+      const n = String(c.numero_factura ?? "").trim();
+      if (n && c.transaccion_id) m.set(n, c.transaccion_id);
+    }
+    return m;
+  }, [cxps]);
+
+  /** movId -> facturaTxIds (vínculo formal + pareo manual + pago directo del importador) */
   const movAFacturas = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const v of vinculos ?? []) {
@@ -149,8 +192,24 @@ function TableroProveedor() {
       arr.push(v.transaccion_factura_id);
       m.set(v.transaccion_bancaria_id, arr);
     }
+    // Pagos directos: el movimiento es la propia transacción 13.2.
+    for (const mv of movimientos ?? []) {
+      if (m.has(mv.id)) continue;
+      if (String(mv.cuenta_codigo) !== "13.2") continue;
+      const ligados = new Set<string>();
+      const porGrupo = mv.grupo_transaccion_id ? grupoAFactura.get(mv.grupo_transaccion_id) : undefined;
+      if (porGrupo) ligados.add(porGrupo);
+      const det = String(mv.detalle ?? "");
+      if (det.startsWith("Pago facturas")) {
+        for (const n of det.replace("Pago facturas", "").split(",")) {
+          const f = numeroAFactura.get(n.trim());
+          if (f) ligados.add(f);
+        }
+      }
+      if (ligados.size) m.set(mv.id, [...ligados]);
+    }
     return m;
-  }, [vinculos]);
+  }, [vinculos, movimientos, grupoAFactura, numeroAFactura]);
 
   const movsDelProveedor = useMemo(() => {
     return (movimientos ?? []).filter((mv) => {
@@ -193,14 +252,19 @@ function TableroProveedor() {
     });
   }, [cxps, filtroEstado, busca, movsPorFactura]);
 
-  const facturasHuerfanas = facturas.filter(
+  const sinMovimiento = facturas.filter(
     (c) => !(movsPorFactura.get(c.transaccion_id ?? "") ?? []).length,
   );
+  /** Abiertas sin ningún movimiento asignado. */
+  const facturasHuerfanas = sinMovimiento.filter((c) => c.estado !== "pagada");
+  /** Pagadas pero sin movimiento identificable → casos a revisar. */
+  const pagadasSinMov = sinMovimiento.filter((c) => c.estado === "pagada");
   const facturasConPareo = facturas.filter(
     (c) => (movsPorFactura.get(c.transaccion_id ?? "") ?? []).length > 0,
   );
   const facturasPagadas = facturas.filter((c) => c.estado === "pagada");
   const facturasAbiertas = facturas.filter((c) => c.estado !== "pagada");
+
 
   const refrescar = async () => {
     await qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
@@ -208,6 +272,12 @@ function TableroProveedor() {
     await qc.invalidateQueries({ queryKey: ["tablero-movs"] });
     await qc.invalidateQueries({ queryKey: ["cxp-analisis"] });
     await qc.invalidateQueries({ queryKey: ["mov-bancarios"] });
+  };
+
+  /** CxP actualmente cubiertas por un movimiento (por txId de factura). */
+  const cxpsDeMov = (movId: string) => {
+    const txIds = movAFacturas.get(movId) ?? [];
+    return (cxps ?? []).filter((c) => c.transaccion_id && txIds.includes(c.transaccion_id));
   };
 
   const asignar = async (movId: string, cxpId: string) => {
@@ -218,13 +288,23 @@ function TableroProveedor() {
     if (!cxp.transaccion_id) return toast.error("La factura no tiene transacción asociada.");
     setBusy(true);
     try {
-      if ((movAFacturas.get(movId) ?? []).length) await quitarPareoCxp(movId);
-      await aplicarPareoCxp({
-        mov,
-        terceroId: (cxp.tercero_id ?? mov.tercero_id ?? null) as string,
-        cxps: [cxp],
-        userId: user.id,
-      });
+      if (esPagoDirecto(mov)) {
+        const r = await reasignarPagoDirecto({
+          mov,
+          cxpsActuales: cxpsDeMov(movId),
+          destino: cxp,
+          userId: user.id,
+        });
+        if (!r.ok) throw new Error(r.error ?? "No se pudo reasignar");
+      } else {
+        if ((movAFacturas.get(movId) ?? []).length) await quitarPareoCxp(movId);
+        await aplicarPareoCxp({
+          mov,
+          terceroId: (cxp.tercero_id ?? mov.tercero_id ?? null) as string,
+          cxps: [cxp],
+          userId: user.id,
+        });
+      }
       toast.success("Movimiento asignado");
       await refrescar();
     } catch (e: any) {
@@ -235,11 +315,15 @@ function TableroProveedor() {
   };
 
   const desasignar = async (movId: string) => {
+    const mov = (movimientos ?? []).find((m) => m.id === movId);
     setBusy(true);
-    const r = await quitarPareoCxp(movId);
+    const r = mov && esPagoDirecto(mov)
+      ? await liberarPagoDirecto(mov, cxpsDeMov(movId))
+      : await quitarPareoCxp(movId);
     setBusy(false);
     if (!r.ok) return toast.error(r.error ?? "No se pudo desasignar");
     toast.success("Movimiento liberado");
+
     await refrescar();
   };
 
@@ -316,20 +400,30 @@ function TableroProveedor() {
         { header: "N° factura", key: "fact", width: 18 },
         { header: "Fecha emisión", key: "emision", width: 14 },
         { header: "Estado", key: "estado", width: 12 },
+        { header: "Monto factura Bs", key: "factBs", width: 18, fmt: "bs" },
+        { header: "Monto factura USD BCV", key: "factUsd", width: 20, fmt: "usd" },
         { header: "Pendiente Bs", key: "bs", width: 16, fmt: "bs" },
         { header: "Pendiente USD BCV", key: "usd", width: 18, fmt: "usd" },
+        { header: "Pareado Bs", key: "pareado", width: 16, fmt: "bs" },
         { header: "Movimientos pareados", key: "movs", width: 60 },
       ],
       rows: facturas.map((c) => ({
         fact: c.numero_factura ?? "s/n",
         emision: c.fecha ? fmtDate(c.fecha) : "—",
         estado: c.estado,
+        factBs: Number(c.monto_bs) || 0,
+        factUsd: Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0,
         bs: pendienteBsHistorico(c),
         usd: pendienteUsdBcv(c),
+        pareado: (movsPorFactura.get(c.transaccion_id ?? "") ?? []).reduce(
+          (s, m) => s + Math.abs(Number(m.monto_bs) || 0),
+          0,
+        ),
         movs: (movsPorFactura.get(c.transaccion_id ?? "") ?? [])
           .map((m) => `${fmtDate(m.fecha)} ${fmtBs(Math.abs(Number(m.monto_bs) || 0))}`)
           .join(" | "),
       })),
+
     });
     toast.success("Excel generado");
   };
@@ -379,7 +473,7 @@ function TableroProveedor() {
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Facturas huérfanas</div>
+            <div className="text-xs text-muted-foreground">Abiertas sin pareo</div>
             <div className="text-lg font-semibold">{facturasHuerfanas.length}</div>
           </CardContent>
         </Card>
@@ -418,13 +512,23 @@ function TableroProveedor() {
                       )}{" "}
                       <span className="text-muted-foreground">· vence {c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</span>
                       <div className="text-xs text-muted-foreground">
-                        Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV · pareado {fmtBs(cubierto)}
+                        Factura {fmtBs(Number(c.monto_bs) || 0)} ·{" "}
+                        {fmtUsd(Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0)} USD BCV
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV · pareado{" "}
+                        {fmtBs(cubierto)} ({movs.length} mov.)
                       </div>
                     </div>
+
                     <div className="flex items-center gap-2">
-                      <Badge variant={c.estado === "pagada" ? "secondary" : movs.length ? "default" : "destructive"}>
-                        {c.estado === "pagada" ? "Pagada" : movs.length ? "Con pareo" : "Huérfana"}
+                      <Badge variant={c.estado === "pagada" ? "secondary" : c.estado === "parcial" ? "default" : "outline"}>
+                        {c.estado === "pagada" ? "Pagada" : c.estado === "parcial" ? "Parcial" : "Pendiente"}
                       </Badge>
+                      <Badge variant={movs.length ? "default" : "destructive"}>
+                        {movs.length ? `Con pareo (${movs.length})` : "Sin pareo"}
+                      </Badge>
+
                       <Select
                         value={c.tercero_id ?? "none"}
                         onValueChange={(v) => cambiarProveedorFactura(c, v === "none" ? null : v)}
@@ -517,25 +621,54 @@ function TableroProveedor() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                Facturas huérfanas <Badge variant="destructive">{facturasHuerfanas.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {facturasHuerfanas.length === 0 && <p className="text-xs text-muted-foreground">Ninguna.</p>}
-              {facturasHuerfanas.map((c) => (
-                <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
-                  <span>
-                    Fact. {c.numero_factura ?? "s/n"}
-                    {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
-                  </span>
-                  <span className="mono">{fmtBs(pendienteBsHistorico(c))}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Facturas abiertas sin movimiento asignado{" "}
+                  <Badge variant="destructive">{facturasHuerfanas.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {facturasHuerfanas.length === 0 && <p className="text-xs text-muted-foreground">Ninguna.</p>}
+                {facturasHuerfanas.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
+                    <span>
+                      Fact. {c.numero_factura ?? "s/n"}
+                      {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
+                    </span>
+                    <span className="mono">
+                      {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} BCV
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Pagadas sin movimiento identificado{" "}
+                  <Badge variant="secondary">{pagadasSinMov.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {pagadasSinMov.length === 0 && <p className="text-xs text-muted-foreground">Ninguna.</p>}
+                {pagadasSinMov.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
+                    <span>
+                      Fact. {c.numero_factura ?? "s/n"}
+                      {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
+                    </span>
+                    <span className="mono">
+                      {fmtBs(Number(c.monto_bs) || 0)} · {fmtUsd(Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0)} BCV
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
         </div>
       </DndContext>
     </div>
