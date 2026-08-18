@@ -3860,20 +3860,49 @@ function CierreForm() {
     return tasa > 0 ? +(bs / tasa).toFixed(2) : null;
   }, [currMonthFinal]);
 
+  // Inventario inicial ya registrado del período actual (para períodos ya cerrados,
+  // se muestra el snapshot real guardado en vez de depender de prevFinalUsd).
+  const { data: currMonthInicial } = useQuery({
+    queryKey: ["inv-snapshot-inicial", periodo],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("inventario_snapshots")
+        .select("id, monto_bs, monto_usd, tasa_bcv")
+        .eq("periodo", periodo)
+        .eq("tipo", "inicial")
+        .maybeSingle();
+      return data;
+    },
+  });
+  const currInicialUsd = useMemo(() => {
+    if (!currMonthInicial) return null;
+    const usd = Number((currMonthInicial as any).monto_usd);
+    if (Number.isFinite(usd) && usd > 0) return usd;
+    const bs = Number((currMonthInicial as any).monto_bs) || 0;
+    const tasa = Number((currMonthInicial as any).tasa_bcv) || 0;
+    return tasa > 0 ? +(bs / tasa).toFixed(2) : null;
+  }, [currMonthInicial]);
+
   // Prefill inventario inicial cuando cambia el período (solo si el usuario no tocó el campo aún)
   const [invIniTocado, setInvIniTocado] = useState(false);
   const [invFinTocado, setInvFinTocado] = useState(false);
   useEffect(() => {
     if (invIniTocado) return;
-    if (cierreActual) return;
+    // Mes ya cerrado: mostrar el snapshot inicial REAL guardado para este período,
+    // no el del mes anterior ni un valor que haya quedado de otro período visitado antes.
+    if (cierreActual) {
+      setInvIniUsd(currInicialUsd != null ? String(currInicialUsd) : "");
+      return;
+    }
     if (prevFinalUsd != null) setInvIniUsd(String(prevFinalUsd));
     else setInvIniUsd("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo, prevFinalUsd, cierreActual]);
-  // Prefill inventario final con el valor ya registrado en Inventarios
+  }, [periodo, prevFinalUsd, cierreActual, currInicialUsd]);
+  // Prefill inventario final con el valor ya registrado en Inventarios.
+  // Se usa siempre currFinalUsd (ya está filtrado por el período correcto), tanto si el
+  // mes está abierto como cerrado, para evitar que quede un valor de otro período visitado antes.
   useEffect(() => {
     if (invFinTocado) return;
-    if (cierreActual) return;
     setInvFinUsd(currFinalUsd != null ? String(currFinalUsd) : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo, currFinalUsd, cierreActual]);
