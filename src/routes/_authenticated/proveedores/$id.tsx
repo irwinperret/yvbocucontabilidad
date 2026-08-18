@@ -52,8 +52,10 @@ function usdBcvDeMov(mov: any): number {
   const bs = Math.abs(Number(mov?.monto_bs) || 0);
   const tasa = Number(mov?.tasa_bcv) || 0;
   if (tasa > 0 && bs > 0) return +(bs / tasa).toFixed(2);
-  return 0;
+  const usd = Number(mov?.monto_usd) || 0;
+  return usd > 0 ? +usd.toFixed(2) : 0;
 }
+
 
 function usdBcvFactura(c: any): number {
   return Number(c?.usd_bcv_factura ?? c?.monto_usd ?? 0) || 0;
