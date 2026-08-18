@@ -14,6 +14,7 @@ import { Download, ChevronRight, ChevronDown } from "lucide-react";
 import { exportGyP } from "@/lib/excel-export";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
+import { GyPCharts } from "@/components/gyp-charts";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
