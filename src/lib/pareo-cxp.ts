@@ -253,3 +253,148 @@ export async function quitarPareoCxp(movId: string): Promise<{ ok: boolean; erro
   if (delV.error) return { ok: false, error: delV.error.message };
   return { ok: true };
 }
+
+// ─────────────────────────────────────────────────────────────
+// Pagos "directos": el propio movimiento bancario se registró como pago de
+// CxP (cuenta 13.2) desde el importador, sin marca PAREO: y sin fila en
+// conciliacion_bancaria. El enlace con la factura es implícito (mismo
+// grupo_transaccion_id / número de factura en el detalle).
+// ─────────────────────────────────────────────────────────────
+
+/** ¿El movimiento es en sí mismo el pago de la CxP (importador bancario)? */
+export function esPagoDirecto(mov: any): boolean {
+  return (
+    String(mov?.cuenta_codigo) === CUENTA_PAGO_CXP &&
+    !String(mov?.referencia ?? "").startsWith("PAREO:")
+  );
+}
+
+function usdBcvDelPago(mov: any): number {
+  const bs = Math.abs(Number(mov?.monto_bs) || 0);
+  const tasa = Number(mov?.tasa_bcv) || 0;
+  return tasa > 0 ? +(bs / tasa).toFixed(2) : 0;
+}
+
+/** Devuelve saldo a una CxP (al liberar un pago). */
+async function restaurarCxp(c: any, usdRestaurar: number) {
+  const totalUsd = Number(c?.usd_bcv_factura ?? c?.monto_usd ?? 0) || 0;
+  const pend = Number(c?.monto_pendiente_usd_bcv ?? 0) || 0;
+  const nuevoUsd = +Math.min(totalUsd || pend + usdRestaurar, pend + usdRestaurar).toFixed(2);
+  const tasaF = tasaBcvFactura(c) || 0;
+  await supabase
+    .from("cuentas_por_pagar")
+    .update({
+      estado: nuevoUsd >= totalUsd - 0.01 ? "pendiente" : nuevoUsd > 0.01 ? "parcial" : "pagada",
+      monto_pendiente_usd_bcv: nuevoUsd,
+      monto_pendiente_bs: +(nuevoUsd * (tasaF || 1)).toFixed(2),
+      pagada_at: nuevoUsd > 0.01 ? null : c?.pagada_at ?? null,
+    } as any)
+    .eq("id", c.id);
+}
+
+/** Aplica un monto en USD BCV a una CxP (al asignar un pago). */
+async function aplicarUsdACxp(c: any, usdAplicar: number, tasaPago: number) {
+  const pend = pendienteUsdBcv(c);
+  const aplicado = Math.min(pend, usdAplicar);
+  let nuevo = +Math.max(0, pend - aplicado).toFixed(2);
+  const deudaBs = pend * (tasaPago || 1);
+  const pagadoBs = aplicado * (tasaPago || 1);
+  if (nuevo > 0 && dentroDeTolerancia(pagadoBs - deudaBs, deudaBs)) nuevo = 0;
+  const tasaF = tasaBcvFactura(c) || tasaPago || 1;
+  await supabase
+    .from("cuentas_por_pagar")
+    .update({
+      estado: nuevo <= 0.01 ? "pagada" : "parcial",
+      pagada_at: nuevo <= 0.01 ? new Date().toISOString() : null,
+      monto_pendiente_usd_bcv: nuevo,
+      monto_pendiente_bs: +(nuevo * tasaF).toFixed(2),
+    } as any)
+    .eq("id", c.id);
+}
+
+/**
+ * Libera un pago directo: restituye el saldo de las CxP que cubría y deja el
+ * movimiento bancario suelto (sin grupo ni detalle de factura). El movimiento
+ * NO se borra: sigue existiendo como transacción bancaria.
+ */
+export async function liberarPagoDirecto(mov: any, cxps: any[]): Promise<{ ok: boolean; error?: string }> {
+  try {
+    let restante = usdBcvDelPago(mov);
+    for (const c of cxps) {
+      if (restante <= 0.01) break;
+      const totalUsd = Number(c?.usd_bcv_factura ?? c?.monto_usd ?? 0) || 0;
+      const pend = Number(c?.monto_pendiente_usd_bcv ?? 0) || 0;
+      const puede = +Math.max(0, totalUsd - pend).toFixed(2);
+      const r = Math.min(puede, restante);
+      if (r <= 0.01) continue;
+      await restaurarCxp(c, r);
+      restante = +(restante - r).toFixed(2);
+    }
+    await supabase
+      .from("transacciones")
+      .update({ grupo_transaccion_id: crypto.randomUUID(), detalle: null } as any)
+      .eq("id", mov.id);
+    await (supabase.from as any)("conciliacion_bancaria").delete().eq("transaccion_bancaria_id", mov.id);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "No se pudo liberar el pago" };
+  }
+}
+
+/**
+ * Reasigna un pago directo a otra factura: devuelve el saldo a las CxP
+ * anteriores, aplica el pago a la nueva y deja el vínculo formal registrado.
+ */
+export async function reasignarPagoDirecto(args: {
+  mov: any;
+  cxpsActuales: any[];
+  destino: any;
+  userId: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { mov, cxpsActuales, destino, userId } = args;
+  const lib = await liberarPagoDirecto(mov, cxpsActuales);
+  if (!lib.ok) return lib;
+
+  const { data: fresh } = await supabase
+    .from("cuentas_por_pagar")
+    .select("*")
+    .eq("id", destino.id)
+    .maybeSingle();
+  const c: any = fresh ?? destino;
+  const tasaPago = Number(mov?.tasa_bcv) || 0;
+  await aplicarUsdACxp(c, usdBcvDelPago(mov), tasaPago);
+
+  const { data: txf } = await supabase
+    .from("transacciones")
+    .select("grupo_transaccion_id")
+    .eq("id", c.transaccion_id ?? "")
+    .maybeSingle();
+  const grupo = txf?.grupo_transaccion_id ?? crypto.randomUUID();
+  if (c.transaccion_id && !txf?.grupo_transaccion_id) {
+    await supabase
+      .from("transacciones")
+      .update({ grupo_transaccion_id: grupo } as any)
+      .eq("id", c.transaccion_id);
+  }
+  await supabase
+    .from("transacciones")
+    .update({
+      grupo_transaccion_id: grupo,
+      detalle: `Pago facturas ${c.numero_factura ?? "s/n"}`.slice(0, 255),
+      tercero_id: c.tercero_id ?? mov.tercero_id ?? null,
+    } as any)
+    .eq("id", mov.id);
+
+  if (c.transaccion_id) {
+    const r = await guardarVinculosConciliacion({
+      movimientoId: mov.id,
+      contrapartes: [c.transaccion_id],
+      estado: "pareado",
+      origen: "manual",
+      userId,
+    });
+    if (!r.ok) return { ok: false, error: r.error ?? "No se pudo guardar el vínculo" };
+  }
+  return { ok: true };
+}
+
