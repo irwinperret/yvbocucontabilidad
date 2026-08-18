@@ -140,8 +140,17 @@ async function recalcCierreForPeriod(
     0,
   );
 
+  // Compras en USD BCV: cada compra con SU propia tasa BCV del día.
+  const comprasNetoUsd = (compras ?? []).reduce((s: number, r: any) => {
+    const netoBs = Number(r.monto_base_bs) || Number(r.monto_bs) || 0;
+    const tasa = Number(r.tasa_bcv) || 0;
+    if (tasa > 0) return s + r2(netoBs / tasa);
+    const neto = Number(r.monto_base_usd);
+    return s + (Number.isFinite(neto) && neto !== 0 ? neto : Number(r.monto_usd) || 0);
+  }, 0);
+
   const cogsBs = r2(iniBs + comprasNetoBs - finBs);
-  const cogsUsd = paralelaProm > 0 ? r2(cogsBs / paralelaProm) : 0;
+  const cogsUsd = r2(iniUsd + comprasNetoUsd - finUsd);
 
   // Reabrir cierre
   await supabase.from("cierres_de_mes").update({ estado: "abierto" }).eq("id", (cierre as any).id);
