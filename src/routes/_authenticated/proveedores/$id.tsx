@@ -268,6 +268,12 @@ function TableroProveedor() {
     await qc.invalidateQueries({ queryKey: ["mov-bancarios"] });
   };
 
+  /** CxP actualmente cubiertas por un movimiento (por txId de factura). */
+  const cxpsDeMov = (movId: string) => {
+    const txIds = movAFacturas.get(movId) ?? [];
+    return (cxps ?? []).filter((c) => c.transaccion_id && txIds.includes(c.transaccion_id));
+  };
+
   const asignar = async (movId: string, cxpId: string) => {
     if (!user) return;
     const mov = (movimientos ?? []).find((m) => m.id === movId);
@@ -276,13 +282,23 @@ function TableroProveedor() {
     if (!cxp.transaccion_id) return toast.error("La factura no tiene transacción asociada.");
     setBusy(true);
     try {
-      if ((movAFacturas.get(movId) ?? []).length) await quitarPareoCxp(movId);
-      await aplicarPareoCxp({
-        mov,
-        terceroId: (cxp.tercero_id ?? mov.tercero_id ?? null) as string,
-        cxps: [cxp],
-        userId: user.id,
-      });
+      if (esPagoDirecto(mov)) {
+        const r = await reasignarPagoDirecto({
+          mov,
+          cxpsActuales: cxpsDeMov(movId),
+          destino: cxp,
+          userId: user.id,
+        });
+        if (!r.ok) throw new Error(r.error ?? "No se pudo reasignar");
+      } else {
+        if ((movAFacturas.get(movId) ?? []).length) await quitarPareoCxp(movId);
+        await aplicarPareoCxp({
+          mov,
+          terceroId: (cxp.tercero_id ?? mov.tercero_id ?? null) as string,
+          cxps: [cxp],
+          userId: user.id,
+        });
+      }
       toast.success("Movimiento asignado");
       await refrescar();
     } catch (e: any) {
@@ -293,11 +309,15 @@ function TableroProveedor() {
   };
 
   const desasignar = async (movId: string) => {
+    const mov = (movimientos ?? []).find((m) => m.id === movId);
     setBusy(true);
-    const r = await quitarPareoCxp(movId);
+    const r = mov && esPagoDirecto(mov)
+      ? await liberarPagoDirecto(mov, cxpsDeMov(movId))
+      : await quitarPareoCxp(movId);
     setBusy(false);
     if (!r.ok) return toast.error(r.error ?? "No se pudo desasignar");
     toast.success("Movimiento liberado");
+
     await refrescar();
   };
 
