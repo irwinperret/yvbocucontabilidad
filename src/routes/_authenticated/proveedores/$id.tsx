@@ -502,9 +502,15 @@ function TableroProveedor() {
                       )}{" "}
                       <span className="text-muted-foreground">· vence {c.fecha_vencimiento ? fmtDate(c.fecha_vencimiento) : "—"}</span>
                       <div className="text-xs text-muted-foreground">
-                        Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV · pareado {fmtBs(cubierto)}
+                        Factura {fmtBs(Number(c.monto_bs) || 0)} ·{" "}
+                        {fmtUsd(Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0)} USD BCV
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV · pareado{" "}
+                        {fmtBs(cubierto)} ({movs.length} mov.)
                       </div>
                     </div>
+
                     <div className="flex items-center gap-2">
                       <Badge variant={c.estado === "pagada" ? "secondary" : movs.length ? "default" : "destructive"}>
                         {c.estado === "pagada" ? "Pagada" : movs.length ? "Con pareo" : "Huérfana"}
