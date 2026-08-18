@@ -253,6 +253,7 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
         <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
+    </>
   );
 }
 
