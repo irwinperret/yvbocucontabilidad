@@ -611,25 +611,54 @@ function TableroProveedor() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                Facturas huérfanas <Badge variant="destructive">{facturasHuerfanas.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {facturasHuerfanas.length === 0 && <p className="text-xs text-muted-foreground">Ninguna.</p>}
-              {facturasHuerfanas.map((c) => (
-                <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
-                  <span>
-                    Fact. {c.numero_factura ?? "s/n"}
-                    {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
-                  </span>
-                  <span className="mono">{fmtBs(pendienteBsHistorico(c))}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Facturas abiertas sin movimiento asignado{" "}
+                  <Badge variant="destructive">{facturasHuerfanas.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {facturasHuerfanas.length === 0 && <p className="text-xs text-muted-foreground">Ninguna.</p>}
+                {facturasHuerfanas.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
+                    <span>
+                      Fact. {c.numero_factura ?? "s/n"}
+                      {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
+                    </span>
+                    <span className="mono">
+                      {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} BCV
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Pagadas sin movimiento identificado{" "}
+                  <Badge variant="secondary">{pagadasSinMov.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {pagadasSinMov.length === 0 && <p className="text-xs text-muted-foreground">Ninguna.</p>}
+                {pagadasSinMov.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between text-xs border-b last:border-0 py-1">
+                    <span>
+                      Fact. {c.numero_factura ?? "s/n"}
+                      {c.fecha && <span className="text-muted-foreground ml-1">({fmtDate(c.fecha)})</span>}
+                    </span>
+                    <span className="mono">
+                      {fmtBs(Number(c.monto_bs) || 0)} · {fmtUsd(Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0)} BCV
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
         </div>
       </DndContext>
     </div>
