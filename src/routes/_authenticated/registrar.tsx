@@ -4042,7 +4042,8 @@ function CierreForm() {
   const iniBsCierre = iniUsd * (tasaBcvIniN || 0);
   const finBsCierre = finUsd * (tasaBcvFinN || 0);
   const cogs = tasaBcvIniN || tasaBcvFinN ? iniBsCierre + totalComprasNetoBs - finBsCierre : 0;
-  const cogsUsd = paralelaPromedio > 0 ? cogs / paralelaPromedio : 0;
+  // COGS en USD: suma directa de componentes ya en USD (BCV), sin pasar por Bs.
+  const cogsUsd = iniUsd + totalComprasNetoUsdBcv - finUsd;
 
 
 
@@ -4319,7 +4320,7 @@ function CierreForm() {
     if (!user) return;
     const tasaBcv = tasaPromedio;
     if (!tasaBcv) return toast.error("No hay tasas BCV registradas en el período");
-    if (!paralelaPromedio) return toast.error("No hay tasas paralelas registradas en el período");
+    if (!paralelaPromedio) toast.warning("No hay tasas paralelas en el período (solo informativo)");
     if (!tasaBcvIniN) return toast.error(`No hay tasa BCV registrada para ${primerDiaMes} o anterior`);
     if (!tasaBcvFinN) return toast.error(`No hay tasa BCV registrada para ${ultimoDiaMes} o anterior`);
     if (!invIniUsd) return toast.error("Ingresa el inventario inicial USD (a tasa BCV)");
@@ -4340,7 +4341,8 @@ function CierreForm() {
     const iniBs = iniUsd * tasaBcvIniN;
     const finBs = finUsd * tasaBcvFinN;
     const cogsBs = iniBs + totalComprasNetoBs - finBs;
-    const cogsUsdParalelo = paralelaPromedio > 0 ? cogsBs / paralelaPromedio : 0;
+    // COGS en USD: suma directa de componentes ya en USD (BCV).
+    const cogsUsdParalelo = iniUsd + totalComprasNetoUsdBcv - finUsd;
 
     const { error } = await supabase.from("cierres_de_mes").insert({
       periodo,
