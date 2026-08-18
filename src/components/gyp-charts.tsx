@@ -16,14 +16,18 @@ const CATS = ["COGS", "Nómina", "Administrativos", "Operativos", "Generales", "
 type Cat = (typeof CATS)[number];
 
 const CAT_COLORS: Record<Cat, string> = {
-  COGS: "#065f46",
-  "Nómina": "#047857",
-  Administrativos: "#059669",
-  Operativos: "#10b981",
-  Generales: "#34d399",
-  Impuestos: "#6ee7b7",
-  Otros: "#a7f3d0",
+  COGS: "#0ea5e9",
+  "Nómina": "#f59e0b",
+  Administrativos: "#8b5cf6",
+  Operativos: "#ec4899",
+  Generales: "#10b981",
+  Impuestos: "#ef4444",
+  Otros: "#64748b",
 };
+
+const INGRESOS_COLOR = "#22c55e";
+const UTILIDAD_POSITIVE = "#22c55e";
+const UTILIDAD_NEGATIVE = "#ef4444";
 
 function catDeCuenta(c: Cuenta): Cat | null {
   if (c.codigo.startsWith("1.")) return null;
