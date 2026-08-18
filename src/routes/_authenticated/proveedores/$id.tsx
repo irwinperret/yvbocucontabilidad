@@ -121,8 +121,9 @@ function TableroProveedor() {
   const esSin = id === SIN;
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [busca, setBusca] = useState("");
-  const [busy, setBusy] = useState(false);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [focusResumen, setFocusResumen] = useState<null | "movs-sin-factura" | "facturas-sin-mov">(null);
+
+
 
   const { data: terceros } = useQuery({
     queryKey: ["terceros-tablero"],
