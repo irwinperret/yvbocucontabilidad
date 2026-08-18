@@ -392,6 +392,8 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
   };
 
   return (
+    <>
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={() => true} titulo={`Año ${anioRows}`} />
     <Card>
       <CardContent className="pt-4 overflow-x-auto">
         <table className="w-full text-xs border-separate border-spacing-0">
