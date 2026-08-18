@@ -38,7 +38,7 @@ function catDeCuenta(c: Cuenta): Cat | null {
 }
 
 export function GyPCharts({ rows, cuentas, sumFn, titulo }: {
-  rows: Row[]; cuentas: Cuenta[]; sumFn: (r: Row) => boolean; titulo: string;
+  rows: Row[]; cuentas: Cuenta[]; sumFn: (r: any) => boolean; titulo: string;
 }) {
   const { ingresos, cats, utilidad } = useMemo(() => {
     const mapC = new Map<string, Cuenta>();
