@@ -489,8 +489,22 @@ function TableroProveedor() {
     if (over === BANDEJA) return void moverFactura(cxpId, null);
     if (over.startsWith("mov:")) return void moverFactura(cxpId, over.slice(4));
   };
+  const onResumenClick = (tipo: "movs-sin-factura" | "facturas-sin-mov") => {
+    if (focusResumen === tipo) {
+      setFocusResumen(null);
+      setFiltroEstado("todos");
+    } else {
+      setFocusResumen(tipo);
+      if (tipo === "movs-sin-factura") {
+        setFiltroEstado("sin-facturas");
+      } else {
+        setFiltroEstado("todos");
+        setTimeout(() => document.getElementById("bandeja-facturas")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      }
+    }
+  };
 
-  const exportar = async () => {
+
     const filas = movsFiltrados.map((mv) => {
       const { lista, montoMov, aplicado, sinAplicar } = resumenMov(mv);
       return {
