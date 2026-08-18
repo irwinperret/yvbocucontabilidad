@@ -503,9 +503,9 @@ function TableroProveedor() {
       }
     }
   };
-
-
+  const exportar = async () => {
     const filas = movsFiltrados.map((mv) => {
+
       const { lista, montoMov, aplicado, sinAplicar } = resumenMov(mv);
       return {
         tipo: "Movimiento",
