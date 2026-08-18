@@ -400,20 +400,30 @@ function TableroProveedor() {
         { header: "N° factura", key: "fact", width: 18 },
         { header: "Fecha emisión", key: "emision", width: 14 },
         { header: "Estado", key: "estado", width: 12 },
+        { header: "Monto factura Bs", key: "factBs", width: 18, fmt: "bs" },
+        { header: "Monto factura USD BCV", key: "factUsd", width: 20, fmt: "usd" },
         { header: "Pendiente Bs", key: "bs", width: 16, fmt: "bs" },
         { header: "Pendiente USD BCV", key: "usd", width: 18, fmt: "usd" },
+        { header: "Pareado Bs", key: "pareado", width: 16, fmt: "bs" },
         { header: "Movimientos pareados", key: "movs", width: 60 },
       ],
       rows: facturas.map((c) => ({
         fact: c.numero_factura ?? "s/n",
         emision: c.fecha ? fmtDate(c.fecha) : "—",
         estado: c.estado,
+        factBs: Number(c.monto_bs) || 0,
+        factUsd: Number(c.usd_bcv_factura ?? c.monto_usd ?? 0) || 0,
         bs: pendienteBsHistorico(c),
         usd: pendienteUsdBcv(c),
+        pareado: (movsPorFactura.get(c.transaccion_id ?? "") ?? []).reduce(
+          (s, m) => s + Math.abs(Number(m.monto_bs) || 0),
+          0,
+        ),
         movs: (movsPorFactura.get(c.transaccion_id ?? "") ?? [])
           .map((m) => `${fmtDate(m.fecha)} ${fmtBs(Math.abs(Number(m.monto_bs) || 0))}`)
           .join(" | "),
       })),
+
     });
     toast.success("Excel generado");
   };
