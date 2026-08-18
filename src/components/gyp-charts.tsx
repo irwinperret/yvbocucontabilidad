@@ -9,8 +9,8 @@ import { fmtUsd } from "@/lib/format";
 
 ChartJS.register(BarElement, ArcElement, CategoryScale, LinearScale, Tooltip, Legend);
 
-type Row = { cuenta_codigo: string; mes: number; base_usd: number };
-type Cuenta = { codigo: string; nombre: string; grupo: string };
+type Row = { cuenta_codigo: string; mes: number; base_usd: number; [k: string]: any };
+type Cuenta = { codigo: string; nombre: string; grupo: string; [k: string]: any };
 
 const CATS = ["COGS", "Nómina", "Administrativos", "Operativos", "Generales", "Impuestos", "Otros"] as const;
 type Cat = (typeof CATS)[number];
