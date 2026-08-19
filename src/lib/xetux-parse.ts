@@ -1,7 +1,13 @@
 // Shared helpers for parsing Xetux .xls / .xlsx reports.
 import * as XLSX from "xlsx";
 
-/** Convert a cell to number. Accepts numbers, "$31.74", "1.234,56", "(12.50)", etc. */
+/** Convert a cell to number. Accepts numbers, "$31.74", "1.234,56" (es-VE),
+ * "1,234.56" (en-US), "(12.50)", etc. Xetux mixes both formats depending on
+ * the column and how large the amount is, so instead of assuming one fixed
+ * locale, whichever separator (. or ,) appears LAST in the string is treated
+ * as the true decimal point, and the other (if present) as a thousands
+ * separator. This avoids a bug where "1,047.11" was misread as 1.04711
+ * (1000x too small) because the old code always assumed '.' meant thousands. */
 export function numFromCell(v: any): number {
   if (v == null || v === "") return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
@@ -9,14 +15,28 @@ export function numFromCell(v: any): number {
   if (!s) return 0;
   const neg = /^\(.*\)$/.test(s) || s.startsWith("-");
   s = s.replace(/[()$\s]/g, "").replace(/^-/, "");
-  // If it has both '.' and ',', assume '.' is thousands and ',' is decimal (es-VE).
-  if (s.includes(".") && s.includes(",")) {
-    s = s.replace(/\./g, "").replace(",", ".");
+  const lastDot = s.lastIndexOf(".");
+  const lastComma = s.lastIndexOf(",");
+  if (lastDot !== -1 && lastComma !== -1) {
+    if (lastComma > lastDot) {
+      // Comma comes last → comma is decimal, dots are thousands (es-VE: "1.234,56")
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      // Dot comes last → dot is decimal, commas are thousands (en-US: "1,234.56")
+      s = s.replace(/,/g, "");
+    }
   } else if (s.includes(",") && !s.includes(".")) {
-    // Lone comma → decimal separator
+    // Lone comma → decimal separator (e.g. "37,95")
     s = s.replace(",", ".");
+  } else if (s.includes(".") && !s.includes(",")) {
+    // Lone dot(s): only treat as thousands separators if it matches a pure
+    // grouping pattern (groups of exactly 3 digits, e.g. "1.234" or
+    // "12.345.678"). Otherwise a single dot with 1-2 digits after it is a
+    // normal decimal point (e.g. "37.95").
+    if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+      s = s.replace(/\./g, "");
+    }
   }
-  // Strip any other non-numeric leftovers except dot and digits
   s = s.replace(/[^0-9.]/g, "");
   const n = parseFloat(s);
   if (!Number.isFinite(n)) return 0;
