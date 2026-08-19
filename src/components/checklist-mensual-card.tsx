@@ -49,6 +49,7 @@ export function ChecklistMensualCard() {
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base flex items-center gap-2">
             <ListChecks className="h-4 w-4" /> Checklist del mes — {periodo}
+            <span className="text-[11px] font-normal text-muted-foreground">(cobertura mínima: día 22)</span>
           </CardTitle>
           <Button size="sm" variant="outline" onClick={() => setHistorialAbierto(true)}>
             Ver historial completo
