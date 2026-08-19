@@ -460,12 +460,18 @@ function ImportarVentasPage() {
           cuenta_bancaria_id,
         };
 
-        // Dedup: por número de factura O número de orden con la misma referencia, excluyendo la pierna IVA (12.4)
+        // Dedup: por número de factura O número de orden con la misma referencia
+        // y la MISMA cuenta contable. Antes solo excluía la pierna IVA (12.4), lo
+        // que permitía que una venta "encontrara" y sobrescribiera una compra (u
+        // otra transacción) no relacionada que por casualidad tuviera el mismo
+        // número de documento, ya que compras y ventas comparten referencia
+        // "xetux". Ahora solo se considera duplicado algo ya clasificado en la
+        // misma cuenta que la fila que se está por insertar.
         let dupQuery = supabase
           .from("transacciones")
           .select("*")
           .eq("referencia", referencia)
-          .neq("cuenta_codigo", "12.4");
+          .eq("cuenta_codigo", payload.cuenta_codigo);
         if (r.numero_factura) {
           dupQuery = dupQuery.eq("numero_factura", r.numero_factura);
         } else {
