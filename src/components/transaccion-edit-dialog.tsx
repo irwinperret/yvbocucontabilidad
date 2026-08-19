@@ -13,6 +13,7 @@ import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
 import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
+import { SearchCombobox, type ComboOption } from "@/components/search-combobox";
 import { tasaBcvQuery } from "@/lib/tasas";
 
 export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; onSaved: () => void }) {
@@ -29,7 +30,27 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
   const [detalle, setDetalle] = useState<string>(tx.detalle ?? "");
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(tx.cuenta_bancaria_id ?? "");
   const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
+  const [terceroId, setTerceroId] = useState<string | null>(tx.tercero_id ?? null);
+  const [terceroOpciones, setTerceroOpciones] = useState<ComboOption[]>([]);
   const [busy, setBusy] = useState(false);
+
+  // Proveedores para el combo de "corregir proveedor" — útil cuando la
+  // conciliación bancaria adivinó mal el proveedor a partir del memo.
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("terceros")
+        .select("id, razon_social, nombre_comercial, rif")
+        .order("razon_social");
+      setTerceroOpciones(
+        (data ?? []).map((t: any) => ({
+          value: t.id,
+          label: t.nombre_comercial || t.razon_social,
+          keywords: `${t.razon_social ?? ""} ${t.rif ?? ""}`,
+        })),
+      );
+    })();
+  }, []);
 
   // Hermanos del grupo: se cargan al abrir el diálogo.
   const [hermanos, setHermanos] = useState<any[]>([]);
@@ -107,6 +128,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
       detalle: detalle || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
       capex_categoria: tx.cuenta_codigo === "10.6" ? capexCategoria : tx.capex_categoria ?? null,
+      tercero_id: terceroId || null,
     };
     const { data: updated, error } = await supabase
       .from("transacciones")
@@ -238,6 +260,20 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
           </div>
           <div><Label>N° factura</Label><Input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} /></div>
           <div><Label>N° orden</Label><Input value={numOrden} onChange={(e) => setNumOrden(e.target.value)} /></div>
+          <div className="md:col-span-2">
+            <Label>Proveedor</Label>
+            <SearchCombobox
+              options={terceroOpciones}
+              value={terceroId}
+              onChange={setTerceroId}
+              placeholder="Sin proveedor asignado"
+              searchPlaceholder="Buscar proveedor por nombre o RIF…"
+              triggerClassName="w-full"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Corrige aquí si la conciliación bancaria adivinó mal el proveedor a partir del memo del banco.
+            </p>
+          </div>
           <div className="md:col-span-2">
             <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />
           </div>
