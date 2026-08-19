@@ -1,6 +1,6 @@
 import { dentroDeTolerancia } from "@/lib/cxp-saldo";
 
-export type EstadoConciliacion = "pareado" | "parcial" | "posible" | "no_aplica" | "sin_pareo";
+export type EstadoConciliacion = "pareado" | "parcial" | "posible" | "no_aplica" | "sin_pareo" | "pendiente_revision";
 
 export const ESTADO_LABEL: Record<EstadoConciliacion, string> = {
   pareado: "Pareado",
@@ -8,6 +8,7 @@ export const ESTADO_LABEL: Record<EstadoConciliacion, string> = {
   posible: "Posible pareo",
   no_aplica: "Gasto directo (sin factura)",
   sin_pareo: "Sin pareo",
+  pendiente_revision: "Pendiente de revisión",
 };
 
 /** Cuentas que por naturaleza no requieren una factura asociada */

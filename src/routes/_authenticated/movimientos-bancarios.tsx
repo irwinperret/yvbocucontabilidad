@@ -252,9 +252,13 @@ function MovimientosBancariosPage() {
         motivo = `Marcado a mano: ${ESTADO_MANUAL_LABEL[estadoManual]}`;
 
       } else if (filaRechazo && mismoRechazo) {
-        estado = auto.estado === "posible" || auto.estado === "parcial" ? "sin_pareo" : auto.estado;
+        // Se rechazó una sugerencia real (posible/parcial): no es lo mismo que
+        // "sin pareo" (donde el sistema nunca encontró nada). Queda como
+        // pendiente de revisión para no perderse entre los que de verdad no
+        // tienen ninguna factura candidata.
+        estado = auto.estado === "posible" || auto.estado === "parcial" ? "pendiente_revision" : auto.estado;
         facturas = [];
-        motivo = "Sugerencia rechazada";
+        motivo = "Sugerencia rechazada — pendiente de revisión";
       } else if (filaRechazo) {
         motivo = `${auto.motivo} · sugerencia nueva tras un rechazo anterior`;
       }
@@ -344,7 +348,7 @@ function MovimientosBancariosPage() {
   const resumen = useMemo(() => {
     const c = {
       total: filtradas.length,
-      pareado: 0, parcial: 0, posible: 0, no_aplica: 0, sin_pareo: 0,
+      pareado: 0, parcial: 0, posible: 0, no_aplica: 0, sin_pareo: 0, pendiente_revision: 0,
       gasto_directo: 0, no_contable: 0, porDeterminar: 0,
       bsPareado: 0, bsGastoDirecto: 0, bsPorDeterminar: 0, bsNoContable: 0,
     } as any;
@@ -538,6 +542,7 @@ function MovimientosBancariosPage() {
     if (e === "pareado") return <Badge className="bg-green-600">Pareado</Badge>;
     if (e === "parcial") return <Badge className="bg-amber-600">Pareado parcial</Badge>;
     if (e === "posible") return <Badge className="bg-orange-500">Posible pareo</Badge>;
+    if (e === "pendiente_revision") return <Badge className="bg-blue-600">Pendiente de revisión</Badge>;
     if (e === "no_aplica")
       return clase === "no_contable"
         ? <Badge variant="outline">No aplica (no contable)</Badge>
@@ -589,12 +594,13 @@ function MovimientosBancariosPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-7">
         <Kpi label="Total movimientos" value={resumen.total} />
         <Kpi label="Pareados" value={resumen.pareado} tone="text-green-600" />
         <Kpi label="Pareo parcial" value={resumen.parcial} tone="text-amber-600" />
         <Kpi label="Posible pareo" value={resumen.posible} tone="text-orange-600" />
         <Kpi label="Gasto directo (sin factura)" value={resumen.gasto_directo} tone="text-muted-foreground" />
+        <Kpi label="Pendiente de revisión" value={resumen.pendiente_revision} tone="text-blue-600" highlight={resumen.pendiente_revision > 0} />
         <Kpi label="Sin pareo" value={resumen.sin_pareo} tone="text-destructive" highlight={resumen.sin_pareo > 0} />
       </div>
 
@@ -631,6 +637,7 @@ function MovimientosBancariosPage() {
                 <SelectItem value="parcial">Pareado parcial</SelectItem>
                 <SelectItem value="posible">Posible pareo</SelectItem>
                 <SelectItem value="no_aplica">Gasto directo / no aplica</SelectItem>
+                <SelectItem value="pendiente_revision">Pendiente de revisión</SelectItem>
                 <SelectItem value="sin_pareo">Sin pareo</SelectItem>
               </SelectContent>
             </Select>

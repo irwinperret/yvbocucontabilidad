@@ -231,13 +231,14 @@ export async function guardarVinculosConciliacion(
 // ─────────────────────────────────────────────────────────────
 
 /** Estados que el usuario puede fijar manualmente sobre un movimiento. */
-export type EstadoManual = "gasto_directo" | "no_contable" | "sin_pareo" | "pareado";
+export type EstadoManual = "gasto_directo" | "no_contable" | "sin_pareo" | "pareado" | "pendiente_revision";
 
 export const ESTADO_MANUAL_LABEL: Record<EstadoManual, string> = {
   gasto_directo: "Gasto directo (sin factura)",
   no_contable: "No aplica (no contable)",
   sin_pareo: "Sin pareo (revisado)",
   pareado: "Pareado (sin factura)",
+  pendiente_revision: "Pendiente de revisión",
 };
 
 /** Estados manuales válidos, incluyendo el legado 'no_aplica'. */
@@ -247,6 +248,7 @@ export const ESTADOS_MANUALES = [
   "no_aplica",
   "sin_pareo",
   "pareado",
+  "pendiente_revision",
 ] as const;
 
 /** Normaliza el estado legado 'no_aplica' al nuevo esquema. */
