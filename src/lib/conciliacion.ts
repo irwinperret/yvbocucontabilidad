@@ -109,6 +109,25 @@ const CUENTAS_SIN_FACTURA_FIJAS = new Set([
 /** Servicios públicos: se cruzan con la referencia bancaria, no con factura. */
 export const CUENTAS_SERVICIOS = new Set(["9.3", "9.4", "9.7"]);
 
+/**
+ * Cuentas que, al importarse desde movimientos bancarios, se marcan
+ * automáticamente como "Gasto directo (sin factura)" en la conciliación:
+ * nunca van a tener una factura de Xetux asociada, así que no tiene sentido
+ * dejarlas pendientes de revisión.
+ */
+export const CUENTAS_GASTO_DIRECTO_AUTO = new Set([
+  "1.7", // Devoluciones / Notas de crédito
+  "4.5", // Transporte
+  "9.4", // Internet
+  "9.5", // Teléfono
+  "9.8", // Mantenimiento y Reparaciones
+]);
+
+/** ¿Esta cuenta se concilia automáticamente como gasto directo sin factura? */
+export function esGastoDirectoAuto(codigo?: string | null): boolean {
+  return CUENTAS_GASTO_DIRECTO_AUTO.has(String(codigo ?? "").trim());
+}
+
 /** ¿Esta cuenta nunca va a tener una factura comercial asociada? */
 export function cuentaSinFactura(codigo?: string | null): boolean {
   const c = String(codigo ?? "").trim();

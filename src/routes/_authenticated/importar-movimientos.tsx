@@ -23,9 +23,10 @@ import {
   normalizarCodigo,
   cuentaSinFactura,
   cuentaServicio,
+  esGastoDirectoAuto,
   monedaBase,
   limpiarReferencia,
-
+  marcarEstadoConciliacion,
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
@@ -649,6 +650,16 @@ function ImportarMovimientosInner() {
 
           if (error) throw new Error(error.message);
           if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+          // Cuentas que por naturaleza nunca van a tener factura de Xetux (servicios,
+          // transporte, mantenimiento, devoluciones) quedan conciliadas de una vez
+          // como "gasto directo", sin esperar revisión manual.
+          if (tx && esGastoDirectoAuto(m.cuentaCodigo)) {
+            await marcarEstadoConciliacion({
+              movimientoId: (tx as any).id,
+              estado: "gasto_directo",
+              userId: user.id,
+            });
+          }
           if (noAplica) noAplicaCount++; else sinFactura++;
           importados.add(bankRow.id);
           setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
