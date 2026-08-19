@@ -31,16 +31,32 @@ export function rangoDePeriodo(periodo: string): { primero: string; ultimo: stri
   return { primero, ultimo };
 }
 
-/** ¿Este tipo de reporte se importó (import no revertido) para este periodo? */
+/** Día mínimo de cobertura para dar un periodo por importado. */
+export const DIA_COBERTURA_MINIMA = 22;
+
+/** Fecha (YYYY-MM-DD) hasta la que debe llegar la importación para considerarse completa. */
+export function fechaCoberturaMinima(periodo: string): string {
+  const { ultimo } = rangoDePeriodo(periodo);
+  const objetivo = `${periodo}-${String(DIA_COBERTURA_MINIMA).padStart(2, "0")}`;
+  return objetivo > ultimo ? ultimo : objetivo;
+}
+
+/**
+ * ¿Este tipo de reporte se importó para este periodo con cobertura suficiente?
+ * No basta con tocar el mes: alguna importación no revertida debe cubrir
+ * hasta al menos el día 22 (o el último día del mes si es más corto).
+ */
 export function tipoImportadoEnPeriodo(imports: ImportacionRow[], tipo: TipoImportacion, periodo: string): boolean {
   const { primero, ultimo } = rangoDePeriodo(periodo);
+  const minima = fechaCoberturaMinima(periodo);
   return imports.some(
     (imp) =>
       imp.tipo === tipo &&
       imp.fecha_desde != null &&
       imp.fecha_hasta != null &&
       imp.fecha_desde <= ultimo &&
-      imp.fecha_hasta >= primero,
+      imp.fecha_hasta >= primero &&
+      imp.fecha_hasta >= minima,
   );
 }
 
