@@ -435,18 +435,23 @@ function ImportarVentasPage() {
         const refIdent = r.numero_factura || r.numero_orden;
         const notasBase = `Xetux · ${r.cliente}${r.forma_pago_raw ? ` · ${r.forma_pago_raw}` : ""}${notasExtra}`;
 
+        // Descuentos (1.6) y notas de crédito/devoluciones (1.7) son contra-ingreso:
+        // se guardan con signo negativo para restar del total de Ingresos en el G&P,
+        // en vez de sumar como si fueran una venta más.
+        const signo = r.clase === "descuento" || r.clase === "nota_credito" ? -1 : 1;
+
         const payload = {
           fecha: r.fecha,
           cuenta_codigo,
           centro_costo: centroRow as any,
-          monto_bs: baseBs,
-          monto_base_bs: baseBs,
+          monto_bs: signo * baseBs,
+          monto_base_bs: signo * baseBs,
           iva_bs: 0,
           iva_aplica: false,
           tipo_iva: null,
           tasa_bcv: tasaBcv,
           tasa_paralela: tasas.paralela || null,
-          monto_usd: baseUsdPar,
+          monto_usd: signo * baseUsdPar,
           metodo_pago: metodo as any,
           numero_factura: r.numero_factura || null,
           numero_orden: r.numero_orden || null,

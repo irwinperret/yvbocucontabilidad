@@ -36,6 +36,7 @@ import {
   clasificarPagoPersonal,
   esPagoPersonal,
   descargaPasivo,
+  requiereSignoNegativo,
   tipoRegistroDeCuenta,
   TIPO_REGISTRO_LABEL,
   type TipoRegistro,
@@ -608,8 +609,10 @@ function ImportarMovimientosInner() {
 
           // Propinas (13.1) y bono 10% (13.4) ya se devengaron al importar las
           // ventas: el pago bancario descarga el pasivo (signo negativo) y no
-          // vuelve a registrar gasto.
-          const signo = descargaPasivo(m.cuentaCodigo) ? -1 : 1;
+          // vuelve a registrar gasto. Devoluciones/NC (1.7) y descuentos (1.6)
+          // son contra-ingreso: también van con signo negativo para restar del
+          // total de Ingresos en vez de sumar como si fueran una venta más.
+          const signo = requiereSignoNegativo(m.cuentaCodigo) ? -1 : 1;
           const montoBsFirmado = +(signo * montoBs).toFixed(2);
           const montoUsdFirmado = +(signo * montoUsdMov).toFixed(2);
 

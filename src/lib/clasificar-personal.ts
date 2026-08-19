@@ -133,3 +133,16 @@ export function descargaPasivo(codigo?: string | null): boolean {
   const c = String(codigo ?? "").trim();
   return c === CUENTA_PROPINAS || c === CUENTA_BONO_10;
 }
+
+/**
+ * Cuentas contra-ingreso: Descuentos sobre ventas y Devoluciones / Notas de
+ * crédito. Reducen el total de Ingresos en el G&P, así que deben guardarse
+ * con signo negativo (no positivo como un ingreso normal).
+ */
+export const CUENTAS_CONTRA_INGRESO = new Set(["1.6", "1.7"]);
+
+/** ¿El movimiento debe guardarse con signo negativo? (pasivo descargado o contra-ingreso) */
+export function requiereSignoNegativo(codigo?: string | null): boolean {
+  const c = String(codigo ?? "").trim();
+  return descargaPasivo(c) || CUENTAS_CONTRA_INGRESO.has(c);
+}

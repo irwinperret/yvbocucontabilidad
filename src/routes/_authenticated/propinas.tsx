@@ -185,8 +185,9 @@ function PropinasPage() {
     });
     const ventasPorMes: Record<number, number> = {};
     (ventasMensual ?? []).forEach((v) => {
-      const signo = v.cuenta_codigo === "1.6" || v.cuenta_codigo === "1.7" ? -1 : 1;
-      ventasPorMes[v.mes] = (ventasPorMes[v.mes] ?? 0) + signo * Number(v.base_usd ?? 0);
+      // Descuentos (1.6) y devoluciones/NC (1.7) ya vienen con signo negativo
+      // desde el origen (import), así que sumar directo ya resta correctamente.
+      ventasPorMes[v.mes] = (ventasPorMes[v.mes] ?? 0) + Number(v.base_usd ?? 0);
     });
     return Object.values(out).map((r) => {
       const ventas = ventasPorMes[r.mes] ?? 0;
