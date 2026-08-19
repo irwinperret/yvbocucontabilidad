@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent } from "@/components/ui/card";
-import { CierrePendienteBanner } from "@/components/cierre-pendiente-banner";
+import { ChecklistMensualCard } from "@/components/checklist-mensual-card";
+import { ConciliacionPendienteCard } from "@/components/conciliacion-pendiente-card";
 import logoYV from "@/assets/logo-yv.webp";
 import logoBocu from "@/assets/logo-bocu.png";
 
@@ -17,7 +18,6 @@ function InicioPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <CierrePendienteBanner />
       {/* Hero · marcas */}
       <div className="relative overflow-hidden rounded-lg border bg-gradient-to-br from-neutral-50 to-neutral-100 dark:from-neutral-900 dark:to-neutral-950">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />
@@ -40,6 +40,9 @@ function InicioPage() {
         <h1 className="text-2xl font-bold tracking-tight">{saludo}, {user?.email?.split("@")[0]}</h1>
         <p className="text-sm text-muted-foreground capitalize">{fechaTexto}</p>
       </div>
+
+      <ChecklistMensualCard />
+      <ConciliacionPendienteCard />
 
       <Card className="bg-muted/30 border-muted">
         <CardContent className="p-6 space-y-3 text-[15px] leading-relaxed">
