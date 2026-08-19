@@ -368,3 +368,98 @@ function buildFCComparativo(
   for (let i = 3; i <= 15; i++) neto.getCell(i).numFmt = USD_FMT;
   styleTotal(neto, true);
 }
+
+// ============ COGS por mes export ============
+export type RowResumenCogs = {
+  periodo: string;
+  estado: string;
+  inventarioInicialUsd: number | null;
+  comprasNetoUsd: number | null;
+  inventarioFinalUsd: number | null;
+  cogsUsd: number | null;
+  inventarioInicialBs: number | null;
+  comprasNetoBs: number | null;
+  inventarioFinalBs: number | null;
+  cogsBs: number | null;
+};
+
+export type RowDetalleCompraCogs = {
+  periodo: string;
+  fecha: string;
+  proveedor: string;
+  numeroFactura: string;
+  montoBs: number;
+  tasaBcv: number | null;
+  montoUsdBcv: number | null;
+  origen: "Xetux (importación de compras)" | "Movimientos bancarios" | "Manual";
+  estado: string;
+};
+
+const BS_FMT = "#,##0.00";
+const RATE_FMT = "#,##0.0000";
+
+/**
+ * Exporta el historial completo de COGS por mes (resumen + detalle de
+ * compras clasificado por origen: Xetux, movimientos bancarios o manual).
+ */
+export function exportCogsPorMes(opts: { resumen: RowResumenCogs[]; detalle: RowDetalleCompraCogs[] }) {
+  const { resumen, detalle } = opts;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Yvbocu Contabilidad";
+  wb.created = new Date();
+
+  const ws1 = wb.addWorksheet("Resumen por mes");
+  ws1.columns = [
+    { header: "Período", key: "periodo", width: 12 },
+    { header: "Estado", key: "estado", width: 12 },
+    { header: "Inventario inicial USD", key: "inventarioInicialUsd", width: 20 },
+    { header: "Compras neto USD (BCV)", key: "comprasNetoUsd", width: 22 },
+    { header: "Inventario final USD", key: "inventarioFinalUsd", width: 20 },
+    { header: "COGS USD", key: "cogsUsd", width: 16 },
+    { header: "Inventario inicial Bs", key: "inventarioInicialBs", width: 20 },
+    { header: "Compras neto Bs", key: "comprasNetoBs", width: 18 },
+    { header: "Inventario final Bs", key: "inventarioFinalBs", width: 20 },
+    { header: "COGS Bs", key: "cogsBs", width: 18 },
+  ];
+  styleHeader(ws1.getRow(1));
+  const usdKeys: (keyof RowResumenCogs)[] = ["inventarioInicialUsd", "comprasNetoUsd", "inventarioFinalUsd", "cogsUsd"];
+  const bsKeys: (keyof RowResumenCogs)[] = ["inventarioInicialBs", "comprasNetoBs", "inventarioFinalBs", "cogsBs"];
+  resumen.forEach((r) => {
+    const row = ws1.addRow(r);
+    usdKeys.forEach((k) => {
+      const cell = row.getCell(k as string);
+      if (typeof cell.value === "number") cell.numFmt = USD_FMT;
+    });
+    bsKeys.forEach((k) => {
+      const cell = row.getCell(k as string);
+      if (typeof cell.value === "number") cell.numFmt = BS_FMT;
+    });
+  });
+
+  const ws2 = wb.addWorksheet("Detalle de compras");
+  ws2.columns = [
+    { header: "Período", key: "periodo", width: 12 },
+    { header: "Fecha", key: "fecha", width: 12 },
+    { header: "Proveedor", key: "proveedor", width: 32 },
+    { header: "Número de factura", key: "numeroFactura", width: 20 },
+    { header: "Monto Bs", key: "montoBs", width: 16 },
+    { header: "Tasa BCV", key: "tasaBcv", width: 14 },
+    { header: "Monto USD (BCV)", key: "montoUsdBcv", width: 18 },
+    { header: "Origen", key: "origen", width: 30 },
+    { header: "Estado", key: "estado", width: 18 },
+  ];
+  styleHeader(ws2.getRow(1));
+  detalle.forEach((r) => {
+    const row = ws2.addRow(r);
+    const bsCell = row.getCell("montoBs");
+    if (typeof bsCell.value === "number") bsCell.numFmt = BS_FMT;
+    const usdCell = row.getCell("montoUsdBcv");
+    if (typeof usdCell.value === "number") usdCell.numFmt = USD_FMT;
+    const tasaCell = row.getCell("tasaBcv");
+    if (typeof tasaCell.value === "number") tasaCell.numFmt = RATE_FMT;
+  });
+
+  wb.xlsx.writeBuffer().then((buf) => {
+    download(buf, `COGS_por_mes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  });
+}

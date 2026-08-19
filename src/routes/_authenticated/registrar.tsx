@@ -16,7 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Pencil, ChevronDown, ChevronRight } from "lucide-react";
+import { Pencil, ChevronDown, ChevronRight, Download } from "lucide-react";
+import { exportCogsPorMes, type RowResumenCogs, type RowDetalleCompraCogs } from "@/lib/excel-export";
 import { fmtBs, fmtUsd, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
@@ -3915,6 +3916,97 @@ function CierreForm() {
 
   const mostrarRecordatorioAnterior = !cierreAnterior && (comprasAnteriorCount ?? 0) > 0 && (compras?.length ?? 0) > 0;
 
+  const [exportandoCogs, setExportandoCogs] = useState(false);
+
+  /** Clasifica el origen de una compra según su referencia. */
+  const origenDeReferencia = (referencia: string | null | undefined): RowDetalleCompraCogs["origen"] => {
+    const r = String(referencia ?? "");
+    if (r === "xetux") return "Xetux (importación de compras)";
+    if (r.startsWith("BANK:")) return "Movimientos bancarios";
+    return "Manual";
+  };
+
+  const exportarCogsExcel = async () => {
+    setExportandoCogs(true);
+    try {
+      const [{ data: cierres }, { data: snapshots }, { data: comprasTodas }, { data: terceros }, { data: cxpsTodas }] =
+        await Promise.all([
+          supabase.from("cierres_de_mes").select("*").order("periodo"),
+          supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd"),
+          supabase
+            .from("transacciones")
+            .select("fecha, referencia, tercero_id, numero_factura, monto_base_bs, tasa_bcv")
+            .eq("cuenta_codigo", "2.1")
+            .neq("standby", true)
+            .order("fecha"),
+          supabase.from("terceros").select("id, razon_social"),
+          supabase.from("cuentas_por_pagar").select("tercero_id, numero_factura, estado, monto_pendiente_bs"),
+        ]);
+
+      const inicialPorPeriodo: Record<string, number | null> = {};
+      const finalPorPeriodo: Record<string, number | null> = {};
+      (snapshots ?? []).forEach((s: any) => {
+        const usd = Number(s.monto_usd);
+        if (s.tipo === "inicial") inicialPorPeriodo[s.periodo] = Number.isFinite(usd) ? usd : null;
+        if (s.tipo === "final") finalPorPeriodo[s.periodo] = Number.isFinite(usd) ? usd : null;
+      });
+
+      const resumen: RowResumenCogs[] = (cierres ?? []).map((c: any) => ({
+        periodo: c.periodo,
+        estado: c.estado === "cerrado" ? "Cerrado" : "Abierto",
+        inventarioInicialUsd: inicialPorPeriodo[c.periodo] ?? null,
+        comprasNetoUsd:
+          Number.isFinite(Number(c.cogs_usd)) &&
+          inicialPorPeriodo[c.periodo] != null &&
+          finalPorPeriodo[c.periodo] != null
+            ? +(Number(c.cogs_usd) - Number(inicialPorPeriodo[c.periodo]) + Number(finalPorPeriodo[c.periodo])).toFixed(2)
+            : null,
+        inventarioFinalUsd: finalPorPeriodo[c.periodo] ?? null,
+        cogsUsd: Number.isFinite(Number(c.cogs_usd)) ? Number(c.cogs_usd) : null,
+        inventarioInicialBs: Number.isFinite(Number(c.inventario_inicial_bs)) ? Number(c.inventario_inicial_bs) : null,
+        comprasNetoBs: Number.isFinite(Number(c.compras_mes_bs)) ? Number(c.compras_mes_bs) : null,
+        inventarioFinalBs: Number.isFinite(Number(c.inventario_final_bs)) ? Number(c.inventario_final_bs) : null,
+        cogsBs: Number.isFinite(Number(c.cogs_bs)) ? Number(c.cogs_bs) : null,
+      }));
+
+      const terceroPorId: Record<string, string> = {};
+      (terceros ?? []).forEach((t: any) => { terceroPorId[t.id] = t.razon_social; });
+
+      const cxpPorPar: Record<string, any> = {};
+      (cxpsTodas ?? []).forEach((c: any) => {
+        if (c.tercero_id && c.numero_factura) cxpPorPar[`${c.tercero_id}::${c.numero_factura}`] = c;
+      });
+
+      const detalle: RowDetalleCompraCogs[] = (comprasTodas ?? []).map((r: any) => {
+        const tasa = Number(r.tasa_bcv) || 0;
+        const montoBs = Number(r.monto_base_bs) || 0;
+        const cxp = r.tercero_id && r.numero_factura ? cxpPorPar[`${r.tercero_id}::${r.numero_factura}`] : null;
+        const estado = !cxp
+          ? "Sin CxP registrada"
+          : cxp.estado === "pagada" || Number(cxp.monto_pendiente_bs) <= 0.01
+          ? "Pagada"
+          : "CxP pendiente";
+        return {
+          periodo: String(r.fecha ?? "").slice(0, 7),
+          fecha: r.fecha,
+          proveedor: r.tercero_id ? (terceroPorId[r.tercero_id] ?? "") : "",
+          numeroFactura: r.numero_factura ?? "",
+          montoBs,
+          tasaBcv: tasa > 0 ? tasa : null,
+          montoUsdBcv: tasa > 0 ? +(montoBs / tasa).toFixed(2) : null,
+          origen: origenDeReferencia(r.referencia),
+          estado,
+        };
+      });
+
+      exportCogsPorMes({ resumen, detalle });
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo exportar el Excel");
+    } finally {
+      setExportandoCogs(false);
+    }
+  };
+
   const reabrirMes = async () => {
     if (!cierreActual) return;
     if (
@@ -4512,8 +4604,11 @@ function CierreForm() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-base">COGS, Inventario y Cierre</CardTitle>
+        <Button type="button" size="sm" variant="outline" onClick={exportarCogsExcel} disabled={exportandoCogs}>
+          <Download className="h-4 w-4 mr-2" /> {exportandoCogs ? "Generando…" : "Exportar a Excel"}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-6">
         {cierreActual ? (
