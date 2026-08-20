@@ -113,6 +113,8 @@ type Match = {
   duplicadoActualizable?: boolean;
   existenteId?: string | null;
   existenteCuentaAnterior?: string | null;
+  notasNuevas?: string;
+  detalleNuevo?: string;
   /** Operación de cambio: contrapartida recibida (la otra pata). */
   esCambio?: boolean;
   cambioRecibido?: string;
@@ -345,13 +347,18 @@ function ImportarMovimientosInner() {
       // id y cuenta_codigo para poder ofrecer "actualizar" cuando la cuenta
       // sugerida en el archivo cambió respecto a lo ya guardado.
       const huellas = Array.from(new Set(parsed.map((p) => p.huella)));
-      const yaImportadas = new Map<string, { id: string; cuenta_codigo: string | null }>();
+      const yaImportadas = new Map<string, { id: string; cuenta_codigo: string | null; notas: string | null; detalle: string | null }>();
       for (let i = 0; i < huellas.length; i += 200) {
         const chunk = huellas.slice(i, i + 200);
-        const { data } = await supabase.from("transacciones").select("id, referencia, cuenta_codigo").in("referencia", chunk);
+        const { data } = await supabase.from("transacciones").select("id, referencia, cuenta_codigo, notas, detalle").in("referencia", chunk);
         for (const r of data ?? []) {
           const ref = (r as any).referencia;
-          if (ref) yaImportadas.set(ref, { id: (r as any).id, cuenta_codigo: (r as any).cuenta_codigo ?? null });
+          if (ref) yaImportadas.set(ref, {
+            id: (r as any).id,
+            cuenta_codigo: (r as any).cuenta_codigo ?? null,
+            notas: (r as any).notas ?? null,
+            detalle: (r as any).detalle ?? null,
+          });
         }
       }
       const vistas = new Set<string>();
@@ -386,14 +393,33 @@ function ImportarMovimientosInner() {
         const duplicado = !!existente || vistas.has(bankRow.huella);
         vistas.add(bankRow.huella);
         const cambio = cuentaCodigo === CUENTA_CAMBIO;
-        // Duplicado "sin factura" (no matcheó ninguna CxP) cuya cuenta sugerida
-        // en este archivo es distinta a la ya guardada: se puede actualizar en
-        // vez de reimportarse.
+
+        // Reconstruye el mismo texto que se generaría al importar esta fila
+        // (igual que en confirmar()), para comparar contra lo ya guardado y
+        // detectar cualquier cambio relevante, no solo la cuenta: corregir el
+        // concepto, la categoría o la cuenta sugerida en el archivo cuenta.
+        const noAplicaCalc = !requiereCxP(bankRow.categoria) && (cuentaSinFactura(cuentaCodigo) || cuentaServicio(cuentaCodigo));
+        const detalleCalc = noAplicaCalc
+          ? (cuentaServicio(cuentaCodigo)
+              ? `Servicio público · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+              : bankRow.concepto)
+          : `${SIN_FACTURA_PREFIX} · ${bankRow.concepto}`;
+        const notasCalc = (noAplicaCalc
+          ? `Conciliación bancaria (no aplica factura) · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+          : `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+        ).slice(0, 255);
+
+        // Duplicado "sin factura" (no matcheó ninguna CxP) donde algo relevante
+        // cambió respecto a lo ya guardado: se puede actualizar en vez de
+        // reimportarse. No cubre el caso de que la fila pase a matchear una
+        // CxP nueva (eso requiere un tipo de registro distinto).
         const duplicadoActualizable =
           !!existente &&
           auto.length === 0 &&
           !!cuentaCodigo &&
-          existente.cuenta_codigo !== cuentaCodigo;
+          (existente.cuenta_codigo !== cuentaCodigo ||
+            existente.notas !== notasCalc ||
+            existente.detalle !== detalleCalc.slice(0, 255));
         return {
           bankRow,
           cxps: cambio ? [] : auto,
@@ -407,6 +433,8 @@ function ImportarMovimientosInner() {
           duplicadoActualizable,
           existenteId: existente?.id ?? null,
           existenteCuentaAnterior: existente?.cuenta_codigo ?? null,
+          notasNuevas: notasCalc,
+          detalleNuevo: detalleCalc.slice(0, 255),
           esCambio: cambio,
           cambioRecibido: "",
           cambioMoneda: bankRow.moneda === "USD" ? "Bs" : "USD",
@@ -570,7 +598,11 @@ function ImportarMovimientosInner() {
           const antes = { cuenta_codigo: m.existenteCuentaAnterior };
           const { data: updated, error: errUpd } = await supabase
             .from("transacciones")
-            .update({ cuenta_codigo: m.cuentaCodigo } as any)
+            .update({
+              cuenta_codigo: m.cuentaCodigo,
+              notas: m.notasNuevas,
+              detalle: m.detalleNuevo,
+            } as any)
             .eq("id", m.existenteId)
             .select()
             .maybeSingle();
