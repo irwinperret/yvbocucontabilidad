@@ -117,7 +117,7 @@ export const CUENTAS_SERVICIOS = new Set(["9.3", "9.4", "9.7"]);
  */
 export const CUENTAS_GASTO_DIRECTO_AUTO = new Set([
   "1.7", // Devoluciones / Notas de crédito
-  "4.5", // Transporte
+  "3.23", // Transporte (antes 4.5, ahora dentro de Nómina)
   "9.4", // Internet
   "9.5", // Teléfono
   "9.8", // Mantenimiento y Reparaciones

@@ -32,7 +32,7 @@ export function rangoDePeriodo(periodo: string): { primero: string; ultimo: stri
 }
 
 /** Día mínimo de cobertura para dar un periodo por importado. */
-export const DIA_COBERTURA_MINIMA = 22;
+export const DIA_COBERTURA_MINIMA = 25;
 
 /** Fecha (YYYY-MM-DD) hasta la que debe llegar la importación para considerarse completa. */
 export function fechaCoberturaMinima(periodo: string): string {
