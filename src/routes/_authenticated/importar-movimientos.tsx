@@ -108,6 +108,11 @@ type Match = {
   montoBs: number;
   cuentaCodigo: string | null;
   duplicado: boolean;
+  /** Duplicado cuya cuenta sugerida en el archivo difiere de la ya guardada:
+   * en vez de importarse de nuevo, se ofrece actualizar la cuenta existente. */
+  duplicadoActualizable?: boolean;
+  existenteId?: string | null;
+  existenteCuentaAnterior?: string | null;
   /** Operación de cambio: contrapartida recibida (la otra pata). */
   esCambio?: boolean;
   cambioRecibido?: string;
@@ -336,13 +341,18 @@ function ImportarMovimientosInner() {
         for (let l = 3; l < key.length; l++) push("~" + key.slice(key.length - l), c);
       }
 
-      // Anti-duplicados: huellas ya registradas en transacciones
+      // Anti-duplicados: huellas ya registradas en transacciones. Se trae también
+      // id y cuenta_codigo para poder ofrecer "actualizar" cuando la cuenta
+      // sugerida en el archivo cambió respecto a lo ya guardado.
       const huellas = Array.from(new Set(parsed.map((p) => p.huella)));
-      const yaImportadas = new Set<string>();
+      const yaImportadas = new Map<string, { id: string; cuenta_codigo: string | null }>();
       for (let i = 0; i < huellas.length; i += 200) {
         const chunk = huellas.slice(i, i + 200);
-        const { data } = await supabase.from("transacciones").select("referencia").in("referencia", chunk);
-        for (const r of data ?? []) if ((r as any).referencia) yaImportadas.add((r as any).referencia);
+        const { data } = await supabase.from("transacciones").select("id, referencia, cuenta_codigo").in("referencia", chunk);
+        for (const r of data ?? []) {
+          const ref = (r as any).referencia;
+          if (ref) yaImportadas.set(ref, { id: (r as any).id, cuenta_codigo: (r as any).cuenta_codigo ?? null });
+        }
       }
       const vistas = new Set<string>();
 
@@ -372,19 +382,31 @@ function ImportarMovimientosInner() {
         // Con varios códigos distintos se emparejan todas las facturas halladas;
         // con un solo código ambiguo (varias candidatas) se deja elegir al usuario.
         const auto = found.length === 1 || bankRow.codigos.length > 1 ? found : [];
-        const duplicado = yaImportadas.has(bankRow.huella) || vistas.has(bankRow.huella);
+        const existente = yaImportadas.get(bankRow.huella);
+        const duplicado = !!existente || vistas.has(bankRow.huella);
         vistas.add(bankRow.huella);
         const cambio = cuentaCodigo === CUENTA_CAMBIO;
+        // Duplicado "sin factura" (no matcheó ninguna CxP) cuya cuenta sugerida
+        // en este archivo es distinta a la ya guardada: se puede actualizar en
+        // vez de reimportarse.
+        const duplicadoActualizable =
+          !!existente &&
+          auto.length === 0 &&
+          !!cuentaCodigo &&
+          existente.cuenta_codigo !== cuentaCodigo;
         return {
           bankRow,
           cxps: cambio ? [] : auto,
           manual: false,
           // Las operaciones de cambio requieren que el usuario indique la
           // contrapartida (lo recibido) antes de poder confirmarse.
-          selected: !duplicado && !cambio && (auto.length > 0 || !!cuentaCodigo),
+          selected: duplicadoActualizable || (!duplicado && !cambio && (auto.length > 0 || !!cuentaCodigo)),
           montoBs: Math.abs(bankRow.montoBs || bankRow.montoUsd),
           cuentaCodigo,
           duplicado,
+          duplicadoActualizable,
+          existenteId: existente?.id ?? null,
+          existenteCuentaAnterior: existente?.cuenta_codigo ?? null,
           esCambio: cambio,
           cambioRecibido: "",
           cambioMoneda: bankRow.moneda === "USD" ? "Bs" : "USD",
@@ -393,7 +415,12 @@ function ImportarMovimientosInner() {
       setMatches(initialMatches);
 
       const dups = initialMatches.filter((m) => m.duplicado).length;
-      toast.success(`${parsed.length} movimientos cargados${dups ? ` · ${dups} ya importados` : ""}`);
+      const actualizables = initialMatches.filter((m) => m.duplicadoActualizable).length;
+      toast.success(
+        `${parsed.length} movimientos cargados${dups ? ` · ${dups} ya importados` : ""}${
+          actualizables ? ` · ${actualizables} con cuenta distinta (se pueden actualizar)` : ""
+        }`,
+      );
     } catch (e: any) {
       toast.error(e?.message ?? "Error leyendo archivo");
     }
@@ -475,7 +502,7 @@ function ImportarMovimientosInner() {
 
   const importable = (m: Match) =>
     m.selected &&
-    !m.duplicado &&
+    (!m.duplicado || m.duplicadoActualizable) &&
     !!m.bankRow.cuentaBancariaId &&
     (m.cxps.length > 0 || !!m.cuentaCodigo) &&
     (!m.esCambio || Number(m.cambioRecibido) > 0);
@@ -517,7 +544,7 @@ function ImportarMovimientosInner() {
       filasLeidas: matches.length,
       userId: user.id,
     });
-    let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0;
+    let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0, actualizados = 0;
     const importados = new Set<string>();
 
     // Catálogo de proveedores para adivinar el tercero de los movimientos
@@ -535,6 +562,29 @@ function ImportarMovimientosInner() {
     for (const m of toImport) {
       try {
         const bankRow = m.bankRow;
+
+        // Duplicado con cuenta distinta: actualizar la transacción existente en
+        // vez de crear una nueva. No se toca monto, fecha ni tasa (ya coinciden,
+        // es lo que definió la huella), solo la clasificación contable.
+        if (m.duplicadoActualizable && m.existenteId) {
+          const antes = { cuenta_codigo: m.existenteCuentaAnterior };
+          const { data: updated, error: errUpd } = await supabase
+            .from("transacciones")
+            .update({ cuenta_codigo: m.cuentaCodigo } as any)
+            .eq("id", m.existenteId)
+            .select()
+            .maybeSingle();
+          if (errUpd) {
+            fail++;
+          } else {
+            actualizados++;
+            if (updated) await logAudit("transacciones", "UPDATE", m.existenteId, antes, updated);
+          }
+          importados.add(bankRow.huella);
+          setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+          continue;
+        }
+
         const rates = await getRatesForDate(bankRow.fecha);
         // Variable independiente según el banco: Bs (BA/BCV/BM/BVC/MERC/CxP) o USD (CASH/BOFA).
         const montoBs =
@@ -784,7 +834,9 @@ function ImportarMovimientosInner() {
     setProgress(null);
     qc.invalidateQueries();
     toast.success(
-      `Facturas pagadas: ${ok} · Parciales: ${partial} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura} · Fallidos: ${fail}`
+      `Facturas pagadas: ${ok} · Parciales: ${partial} · No aplica factura: ${noAplicaCount} · Sin factura: ${sinFactura}${
+        actualizados ? ` · Cuentas actualizadas: ${actualizados}` : ""
+      } · Fallidos: ${fail}`
     );
     if (sinFactura > 0 || noAplicaCount > 0) {
       toast("Movimientos sin factura identificada", {
@@ -855,7 +907,8 @@ function ImportarMovimientosInner() {
   const stats = useMemo(() => {
     const total = rows.length;
     const matched = matches.filter((m) => m.cxps.length > 0).length;
-    const duplicados = matches.filter((m) => m.duplicado).length;
+    const actualizables = matches.filter((m) => m.duplicadoActualizable).length;
+    const duplicados = matches.filter((m) => m.duplicado && !m.duplicadoActualizable).length;
     const sinCuenta = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && !m.cuentaCodigo).length;
     const noAplica = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && noAplicaFactura(m)).length;
     const sinFactura = matches.filter(
@@ -864,7 +917,7 @@ function ImportarMovimientosInner() {
     const selected = matches.filter(importable).length;
     const withAccount = matches.filter((m) => m.bankRow.cuentaBancariaId).length;
     const difTotal = matches.reduce((s, m) => s + (m.duplicado ? 0 : (difBs(m) ?? 0)), 0);
-    return { total, matched, selected, withAccount, duplicados, sinCuenta, sinFactura, noAplica, difTotal };
+    return { total, matched, selected, withAccount, duplicados, actualizables, sinCuenta, sinFactura, noAplica, difTotal };
   }, [rows, matches]);
 
   return (
@@ -905,6 +958,9 @@ function ImportarMovimientosInner() {
               <Badge variant="default">Nuevas seleccionadas: {stats.selected}</Badge>
               {stats.noAplica > 0 && <Badge variant="outline">No aplica factura: {stats.noAplica}</Badge>}
               {stats.duplicados > 0 && <Badge variant="secondary">Ya importadas: {stats.duplicados}</Badge>}
+              {stats.actualizables > 0 && (
+                <Badge className="bg-sky-600">Con cuenta distinta (se actualizan): {stats.actualizables}</Badge>
+              )}
               {stats.sinCuenta > 0 && (
                 <>
                   <Badge variant="destructive">Sin cuenta contable: {stats.sinCuenta}</Badge>
@@ -961,18 +1017,24 @@ function ImportarMovimientosInner() {
                       key={m.bankRow.id}
                       className={
                         "border-t " +
-                        (m.duplicado
+                        (m.duplicado && !m.duplicadoActualizable
                           ? "opacity-50"
-                          : m.cxps.length === 0 && !m.cuentaCodigo
-                            ? "bg-destructive/5"
-                            : "")
+                          : m.duplicadoActualizable
+                            ? "bg-sky-50"
+                            : m.cxps.length === 0 && !m.cuentaCodigo
+                              ? "bg-destructive/5"
+                              : "")
                       }
                     >
                       <td className="p-2">
                         <Checkbox
-                          checked={m.selected && !m.duplicado}
+                          checked={m.selected && (!m.duplicado || m.duplicadoActualizable)}
                           onCheckedChange={(v) => setMatchSelected(m.bankRow.id, Boolean(v))}
-                          disabled={m.duplicado || !m.bankRow.cuentaBancariaId || (m.cxps.length === 0 && !m.cuentaCodigo)}
+                          disabled={
+                            (m.duplicado && !m.duplicadoActualizable) ||
+                            !m.bankRow.cuentaBancariaId ||
+                            (m.cxps.length === 0 && !m.cuentaCodigo)
+                          }
                         />
                       </td>
                       <td className="p-2">{fmtDate(m.bankRow.fecha)}</td>
@@ -998,7 +1060,14 @@ function ImportarMovimientosInner() {
                           {m.bankRow.categoria && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{m.bankRow.categoria}</Badge>
                           )}
-                          {m.duplicado && <Badge variant="secondary" className="text-[9px] px-1 py-0">Ya importado</Badge>}
+                          {m.duplicado && !m.duplicadoActualizable && (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0">Ya importado</Badge>
+                          )}
+                          {m.duplicadoActualizable && (
+                            <Badge className="bg-sky-600 text-[9px] px-1 py-0">
+                              Actualizar cuenta: {m.existenteCuentaAnterior ?? "—"} → {m.cuentaCodigo}
+                            </Badge>
+                          )}
                           {!m.duplicado && m.cxps.length === 0 && requiereCxP(m.bankRow.categoria) && (
                             <Badge className="text-[9px] px-1 py-0 bg-blue-600 text-white hover:bg-blue-600">
                               Requiere emparejamiento con CxP
