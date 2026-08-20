@@ -24,7 +24,13 @@ export function huellaBancaria(args: {
   monto: number;
 }): string {
   const banco = String(args.banco ?? "").trim().toUpperCase();
-  const ref = limpiarReferencia(args.referencia).toUpperCase().replace(/\s+/g, "");
+  // Se normalizan también los ceros a la izquierda y separadores: algunos bancos
+  // exportan la misma referencia como "00618486" y otras veces como "618486",
+  // lo que hacía que el mismo movimiento se importara dos veces.
+  const ref = limpiarReferencia(args.referencia)
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, "")
+    .replace(/^0+(?=[0-9A-Z])/, "");
   const monto = Math.abs(Number(args.monto) || 0).toFixed(2);
   return `BANK:${banco}|${args.fecha}|${ref || "SINREF"}|${monto}`;
 }
