@@ -42,22 +42,23 @@ export function fechaCoberturaMinima(periodo: string): string {
 }
 
 /**
- * ¿Este tipo de reporte se importó para este periodo con cobertura suficiente?
- * No basta con tocar el mes: alguna importación no revertida debe cubrir
- * hasta al menos el día 22 (o el último día del mes si es más corto).
+ * ¿Este tipo de reporte se importó (import no revertido) para este periodo,
+ * con cobertura suficiente (al menos hasta el día 22, o el último día del
+ * mes si es más corto)? Un import que solo cubre los primeros días del mes
+ * no cuenta como "completo" todavía. Si hay varias importaciones del mismo
+ * tipo que en conjunto llegan hasta ese día (por ejemplo, dos cargas
+ * parciales), también cuenta.
  */
 export function tipoImportadoEnPeriodo(imports: ImportacionRow[], tipo: TipoImportacion, periodo: string): boolean {
   const { primero, ultimo } = rangoDePeriodo(periodo);
   const minima = fechaCoberturaMinima(periodo);
-  return imports.some(
-    (imp) =>
-      imp.tipo === tipo &&
-      imp.fecha_desde != null &&
-      imp.fecha_hasta != null &&
-      imp.fecha_desde <= ultimo &&
-      imp.fecha_hasta >= primero &&
-      imp.fecha_hasta >= minima,
-  );
+  let maxHasta: string | null = null;
+  for (const imp of imports) {
+    if (imp.tipo !== tipo || imp.fecha_desde == null || imp.fecha_hasta == null) continue;
+    if (imp.fecha_desde > ultimo || imp.fecha_hasta < primero) continue; // no toca este periodo
+    if (maxHasta == null || imp.fecha_hasta > maxHasta) maxHasta = imp.fecha_hasta;
+  }
+  return maxHasta != null && maxHasta >= minima;
 }
 
 /** Trae todas las importaciones no revertidas (para el checklist y el historial). */
