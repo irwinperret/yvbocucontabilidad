@@ -115,6 +115,8 @@ type Match = {
   existenteCuentaAnterior?: string | null;
   notasNuevas?: string;
   detalleNuevo?: string;
+  montoCambio?: boolean;
+  montoNuevoBs?: number;
   /** Operación de cambio: contrapartida recibida (la otra pata). */
   esCambio?: boolean;
   cambioRecibido?: string;
@@ -344,13 +346,14 @@ function ImportarMovimientosInner() {
       }
 
       // Anti-duplicados: huellas ya registradas en transacciones. Se trae también
-      // id y cuenta_codigo para poder ofrecer "actualizar" cuando la cuenta
-      // sugerida en el archivo cambió respecto a lo ya guardado.
+      // id, cuenta_codigo, notas y detalle para poder ofrecer "actualizar" cuando
+      // algo cambió respecto a lo ya guardado.
       const huellas = Array.from(new Set(parsed.map((p) => p.huella)));
-      const yaImportadas = new Map<string, { id: string; cuenta_codigo: string | null; notas: string | null; detalle: string | null }>();
+      type Existente = { id: string; cuenta_codigo: string | null; notas: string | null; detalle: string | null; monto_bs: number | null; monto_usd: number | null };
+      const yaImportadas = new Map<string, Existente>();
       for (let i = 0; i < huellas.length; i += 200) {
         const chunk = huellas.slice(i, i + 200);
-        const { data } = await supabase.from("transacciones").select("id, referencia, cuenta_codigo, notas, detalle").in("referencia", chunk);
+        const { data } = await supabase.from("transacciones").select("id, referencia, cuenta_codigo, notas, detalle, monto_bs, monto_usd").in("referencia", chunk);
         for (const r of data ?? []) {
           const ref = (r as any).referencia;
           if (ref) yaImportadas.set(ref, {
@@ -358,6 +361,48 @@ function ImportarMovimientosInner() {
             cuenta_codigo: (r as any).cuenta_codigo ?? null,
             notas: (r as any).notas ?? null,
             detalle: (r as any).detalle ?? null,
+            monto_bs: Number((r as any).monto_bs) || null,
+            monto_usd: Number((r as any).monto_usd) || null,
+          });
+        }
+      }
+
+      // Búsqueda secundaria: mismo banco+fecha+referencia pero SIN exigir que el
+      // monto coincida, para detectar cuando el monto se corrigió en el archivo.
+      // Solo aplica a filas con una referencia real (no "SINREF"), porque sin
+      // referencia distintiva no hay forma confiable de saber si es el mismo
+      // movimiento u otro distinto del mismo día.
+      const prefijosConRef = Array.from(
+        new Set(
+          parsed
+            .filter((p) => !p.huella.includes("|SINREF|"))
+            .map((p) => p.huella.split("|").slice(0, 3).join("|") + "|"),
+        ),
+      );
+      const porPrefijo = new Map<string, Existente & { montoStr: string }>();
+      if (prefijosConRef.length > 0) {
+        const fechas = parsed.map((p) => p.fecha).filter(Boolean).sort();
+        const { data: candidatas } = await supabase
+          .from("transacciones")
+          .select("id, referencia, cuenta_codigo, notas, detalle, monto_bs, monto_usd")
+          .like("referencia", "BANK:%")
+          .gte("fecha", fechas[0])
+          .lte("fecha", fechas[fechas.length - 1]);
+        for (const r of candidatas ?? []) {
+          const ref = String((r as any).referencia ?? "");
+          if (ref.includes("|SINREF|")) continue;
+          const partes = ref.split("|");
+          if (partes.length < 4) continue;
+          const prefijo = partes.slice(0, 3).join("|") + "|";
+          if (!prefijosConRef.includes(prefijo)) continue;
+          porPrefijo.set(prefijo, {
+            id: (r as any).id,
+            cuenta_codigo: (r as any).cuenta_codigo ?? null,
+            notas: (r as any).notas ?? null,
+            detalle: (r as any).detalle ?? null,
+            monto_bs: Number((r as any).monto_bs) || null,
+            monto_usd: Number((r as any).monto_usd) || null,
+            montoStr: partes[3],
           });
         }
       }
@@ -389,7 +434,11 @@ function ImportarMovimientosInner() {
         // Con varios códigos distintos se emparejan todas las facturas halladas;
         // con un solo código ambiguo (varias candidatas) se deja elegir al usuario.
         const auto = found.length === 1 || bankRow.codigos.length > 1 ? found : [];
-        const existente = yaImportadas.get(bankRow.huella);
+        const prefijoHuella = bankRow.huella.split("|").slice(0, 3).join("|") + "|";
+        const porMonto = yaImportadas.get(bankRow.huella);
+        const porRefSinMonto = !bankRow.huella.includes("|SINREF|") ? porPrefijo.get(prefijoHuella) : undefined;
+        const existente = porMonto ?? porRefSinMonto;
+        const montoCambio = !porMonto && !!porRefSinMonto; // se encontró solo por ref, el monto es distinto
         const duplicado = !!existente || vistas.has(bankRow.huella);
         vistas.add(bankRow.huella);
         const cambio = cuentaCodigo === CUENTA_CAMBIO;
@@ -397,7 +446,8 @@ function ImportarMovimientosInner() {
         // Reconstruye el mismo texto que se generaría al importar esta fila
         // (igual que en confirmar()), para comparar contra lo ya guardado y
         // detectar cualquier cambio relevante, no solo la cuenta: corregir el
-        // concepto, la categoría o la cuenta sugerida en el archivo cuenta.
+        // concepto, la categoría, el monto o la cuenta sugerida en el archivo
+        // cuenta.
         const noAplicaCalc = !requiereCxP(bankRow.categoria) && (cuentaSinFactura(cuentaCodigo) || cuentaServicio(cuentaCodigo));
         const detalleCalc = noAplicaCalc
           ? (cuentaServicio(cuentaCodigo)
@@ -408,18 +458,21 @@ function ImportarMovimientosInner() {
           ? `Conciliación bancaria (no aplica factura) · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
           : `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
         ).slice(0, 255);
+        const montoNuevoBs = Math.abs(bankRow.montoBs || bankRow.montoUsd);
 
         // Duplicado "sin factura" (no matcheó ninguna CxP) donde algo relevante
-        // cambió respecto a lo ya guardado: se puede actualizar en vez de
-        // reimportarse. No cubre el caso de que la fila pase a matchear una
-        // CxP nueva (eso requiere un tipo de registro distinto).
+        // cambió respecto a lo ya guardado (cuenta, texto o monto): se puede
+        // actualizar en vez de reimportarse. No cubre el caso de que la fila
+        // pase a matchear una CxP nueva (eso requiere un tipo de registro
+        // distinto).
         const duplicadoActualizable =
           !!existente &&
           auto.length === 0 &&
           !!cuentaCodigo &&
           (existente.cuenta_codigo !== cuentaCodigo ||
             existente.notas !== notasCalc ||
-            existente.detalle !== detalleCalc.slice(0, 255));
+            existente.detalle !== detalleCalc.slice(0, 255) ||
+            montoCambio);
         return {
           bankRow,
           cxps: cambio ? [] : auto,
@@ -435,6 +488,8 @@ function ImportarMovimientosInner() {
           existenteCuentaAnterior: existente?.cuenta_codigo ?? null,
           notasNuevas: notasCalc,
           detalleNuevo: detalleCalc.slice(0, 255),
+          montoCambio,
+          montoNuevoBs,
           esCambio: cambio,
           cambioRecibido: "",
           cambioMoneda: bankRow.moneda === "USD" ? "Bs" : "USD",
@@ -591,18 +646,37 @@ function ImportarMovimientosInner() {
       try {
         const bankRow = m.bankRow;
 
-        // Duplicado con cuenta distinta: actualizar la transacción existente en
-        // vez de crear una nueva. No se toca monto, fecha ni tasa (ya coinciden,
-        // es lo que definió la huella), solo la clasificación contable.
+        // Duplicado con algo distinto: actualizar la transacción existente en
+        // vez de crear una nueva. Si solo cambió la cuenta o el texto, no se
+        // toca monto/fecha/tasa. Si el monto también cambió (se encontró por
+        // referencia, no por huella exacta), se recalcula igual que en un
+        // registro nuevo.
         if (m.duplicadoActualizable && m.existenteId) {
           const antes = { cuenta_codigo: m.existenteCuentaAnterior };
+          const patch: Record<string, any> = {
+            cuenta_codigo: m.cuentaCodigo,
+            notas: m.notasNuevas,
+            detalle: m.detalleNuevo,
+          };
+          if (m.montoCambio) {
+            const rates = await getRatesForDate(bankRow.fecha);
+            const montoBsNuevo =
+              bankRow.moneda === "USD" || Math.abs(bankRow.montoBs) === 0
+                ? +(Math.abs(bankRow.montoUsd) * (rates.paralela || rates.bcv || 1)).toFixed(2)
+                : Math.abs(bankRow.montoBs);
+            const montoUsdNuevo =
+              rates.paralela > 0 ? +(montoBsNuevo / rates.paralela).toFixed(2) : (rates.bcv > 0 ? +(montoBsNuevo / rates.bcv).toFixed(2) : 0);
+            const signo = requiereSignoNegativo(m.cuentaCodigo) ? -1 : 1;
+            patch.monto_bs = +(signo * montoBsNuevo).toFixed(2);
+            patch.monto_base_bs = +(signo * montoBsNuevo).toFixed(2);
+            patch.monto_usd = +(signo * montoUsdNuevo).toFixed(2);
+            patch.tasa_bcv = rates.bcv || null;
+            patch.tasa_paralela = rates.paralela || null;
+            patch.referencia = bankRow.huella; // la huella nueva refleja el monto corregido
+          }
           const { data: updated, error: errUpd } = await supabase
             .from("transacciones")
-            .update({
-              cuenta_codigo: m.cuentaCodigo,
-              notas: m.notasNuevas,
-              detalle: m.detalleNuevo,
-            } as any)
+            .update(patch as any)
             .eq("id", m.existenteId)
             .select()
             .maybeSingle();
@@ -1097,7 +1171,8 @@ function ImportarMovimientosInner() {
                           )}
                           {m.duplicadoActualizable && (
                             <Badge className="bg-sky-600 text-[9px] px-1 py-0">
-                              Actualizar cuenta: {m.existenteCuentaAnterior ?? "—"} → {m.cuentaCodigo}
+                              Actualizar{m.existenteCuentaAnterior !== m.cuentaCodigo ? ` cuenta: ${m.existenteCuentaAnterior ?? "—"} → ${m.cuentaCodigo}` : ""}
+                              {m.montoCambio ? " · monto corregido" : ""}
                             </Badge>
                           )}
                           {!m.duplicado && m.cxps.length === 0 && requiereCxP(m.bankRow.categoria) && (
