@@ -46,6 +46,7 @@ const VIAS = [
   { value: "ventas", label: "Importar ventas (Xetux)", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
   { value: "compras", label: "Importar compras (Xetux)", cls: "bg-amber-100 text-amber-800 border-amber-300" },
   { value: "banco", label: "Importar movimientos bancarios", cls: "bg-sky-100 text-sky-800 border-sky-300" },
+  { value: "ajustes", label: "Importar ajustes ventas", cls: "bg-violet-100 text-violet-800 border-violet-300" },
 ];
 const VIA_BY_VALUE: Record<string, (typeof VIAS)[number]> = Object.fromEntries(VIAS.map((v) => [v.value, v]));
 const CUENTAS_COMPRAS_XETUX = new Set(["2.1", "12.5"]);
@@ -53,6 +54,7 @@ const CUENTAS_COMPRAS_XETUX = new Set(["2.1", "12.5"]);
 function viaRegistro(t: any): (typeof VIAS)[number] {
   const ref = String(t?.referencia ?? "").trim();
   if (ref.startsWith("BANK:")) return VIA_BY_VALUE.banco;
+  if (ref === "ajuste") return VIA_BY_VALUE.ajustes;
   if (ref === "xetux" || ref === "xetux-iva") {
     return CUENTAS_COMPRAS_XETUX.has(String(t?.cuenta_codigo ?? ""))
       ? VIA_BY_VALUE.compras
