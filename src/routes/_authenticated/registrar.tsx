@@ -4019,8 +4019,6 @@ function CierreForm() {
     if (error) return toast.error(error.message);
     // Borrar la transacción COGS generada por el cierre
     await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
-    // Borrar el ajuste de Bono 10% generado por el cierre, se recalcula al volver a cerrar
-    await supabase.from("transacciones").delete().eq("referencia", `AJUSTE-BONO10-${periodo}`);
     toast.success(`Mes ${periodo} reabierto`);
     qc.invalidateQueries();
   };
@@ -4537,91 +4535,6 @@ function CierreForm() {
         notas: `COGS automático del cierre de ${periodo}`,
         created_by: user.id,
       } as any);
-    }
-
-    // Ajuste automático de Bono 10%: el bono ya se devenga como gasto (3.5/3.10)
-    // y como pasivo (13.4) al importar las ventas. Cuando ese bono efectivamente
-    // se paga por banco, el pago hoy se registra dentro de la nómina general
-    // (3.4/3.9) sin distinguirlo, lo que lo cuenta dos veces. Este ajuste
-    // descarga el pasivo y resta de la nómina general lo mismo que ya se
-    // devengó, asumiendo que el bono acumulado del mes se pagó ese mismo mes.
-    {
-      const fechaCierre = finDateSnap.toISOString().slice(0, 10);
-      await supabase.from("transacciones").delete().eq("referencia", `AJUSTE-BONO10-${periodo}`);
-      const { data: bonoRows } = await supabase
-        .from("transacciones")
-        .select("cuenta_codigo, monto_bs, monto_usd")
-        .in("cuenta_codigo", ["3.5", "3.10"])
-        .gte("fecha", primerDiaMes)
-        .lte("fecha", ultimoDiaMes);
-      const sumar = (cod: string) =>
-        (bonoRows ?? [])
-          .filter((r: any) => r.cuenta_codigo === cod)
-          .reduce((acc: { bs: number; usd: number }, r: any) => ({
-            bs: acc.bs + (Number(r.monto_bs) || 0),
-            usd: acc.usd + (Number(r.monto_usd) || 0),
-          }), { bs: 0, usd: 0 });
-      const bocu = sumar("3.5");
-      const yv = sumar("3.10");
-      const totalBs = bocu.bs + yv.bs;
-      if (Math.abs(totalBs) > 0.01) {
-        const notaComun = (cuenta: string) =>
-          `Ajuste mensual: ${cuenta} — evita el doble conteo del Bono 10% ya devengado en 3.5/3.10 (ver commit del código para el detalle)`;
-        await supabase.from("transacciones").insert([
-          {
-            fecha: fechaCierre,
-            cuenta_codigo: "13.4",
-            centro_costo: "Compartido" as any,
-            monto_bs: -totalBs,
-            monto_base_bs: -totalBs,
-            iva_bs: 0,
-            tasa_bcv: tasaBcv,
-            tasa_paralela: paralelaPromedio || null,
-            monto_usd: -(bocu.usd + yv.usd),
-            metodo_pago: "transferencia" as any,
-            modo: "on_balance" as any,
-            referencia: `AJUSTE-BONO10-${periodo}`,
-            notas: notaComun("descarga el pasivo Bonos 10% por pagar"),
-            created_by: user.id,
-          } as any,
-          ...(Math.abs(bocu.bs) > 0.01
-            ? [{
-                fecha: fechaCierre,
-                cuenta_codigo: "3.4",
-                centro_costo: "Bocu" as any,
-                monto_bs: -bocu.bs,
-                monto_base_bs: -bocu.bs,
-                iva_bs: 0,
-                tasa_bcv: tasaBcv,
-                tasa_paralela: paralelaPromedio || null,
-                monto_usd: -bocu.usd,
-                metodo_pago: "transferencia" as any,
-                modo: "on_balance" as any,
-                referencia: `AJUSTE-BONO10-${periodo}`,
-                notas: notaComun("resta el Bono 10% de Bocú de la nómina general (3.4)"),
-                created_by: user.id,
-              } as any]
-            : []),
-          ...(Math.abs(yv.bs) > 0.01
-            ? [{
-                fecha: fechaCierre,
-                cuenta_codigo: "3.9",
-                centro_costo: "YV" as any,
-                monto_bs: -yv.bs,
-                monto_base_bs: -yv.bs,
-                iva_bs: 0,
-                tasa_bcv: tasaBcv,
-                tasa_paralela: paralelaPromedio || null,
-                monto_usd: -yv.usd,
-                metodo_pago: "transferencia" as any,
-                modo: "on_balance" as any,
-                referencia: `AJUSTE-BONO10-${periodo}`,
-                notas: notaComun("resta el Bono 10% de YV de la nómina general (3.9)"),
-                created_by: user.id,
-              } as any]
-            : []),
-        ]);
-      }
     }
 
     // Cascade: si el usuario cambió el inv inicial, actualizar snapshot final del mes anterior
