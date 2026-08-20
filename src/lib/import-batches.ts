@@ -7,7 +7,7 @@ export const TIPO_LABEL: Record<string, string> = {
   ventas: "Importar ventas (Xetux)",
   compras: "Importar compras (Xetux)",
   movimientos: "Importar movimientos bancarios",
-  ajustes: "Importar ajustes",
+  ajustes: "Importar ajustes ventas",
 };
 
 export type ImportBatch = {

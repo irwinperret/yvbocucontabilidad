@@ -7,7 +7,7 @@ export const TIPOS_IMPORTACION: { tipo: TipoImportacion; label: string; ruta: st
   { tipo: "ventas", label: "Importar ventas Xetux", ruta: "/importar-ventas" },
   { tipo: "compras", label: "Importar compras Xetux", ruta: "/importar-compras" },
   { tipo: "movimientos", label: "Importar movimientos bancarios", ruta: "/importar-movimientos" },
-  { tipo: "ajustes", label: "Importar ajustes", ruta: "/importar-ajustes" },
+  { tipo: "ajustes", label: "Importar ajustes ventas", ruta: "/importar-ajustes" },
 ];
 
 export type ImportacionRow = {

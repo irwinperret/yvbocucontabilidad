@@ -50,7 +50,7 @@ const registroImportar = [
   { title: "Importar ventas (Xetux)", url: "/importar-ventas", icon: Upload },
   { title: "Importar compras (Xetux)", url: "/importar-compras", icon: Upload },
   { title: "Importar movimientos bancarios", url: "/importar-movimientos", icon: Landmark },
-  { title: "Importar ajustes", url: "/importar-ajustes", icon: Upload },
+  { title: "Importar ajustes ventas", url: "/importar-ajustes", icon: Upload },
   { title: "Historial de importaciones", url: "/importaciones", icon: HistoryIcon },
 ];
 

@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/importar-ajustes")({
   component: ImportarAjustesPage,
   head: () => ({
     meta: [
-      { title: "Importar ajustes | YV · Bocú" },
+      { title: "Importar ajustes ventas | YV · Bocú" },
       { name: "description", content: "Importa ajustes de ventas y bonos de servicio desde el archivo de listas." },
     ],
   }),
@@ -242,7 +242,7 @@ function ImportarAjustesPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold">Importar ajustes</h1>
+          <h1 className="text-xl font-bold">Importar ajustes ventas</h1>
           <p className="text-sm text-muted-foreground">
             Ajustes de ventas (Venta Lista + IVA Lista) y bonos de servicio. Valores en USD BCV.
           </p>
