@@ -465,7 +465,7 @@ export function exportCapEx(opts: {
     { header: "Fecha", key: "fecha", width: 12 },
     { header: "Centro", key: "centro", width: 12 },
     { header: "Categoría", key: "categoria", width: 24 },
-    { header: "Descripción", key: "descripcion", width: 34 },
+    { header: "Descripción del activo", key: "descripcion", width: 34 },
     { header: "N° Factura", key: "numeroFactura", width: 16 },
     { header: "Método de pago", key: "metodoPago", width: 16 },
     { header: "Monto Bs", key: "montoBs", width: 16 },

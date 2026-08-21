@@ -137,7 +137,7 @@ function CapExPage() {
         fecha: fmtDate(t.fecha),
         centro: t.centro_costo ?? "",
         categoria: (t.capex_categoria as string) ?? "Otros",
-        descripcion: t.notas ?? "",
+        descripcion: t.detalle || t.notas || "",
         numeroFactura: t.numero_factura ?? "",
         metodoPago: t.metodo_pago ?? "",
         montoBs: Number(t.monto_bs) || 0,
@@ -280,7 +280,7 @@ function CapExPage() {
                     <th className="text-left py-2 px-2">Fecha</th>
                     <th className="text-left py-2 px-2">Centro</th>
                     <th className="text-left py-2 px-2">Categoría</th>
-                    <th className="text-left py-2 px-2">Descripción</th>
+                    <th className="text-left py-2 px-2">Descripción del activo</th>
                     <th className="text-left py-2 px-2">N° Factura</th>
                     <th className="text-left py-2 px-2">Método</th>
                     <th className="text-right py-2 px-2">Bs</th>
@@ -301,7 +301,7 @@ function CapExPage() {
                             {cat}
                           </Badge>
                         </td>
-                        <td className="py-2 px-2">{t.notas ?? "—"}</td>
+                        <td className="py-2 px-2">{t.detalle || t.notas || "—"}</td>
                         <td className="py-2 px-2 mono text-xs">{t.numero_factura ?? "—"}</td>
                         <td className="py-2 px-2 text-xs">{t.metodo_pago ?? "—"}</td>
                         <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
