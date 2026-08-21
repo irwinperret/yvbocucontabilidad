@@ -14,7 +14,7 @@ import {
 } from "@/lib/home-checklist";
 import { HistorialImportacionesDialog } from "@/components/historial-importaciones-dialog";
 
-type Paso = { label: string; ruta: string; hecho: boolean };
+type Paso = { label: string; ruta: string; hecho: boolean; nota?: string };
 
 export function ChecklistMensualCard() {
   const [historialAbierto, setHistorialAbierto] = useState(false);
@@ -36,7 +36,12 @@ export function ChecklistMensualCard() {
           ruta: t.ruta,
           hecho: tipoImportadoEnPeriodo(data.imports, t.tipo as TipoImportacion, periodo),
         })),
-        { label: "Cerrar el mes (COGS e Inventario)", ruta: "/registrar?tab=cierre", hecho: data.cerrados.has(periodo) },
+        {
+          label: "Cerrar el mes (COGS e Inventario)",
+          ruta: "/registrar?tab=cierre",
+          hecho: data.cerrados.has(periodo),
+          nota: "Acuérdate de anotar el inventario final antes de cerrar",
+        },
       ]
     : [];
 
@@ -77,7 +82,12 @@ export function ChecklistMensualCard() {
                     <Circle className={`h-4 w-4 shrink-0 ${esSiguiente ? "text-primary" : "text-muted-foreground/40"}`} />
                   )}
                   <span className="w-5 text-muted-foreground/60">{i + 1}.</span>
-                  <span className="flex-1">{p.label}</span>
+                  <span className="flex-1">
+                    {p.label}
+                    {p.nota && !p.hecho && (
+                      <span className="block text-[11px] font-normal text-muted-foreground/80">{p.nota}</span>
+                    )}
+                  </span>
                   {esSiguiente && (
                     <span className="text-[10px] uppercase tracking-wide font-semibold text-primary px-2 py-0.5 rounded-full border border-primary/40">
                       Siguiente
