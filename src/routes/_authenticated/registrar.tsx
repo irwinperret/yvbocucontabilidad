@@ -4019,8 +4019,6 @@ function CierreForm() {
     if (error) return toast.error(error.message);
     // Borrar la transacción COGS generada por el cierre
     await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
-    // Borrar el ajuste de Bono 10% generado por el cierre, se recalcula al volver a cerrar
-    await supabase.from("transacciones").delete().eq("referencia", `AJUSTE-BONO10-${periodo}`);
     toast.success(`Mes ${periodo} reabierto`);
     qc.invalidateQueries();
   };
@@ -4537,63 +4535,6 @@ function CierreForm() {
         notas: `COGS automático del cierre de ${periodo}`,
         created_by: user.id,
       } as any);
-    }
-
-    // Ajuste automático de Bono 10%: el bono ya se devenga como gasto en 3.5
-    // (Bocú) y 3.10 (YV) al importar las ventas. Cuando ese bono se paga por
-    // banco, hoy entra mezclado dentro de la nómina general (3.1 Cocina +
-    // Compartidos, 3.4 Sala Bocú, 3.9 Sala YV), contándolo dos veces. Este
-    // ajuste resta el total devengado del mes de esas tres partidas, de forma
-    // PROPORCIONAL al peso de cada una ese mes (no un reparto fijo), para que
-    // ninguna quede en negativo aunque una de ellas tenga poco movimiento.
-    {
-      const fechaCierre = finDateSnap.toISOString().slice(0, 10);
-      await supabase.from("transacciones").delete().eq("referencia", `AJUSTE-BONO10-${periodo}`);
-      const [{ data: bonoRows }, { data: baseRows }] = await Promise.all([
-        supabase.from("transacciones").select("monto_bs, monto_usd")
-          .in("cuenta_codigo", ["3.5", "3.10"]).gte("fecha", primerDiaMes).lte("fecha", ultimoDiaMes),
-        supabase.from("transacciones").select("cuenta_codigo, monto_bs, monto_usd")
-          .in("cuenta_codigo", ["3.1", "3.4", "3.9"]).gte("fecha", primerDiaMes).lte("fecha", ultimoDiaMes),
-      ]);
-      const bonoBs = (bonoRows ?? []).reduce((s: number, r: any) => s + (Number(r.monto_bs) || 0), 0);
-      const bonoUsd = (bonoRows ?? []).reduce((s: number, r: any) => s + (Number(r.monto_usd) || 0), 0);
-      const centroPorCuenta: Record<string, string> = { "3.1": "Compartido", "3.4": "Bocu", "3.9": "YV" };
-      const baseByCuenta: Record<string, { bs: number; usd: number }> = { "3.1": { bs: 0, usd: 0 }, "3.4": { bs: 0, usd: 0 }, "3.9": { bs: 0, usd: 0 } };
-      for (const r of baseRows ?? []) {
-        const c = (r as any).cuenta_codigo as string;
-        if (baseByCuenta[c]) {
-          baseByCuenta[c].bs += Number((r as any).monto_bs) || 0;
-          baseByCuenta[c].usd += Number((r as any).monto_usd) || 0;
-        }
-      }
-      const totalBaseBs = baseByCuenta["3.1"].bs + baseByCuenta["3.4"].bs + baseByCuenta["3.9"].bs;
-      const totalBaseUsd = baseByCuenta["3.1"].usd + baseByCuenta["3.4"].usd + baseByCuenta["3.9"].usd;
-      if (Math.abs(bonoBs) > 0.01 && totalBaseBs > 0.01) {
-        const filas = (["3.1", "3.4", "3.9"] as const)
-          .map((cuenta) => {
-            const reduccionBs = +((bonoBs * baseByCuenta[cuenta].bs) / totalBaseBs).toFixed(2);
-            const reduccionUsd = totalBaseUsd > 0.01 ? +((bonoUsd * baseByCuenta[cuenta].usd) / totalBaseUsd).toFixed(2) : 0;
-            return { cuenta, reduccionBs, reduccionUsd };
-          })
-          .filter((f) => Math.abs(f.reduccionBs) > 0.01)
-          .map((f) => ({
-            fecha: fechaCierre,
-            cuenta_codigo: f.cuenta,
-            centro_costo: centroPorCuenta[f.cuenta] as any,
-            monto_bs: -f.reduccionBs,
-            monto_base_bs: -f.reduccionBs,
-            iva_bs: 0,
-            tasa_bcv: tasaBcv,
-            tasa_paralela: paralelaPromedio || null,
-            monto_usd: -f.reduccionUsd,
-            metodo_pago: "transferencia" as any,
-            modo: "on_balance" as any,
-            referencia: `AJUSTE-BONO10-${periodo}`,
-            notas: `Ajuste mensual: resta prorrateada del Bono 10% ya devengado en 3.5/3.10, para no contarlo dos veces en nómina (evita doble conteo)`,
-            created_by: user.id,
-          } as any));
-        if (filas.length) await supabase.from("transacciones").insert(filas);
-      }
     }
 
     // Cascade: si el usuario cambió el inv inicial, actualizar snapshot final del mes anterior
