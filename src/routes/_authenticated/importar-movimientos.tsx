@@ -1056,8 +1056,9 @@ function ImportarMovimientosInner() {
     ).length;
     const selected = matches.filter(importable).length;
     const withAccount = matches.filter((m) => m.bankRow.cuentaBancariaId).length;
+    const dudaCuenta = matches.filter((m) => !m.bankRow.cuentaBancariaId).length;
     const difTotal = matches.reduce((s, m) => s + (m.duplicado ? 0 : (difBs(m) ?? 0)), 0);
-    return { total, matched, selected, withAccount, duplicados, actualizables, sinCuenta, sinFactura, noAplica, difTotal };
+    return { total, matched, selected, withAccount, dudaCuenta, duplicados, actualizables, sinCuenta, sinFactura, noAplica, difTotal };
   }, [rows, matches]);
 
   return (
@@ -1109,8 +1110,8 @@ function ImportarMovimientosInner() {
                   </Button>
                 </>
               )}
-              {stats.withAccount < stats.selected && (
-                <Badge variant="destructive">Falta cuenta bancaria en {stats.selected - stats.withAccount} filas</Badge>
+              {stats.dudaCuenta > 0 && (
+                <Badge className="bg-red-600 text-white hover:bg-red-600">DUDA / NO SABE CUENTA: {stats.dudaCuenta} filas</Badge>
               )}
               {Math.abs(stats.difTotal) > 0.01 && (
                 <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">
@@ -1237,6 +1238,11 @@ function ImportarMovimientosInner() {
                           {!m.duplicado && dif !== null && dif > 0.01 && (
                             <Badge className="text-[9px] px-1 py-0 bg-amber-500 text-white hover:bg-amber-500">Excedente sin aplicar</Badge>
                           )}
+                          {!m.bankRow.cuentaBancariaId && (
+                            <Badge className="text-[9px] px-1 py-0 bg-red-600 text-white hover:bg-red-600">
+                              DUDA / NO SABE CUENTA
+                            </Badge>
+                          )}
 
                         </div>
                       </td>
@@ -1247,11 +1253,11 @@ function ImportarMovimientosInner() {
                           value={m.bankRow.cuentaBancariaId ?? "_none_"}
                           onValueChange={(v) => setMatchBankAccount(m.bankRow.id, v === "_none_" ? "" : v)}
                         >
-                          <SelectTrigger className="w-[160px] text-xs">
-                            <SelectValue placeholder="Seleccionar" />
+                          <SelectTrigger className={"w-[160px] text-xs " + (!m.bankRow.cuentaBancariaId ? "border-red-500 text-red-600" : "")}>
+                            <SelectValue placeholder="DUDA / NO SABE CUENTA" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="_none_">— Sin cuenta —</SelectItem>
+                            <SelectItem value="_none_">DUDA / NO SABE CUENTA</SelectItem>
                             {bankOptions.map((b) => (
                               <SelectItem key={b.id} value={b.id}>{b.nombre} ({b.banco})</SelectItem>
                             ))}
