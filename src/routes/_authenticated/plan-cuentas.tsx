@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ordenarPorCodigo } from "@/lib/account-helpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -10,8 +11,8 @@ function PlanCuentasPage() {
   const { data } = useQuery({
     queryKey: ["plan-cuentas-all"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("*").order("orden");
-      return data ?? [];
+      const { data } = await supabase.from("plan_de_cuentas").select("*");
+      return ordenarPorCodigo(data ?? []);
     },
   });
 

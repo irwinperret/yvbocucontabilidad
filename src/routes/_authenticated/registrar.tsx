@@ -28,6 +28,7 @@ import {
   cuentaNomina,
   FINANCIAMIENTO,
   CAPEX_CATEGORIAS,
+  ordenarPorCodigo,
   type Centro,
 } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
@@ -78,8 +79,8 @@ function useCuentas() {
   return useQuery({
     queryKey: ["cuentas-all"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("*").eq("activa", true).order("orden");
-      return data ?? [];
+      const { data } = await supabase.from("plan_de_cuentas").select("*").eq("activa", true);
+      return ordenarPorCodigo(data ?? []);
     },
   });
 }

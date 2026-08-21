@@ -16,7 +16,7 @@ import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CENTROS } from "@/lib/account-helpers";
+import { CENTROS, ordenarPorCodigo } from "@/lib/account-helpers";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { guardarVinculosConciliacion, marcarEstadoConciliacion, ESTADO_MANUAL_LABEL, ESTADOS_MANUALES, normalizarEstadoManual, type EstadoManual } from "@/lib/conciliacion";
@@ -151,8 +151,8 @@ function MovimientosBancariosPage() {
   const { data: cuentas } = useQuery({
     queryKey: ["plan-cuentas-min-grupo"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre,grupo,orden").order("orden");
-      return data ?? [];
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre,grupo,orden");
+      return ordenarPorCodigo(data ?? []);
     },
   });
   const nombreCuenta = (c: string) => cuentas?.find((x: any) => x.codigo === c)?.nombre ?? c;

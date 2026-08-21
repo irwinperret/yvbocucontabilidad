@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
+import { ordenarPorCodigo } from "@/lib/account-helpers";
 import { toast } from "sonner";
 import { readSheetAOASmart, numFromCell, parseDateCell } from "@/lib/xetux-parse";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
@@ -157,8 +158,8 @@ function ImportarMovimientosInner() {
   const { data: plan } = useQuery({
     queryKey: ["plan-de-cuentas-activas"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo, nombre, grupo").eq("activa", true).order("orden");
-      return (data ?? []) as { codigo: string; nombre: string; grupo: string }[];
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo, nombre, grupo").eq("activa", true);
+      return ordenarPorCodigo((data ?? []) as { codigo: string; nombre: string; grupo: string }[]);
     },
   });
 

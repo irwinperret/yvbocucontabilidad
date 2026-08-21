@@ -3,6 +3,26 @@
 export const CENTROS = ["YV", "Bocu", "Compartido"] as const;
 export type Centro = (typeof CENTROS)[number];
 
+/**
+ * Compara dos códigos de cuenta ("3.1", "3.10", "12.1", etc.) en orden
+ * numérico real (mayor.menor), no como texto ni por el campo `orden` de la
+ * base de datos (que no siempre está bien curado para cuentas nuevas o
+ * renombradas, y hace que terminen mal ubicadas en reportes y exports).
+ */
+export function compararCodigoCuenta(a: string | null | undefined, b: string | null | undefined): number {
+  const partes = (c: string | null | undefined) =>
+    String(c ?? "").trim().split(".").map((p) => Number(p) || 0);
+  const [aMayor, aMenor = 0] = partes(a);
+  const [bMayor, bMenor = 0] = partes(b);
+  if (aMayor !== bMayor) return aMayor - bMayor;
+  return aMenor - bMenor;
+}
+
+/** Ordena un arreglo de cuentas (o cualquier objeto con .codigo) por código numérico. */
+export function ordenarPorCodigo<T extends { codigo: string }>(cuentas: T[]): T[] {
+  return [...cuentas].sort((a, b) => compararCodigoCuenta(a.codigo, b.codigo));
+}
+
 export const METODOS = ["tarjeta", "transferencia", "pago_movil", "zelle", "efectivo_usd", "efectivo_bs", "pendiente"] as const;
 export type Metodo = (typeof METODOS)[number];
 

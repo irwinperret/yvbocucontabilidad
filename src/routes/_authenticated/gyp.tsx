@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { fmtUsd } from "@/lib/format";
-import { CENTROS, MESES } from "@/lib/account-helpers";
+import { CENTROS, MESES, ordenarPorCodigo } from "@/lib/account-helpers";
 import { Button } from "@/components/ui/button";
 import { Download, ChevronRight, ChevronDown } from "lucide-react";
 import { exportGyP } from "@/lib/excel-export";
@@ -55,8 +55,8 @@ function GyPPage() {
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-gyp"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("*").eq("afecta_gyp", true).order("orden");
-      return (data ?? []) as Cuenta[];
+      const { data } = await supabase.from("plan_de_cuentas").select("*").eq("afecta_gyp", true);
+      return ordenarPorCodigo((data ?? []) as Cuenta[]);
     },
   });
 

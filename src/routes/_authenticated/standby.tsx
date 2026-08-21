@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ordenarPorCodigo } from "@/lib/account-helpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,8 +61,8 @@ function StandbyPage() {
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-all-list"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre,grupo,orden").order("orden");
-      return data ?? [];
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre,grupo,orden");
+      return ordenarPorCodigo(data ?? []);
     },
   });
   const cuentaNombre = useMemo(() => {

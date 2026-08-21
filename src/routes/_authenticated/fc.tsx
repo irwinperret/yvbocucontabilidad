@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { fmtUsd } from "@/lib/format";
-import { CENTROS, MESES } from "@/lib/account-helpers";
+import { CENTROS, MESES, ordenarPorCodigo } from "@/lib/account-helpers";
 import { useCuentasBancarias } from "@/components/bank-account-select";
 import { Button } from "@/components/ui/button";
 import { Download, ChevronRight, ChevronDown } from "lucide-react";
@@ -34,8 +34,8 @@ function FCPage() {
   const { data: cuentas } = useQuery({
     queryKey: ["cuentas-fc"],
     queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("*").eq("afecta_fc", true).order("orden");
-      return data ?? [];
+      const { data } = await supabase.from("plan_de_cuentas").select("*").eq("afecta_fc", true);
+      return ordenarPorCodigo(data ?? []);
     },
   });
 
