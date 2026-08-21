@@ -57,6 +57,9 @@ function ImportacionesPage() {
   const [reverting, setReverting] = useState(false);
   const [purgeOpen, setPurgeOpen] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [residuosOpen, setResiduosOpen] = useState(false);
+  const [purgingResiduos, setPurgingResiduos] = useState(false);
+
 
   const { data: isAdmin = false } = useQuery({
     queryKey: ["is-admin", user?.id],
