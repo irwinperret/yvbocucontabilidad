@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { numFromCell, parseDateCell } from "@/lib/xetux-parse";
 import { fmtUsd } from "@/lib/format";
 import { tasaBcvQuery } from "@/lib/tasas";
@@ -95,6 +97,7 @@ async function leerAjustes(file: File): Promise<{ fechas: string[]; venta: numbe
 function ImportarAjustesPage() {
   const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
+  const [offBalance, setOffBalance] = useState(true);
   const [filas, setFilas] = useState<Fila[]>([]);
   const [cargando, setCargando] = useState(false);
   const [importando, setImportando] = useState(false);
@@ -193,7 +196,7 @@ function ImportarAjustesPage() {
             fecha: f.fecha,
             cuenta_codigo: l.cuenta,
             centro_costo: l.centro as any,
-            modo: "on_balance" as any,
+            modo: (offBalance ? "off_balance" : "on_balance") as any,
             monto_bs: bs,
             monto_base_bs: bs,
             iva_bs: 0,
@@ -261,6 +264,13 @@ function ImportarAjustesPage() {
             onChange={(e) => onFile(e.target.files?.[0] ?? null)}
             disabled={cargando || importando}
           />
+          <div className="flex items-center justify-between border rounded p-2">
+            <div>
+              <Label className="text-xs">Registrar como off-balance</Label>
+              <p className="text-[10px] text-muted-foreground">No afecta saldos bancarios ni CxP. Activado por defecto.</p>
+            </div>
+            <Switch checked={offBalance} onCheckedChange={setOffBalance} disabled={importando} />
+          </div>
           <div className="text-xs text-muted-foreground">
             Se lee la hoja «todo»: fechas en la fila de encabezado y las filas «Venta Lista», «IVA Lista» y «Servicio Lista».
             Ajuste a ventas = Venta Lista + IVA Lista → 20% cuenta 1.1 (YV) y 80% cuenta 1.2 (Bocú). Servicio Lista → cuenta 3.14 (Otros Bonos, Compartido).
