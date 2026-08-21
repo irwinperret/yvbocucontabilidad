@@ -495,6 +495,38 @@ function ImportarMovimientosInner() {
           cambioMoneda: bankRow.moneda === "USD" ? "Bs" : "USD",
         };
       });
+
+      // Operaciones de cambio: en vez de pedir el monto recibido a mano, se
+      // calcula automático con la tasa paralela del día de cada movimiento.
+      // El usuario puede seguir corrigiéndolo si la tasa real de esa
+      // operación puntual fue distinta.
+      const fechasCambio = Array.from(new Set(initialMatches.filter((m) => m.esCambio).map((m) => m.bankRow.fecha)));
+      if (fechasCambio.length > 0) {
+        const paralelaPorFecha = new Map<string, number>();
+        for (const f of fechasCambio) {
+          const { data: par } = await supabase
+            .from("tasas_paralela")
+            .select("tasa")
+            .lte("fecha", f)
+            .order("fecha", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          paralelaPorFecha.set(f, Number((par as any)?.tasa) || 0);
+        }
+        for (const m of initialMatches) {
+          if (!m.esCambio) continue;
+          const tasa = paralelaPorFecha.get(m.bankRow.fecha) || 0;
+          if (tasa <= 0) continue;
+          const recibeUsd = (m.cambioMoneda ?? "USD") === "USD";
+          const montoOrigen = Math.abs(m.bankRow.montoBs || m.bankRow.montoUsd);
+          // Si el movimiento original es en Bs, lo recibido en USD = Bs / tasa paralela.
+          // Si el movimiento original es en USD, lo recibido en Bs = USD * tasa paralela.
+          const calculado = recibeUsd ? montoOrigen / tasa : montoOrigen * tasa;
+          m.cambioRecibido = calculado.toFixed(2);
+          m.selected = !m.duplicado && Number(m.cambioRecibido) > 0;
+        }
+      }
+
       setMatches(initialMatches);
 
       const dups = initialMatches.filter((m) => m.duplicado).length;
@@ -1284,7 +1316,7 @@ function ImportarMovimientosInner() {
                         {m.esCambio && (
                           <div className="mt-1 space-y-1">
                             <div className="text-[10px] text-muted-foreground">
-                              Indica la contrapartida recibida para registrar las dos patas:
+                              Contrapartida recibida (calculada automático con la tasa paralela del día, corrígela si esta operación puntual usó otra tasa):
                             </div>
                             <div className="flex gap-1">
                               <Input
