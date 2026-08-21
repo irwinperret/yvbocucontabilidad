@@ -232,13 +232,18 @@ export const ORIGEN_LABEL: Record<Residuo["origen"], string> = {
 
 /** Lista transacciones de origen importado que no pertenecen a ninguna carga. */
 export async function listarResiduos(): Promise<Residuo[]> {
-  const { data, error } = await supabase
-    .from("transacciones")
-    .select("id, fecha, cuenta_codigo, monto_bs, monto_usd, referencia, notas, created_at, standby")
-    .is("import_batch_id", null)
-    .or("referencia.like.BANK:%,referencia.like.PAREO:%,referencia.eq.xetux")
-    .order("fecha", { ascending: false });
+  const cols = "id, fecha, cuenta_codigo, monto_bs, monto_usd, referencia, notas, created_at, standby";
+  const base = () => supabase.from("transacciones").select(cols).is("import_batch_id", null);
+  const [bank, pareo, xetux] = await Promise.all([
+    base().like("referencia", "BANK:%"),
+    base().like("referencia", "PAREO:%"),
+    base().eq("referencia", "xetux"),
+  ]);
+  const error = bank.error ?? pareo.error ?? xetux.error;
   if (error) throw error;
+  const data = [...(bank.data ?? []), ...(pareo.data ?? []), ...(xetux.data ?? [])].sort((a: any, b: any) =>
+    a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0
+  );
   return (data ?? [])
     .filter((t: any) => !t.standby)
     .map((t: any) => ({ ...t, origen: origenDeReferencia(t.referencia)! }))
