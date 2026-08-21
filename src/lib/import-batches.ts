@@ -81,6 +81,15 @@ export async function cerrarBatch(
     .eq("created_by", userId)
     .gte("created_at", startedAt);
 
+  // Red de seguridad: filas creadas durante la ventana de la importación por
+  // rutas auxiliares (pareos, gastos directos, IVA, diferenciales) que pudieran
+  // haber quedado con otro created_by o insertadas después del primer barrido.
+  await supabase
+    .from("transacciones")
+    .update({ import_batch_id: id } as any)
+    .is("import_batch_id", null)
+    .gte("created_at", startedAt);
+
   for (const tabla of ["cuentas_por_pagar", "cuentas_por_cobrar", "propinas"] as const) {
     await supabase
       .from(tabla)
@@ -88,6 +97,7 @@ export async function cerrarBatch(
       .is("import_batch_id", null)
       .gte("created_at", startedAt);
   }
+
 
   await supabase
     .from("importaciones" as any)
@@ -186,5 +196,69 @@ export async function purgarRevertidas(): Promise<{
 }> {
   const { data, error } = await supabase.rpc("purgar_importaciones_revertidas" as any, {} as any);
   if (error) return { ok: false, error: error.message };
+  return { ok: true, resumen: (data ?? undefined) as any };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Residuos: transacciones de origen importado que quedaron sin lote
+// (importación interrumpida, o el lote se borró del historial).
+// ─────────────────────────────────────────────────────────────
+
+export type Residuo = {
+  id: string;
+  fecha: string;
+  cuenta_codigo: string;
+  monto_bs: number | null;
+  monto_usd: number | null;
+  referencia: string | null;
+  notas: string | null;
+  created_at: string;
+  origen: "movimientos" | "compras" | "pareo";
+};
+
+function origenDeReferencia(ref: string | null): Residuo["origen"] | null {
+  if (!ref) return null;
+  if (ref.startsWith("BANK:")) return "movimientos";
+  if (ref.startsWith("PAREO:")) return "pareo";
+  if (ref === "xetux") return "compras";
+  return null;
+}
+
+export const ORIGEN_LABEL: Record<Residuo["origen"], string> = {
+  movimientos: "Movimiento bancario",
+  compras: "Compra Xetux",
+  pareo: "Pareo automático",
+};
+
+/** Lista transacciones de origen importado que no pertenecen a ninguna carga. */
+export async function listarResiduos(): Promise<Residuo[]> {
+  const cols = "id, fecha, cuenta_codigo, monto_bs, monto_usd, referencia, notas, created_at, standby";
+  const base = () => supabase.from("transacciones").select(cols).is("import_batch_id", null);
+  const [bank, pareo, xetux] = await Promise.all([
+    base().like("referencia", "BANK:%"),
+    base().like("referencia", "PAREO:%"),
+    base().eq("referencia", "xetux"),
+  ]);
+  const error = bank.error ?? pareo.error ?? xetux.error;
+  if (error) throw error;
+  const data = [...(bank.data ?? []), ...(pareo.data ?? []), ...(xetux.data ?? [])].sort((a: any, b: any) =>
+    a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0
+  );
+  return (data ?? [])
+    .filter((t: any) => !t.standby)
+    .map((t: any) => ({ ...t, origen: origenDeReferencia(t.referencia)! }))
+    .filter((t: Residuo) => !!t.origen);
+}
+
+/** Borra residuos seleccionados con la misma lógica segura de la reversión. */
+export async function purgarResiduos(ids: string[]): Promise<{
+  ok: boolean;
+  error?: string;
+  resumen?: { transacciones: number; conciliaciones: number; cxp_restauradas: number; cxp: number };
+}> {
+  if (ids.length === 0) return { ok: true, resumen: { transacciones: 0, conciliaciones: 0, cxp_restauradas: 0, cxp: 0 } };
+  const { data, error } = await supabase.rpc("purgar_transacciones_huerfanas" as any, { p_ids: ids } as any);
+  if (error) return { ok: false, error: error.message };
+  await logAudit("transacciones", "DELETE", null as any, { residuos: ids } as any, (data ?? null) as any);
   return { ok: true, resumen: (data ?? undefined) as any };
 }

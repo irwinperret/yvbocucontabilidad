@@ -24,6 +24,9 @@ import {
   analizarReversion,
   ejecutarReversion,
   purgarRevertidas,
+  listarResiduos,
+  purgarResiduos,
+  ORIGEN_LABEL,
   TIPO_LABEL,
   type ImportBatch,
   type RevertPlan,
@@ -54,6 +57,9 @@ function ImportacionesPage() {
   const [reverting, setReverting] = useState(false);
   const [purgeOpen, setPurgeOpen] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [residuosOpen, setResiduosOpen] = useState(false);
+  const [purgingResiduos, setPurgingResiduos] = useState(false);
+
 
   const { data: isAdmin = false } = useQuery({
     queryKey: ["is-admin", user?.id],
@@ -124,6 +130,28 @@ function ImportacionesPage() {
     setPurgeOpen(false);
     qc.invalidateQueries();
   };
+
+  const { data: residuos = [], isLoading: loadingResiduos } = useQuery({
+    queryKey: ["import-residuos"],
+    queryFn: listarResiduos,
+  });
+
+  const confirmarPurgaResiduos = async () => {
+    setPurgingResiduos(true);
+    const res = await purgarResiduos(residuos.map((r) => r.id));
+    setPurgingResiduos(false);
+    if (!res.ok) return toast.error(res.error ?? "No se pudieron borrar los residuos");
+    const r = res.resumen;
+    toast.success(
+      r
+        ? `Se borraron ${r.transacciones} transacciones huérfanas (${r.conciliaciones} conciliaciones, ${r.cxp} CxP eliminadas, ${r.cxp_restauradas} facturas restauradas a pendiente).`
+        : "Residuos borrados"
+    );
+    setResiduosOpen(false);
+    qc.invalidateQueries();
+  };
+
+
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -223,6 +251,71 @@ function ImportacionesPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Residuos de importaciones</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Transacciones de origen importado (movimientos bancarios, compras Xetux, pareos) que quedaron
+                sin carga asociada y por eso no se borran al revertir. No incluye registros manuales ni standby.
+              </p>
+            </div>
+            {isAdmin && residuos.length > 0 && (
+              <Button size="sm" variant="destructive" onClick={() => setResiduosOpen(true)}>
+                <Trash2 className="mr-1 h-4 w-4" /> Borrar residuos ({residuos.length})
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Origen</TableHead>
+                <TableHead>Cuenta</TableHead>
+                <TableHead className="text-right">Bs</TableHead>
+                <TableHead className="text-right">USD</TableHead>
+                <TableHead>Referencia</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadingResiduos && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">Cargando…</TableCell>
+                </TableRow>
+              )}
+              {!loadingResiduos && residuos.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    No hay residuos: todo lo importado está asociado a una carga.
+                  </TableCell>
+                </TableRow>
+              )}
+              {residuos.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="whitespace-nowrap">{r.fecha}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Badge variant="secondary">{ORIGEN_LABEL[r.origen]}</Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{r.cuenta_codigo}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {(Number(r.monto_bs) || 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{fmtUsd(Number(r.monto_usd) || 0)}</TableCell>
+                  <TableCell className="max-w-[280px] truncate text-xs" title={r.referencia ?? ""}>
+                    {r.referencia ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+
+
       <AlertDialog open={!!plan} onOpenChange={(o) => !o && setPlan(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -289,6 +382,39 @@ function ImportacionesPage() {
               }}
             >
               {purging ? "Borrando…" : "Sí, borrar definitivamente"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={residuosOpen} onOpenChange={(o) => !o && setResiduosOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Borrar residuos de importaciones</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Se eliminarán {residuos.length} transacciones de origen importado que quedaron sin carga
+                  asociada, junto con sus conciliaciones, diferenciales cambiarios y cuentas por pagar creadas.
+                  Las facturas que hayan sido pagadas por estos movimientos vuelven a "pendiente".
+                </p>
+                <p className="text-muted-foreground">
+                  No se tocan registros manuales, transacciones en standby ni meses cerrados. Esta acción no se
+                  puede deshacer.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={purgingResiduos}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={purgingResiduos}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmarPurgaResiduos();
+              }}
+            >
+              {purgingResiduos ? "Borrando…" : "Sí, borrar residuos"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

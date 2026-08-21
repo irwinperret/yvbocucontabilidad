@@ -801,6 +801,7 @@ function ImportarMovimientosInner() {
             tercero_id: provAdivinado?.id ?? null,
             numero_factura: factAdivinada,
             grupo_transaccion_id: crypto.randomUUID(),
+            import_batch_id: batch?.id ?? null,
             created_by: user.id,
           } as any).select().single();
 
@@ -868,6 +869,7 @@ function ImportarMovimientosInner() {
           cuenta_bancaria_id: bankRow.cuentaBancariaId,
           tercero_id: primera.tercero_id ?? null,
           grupo_transaccion_id: grupoId,
+          import_batch_id: batch?.id ?? null,
           created_by: user.id,
         } as any).select().single();
 
