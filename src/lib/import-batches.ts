@@ -81,6 +81,15 @@ export async function cerrarBatch(
     .eq("created_by", userId)
     .gte("created_at", startedAt);
 
+  // Red de seguridad: filas creadas durante la ventana de la importación por
+  // rutas auxiliares (pareos, gastos directos, IVA, diferenciales) que pudieran
+  // haber quedado con otro created_by o insertadas después del primer barrido.
+  await supabase
+    .from("transacciones")
+    .update({ import_batch_id: id } as any)
+    .is("import_batch_id", null)
+    .gte("created_at", startedAt);
+
   for (const tabla of ["cuentas_por_pagar", "cuentas_por_cobrar", "propinas"] as const) {
     await supabase
       .from(tabla)
@@ -88,6 +97,7 @@ export async function cerrarBatch(
       .is("import_batch_id", null)
       .gte("created_at", startedAt);
   }
+
 
   await supabase
     .from("importaciones" as any)
