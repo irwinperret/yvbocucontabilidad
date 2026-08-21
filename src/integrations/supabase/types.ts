@@ -1486,6 +1486,10 @@ export type Database = {
       purgar_filas_importacion: { Args: { p_batch: string }; Returns: Json }
       purgar_importaciones_revertidas: { Args: never; Returns: Json }
       purgar_todo_importado: { Args: never; Returns: Json }
+      purgar_transacciones_huerfanas: {
+        Args: { p_ids: string[] }
+        Returns: Json
+      }
       registrar_auditoria: {
         Args: {
           _accion: string
