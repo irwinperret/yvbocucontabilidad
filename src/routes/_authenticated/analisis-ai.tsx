@@ -1,14 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Sparkles, Copy, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Sparkles, Copy, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus, Rocket, Coins } from "lucide-react";
 import { currentPeriod, fmtUsd } from "@/lib/format";
 import { generarAnalisisAI } from "@/lib/analisis-ai.functions";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
@@ -54,10 +58,13 @@ function AnalisisAIPage() {
   const [periodo, setPeriodo] = useState(currentPeriod());
   const { mode, label } = useUsdView();
   const generar = useServerFn(generarAnalisisAI);
+  const [confirmando, setConfirmando] = useState(false);
+  const [generadoPara, setGeneradoPara] = useState<{ periodo: string; mode: string } | null>(null);
 
   const m = useMutation({
     mutationFn: async (args: { p: string; v: "paralela" | "bcv" }) =>
       generar({ data: { periodo: args.p, vista: args.v } }),
+    onSuccess: (_data, vars) => setGeneradoPara({ periodo: vars.p, mode: vars.v }),
     onError: (e: any) => {
       const msg = e?.message || "";
       if (msg.includes("Límite")) toast.error(msg);
@@ -66,10 +73,13 @@ function AnalisisAIPage() {
     },
   });
 
-  useEffect(() => {
+  const desplegar = () => {
     m.mutate({ p: periodo, v: mode });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo, mode]);
+    setConfirmando(false);
+  };
+
+  // El resultado ya cargado corresponde a otro período/vista distinto al seleccionado ahora
+  const desactualizado = !!generadoPara && (generadoPara.periodo !== periodo || generadoPara.mode !== mode);
 
   const result = m.data;
   const parsed = result && !result.empty ? parseAnalysis(result.texto || "") : null;
@@ -98,12 +108,59 @@ function AnalisisAIPage() {
             <Label>Período</Label>
             <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
           </div>
-          <Button onClick={() => m.mutate({ p: periodo, v: mode })} disabled={m.isPending}>
+          <Button onClick={() => setConfirmando(true)} disabled={m.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${m.isPending ? "animate-spin" : ""}`} />
-            Actualizar ({label})
+            {result ? `Regenerar (${label})` : `Desplegar análisis (${label})`}
           </Button>
         </div>
       </div>
+
+      {desactualizado && !m.isPending && (
+        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+          <CardContent className="py-3 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm">
+              Este análisis es de <strong>{generadoPara?.periodo}</strong>, cambiaste el período o la vista. Vuelve a
+              desplegar para generarlo con la selección actual.
+            </p>
+            <Button size="sm" onClick={() => setConfirmando(true)} disabled={m.isPending}>
+              <Rocket className="h-3.5 w-3.5 mr-2" /> Desplegar de nuevo
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!result && !m.isPending && !m.isError && (
+        <Card>
+          <CardContent className="py-12 flex flex-col items-center justify-center gap-4 text-center">
+            <Sparkles className="h-10 w-10 text-muted-foreground/40" />
+            <div>
+              <p className="font-medium">Aún no se ha generado el análisis de {mesNombre}</p>
+              <p className="text-sm text-muted-foreground mt-1">Esto consume créditos de Lovable AI, así que se genera solo cuando lo despliegas.</p>
+            </div>
+            <Button size="lg" onClick={() => setConfirmando(true)}>
+              <Rocket className="h-4 w-4 mr-2" /> Desplegar análisis
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Coins className="h-4 w-4 text-amber-600" /> Esto va a consumir créditos de Lovable AI
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Generar este análisis hace una llamada a Lovable AI para {mesNombre} ({label}), lo cual gasta créditos
+              de la cuenta. ¿Quieres continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={desplegar}>Sí, desplegar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {m.isPending && (
         <Card>
