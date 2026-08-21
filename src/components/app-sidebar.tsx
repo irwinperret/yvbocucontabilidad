@@ -17,6 +17,7 @@ import {
   Layers,
   AlertTriangle,
   LayoutDashboard,
+  BarChart3,
   Landmark,
   ListChecks,
   ArrowLeftRight,
@@ -71,6 +72,7 @@ const registroGestion = [
 
 const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Resumen Ejecutivo", url: "/resumen-ejecutivo", icon: BarChart3 },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
   { title: "Flujo de caja", url: "/fc", icon: FileText },
   { title: "Impuestos", url: "/impuestos", icon: Receipt },
