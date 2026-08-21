@@ -402,6 +402,95 @@ const RATE_FMT = "#,##0.0000";
  * Exporta el historial completo de COGS por mes (resumen + detalle de
  * compras clasificado por origen: Xetux, movimientos bancarios o manual).
  */
+// ============ CapEx export ============
+export type RowCapExDetalle = {
+  fecha: string;
+  centro: string;
+  categoria: string;
+  descripcion: string;
+  numeroFactura: string;
+  metodoPago: string;
+  montoBs: number;
+  montoUsd: number;
+  modo: string;
+};
+export type RowCapExPorCategoria = { categoria: string; totalUsd: number };
+export type RowCapExPorMes = Record<string, string | number> & { mes: string };
+
+export function exportCapEx(opts: {
+  anio: number;
+  porCategoria: RowCapExPorCategoria[];
+  porMes: RowCapExPorMes[];
+  categorias: string[];
+  detalle: RowCapExDetalle[];
+}) {
+  const { anio, porCategoria, porMes, categorias, detalle } = opts;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Yvbocu Contabilidad";
+  wb.created = new Date();
+
+  const ws1 = wb.addWorksheet("Resumen por categoría");
+  ws1.columns = [
+    { header: "Categoría", key: "categoria", width: 28 },
+    { header: `Total USD ${anio}`, key: "totalUsd", width: 18 },
+  ];
+  styleHeader(ws1.getRow(1));
+  porCategoria.forEach((r) => {
+    const row = ws1.addRow(r);
+    const cell = row.getCell("totalUsd");
+    if (typeof cell.value === "number") cell.numFmt = USD_FMT;
+  });
+  const totalGeneral = porCategoria.reduce((s, r) => s + r.totalUsd, 0);
+  const totalRow = ws1.addRow({ categoria: "Total", totalUsd: totalGeneral });
+  styleTotal(totalRow, true);
+  totalRow.getCell("totalUsd").numFmt = USD_FMT;
+
+  const ws2 = wb.addWorksheet("Por mes");
+  ws2.columns = [
+    { header: "Mes", key: "mes", width: 12 },
+    ...categorias.map((c) => ({ header: c, key: c, width: 20 })),
+    { header: "Total", key: "total", width: 16 },
+  ];
+  styleHeader(ws2.getRow(1));
+  porMes.forEach((r) => {
+    const row = ws2.addRow(r);
+    [...categorias, "total"].forEach((k) => {
+      const cell = row.getCell(k);
+      if (typeof cell.value === "number") cell.numFmt = USD_FMT;
+    });
+  });
+
+  const ws3 = wb.addWorksheet("Detalle");
+  ws3.columns = [
+    { header: "Fecha", key: "fecha", width: 12 },
+    { header: "Centro", key: "centro", width: 12 },
+    { header: "Categoría", key: "categoria", width: 24 },
+    { header: "Descripción", key: "descripcion", width: 34 },
+    { header: "N° Factura", key: "numeroFactura", width: 16 },
+    { header: "Método de pago", key: "metodoPago", width: 16 },
+    { header: "Monto Bs", key: "montoBs", width: 16 },
+    { header: "Monto USD", key: "montoUsd", width: 16 },
+    { header: "Modo", key: "modo", width: 12 },
+  ];
+  styleHeader(ws3.getRow(1));
+  detalle.forEach((r) => {
+    const row = ws3.addRow(r);
+    const bsCell = row.getCell("montoBs");
+    if (typeof bsCell.value === "number") bsCell.numFmt = BS_FMT;
+    const usdCell = row.getCell("montoUsd");
+    if (typeof usdCell.value === "number") usdCell.numFmt = USD_FMT;
+  });
+  const totalDetRow = ws3.addRow({ descripcion: "Total", montoBs: detalle.reduce((s, r) => s + r.montoBs, 0), montoUsd: detalle.reduce((s, r) => s + r.montoUsd, 0) });
+  styleTotal(totalDetRow);
+  totalDetRow.getCell("montoBs").numFmt = BS_FMT;
+  totalDetRow.getCell("montoUsd").numFmt = USD_FMT;
+
+  wb.xlsx.writeBuffer().then((buf) => {
+    download(buf, `CapEx_${anio}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  });
+}
+
+// ============ COGS por mes export ============
 export function exportCogsPorMes(opts: { resumen: RowResumenCogs[]; detalle: RowDetalleCompraCogs[] }) {
   const { resumen, detalle } = opts;
   const wb = new ExcelJS.Workbook();

@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pencil } from "lucide-react";
+import { Pencil, Download } from "lucide-react";
 import { fmtUsd, fmtBs, fmtDate } from "@/lib/format";
 import { MESES, CAPEX_CATEGORIAS } from "@/lib/account-helpers";
+import { exportCapEx } from "@/lib/excel-export";
 import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
@@ -121,6 +122,31 @@ function CapExPage() {
   const totalUsd = filtered.reduce((s: number, t: any) => s + (usdVisual(t, mode) ?? 0), 0);
   const totalBs = filtered.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0);
 
+  const handleExport = () => {
+    exportCapEx({
+      anio,
+      categorias: CAPEX_CATEGORIAS,
+      porCategoria: CAPEX_CATEGORIAS.map((c) => ({ categoria: c, totalUsd: porCategoria[c] ?? 0 })),
+      porMes: chartData.map((row) => {
+        const out: any = { mes: row.mes };
+        CAPEX_CATEGORIAS.forEach((c) => { out[c] = row[c] ?? 0; });
+        out.total = row.total;
+        return out;
+      }),
+      detalle: filtered.map((t: any) => ({
+        fecha: fmtDate(t.fecha),
+        centro: t.centro_costo ?? "",
+        categoria: (t.capex_categoria as string) ?? "Otros",
+        descripcion: t.notas ?? "",
+        numeroFactura: t.numero_factura ?? "",
+        metodoPago: t.metodo_pago ?? "",
+        montoBs: Number(t.monto_bs) || 0,
+        montoUsd: usdVisual(t, mode) ?? 0,
+        modo: t.modo === "off_balance" ? "off" : "on",
+      })),
+    });
+  };
+
   const opexChartData = useMemo(() => {
     const buckets = MESES.map((m) => {
       const row: any = { mes: m };
@@ -166,6 +192,9 @@ function CapExPage() {
               {CAPEX_CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+          </Button>
         </div>
       </div>
 
