@@ -131,6 +131,28 @@ function ImportacionesPage() {
     qc.invalidateQueries();
   };
 
+  const { data: residuos = [], isLoading: loadingResiduos } = useQuery({
+    queryKey: ["import-residuos"],
+    queryFn: listarResiduos,
+  });
+
+  const confirmarPurgaResiduos = async () => {
+    setPurgingResiduos(true);
+    const res = await purgarResiduos(residuos.map((r) => r.id));
+    setPurgingResiduos(false);
+    if (!res.ok) return toast.error(res.error ?? "No se pudieron borrar los residuos");
+    const r = res.resumen;
+    toast.success(
+      r
+        ? `Se borraron ${r.transacciones} transacciones huérfanas (${r.conciliaciones} conciliaciones, ${r.cxp} CxP eliminadas, ${r.cxp_restauradas} facturas restauradas a pendiente).`
+        : "Residuos borrados"
+    );
+    setResiduosOpen(false);
+    qc.invalidateQueries();
+  };
+
+
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div>
