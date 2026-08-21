@@ -386,6 +386,39 @@ function ImportacionesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={residuosOpen} onOpenChange={(o) => !o && setResiduosOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Borrar residuos de importaciones</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Se eliminarán {residuos.length} transacciones de origen importado que quedaron sin carga
+                  asociada, junto con sus conciliaciones, diferenciales cambiarios y cuentas por pagar creadas.
+                  Las facturas que hayan sido pagadas por estos movimientos vuelven a "pendiente".
+                </p>
+                <p className="text-muted-foreground">
+                  No se tocan registros manuales, transacciones en standby ni meses cerrados. Esta acción no se
+                  puede deshacer.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={purgingResiduos}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={purgingResiduos}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmarPurgaResiduos();
+              }}
+            >
+              {purgingResiduos ? "Borrando…" : "Sí, borrar residuos"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
