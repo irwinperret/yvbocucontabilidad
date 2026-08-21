@@ -5,12 +5,14 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ModeToggle } from "@/components/mode-toggle";
 import { UsdViewProvider } from "@/lib/usd-view-context";
+import { useSidebarWidth, SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 
 export const Route = createFileRoute("/_authenticated")({ component: Layout });
 
 function Layout() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { width, setWidth } = useSidebarWidth();
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
@@ -23,9 +25,10 @@ function Layout() {
 
   return (
     <UsdViewProvider>
-      <SidebarProvider>
+      <SidebarProvider style={{ "--sidebar-width": `${width}px` } as React.CSSProperties}>
         <div className="min-h-screen flex w-full">
           <AppSidebar />
+          <SidebarResizeHandle width={width} onResize={setWidth} />
           <div className="flex-1 flex flex-col min-w-0">
             <header className="h-14 flex items-center justify-between border-b px-4 bg-background sticky top-0 z-10">
               <div className="flex items-center gap-2">
