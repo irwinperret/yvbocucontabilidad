@@ -75,6 +75,7 @@ const analisisPrincipales = [
   { title: "Flujo de caja", url: "/fc", icon: FileText },
   { title: "Impuestos", url: "/impuestos", icon: Receipt },
   { title: "Propinas", url: "/propinas", icon: DollarSign },
+  { title: "Bonos 10%", url: "/bonos10", icon: DollarSign },
 ];
 
 const analisisDetalles = [

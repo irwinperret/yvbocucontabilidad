@@ -377,7 +377,7 @@ function VentasForm() {
   const tasaOffParalela = facturaTx ? Number(facturaTx.tasa_paralela) || tasaParalelaN : tasaParalelaN;
   const tasaOffN = tasaOffParalela || (facturaTx ? Number(facturaTx.tasa_bcv) || tasaBcvN : tasaBcvN);
   const tasaOffEsParalela = !!tasaOffParalela;
-  const cuentaBonoOff = centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14";
+  const cuentaBonoOff = "13.4"; // Bono 10% siempre va al pasivo (antes 3.5/3.10/3.14), estilo Propinas
 
   // Autollenar bono = 10% del monto off si la persona no lo ha tocado
   useEffect(() => {
@@ -497,14 +497,14 @@ function VentasForm() {
         if (e1 || !txVenta) throw new Error(e1?.message ?? "No se pudo registrar la venta off-balance");
         await logAudit("transacciones", "INSERT", txVenta.id, null, txVenta);
 
-        // 2) Insert costo (bono 10%) off-balance — sólo si hay monto
+        // 2) Insert bono 10% (pasivo 13.4 + seguimiento en bonos_10) off-balance — sólo si hay monto
         let txBono: any = null;
         if (bonoUsdN > 0) {
           const { data: txB, error: e2 } = await supabase
             .from("transacciones")
             .insert({
               fecha: fechaOff,
-              cuenta_codigo: cuentaBonoOff,
+              cuenta_codigo: "13.4",
               centro_costo: centroOff as any,
               monto_bs: bonoBs,
               monto_base_bs: bonoBs,
@@ -514,11 +514,11 @@ function VentasForm() {
               tasa_bcv: Number(facturaTx.tasa_bcv) || tasaBcvN || tasaOffN,
               tasa_paralela: Number(facturaTx.tasa_paralela) || tasaParalelaN || tasaOffN,
               monto_usd: bonoUsdN,
-              metodo_pago: "efectivo_usd" as any,
+              metodo_pago: "pendiente" as any,
               referencia: null,
               numero_factura: facturaTx.numero_factura || null,
               numero_orden: facturaTx.numero_orden || null,
-              notas: `Bono ${centroOff} (off-balance) por factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}`,
+              notas: `Bono 10% ${centroOff} por pagar (off-balance) por factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}`,
               modo: "off_balance" as any,
               pareja_off_balance_id: txVenta.id,
               grupo_transaccion_id: grupoOffId,
@@ -538,6 +538,21 @@ function VentasForm() {
             .from("transacciones")
             .update({ pareja_off_balance_id: txBono.id } as any)
             .eq("id", txVenta.id);
+          // Seguimiento en bonos_10, igual que Propinas usa su propia tabla
+          const { error: eBono10Off } = await supabase.from("bonos_10").insert({
+            transaccion_entrada_id: txBono.id,
+            fecha: fechaOff,
+            centro_costo: centroOff as any,
+            monto_usd: bonoUsdN,
+            monto_bs: bonoBs,
+            tasa_paralela: Number(facturaTx.tasa_paralela) || tasaParalelaN || tasaOffN,
+            concepto: "Bono 10% (off-balance)",
+            numero_factura: facturaTx.numero_factura || null,
+            numero_orden: facturaTx.numero_orden || null,
+            notas: `Off-balance por factura ${refFactura}${facturaCliente ? ` · ${facturaCliente}` : ""}`,
+            created_by: user.id,
+          } as any);
+          if (eBono10Off) toast.error("Bono OK, pero falló registrar en bonos_10: " + eBono10Off.message);
         }
 
         // #9: CxC off-balance ("fiar" off-balance)
@@ -745,15 +760,19 @@ function VentasForm() {
       }
     }
 
-    // #6: bono servicio 10% (costo) y propina (tabla propinas) — solo contado/credito
+    // #6: bono servicio 10% (pasivo, seguimiento en bonos_10) y propina (tabla propinas) — solo contado/credito
     if ((tipo === "contado" || tipo === "credito") && tx) {
       if (bonoServUsdN > 0) {
-        const cuentaBono = centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14";
-        const { data: txBs, error: eBs } = await supabase
+        // Igual que Propinas: el bono 10% no es un gasto de nómina (no hay
+        // cuentas 3.5/3.10), es un pasivo (13.4, afecta_gyp=false) con
+        // seguimiento en la tabla bonos_10. El pago real se ve en la nómina
+        // general cuando se transfiere, sin duplicar el gasto.
+        let entradaBonoId: string | null = null;
+        const { data: txBono, error: eBs } = await supabase
           .from("transacciones")
           .insert({
             fecha,
-            cuenta_codigo: cuentaBono,
+            cuenta_codigo: "13.4",
             centro_costo: centro as any,
             monto_bs: bonoServBsN,
             monto_base_bs: bonoServBsN,
@@ -765,15 +784,32 @@ function VentasForm() {
             monto_usd: bonoServUsdN,
             metodo_pago: "pendiente" as any,
             numero_orden: numOrden || null,
-            notas: `Bono servicio 10% por venta ${tipo === "credito" ? "a crédito" : "contado"}${cliente ? ` · ${cliente}` : ""}`,
+            notas: `Bono 10% por pagar, venta ${tipo === "credito" ? "a crédito" : "contado"}${cliente ? ` · ${cliente}` : ""}`,
             modo: offBalance ? "off_balance" : "on_balance",
             grupo_transaccion_id: grupoId,
             created_by: user.id,
           } as any)
           .select()
           .single();
-        if (eBs) toast.error("Venta OK, pero falló registrar bono servicio: " + eBs.message);
-        else if (txBs) await logAudit("transacciones", "INSERT", txBs.id, null, txBs);
+        if (eBs) toast.error("Venta OK, pero falló registrar bono 10%: " + eBs.message);
+        else if (txBono) {
+          entradaBonoId = txBono.id;
+          await logAudit("transacciones", "INSERT", txBono.id, null, txBono);
+        }
+        const { error: eBono10 } = await supabase.from("bonos_10").insert({
+          transaccion_id: tx.id,
+          transaccion_entrada_id: entradaBonoId,
+          fecha,
+          centro_costo: centro as any,
+          monto_usd: bonoServUsdN,
+          monto_bs: bonoServBsN,
+          tasa_paralela: tasaParalelaN || null,
+          concepto: "Bono 10% venta manual",
+          numero_orden: numOrden || null,
+          notas: notas || null,
+          created_by: user.id,
+        } as any);
+        if (eBono10) toast.error("Venta OK, pero falló registrar en bonos_10: " + eBono10.message);
       }
       if (propinaUsdN > 0) {
         // 1) 13.1 entry transaction (propina recibida), afecta FC, no G&P
@@ -1280,7 +1316,7 @@ function VentasForm() {
                       />
                       <p className="text-xs text-muted-foreground mt-1">
                         Sugerido: {pagoEnUsd ? fmtUsd(bonoServAuto) : fmtBs(bonoServAuto)} (10% de la base). Se
-                        contabiliza como costo en cuenta {centro === "YV" ? "3.10" : centro === "Bocu" ? "3.5" : "3.14"}
+                        contabiliza como pasivo en cuenta 13.4 (no afecta G&P, seguimiento en la pestaña Bonos 10%)
                         .
                       </p>
                     </div>
@@ -1631,11 +1667,9 @@ function GastosFacturaForm() {
     "3.2",
     "3.3",
     "3.4",
-    "3.5",
     "3.6",
     "3.7",
     "3.9",
-    "3.10",
     "3.11",
     "3.12",
     "3.14",

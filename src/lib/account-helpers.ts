@@ -18,7 +18,9 @@ export function cuentaNomina(tipo: string, centro: Centro): string {
   // Compartido reutiliza los códigos que antes eran de Administración (3.1, 3.2, 3.3).
   const map: Record<string, Record<string, string>> = {
     regular:      { Bocu: "3.4", YV: "3.9",  Compartido: "3.1" },
-    bono:         { Bocu: "3.5", YV: "3.10", Compartido: "3.14" },
+    // Bono 10%: ya no es gasto de nómina (3.5/3.10 retiradas). Es un pasivo
+    // (13.4, estilo Propinas), igual para los tres centros.
+    bono:         { Bocu: "13.4", YV: "13.4", Compartido: "13.4" },
     liquidacion:  { Bocu: "3.7", YV: "3.12", Compartido: "3.3" },
     pasivos:      { Bocu: "3.6", YV: "3.11", Compartido: "3.2" },
     parafiscales: { Bocu: "3.15",YV: "3.15", Compartido: "3.15" },

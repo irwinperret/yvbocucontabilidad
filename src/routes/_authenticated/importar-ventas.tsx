@@ -251,38 +251,21 @@ function ImportarVentasPage() {
 
     // Helpers compartidos para sincronizar patas anexas (IVA, bono, propina) en INSERT y UPDATE.
     // Conversión Xetux: el USD del reporte está calculado a tasa BCV.
-    const syncBono = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, grupoId: string) => {
+    //
+    // Bono 10%: igual que Propinas, NO se registra como gasto de nómina (ya no
+    // existen cuentas 3.5/3.10). Solo se devenga el pasivo 13.4 ("Bonos 10% por
+    // pagar al personal", afecta_gyp=false) y se hace seguimiento en la tabla
+    // bonos_10, exactamente como propinas usa 13.1 y la tabla propinas. El pago
+    // real al personal se ve reflejado cuando se transfiere por nómina general
+    // (3.1/3.4/3.9, ahora renombradas "(10% inc.)"), sin duplicar el gasto.
+    const syncBono = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, grupoId: string, txId: string) => {
       if (r.clase !== "factura" || r.servicio_usd <= 0 || centroRow === ("Compartido" as any)) return;
-      const cuentaBono = centroRow === "YV" ? "3.10" : "3.5";
       const tasaBcv = tasas.bcv;
       const tasaPar = tasas.paralela || tasas.bcv;
       const bonoBs = +(r.servicio_usd * tasaBcv).toFixed(2);
       const bonoUsdPar = +(bonoBs / tasaPar).toFixed(2);
-      const { data: bonoExist } = await supabase.from("transacciones")
-        .select("id")
-        .eq("referencia", referencia)
-        .eq("cuenta_codigo", cuentaBono)
-        .eq("numero_factura", r.numero_factura)
-        .limit(1).maybeSingle();
-      const bonoPayload: any = {
-        fecha: r.fecha, cuenta_codigo: cuentaBono, centro_costo: centroRow as any,
-        monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
-        iva_aplica: false, tipo_iva: null,
-        tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
-        monto_usd: bonoUsdPar, metodo_pago: "efectivo_usd",
-        numero_factura: r.numero_factura, referencia: referencia, modo: "on_balance",
-        grupo_transaccion_id: grupoId,
-        notas: `Xetux · Bono 10% servicio · factura ${r.numero_factura} · ${r.cliente}`,
-        created_by: user.id,
-      };
-      if (bonoExist) {
-        await supabase.from("transacciones").update(bonoPayload).eq("id", bonoExist.id);
-      } else {
-        await supabase.from("transacciones").insert(bonoPayload);
-      }
 
-      // Pasivo 13.4 — Bonos 10% por pagar al personal: el gasto se devenga aquí y
-      // el pago bancario lo descarga (negativo). Así no se cuenta dos veces.
+      // 1) Upsert leg contable 13.4 "Bonos 10% por pagar al personal"
       const { data: pasivoExist } = await supabase.from("transacciones")
         .select("id")
         .eq("referencia", referencia)
@@ -290,15 +273,41 @@ function ImportarVentasPage() {
         .eq("numero_factura", r.numero_factura)
         .limit(1).maybeSingle();
       const pasivoPayload: any = {
-        ...bonoPayload,
-        cuenta_codigo: "13.4",
-        metodo_pago: "pendiente",
+        fecha: r.fecha, cuenta_codigo: "13.4", centro_costo: centroRow as any,
+        monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
+        iva_aplica: false, tipo_iva: null,
+        tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
+        monto_usd: bonoUsdPar, metodo_pago: "pendiente",
+        numero_factura: r.numero_factura, referencia: referencia, modo: "on_balance",
+        grupo_transaccion_id: grupoId,
         notas: `Xetux · Bono 10% por pagar · factura ${r.numero_factura} · ${r.cliente}`,
+        created_by: user.id,
       };
+      let pasivoId: string | null = null;
       if (pasivoExist) {
         await supabase.from("transacciones").update(pasivoPayload).eq("id", pasivoExist.id);
+        pasivoId = pasivoExist.id;
       } else {
-        await supabase.from("transacciones").insert(pasivoPayload);
+        const { data: ins } = await supabase.from("transacciones").insert(pasivoPayload).select("id").single();
+        pasivoId = ins?.id ?? null;
+      }
+
+      // 2) Upsert fila en bonos_10, enlazando transaccion_entrada_id al leg 13.4
+      const { data: bonoExist } = await supabase.from("bonos_10").select("id")
+        .eq("numero_factura", r.numero_factura).eq("referencia", referencia).limit(1).maybeSingle();
+      const bono10Payload: any = {
+        transaccion_id: txId,
+        transaccion_entrada_id: pasivoId,
+        fecha: r.fecha,
+        monto_usd: bonoUsdPar, monto_bs: bonoBs,
+        tasa_paralela: tasas.paralela || tasaBcv,
+        centro_costo: centroRow, concepto: "Bono 10% servicio Xetux", referencia: referencia,
+        numero_factura: r.numero_factura, created_by: user.id,
+      };
+      if (bonoExist) {
+        await supabase.from("bonos_10").update(bono10Payload).eq("id", bonoExist.id);
+      } else {
+        await supabase.from("bonos_10").insert(bono10Payload);
       }
       legs.bono++;
     };
@@ -568,7 +577,7 @@ function ImportarVentasPage() {
               });
               legs.iva++;
             }
-            await syncBono(r, centroRow, tasas, grupoExistente);
+            await syncBono(r, centroRow, tasas, grupoExistente, tx.id);
             await syncPropina(r, centroRow, tasas, tx.id, grupoExistente, metodo);
           }
           return { status: "upd" };
@@ -619,7 +628,7 @@ function ImportarVentasPage() {
         }
 
         if (tx) {
-          await syncBono(r, centroRow, tasas, grupoId);
+          await syncBono(r, centroRow, tasas, grupoId, tx.id);
           await syncPropina(r, centroRow, tasas, tx.id, grupoId, metodo);
         }
 
