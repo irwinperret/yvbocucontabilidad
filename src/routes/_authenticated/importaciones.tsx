@@ -251,6 +251,71 @@ function ImportacionesPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Residuos de importaciones</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Transacciones de origen importado (movimientos bancarios, compras Xetux, pareos) que quedaron
+                sin carga asociada y por eso no se borran al revertir. No incluye registros manuales ni standby.
+              </p>
+            </div>
+            {isAdmin && residuos.length > 0 && (
+              <Button size="sm" variant="destructive" onClick={() => setResiduosOpen(true)}>
+                <Trash2 className="mr-1 h-4 w-4" /> Borrar residuos ({residuos.length})
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Origen</TableHead>
+                <TableHead>Cuenta</TableHead>
+                <TableHead className="text-right">Bs</TableHead>
+                <TableHead className="text-right">USD</TableHead>
+                <TableHead>Referencia</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadingResiduos && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">Cargando…</TableCell>
+                </TableRow>
+              )}
+              {!loadingResiduos && residuos.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    No hay residuos: todo lo importado está asociado a una carga.
+                  </TableCell>
+                </TableRow>
+              )}
+              {residuos.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="whitespace-nowrap">{r.fecha}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Badge variant="secondary">{ORIGEN_LABEL[r.origen]}</Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{r.cuenta_codigo}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {(Number(r.monto_bs) || 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{fmtUsd(Number(r.monto_usd) || 0)}</TableCell>
+                  <TableCell className="max-w-[280px] truncate text-xs" title={r.referencia ?? ""}>
+                    {r.referencia ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+
+
       <AlertDialog open={!!plan} onOpenChange={(o) => !o && setPlan(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
