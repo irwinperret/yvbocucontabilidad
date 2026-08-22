@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView, usdVisual } from "@/lib/usd-view-context";
-import { TrendingUp, Wallet, HandCoins, Target, PencilLine } from "lucide-react";
+import { TrendingUp, Wallet, HandCoins, Target, PencilLine, Lock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/resumen-ejecutivo")({ component: ResumenEjecutivoPage });
 
@@ -220,11 +220,25 @@ function ResumenEjecutivoPage() {
     qc.invalidateQueries({ queryKey: ["proyecciones-mensuales"] });
   };
 
+  const PERMITIDOS = ["irwinperret@hotmail.com", "irwinperret@gmail.com"];
+  const autorizado = !!user?.email && PERMITIDOS.includes(user.email.toLowerCase());
+  if (!autorizado) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
+        <Lock className="h-10 w-10 text-muted-foreground/40" />
+        <p className="font-medium">Acceso restringido</p>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          Resumen IPA solo está disponible para cuentas autorizadas.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Resumen Ejecutivo</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Resumen IPA</h1>
           <p className="text-sm text-muted-foreground">Capital aportado, desempeño del negocio y proyecciones</p>
         </div>
         <div className="flex items-center gap-2">
@@ -247,6 +261,10 @@ function ResumenEjecutivoPage() {
         <KpiCard icon={TrendingUp} label={`Margen bruto ${anio}`} value={fmtUsd(margenBrutoYTD)} sub={`${margenBrutoPct.toFixed(1)}% de ingresos`} />
         <KpiCard icon={TrendingUp} label={`Margen neto ${anio}`} value={fmtUsd(margenNetoYTD)} sub={`${margenNetoPct.toFixed(1)}% de ingresos`} />
       </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        <strong>Margen bruto</strong>: lo que queda de los ingresos después de descontar solo el costo directo de la
+        mercancía vendida (COGS), antes de restar nómina, alquiler y demás gastos operativos.
+      </p>
 
       {/* Retorno para el inversionista */}
       <Card className="border-primary/30 bg-primary/5">
@@ -287,21 +305,6 @@ function ResumenEjecutivoPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Capital aportado acumulado</CardTitle></CardHeader>
-          <CardContent style={{ height: 320 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={capitalAcumuladoPorMes}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="periodo" fontSize={11} />
-                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
-                <Tooltip formatter={(v: number) => fmtUsd(v)} />
-                <Area type="monotone" dataKey="acumulado" name="Capital acumulado" stroke="#0F6E56" fill="#0F6E5633" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
           <CardHeader><CardTitle className="text-base">Ingresos: real vs proyectado — {anio}</CardTitle></CardHeader>
           <CardContent style={{ height: 320 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -315,25 +318,6 @@ function ResumenEjecutivoPage() {
                 <Line type="monotone" dataKey="ingresosProy" name="Proyectado" stroke="#F39C12" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} connectNulls={false} />
               </ComposedChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">Capital por aportante</CardTitle></CardHeader>
-          <CardContent style={{ height: 320 }}>
-            {porAportante.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Sin aportes registrados todavía.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
-                  <Legend />
-                  <Pie data={porAportante} dataKey="value" nameKey="name" outerRadius={100} label={(d: any) => `${d.name}: ${fmtUsd(d.value)}`}>
-                    {porAportante.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            )}
           </CardContent>
         </Card>
       </div>

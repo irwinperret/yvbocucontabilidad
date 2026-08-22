@@ -72,7 +72,6 @@ const registroGestion = [
 
 const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Resumen Ejecutivo", url: "/resumen-ejecutivo", icon: BarChart3 },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
 ];
 
@@ -90,6 +89,7 @@ const analisisDetalles = [
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
   { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
   { title: "Anticipos a proveedores", url: "/anticipos-proveedores", icon: Users },
+  { title: "Resumen IPA", url: "/resumen-ejecutivo", icon: BarChart3 },
   { title: "Inventarios", url: "/inventarios", icon: BookOpen },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
