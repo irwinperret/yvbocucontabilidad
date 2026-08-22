@@ -257,7 +257,7 @@ function Bonos10Page() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total del período</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold">{fmtUsd(total)}</div></CardContent>
@@ -274,17 +274,6 @@ function Bonos10Page() {
           <CardContent>
             <div className="text-2xl font-bold">{fmtUsd(promedio)}</div>
             <div className="text-xs text-muted-foreground mt-1">{dias} día{dias === 1 ? "" : "s"} con bono</div>
-          </CardContent>
-        </Card>
-        <Card className={pendientesUsd > 0.01 ? "border-orange-400 bg-orange-50/60 dark:bg-orange-950/20" : ""}>
-          <CardHeader className="pb-2">
-            <CardTitle className={`text-xs uppercase ${pendientesUsd > 0.01 ? "text-orange-700 dark:text-orange-300" : "text-muted-foreground"}`}>
-              Pendientes de distribuir
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${pendientesUsd > 0.01 ? "text-orange-700 dark:text-orange-300" : ""}`}>{fmtUsd(pendientesUsd)}</div>
-            <div className="text-xs text-muted-foreground mt-1">{pendientesCount} registro{pendientesCount === 1 ? "" : "s"} sin distribuir (todo el año)</div>
           </CardContent>
         </Card>
       </div>
