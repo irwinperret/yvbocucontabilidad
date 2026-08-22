@@ -18,6 +18,7 @@ import { Route as AuthenticatedTasaParalelaRouteImport } from './routes/_authent
 import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/tasa'
 import { Route as AuthenticatedStandbyRouteImport } from './routes/_authenticated/standby'
 import { Route as AuthenticatedSaldosBancariosRouteImport } from './routes/_authenticated/saldos-bancarios'
+import { Route as AuthenticatedResumenEjecutivoRouteImport } from './routes/_authenticated/resumen-ejecutivo'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
 import { Route as AuthenticatedPropinasRouteImport } from './routes/_authenticated/propinas'
 import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenticated/plan-cuentas'
@@ -42,6 +43,7 @@ import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cx
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
 import { Route as AuthenticatedCapexRouteImport } from './routes/_authenticated/capex'
+import { Route as AuthenticatedBonos10RouteImport } from './routes/_authenticated/bonos10'
 import { Route as AuthenticatedAumentoCapitalRouteImport } from './routes/_authenticated/aumento-capital'
 import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/_authenticated/anticipos-proveedores'
 import { Route as AuthenticatedAnalisisAiRouteImport } from './routes/_authenticated/analisis-ai'
@@ -96,6 +98,12 @@ const AuthenticatedSaldosBancariosRoute =
   AuthenticatedSaldosBancariosRouteImport.update({
     id: '/saldos-bancarios',
     path: '/saldos-bancarios',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedResumenEjecutivoRoute =
+  AuthenticatedResumenEjecutivoRouteImport.update({
+    id: '/resumen-ejecutivo',
+    path: '/resumen-ejecutivo',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedRegistrarRoute = AuthenticatedRegistrarRouteImport.update({
@@ -230,6 +238,11 @@ const AuthenticatedCapexRoute = AuthenticatedCapexRouteImport.update({
   path: '/capex',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedBonos10Route = AuthenticatedBonos10RouteImport.update({
+  id: '/bonos10',
+  path: '/bonos10',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAumentoCapitalRoute =
   AuthenticatedAumentoCapitalRouteImport.update({
     id: '/aumento-capital',
@@ -284,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
+  '/bonos10': typeof AuthenticatedBonos10Route
   '/capex': typeof AuthenticatedCapexRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
@@ -308,6 +322,7 @@ export interface FileRoutesByFullPath {
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/propinas': typeof AuthenticatedPropinasRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
+  '/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/standby': typeof AuthenticatedStandbyRoute
   '/tasa': typeof AuthenticatedTasaRoute
@@ -326,6 +341,7 @@ export interface FileRoutesByTo {
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
+  '/bonos10': typeof AuthenticatedBonos10Route
   '/capex': typeof AuthenticatedCapexRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
@@ -350,6 +366,7 @@ export interface FileRoutesByTo {
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/propinas': typeof AuthenticatedPropinasRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
+  '/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/standby': typeof AuthenticatedStandbyRoute
   '/tasa': typeof AuthenticatedTasaRoute
@@ -370,6 +387,7 @@ export interface FileRoutesById {
   '/_authenticated/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/_authenticated/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/_authenticated/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
+  '/_authenticated/bonos10': typeof AuthenticatedBonos10Route
   '/_authenticated/capex': typeof AuthenticatedCapexRoute
   '/_authenticated/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/_authenticated/cxc': typeof AuthenticatedCxcRoute
@@ -394,6 +412,7 @@ export interface FileRoutesById {
   '/_authenticated/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
   '/_authenticated/propinas': typeof AuthenticatedPropinasRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
+  '/_authenticated/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
   '/_authenticated/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/_authenticated/standby': typeof AuthenticatedStandbyRoute
   '/_authenticated/tasa': typeof AuthenticatedTasaRoute
@@ -414,6 +433,7 @@ export interface FileRouteTypes {
     | '/analisis-ai'
     | '/anticipos-proveedores'
     | '/aumento-capital'
+    | '/bonos10'
     | '/capex'
     | '/cuentas-bancarias'
     | '/cxc'
@@ -438,6 +458,7 @@ export interface FileRouteTypes {
     | '/plan-cuentas'
     | '/propinas'
     | '/registrar'
+    | '/resumen-ejecutivo'
     | '/saldos-bancarios'
     | '/standby'
     | '/tasa'
@@ -456,6 +477,7 @@ export interface FileRouteTypes {
     | '/analisis-ai'
     | '/anticipos-proveedores'
     | '/aumento-capital'
+    | '/bonos10'
     | '/capex'
     | '/cuentas-bancarias'
     | '/cxc'
@@ -480,6 +502,7 @@ export interface FileRouteTypes {
     | '/plan-cuentas'
     | '/propinas'
     | '/registrar'
+    | '/resumen-ejecutivo'
     | '/saldos-bancarios'
     | '/standby'
     | '/tasa'
@@ -499,6 +522,7 @@ export interface FileRouteTypes {
     | '/_authenticated/analisis-ai'
     | '/_authenticated/anticipos-proveedores'
     | '/_authenticated/aumento-capital'
+    | '/_authenticated/bonos10'
     | '/_authenticated/capex'
     | '/_authenticated/cuentas-bancarias'
     | '/_authenticated/cxc'
@@ -523,6 +547,7 @@ export interface FileRouteTypes {
     | '/_authenticated/plan-cuentas'
     | '/_authenticated/propinas'
     | '/_authenticated/registrar'
+    | '/_authenticated/resumen-ejecutivo'
     | '/_authenticated/saldos-bancarios'
     | '/_authenticated/standby'
     | '/_authenticated/tasa'
@@ -606,6 +631,13 @@ declare module '@tanstack/react-router' {
       path: '/saldos-bancarios'
       fullPath: '/saldos-bancarios'
       preLoaderRoute: typeof AuthenticatedSaldosBancariosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/resumen-ejecutivo': {
+      id: '/_authenticated/resumen-ejecutivo'
+      path: '/resumen-ejecutivo'
+      fullPath: '/resumen-ejecutivo'
+      preLoaderRoute: typeof AuthenticatedResumenEjecutivoRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/registrar': {
@@ -776,6 +808,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCapexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/bonos10': {
+      id: '/_authenticated/bonos10'
+      path: '/bonos10'
+      fullPath: '/bonos10'
+      preLoaderRoute: typeof AuthenticatedBonos10RouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/aumento-capital': {
       id: '/_authenticated/aumento-capital'
       path: '/aumento-capital'
@@ -840,6 +879,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAnalisisAiRoute: typeof AuthenticatedAnalisisAiRoute
   AuthenticatedAnticiposProveedoresRoute: typeof AuthenticatedAnticiposProveedoresRoute
   AuthenticatedAumentoCapitalRoute: typeof AuthenticatedAumentoCapitalRoute
+  AuthenticatedBonos10Route: typeof AuthenticatedBonos10Route
   AuthenticatedCapexRoute: typeof AuthenticatedCapexRoute
   AuthenticatedCuentasBancariasRoute: typeof AuthenticatedCuentasBancariasRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRoute
@@ -864,6 +904,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPlanCuentasRoute: typeof AuthenticatedPlanCuentasRoute
   AuthenticatedPropinasRoute: typeof AuthenticatedPropinasRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
+  AuthenticatedResumenEjecutivoRoute: typeof AuthenticatedResumenEjecutivoRoute
   AuthenticatedSaldosBancariosRoute: typeof AuthenticatedSaldosBancariosRoute
   AuthenticatedStandbyRoute: typeof AuthenticatedStandbyRoute
   AuthenticatedTasaRoute: typeof AuthenticatedTasaRoute
@@ -880,6 +921,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAnticiposProveedoresRoute:
     AuthenticatedAnticiposProveedoresRoute,
   AuthenticatedAumentoCapitalRoute: AuthenticatedAumentoCapitalRoute,
+  AuthenticatedBonos10Route: AuthenticatedBonos10Route,
   AuthenticatedCapexRoute: AuthenticatedCapexRoute,
   AuthenticatedCuentasBancariasRoute: AuthenticatedCuentasBancariasRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRoute,
@@ -906,6 +948,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPlanCuentasRoute: AuthenticatedPlanCuentasRoute,
   AuthenticatedPropinasRoute: AuthenticatedPropinasRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
+  AuthenticatedResumenEjecutivoRoute: AuthenticatedResumenEjecutivoRoute,
   AuthenticatedSaldosBancariosRoute: AuthenticatedSaldosBancariosRoute,
   AuthenticatedStandbyRoute: AuthenticatedStandbyRoute,
   AuthenticatedTasaRoute: AuthenticatedTasaRoute,
