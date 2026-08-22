@@ -80,11 +80,11 @@ const analisisEnConstruccion = [
   { title: "Flujo de caja", url: "/fc", icon: FileText },
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
   { title: "CxC pendientes", url: "/cxc", icon: FileInput },
+  { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
   { title: "Activos transitorios", url: "/activos-transitorios", icon: Wallet },
 ];
 
 const analisisDetalles = [
-  { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
   { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
