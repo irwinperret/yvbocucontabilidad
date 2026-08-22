@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Home,
   PlusCircle,
@@ -111,6 +111,15 @@ export function AppSidebar() {
   const [enConstruccionOpen, setEnConstruccionOpen] = useState(false);
 
   const isActive = (url: string) => path === url;
+
+  // "En construcción" siempre debe verse minimizado por defecto: solo se
+  // mantiene abierto mientras se está navegando dentro de sus propias
+  // pantallas, y se vuelve a cerrar solo en cuanto sales de ahí.
+  useEffect(() => {
+    if (!analisisEnConstruccion.some((item) => item.url === path)) {
+      setEnConstruccionOpen(false);
+    }
+  }, [path]);
 
   return (
     <Sidebar

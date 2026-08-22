@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -199,7 +200,12 @@ export function DashboardCharts() {
         {/* Efectivo disponible (FC) */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Efectivo disponible (FC)</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              Efectivo disponible (FC)
+              <Badge variant="outline" className="text-[10px] font-normal border-amber-500 text-amber-600">
+                Beta · En Construcción
+              </Badge>
+            </CardTitle>
             <div className="flex gap-6 text-xs mt-1">
               <span className="text-muted-foreground">Saldo acumulado</span>
               <span className={`mono font-semibold ${efectivoActual >= 0 ? "text-emerald-600" : "text-red-600"}`}>{fmtUsd(efectivoActual)}</span>
