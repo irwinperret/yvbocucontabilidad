@@ -74,27 +74,29 @@ const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Resumen Ejecutivo", url: "/resumen-ejecutivo", icon: BarChart3 },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
-  { title: "Flujo de caja", url: "/fc", icon: FileText },
+];
+
+const analisisEnConstruccion = [
   { title: "Impuestos", url: "/impuestos", icon: Receipt },
-  { title: "Propinas", url: "/propinas", icon: DollarSign },
-  { title: "Bonos 10%", url: "/bonos10", icon: DollarSign },
+  { title: "Flujo de caja", url: "/fc", icon: FileText },
+  { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
+  { title: "CxC pendientes", url: "/cxc", icon: FileInput },
+  { title: "Activos transitorios", url: "/activos-transitorios", icon: Wallet },
 ];
 
 const analisisDetalles = [
-  { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
-  { title: "CxC pendientes", url: "/cxc", icon: FileInput },
   { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
   { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
   { title: "Anticipos a proveedores", url: "/anticipos-proveedores", icon: Users },
-  { title: "Activos transitorios", url: "/activos-transitorios", icon: Wallet },
   { title: "Inventarios", url: "/inventarios", icon: BookOpen },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
-  { title: "Diferencial cambiario", url: "/diferencial-cambiario", icon: ArrowLeftRight },
   { title: "Operaciones de Cambio", url: "/operaciones-cambio", icon: ArrowLeftRight },
+  { title: "Propinas", url: "/propinas", icon: DollarSign },
+  { title: "Bonos 10%", url: "/bonos10", icon: DollarSign },
 ];
 
 export function AppSidebar() {
@@ -106,6 +108,7 @@ export function AppSidebar() {
   const [importarOpen, setImportarOpen] = useState(true);
   const [gestionOpen, setGestionOpen] = useState(false);
   const [detallesOpen, setDetallesOpen] = useState(false);
+  const [enConstruccionOpen, setEnConstruccionOpen] = useState(false);
 
   const isActive = (url: string) => path === url;
 
@@ -250,6 +253,33 @@ export function AppSidebar() {
                 </SidebarMenuItem>
                 {detallesOpen &&
                   analisisDetalles.map((item) => (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
+                        <Link to={item.url} className="flex items-center gap-2">
+                          <item.icon className="h-3.5 w-3.5" />
+                          {!collapsed && <span className="text-sm">{item.title}</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton onClick={() => setEnConstruccionOpen((v) => !v)} className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left">En construcción</span>
+                        {enConstruccionOpen ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                      </>
+                    )}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {enConstruccionOpen &&
+                  analisisEnConstruccion.map((item) => (
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
                         <Link to={item.url} className="flex items-center gap-2">
