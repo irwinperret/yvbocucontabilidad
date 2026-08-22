@@ -9,6 +9,7 @@ import { ArrowRight } from "lucide-react";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
+import { ordenarPorCodigo } from "@/lib/account-helpers";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -34,6 +35,17 @@ function Dashboard() {
       return data ?? [];
     },
   });
+  const { data: cuentas } = useQuery({
+    queryKey: ["cuentas-dashboard"],
+    queryFn: async () => {
+      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre");
+      return ordenarPorCodigo(data ?? []);
+    },
+  });
+  const nombreCuenta = (c: string) => {
+    const n = cuentas?.find((x: any) => x.codigo === c)?.nombre;
+    return n ? `${c} · ${n}` : c;
+  };
   const { data: cxcCount } = useQuery({
     queryKey: ["cxc-count"],
     queryFn: async () => {
@@ -130,7 +142,7 @@ function Dashboard() {
                     return (
                       <tr key={t.id} className="border-b last:border-0">
                         <td className="py-2 px-2 mono">{fmtDate(t.fecha)}</td>
-                        <td className="py-2 px-2">{t.cuenta_codigo}</td>
+                        <td className="py-2 px-2">{nombreCuenta(t.cuenta_codigo)}</td>
                         <td className="py-2 px-2">{t.centro_costo}</td>
                         <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
                         <td className="py-2 px-2 text-right mono">{usd == null ? "—" : fmtUsd(usd)}</td>
