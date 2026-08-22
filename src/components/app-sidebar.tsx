@@ -150,7 +150,7 @@ export function AppSidebar() {
                       <Upload className="h-4 w-4" />
                       {!collapsed && (
                         <>
-                          <span className="flex-1 text-left">Importar Archivos</span>
+                          <span className="flex-1 text-left font-bold">Importar Archivos</span>
                           {importarOpen ? (
                             <ChevronDown className="h-3.5 w-3.5" />
                           ) : (
