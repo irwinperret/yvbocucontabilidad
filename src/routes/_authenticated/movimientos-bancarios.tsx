@@ -309,7 +309,7 @@ function MovimientosBancariosPage() {
         evidente:
           auto.estado === "pareado" &&
           auto.facturas.length > 0 &&
-          auto.facturas.every((f) => diasEntre(f.fecha, mov.fecha) <= 15),
+          auto.facturas.every((f) => diasEntre(f.fecha, mov.fecha) <= 3),
 
       };
 
