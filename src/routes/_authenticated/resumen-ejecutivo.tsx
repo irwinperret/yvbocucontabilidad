@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView, usdVisual } from "@/lib/usd-view-context";
-import { TrendingUp, Wallet, HandCoins, Target, PencilLine, Lock } from "lucide-react";
+import { TrendingUp, Wallet, HandCoins, Target, PencilLine, Wrench } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/resumen-ejecutivo")({ component: ResumenEjecutivoPage });
 
@@ -225,10 +225,10 @@ function ResumenEjecutivoPage() {
   if (!autorizado) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
-        <Lock className="h-10 w-10 text-muted-foreground/40" />
-        <p className="font-medium">Acceso restringido</p>
+        <Wrench className="h-10 w-10 text-muted-foreground/40" />
+        <p className="font-medium">En Construcción</p>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Resumen IPA solo está disponible para cuentas autorizadas.
+          Esta pantalla todavía no está disponible.
         </p>
       </div>
     );
