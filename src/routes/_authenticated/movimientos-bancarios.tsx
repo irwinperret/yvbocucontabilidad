@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -31,6 +31,7 @@ import {
   coberturaPareo,
   recalcularPareos,
   esFacturaDeCompra,
+  diasEntre,
   ESTADO_LABEL,
   type EstadoConciliacion,
   type FacturaRef,
@@ -301,11 +302,46 @@ function MovimientosBancariosPage() {
         manual: confirmados.some((v) => v.origen === "manual"),
         confirmable: (!confirmados.length && !estadoManual) && (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
         estadoSugerido: (auto.estado === "parcial" ? "parcial" : "pareado") as "pareado" | "parcial",
+        // "Evidente": el propio matching ya encontró el N° de factura con monto
+        // casi exacto (auto.estado === "pareado", no "posible" ni "parcial"), y
+        // además la fecha del movimiento está cerca de la de la factura. En ese
+        // caso no hace falta que un humano lo confirme a mano.
+        evidente:
+          auto.estado === "pareado" &&
+          auto.facturas.length > 0 &&
+          auto.facturas.every((f) => diasEntre(f.fecha, mov.fecha) <= 15),
 
       };
 
     });
   }, [movimientos, indice, vinculosPorMov, terceros, tercerosById]);
+
+  // ── Auto-confirmar los "evidentes": N° de factura hallado con monto casi
+  // exacto y fecha cercana. No hace falta que un humano los confirme a mano.
+  const autoConfirmando = useRef(new Set<string>());
+  useEffect(() => {
+    const pendientes = filas.filter((f) => f.confirmable && f.evidente && !autoConfirmando.current.has(f.mov.id));
+    if (!pendientes.length) return;
+    pendientes.forEach((f) => autoConfirmando.current.add(f.mov.id));
+    (async () => {
+      let ok = 0;
+      for (const f of pendientes) {
+        const r = await guardarVinculosConciliacion({
+          movimientoId: f.mov.id,
+          contrapartes: f.sugeridas.map((s: any) => s.id),
+          estado: f.estadoSugerido,
+          origen: "auto",
+          userId: user?.id ?? null,
+        });
+        if (r.ok) ok++;
+      }
+      if (ok > 0) {
+        toast.success(`${ok} movimiento${ok === 1 ? "" : "s"} evidente${ok === 1 ? "" : "s"} confirmado${ok === 1 ? "" : "s"} automáticamente (N° de factura, monto y fecha coinciden)`);
+        qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filas]);
 
 
   const bancos = useMemo(

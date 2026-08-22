@@ -164,7 +164,7 @@ export type ResultadoPareo = {
 };
 
 
-const diasEntre = (a: string, b: string) =>
+export const diasEntre = (a: string, b: string) =>
   Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
 
 const montoFacturaBs = (f: FacturaRef, tasaBcv?: number) =>
