@@ -279,16 +279,6 @@ function Bonos10Page() {
       </div>
 
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs uppercase text-muted-foreground">13.4 · Bonos 10% por pagar (saldo {anio})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{fmtUsd(saldo134 ?? 0)}</div>
-          <div className="text-xs text-muted-foreground mt-1">Devengado en ventas menos lo pagado por banco</div>
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardHeader><CardTitle className="text-base">Bono 10% mensual · {anio}</CardTitle></CardHeader>
         <CardContent style={{ height: 340 }}>
           <ResponsiveContainer width="100%" height="100%">
