@@ -89,7 +89,6 @@ const analisisDetalles = [
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
   { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
   { title: "Anticipos a proveedores", url: "/anticipos-proveedores", icon: Users },
-  { title: "Resumen IPA", url: "/resumen-ejecutivo", icon: BarChart3 },
   { title: "Inventarios", url: "/inventarios", icon: BookOpen },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
@@ -97,6 +96,7 @@ const analisisDetalles = [
   { title: "Operaciones de Cambio", url: "/operaciones-cambio", icon: ArrowLeftRight },
   { title: "Propinas", url: "/propinas", icon: DollarSign },
   { title: "Bonos 10%", url: "/bonos10", icon: DollarSign },
+  { title: "Resumen IPA", url: "/resumen-ejecutivo", icon: BarChart3 },
 ];
 
 export function AppSidebar() {
