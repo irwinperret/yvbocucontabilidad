@@ -196,6 +196,75 @@ export type Database = {
         }
         Relationships: []
       }
+      bonos_10: {
+        Row: {
+          centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          concepto: string | null
+          created_at: string
+          created_by: string | null
+          fecha: string
+          fecha_distribucion: string | null
+          id: string
+          import_batch_id: string | null
+          monto_bs: number | null
+          monto_distribuido_usd: number | null
+          monto_usd: number
+          notas: string | null
+          notas_distribucion: string | null
+          numero_factura: string | null
+          numero_orden: string | null
+          referencia: string | null
+          tasa_paralela: number | null
+          transaccion_entrada_id: string | null
+          transaccion_id: string | null
+          transaccion_salida_id: string | null
+        }
+        Insert: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
+          concepto?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha: string
+          fecha_distribucion?: string | null
+          id?: string
+          import_batch_id?: string | null
+          monto_bs?: number | null
+          monto_distribuido_usd?: number | null
+          monto_usd: number
+          notas?: string | null
+          notas_distribucion?: string | null
+          numero_factura?: string | null
+          numero_orden?: string | null
+          referencia?: string | null
+          tasa_paralela?: number | null
+          transaccion_entrada_id?: string | null
+          transaccion_id?: string | null
+          transaccion_salida_id?: string | null
+        }
+        Update: {
+          centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
+          concepto?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          fecha_distribucion?: string | null
+          id?: string
+          import_batch_id?: string | null
+          monto_bs?: number | null
+          monto_distribuido_usd?: number | null
+          monto_usd?: number
+          notas?: string | null
+          notas_distribucion?: string | null
+          numero_factura?: string | null
+          numero_orden?: string | null
+          referencia?: string | null
+          tasa_paralela?: number | null
+          transaccion_entrada_id?: string | null
+          transaccion_id?: string | null
+          transaccion_salida_id?: string | null
+        }
+        Relationships: []
+      }
       cierres_de_mes: {
         Row: {
           cogs_bs: number
@@ -952,6 +1021,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      proyecciones_mensuales: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          ingresos_proyectados: number | null
+          margen_neto_proyectado_pct: number | null
+          notas: string | null
+          periodo: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ingresos_proyectados?: number | null
+          margen_neto_proyectado_pct?: number | null
+          notas?: string | null
+          periodo: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ingresos_proyectados?: number | null
+          margen_neto_proyectado_pct?: number | null
+          notas?: string | null
+          periodo?: string
+        }
+        Relationships: []
       }
       tasas_bcv: {
         Row: {
