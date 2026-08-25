@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,34 +54,67 @@ function prioridadColor(p: Reco["prioridad"]) {
   return "bg-muted text-muted-foreground";
 }
 
+type Modelo = "rapido" | "profundo";
+const CACHE_PREFIX = "analisis-ai:";
+const cacheKey = (p: string, v: string, mo: Modelo) => `${CACHE_PREFIX}${p}:${v}:${mo}`;
+
 function AnalisisAIPage() {
   const [periodo, setPeriodo] = useState(currentPeriod());
   const { mode, label } = useUsdView();
   const generar = useServerFn(generarAnalisisAI);
   const [confirmando, setConfirmando] = useState(false);
+  const [modelo, setModelo] = useState<Modelo>("rapido");
   const [generadoPara, setGeneradoPara] = useState<{ periodo: string; mode: string } | null>(null);
+  const [cacheado, setCacheado] = useState<any>(null);
+  const [sinCreditos, setSinCreditos] = useState(false);
+
+  // Reutiliza el último análisis guardado para este período/vista/modelo (no consume créditos)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(cacheKey(periodo, mode, modelo));
+      const parsed = raw ? JSON.parse(raw) : null;
+      setCacheado(parsed);
+      if (parsed) setGeneradoPara({ periodo, mode });
+    } catch {
+      setCacheado(null);
+    }
+  }, [periodo, mode, modelo]);
 
   const m = useMutation({
-    mutationFn: async (args: { p: string; v: "paralela" | "bcv" }) =>
-      generar({ data: { periodo: args.p, vista: args.v } }),
-    onSuccess: (_data, vars) => setGeneradoPara({ periodo: vars.p, mode: vars.v }),
+    mutationFn: async (args: { p: string; v: "paralela" | "bcv"; mo: Modelo }) =>
+      generar({ data: { periodo: args.p, vista: args.v, modelo: args.mo } }),
+    onSuccess: (data, vars) => {
+      setGeneradoPara({ periodo: vars.p, mode: vars.v });
+      setSinCreditos(false);
+      setCacheado(data);
+      try {
+        localStorage.setItem(cacheKey(vars.p, vars.v, vars.mo), JSON.stringify(data));
+      } catch {
+        /* cuota de almacenamiento llena: no es crítico */
+      }
+    },
     onError: (e: any) => {
       const msg = e?.message || "";
+      if (msg.includes("SIN_CREDITOS")) {
+        setSinCreditos(true);
+        return;
+      }
+      setSinCreditos(false);
       if (msg.includes("Límite")) toast.error(msg);
-      else if (msg.includes("Créditos")) toast.error(msg);
       else toast.error("Error al conectar con el servicio de análisis. Intenta de nuevo.");
     },
   });
 
   const desplegar = () => {
-    m.mutate({ p: periodo, v: mode });
+    m.mutate({ p: periodo, v: mode, mo: modelo });
     setConfirmando(false);
   };
 
   // El resultado ya cargado corresponde a otro período/vista distinto al seleccionado ahora
   const desactualizado = !!generadoPara && (generadoPara.periodo !== periodo || generadoPara.mode !== mode);
 
-  const result = m.data;
+  const result = m.data ?? cacheado;
   const parsed = result && !result.empty ? parseAnalysis(result.texto || "") : null;
 
   const copiar = async () => {
@@ -104,6 +137,25 @@ function AnalisisAIPage() {
         </div>
         <div className="flex items-end gap-2 flex-wrap">
           <UsdViewToggle />
+          <div>
+            <Label>Modo</Label>
+            <div className="inline-flex items-center rounded-lg border bg-card p-1 text-sm font-medium h-9">
+              <button
+                type="button"
+                onClick={() => setModelo("rapido")}
+                className={`px-3 py-1 rounded-md transition-colors ${modelo === "rapido" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Rápido (bajo costo)
+              </button>
+              <button
+                type="button"
+                onClick={() => setModelo("profundo")}
+                className={`px-3 py-1 rounded-md transition-colors ${modelo === "profundo" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Profundo
+              </button>
+            </div>
+          </div>
           <div>
             <Label>Período</Label>
             <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
@@ -129,7 +181,7 @@ function AnalisisAIPage() {
         </Card>
       )}
 
-      {!result && !m.isPending && !m.isError && (
+      {!result && !m.isPending && !m.isError && !sinCreditos && (
         <Card>
           <CardContent className="py-12 flex flex-col items-center justify-center gap-4 text-center">
             <Sparkles className="h-10 w-10 text-muted-foreground/40" />
@@ -151,8 +203,9 @@ function AnalisisAIPage() {
               <Coins className="h-4 w-4 text-amber-600" /> Esto va a consumir créditos de Lovable AI
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Generar este análisis hace una llamada a Lovable AI para {mesNombre} ({label}), lo cual gasta créditos
-              de la cuenta. ¿Quieres continuar?
+              Generar este análisis hace una llamada a Lovable AI para {mesNombre} ({label}) en modo{" "}
+              <strong>{modelo === "rapido" ? "Rápido (bajo costo)" : "Profundo (mayor costo)"}</strong>, lo cual gasta
+              créditos de la cuenta. ¿Quieres continuar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -171,7 +224,22 @@ function AnalisisAIPage() {
         </Card>
       )}
 
-      {!m.isPending && m.isError && (
+      {!m.isPending && sinCreditos && (
+        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+          <CardContent className="py-6 space-y-2 text-sm">
+            <p className="font-medium flex items-center gap-2">
+              <Coins className="h-4 w-4 text-amber-600" /> No hay créditos de IA disponibles en el workspace
+            </p>
+            <p className="text-muted-foreground">
+              La pasarela rechazó la solicitud por saldo insuficiente. Los créditos del período se renuevan con el
+              ciclo de facturación, o puedes recargar desde Settings → Plans &amp; credits en Lovable. No se hacen
+              reintentos automáticos para no gastar de más.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!m.isPending && m.isError && !sinCreditos && (
         <Card>
           <CardContent className="py-8 text-center text-sm text-destructive">
             Error al conectar con el servicio de análisis. Intenta de nuevo.
