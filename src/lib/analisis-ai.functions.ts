@@ -9,7 +9,7 @@ const InputSchema = z.object({
 });
 
 const MODELOS = {
-  rapido: "google/gemini-3-flash",
+  rapido: "google/gemini-3.7-flash",
   profundo: "openai/gpt-5.5",
 } as const;
 
