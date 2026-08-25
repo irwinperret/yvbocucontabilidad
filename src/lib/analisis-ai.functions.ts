@@ -18,7 +18,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { periodo, vista } = data;
+    const { periodo, vista, modelo } = data;
 
     // Use DB-side aggregation to avoid Supabase 1000-row limit
     const { data: snapRaw, error: snapErr } = await supabase.rpc("get_analisis_snapshot", { p_periodo: periodo, p_vista: vista } as any);
