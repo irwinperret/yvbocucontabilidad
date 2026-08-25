@@ -181,7 +181,7 @@ function AnalisisAIPage() {
         </Card>
       )}
 
-      {!result && !m.isPending && !m.isError && (
+      {!result && !m.isPending && !m.isError && !sinCreditos && (
         <Card>
           <CardContent className="py-12 flex flex-col items-center justify-center gap-4 text-center">
             <Sparkles className="h-10 w-10 text-muted-foreground/40" />
