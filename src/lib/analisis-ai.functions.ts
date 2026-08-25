@@ -91,19 +91,19 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     }
 
     const vistaLabel = vista === "bcv" ? "USD a tasa BCV" : "USD a tasa paralela";
-    const prompt = `Eres un consultor financiero experto en restaurantes venezolanos. Analiza los siguientes datos financieros del restaurante YV/Bocú para el período ${businessSnapshot.periodo} y proporciona entre 3 y 5 recomendaciones concretas y accionables basadas en los números. Todos los montos USD están expresados en ${vistaLabel}.
+    const prompt = `Eres un consultor financiero experto en restaurantes venezolanos. Analiza los siguientes datos financieros del restaurante YV/Bocú para el período ${businessSnapshot.periodo} y proporciona exactamente 3 recomendaciones concretas y accionables basadas en los números. Todos los montos USD están expresados en ${vistaLabel}.
 
 DATOS FINANCIEROS:
 ${JSON.stringify(businessSnapshot, null, 2)}
 
 Responde en español. Estructura tu respuesta así:
 1. Un párrafo corto de diagnóstico general (máximo 3 oraciones)
-2. Entre 3 y 5 recomendaciones numeradas, cada una con:
+2. Exactamente 3 recomendaciones numeradas, cada una con:
    - Título corto en negrita
    - Explicación de máximo 2 oraciones basada en los números específicos
    - Nivel de prioridad: ALTA / MEDIA / BAJA
 
-Sé directo, específico con los números, y práctico. Evita recomendaciones genéricas.
+Sé directo, específico con los números, y práctico. Evita recomendaciones genéricas. Sé breve: no excedas 350 palabras en total.
 
 IMPORTANTE - NO incluyas en tu análisis:
 - Comentarios sobre registros off-balance como si fueran sospechosos, no conciliados, o riesgo de distorsión de utilidad
@@ -115,6 +115,10 @@ Estos campos son puramente informativos y no representan señales de problema en
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("Falta LOVABLE_API_KEY");
 
+    const model = MODELOS[modelo];
+    const esOpenAI = model.startsWith("openai/");
+    const limiteSalida = modelo === "profundo" ? 1200 : 800;
+
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -122,15 +126,17 @@ Estos campos son puramente informativos y no representan señales de problema en
         "Lovable-API-Key": key,
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.5",
+        model,
         messages: [{ role: "user", content: prompt }],
+        ...(esOpenAI ? { max_completion_tokens: limiteSalida } : { max_tokens: limiteSalida }),
       }),
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       if (res.status === 429) throw new Error("Límite de uso alcanzado, intenta más tarde.");
-      if (res.status === 402) throw new Error("Créditos agotados en Lovable AI.");
+      if (res.status === 402) throw new Error("SIN_CREDITOS");
+      if (res.status === 403) throw new Error("SIN_CREDITOS");
       throw new Error(`Gateway error ${res.status}: ${text.slice(0, 200)}`);
     }
 
@@ -141,6 +147,7 @@ Estos campos son puramente informativos y no representan señales de problema en
       empty: false as const,
       snapshot: businessSnapshot,
       texto,
+      modelo,
       generadoEn: new Date().toISOString(),
     };
   });
