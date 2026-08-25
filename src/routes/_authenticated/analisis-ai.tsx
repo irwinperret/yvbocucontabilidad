@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,7 @@ function AnalisisAIPage() {
   // El resultado ya cargado corresponde a otro período/vista distinto al seleccionado ahora
   const desactualizado = !!generadoPara && (generadoPara.periodo !== periodo || generadoPara.mode !== mode);
 
-  const result = m.data;
+  const result = m.data ?? cacheado;
   const parsed = result && !result.empty ? parseAnalysis(result.texto || "") : null;
 
   const copiar = async () => {
@@ -137,6 +137,25 @@ function AnalisisAIPage() {
         </div>
         <div className="flex items-end gap-2 flex-wrap">
           <UsdViewToggle />
+          <div>
+            <Label>Modo</Label>
+            <div className="inline-flex items-center rounded-lg border bg-card p-1 text-sm font-medium h-9">
+              <button
+                type="button"
+                onClick={() => setModelo("rapido")}
+                className={`px-3 py-1 rounded-md transition-colors ${modelo === "rapido" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Rápido (bajo costo)
+              </button>
+              <button
+                type="button"
+                onClick={() => setModelo("profundo")}
+                className={`px-3 py-1 rounded-md transition-colors ${modelo === "profundo" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Profundo
+              </button>
+            </div>
+          </div>
           <div>
             <Label>Período</Label>
             <Input type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
