@@ -5,7 +5,13 @@ import { z } from "zod";
 const InputSchema = z.object({
   periodo: z.string().regex(/^\d{4}-\d{2}$/),
   vista: z.enum(["paralela", "bcv"]).optional().default("paralela"),
+  modelo: z.enum(["rapido", "profundo"]).optional().default("rapido"),
 });
+
+const MODELOS = {
+  rapido: "google/gemini-3-flash",
+  profundo: "openai/gpt-5.5",
+} as const;
 
 export const generarAnalisisAI = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
