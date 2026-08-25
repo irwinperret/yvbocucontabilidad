@@ -125,7 +125,7 @@ function CapExPage() {
   const handleExport = () => {
     exportCapEx({
       anio,
-      categorias: CAPEX_CATEGORIAS,
+      categorias: [...CAPEX_CATEGORIAS],
       porCategoria: CAPEX_CATEGORIAS.map((c) => ({ categoria: c, totalUsd: porCategoria[c] ?? 0 })),
       porMes: chartData.map((row) => {
         const out: any = { mes: row.mes };
