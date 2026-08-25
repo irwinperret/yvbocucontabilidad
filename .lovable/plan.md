@@ -1,32 +1,29 @@
-# Análisis AI: por qué dice "sin créditos"
+# Reducir el consumo del AI Gateway
 
-## Qué está pasando (verificado)
+Sí, se puede bajar muchísimo. Hoy cada análisis usa `openai/gpt-5.5` y cuesta ~0.14–0.23 créditos por corrida (19 llamadas registradas, todas exitosas). El costo se puede reducir aproximadamente un orden de magnitud sin cambiar el contenido del análisis.
 
-El balance del workspace hoy es:
+## Cambios propuestos
 
-- Plan Pro, período 28 jul – 28 ago.
-- Créditos mensuales: **0 de 100** restantes.
-- Rollover: **0 de 100**. Top-up: **0 de 450**. Bonus: **0 de 10**.
-- Solo quedan **4 créditos diarios** (se renuevan cada día).
+1. **Modelo más barato por defecto** (`src/lib/analisis-ai.functions.ts`)
+   - Usar `google/gemini-3-flash` como modelo por defecto para el análisis mensual.
+   - Dejar `openai/gpt-5.5` disponible solo como opción "Análisis profundo" cuando el usuario lo pida explícitamente.
 
-Los créditos que ves disponibles son los **diarios**, que sirven para mensajes de build/plan, no para cubrir el consumo del AI Gateway una vez agotada la asignación de IA del período. Por eso la pasarela responde 402 y la pantalla muestra "Créditos agotados en Lovable AI".
+2. **Limitar el tamaño de la respuesta**
+   - Fijar un tope de tokens de salida (la salida es lo que domina el costo: ~1.000–1.800 tokens por corrida hoy).
+   - Ajustar el prompt para pedir 3 recomendaciones (no 5) y explicaciones de máximo 2 oraciones, que ya es la estructura esperada en pantalla.
 
-Las 19 llamadas del historial (todas exitosas, modelo `openai/gpt-5.5`, ~0.15–0.23 créditos cada una) confirman que la integración funciona: no es un bug de código, es saldo.
+3. **Evitar corridas repetidas del mismo período** (`src/routes/_authenticated/analisis-ai.tsx`)
+   - Guardar el último análisis por (período, vista) en el navegador y mostrarlo al volver a entrar, en vez de regenerar.
+   - "Regenerar" sigue disponible como acción explícita.
 
-## Soluciones reales
+4. **Selector de costo en la UI**
+   - Botón con dos modos: "Rápido (bajo costo)" — por defecto — y "Profundo (mayor costo)".
+   - El diálogo de confirmación indica el modo elegido antes de gastar créditos.
 
-1. **Comprar créditos** en Settings → Plans & credits (o esperar la renovación del 28 de agosto).
-2. **Bajar el costo por análisis** cambiando el modelo por defecto de `openai/gpt-5.5` a uno mucho más barato (`google/gemini-3-flash`), reservando gpt-5.5 como opción "análisis profundo". Esto reduce el gasto por corrida en torno a un orden de magnitud.
+5. **Manejo correcto del error 402**
+   - Cuando la pasarela responda sin créditos, mostrar una tarjeta clara con la causa y la fecha de renovación, sin reintentos automáticos.
 
-## Cambios propuestos en la app
+## Detalle técnico
 
-1. `src/lib/analisis-ai.functions.ts`
-   - Aceptar un parámetro opcional `modelo` ("rapido" | "profundo"), con `google/gemini-3-flash` por defecto y `openai/gpt-5.5` para profundo.
-   - Devolver un error tipado en 402/429 (código + mensaje del gateway) en lugar de un `Error` genérico.
-
-2. `src/routes/_authenticated/analisis-ai.tsx`
-   - Selector "Rápido (bajo costo)" / "Profundo" junto al botón de desplegar.
-   - Cuando la respuesta sea 402, mostrar una tarjeta clara: "Los créditos de IA del workspace se agotaron; se renuevan el 28 de agosto o puedes recargar en Settings → Plans & credits", en vez del toast genérico. Sin reintentos automáticos.
-   - Mencionar en el diálogo de confirmación el costo aproximado según el modelo elegido.
-
-No se toca la lógica financiera ni el snapshot: solo el modelo usado, el manejo del error y el texto en pantalla.
+- Solo se tocan `src/lib/analisis-ai.functions.ts` (modelo, tope de salida, prompt) y `src/routes/_authenticated/analisis-ai.tsx` (selector, caché local, estado de error). El snapshot financiero y el RPC `get_analisis_snapshot` no cambian.
+- Adicionalmente, se puede configurar una alerta/bloqueo de créditos por consumo del AI Gateway a nivel de workspace si ya existe una regla; eso se revisa aparte de este cambio de código.
