@@ -54,27 +54,60 @@ function prioridadColor(p: Reco["prioridad"]) {
   return "bg-muted text-muted-foreground";
 }
 
+type Modelo = "rapido" | "profundo";
+const CACHE_PREFIX = "analisis-ai:";
+const cacheKey = (p: string, v: string, mo: Modelo) => `${CACHE_PREFIX}${p}:${v}:${mo}`;
+
 function AnalisisAIPage() {
   const [periodo, setPeriodo] = useState(currentPeriod());
   const { mode, label } = useUsdView();
   const generar = useServerFn(generarAnalisisAI);
   const [confirmando, setConfirmando] = useState(false);
+  const [modelo, setModelo] = useState<Modelo>("rapido");
   const [generadoPara, setGeneradoPara] = useState<{ periodo: string; mode: string } | null>(null);
+  const [cacheado, setCacheado] = useState<any>(null);
+  const [sinCreditos, setSinCreditos] = useState(false);
+
+  // Reutiliza el último análisis guardado para este período/vista/modelo (no consume créditos)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(cacheKey(periodo, mode, modelo));
+      const parsed = raw ? JSON.parse(raw) : null;
+      setCacheado(parsed);
+      if (parsed) setGeneradoPara({ periodo, mode });
+    } catch {
+      setCacheado(null);
+    }
+  }, [periodo, mode, modelo]);
 
   const m = useMutation({
-    mutationFn: async (args: { p: string; v: "paralela" | "bcv" }) =>
-      generar({ data: { periodo: args.p, vista: args.v } }),
-    onSuccess: (_data, vars) => setGeneradoPara({ periodo: vars.p, mode: vars.v }),
+    mutationFn: async (args: { p: string; v: "paralela" | "bcv"; mo: Modelo }) =>
+      generar({ data: { periodo: args.p, vista: args.v, modelo: args.mo } }),
+    onSuccess: (data, vars) => {
+      setGeneradoPara({ periodo: vars.p, mode: vars.v });
+      setSinCreditos(false);
+      setCacheado(data);
+      try {
+        localStorage.setItem(cacheKey(vars.p, vars.v, vars.mo), JSON.stringify(data));
+      } catch {
+        /* cuota de almacenamiento llena: no es crítico */
+      }
+    },
     onError: (e: any) => {
       const msg = e?.message || "";
+      if (msg.includes("SIN_CREDITOS")) {
+        setSinCreditos(true);
+        return;
+      }
+      setSinCreditos(false);
       if (msg.includes("Límite")) toast.error(msg);
-      else if (msg.includes("Créditos")) toast.error(msg);
       else toast.error("Error al conectar con el servicio de análisis. Intenta de nuevo.");
     },
   });
 
   const desplegar = () => {
-    m.mutate({ p: periodo, v: mode });
+    m.mutate({ p: periodo, v: mode, mo: modelo });
     setConfirmando(false);
   };
 
