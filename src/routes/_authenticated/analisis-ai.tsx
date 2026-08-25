@@ -203,8 +203,9 @@ function AnalisisAIPage() {
               <Coins className="h-4 w-4 text-amber-600" /> Esto va a consumir créditos de Lovable AI
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Generar este análisis hace una llamada a Lovable AI para {mesNombre} ({label}), lo cual gasta créditos
-              de la cuenta. ¿Quieres continuar?
+              Generar este análisis hace una llamada a Lovable AI para {mesNombre} ({label}) en modo{" "}
+              <strong>{modelo === "rapido" ? "Rápido (bajo costo)" : "Profundo (mayor costo)"}</strong>, lo cual gasta
+              créditos de la cuenta. ¿Quieres continuar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -223,7 +224,22 @@ function AnalisisAIPage() {
         </Card>
       )}
 
-      {!m.isPending && m.isError && (
+      {!m.isPending && sinCreditos && (
+        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+          <CardContent className="py-6 space-y-2 text-sm">
+            <p className="font-medium flex items-center gap-2">
+              <Coins className="h-4 w-4 text-amber-600" /> No hay créditos de IA disponibles en el workspace
+            </p>
+            <p className="text-muted-foreground">
+              La pasarela rechazó la solicitud por saldo insuficiente. Los créditos del período se renuevan con el
+              ciclo de facturación, o puedes recargar desde Settings → Plans &amp; credits en Lovable. No se hacen
+              reintentos automáticos para no gastar de más.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!m.isPending && m.isError && !sinCreditos && (
         <Card>
           <CardContent className="py-8 text-center text-sm text-destructive">
             Error al conectar con el servicio de análisis. Intenta de nuevo.
