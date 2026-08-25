@@ -13,6 +13,7 @@ import {
   type TipoImportacion,
 } from "@/lib/home-checklist";
 import { HistorialImportacionesDialog } from "@/components/historial-importaciones-dialog";
+import { InventarioFinalQuickEntry } from "@/components/inventario-final-quick-entry";
 
 type Paso = { label: string; ruta: string; hecho: boolean; nota?: string };
 
@@ -96,9 +97,12 @@ export function ChecklistMensualCard() {
                 </div>
               );
               return p.label.startsWith("Cerrar el mes") ? (
-                <Link key={p.label} to={rutaCierre} search={searchCierre as any} className="block">
-                  {contenido}
-                </Link>
+                <div key={p.label}>
+                  <Link to={rutaCierre} search={searchCierre as any} className="block">
+                    {contenido}
+                  </Link>
+                  {!p.hecho && <InventarioFinalQuickEntry />}
+                </div>
               ) : (
                 <Link key={p.label} to={p.ruta as any} className="block">
                   {contenido}
