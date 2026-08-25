@@ -768,6 +768,7 @@ function MovimientosBancariosPage() {
                     <th className="text-left py-2 px-2">Banco</th>
                     <th className="text-right py-2 px-2">Monto Bs</th>
                     <th className="text-right py-2 px-2">USD (BCV)</th>
+                    <th className="text-right py-2 px-2">USD (paralelo)</th>
                     <th className="text-left py-2 px-2">
                       Cuenta asignada
                       <MultiSelectFilter
@@ -820,6 +821,7 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2">{bancoDeReferencia(f.mov.referencia)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(f.mov.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(usdBcvDe(f.mov))}</td>
+                      <td className="py-2 px-2 text-right mono text-muted-foreground">{fmtUsd(Number(f.mov.monto_usd ?? 0))}</td>
                       <td className="py-2 px-2 text-xs">{f.mov.cuenta_codigo} · {nombreCuenta(f.mov.cuenta_codigo)}</td>
                       <td className="py-2 px-2 text-xs">{f.mov.centro_costo}</td>
                       <td className="py-2 px-2 text-xs max-w-[320px]">{f.mov.notas ?? "—"}</td>
