@@ -109,7 +109,7 @@ export function InventarioFinalQuickEntry() {
 
   return (
     <div className="pl-9 pr-3 pb-2 -mt-1 flex items-center gap-2">
-      <span className="text-xs text-muted-foreground whitespace-nowrap">↳ Inventario final ({periodo}):</span>
+      <span className="text-xs text-muted-foreground whitespace-nowrap">↳ Inventario final ({periodo}) — USD a tasa BCV:</span>
       <Input
         type="number"
         step="0.01"
