@@ -20,12 +20,12 @@ export type ClasificacionPersonal = {
 };
 
 /** Cuentas de pasivo/activo transitorio: el movimiento descarga saldo, no crea gasto. */
-export const CUENTAS_PASIVO_PAGO = new Set(["13.1", "13.2", "13.4", "14.1", "14.3"]);
+export const CUENTAS_PASIVO_PAGO = new Set(["8.1", "8.2", "8.3", "9.1", "9.3"]);
 
 /** Cuenta de pasivo por bonos 10% de servicio devengados en la importación de ventas. */
-export const CUENTA_BONO_10 = "13.4";
+export const CUENTA_BONO_10 = "8.3";
 /** Cuenta de pasivo por propinas devengadas en la importación de ventas. */
-export const CUENTA_PROPINAS = "13.1";
+export const CUENTA_PROPINAS = "8.1";
 
 const norm = (s: unknown) =>
   String(s ?? "")
@@ -86,23 +86,23 @@ export function clasificarPagoPersonal(
 
   // 5. Liquidaciones (ya fusionadas: 3.17 Administración, 3.2 el resto)
   if (/LIQUID|TERMINACION|PERIODO\s*PRUEB/.test(c)) {
-    if (/ADMIN/.test(c)) return { cuenta: "3.17", tipo: "nomina" };
+    if (/ADMIN/.test(c)) return { cuenta: "3.4", tipo: "nomina" };
     return { cuenta: "3.2", tipo: "nomina" };
   }
 
   // 6. Préstamos y anticipos (activos transitorios)
   if (/PRESTAMO/.test(c)) {
-    return { cuenta: "14.1", tipo: "pasivo", nota: "Préstamo al personal — activo transitorio" };
+    return { cuenta: "9.1", tipo: "pasivo", nota: "Préstamo al personal — activo transitorio" };
   }
   if (/ANTICIPO|\bANTC\b/.test(c)) {
-    return { cuenta: "14.3", tipo: "pasivo", nota: "Anticipo al personal — activo transitorio" };
+    return { cuenta: "9.3", tipo: "pasivo", nota: "Anticipo al personal — activo transitorio" };
   }
 
   // 7. Nómina por área (ya fusionada en 3.1 "Sueldos"; Administración sigue aparte en 3.16)
   if (/COCINA|CHEF|COCINERO|SALA\s*YV|NOMINA\s*YV|YV\s*SALA|\bYV\b|SALA\s*BOCU|NOMINA\s*BOCU|BOCU\s*SALA|\bBOCU\b/.test(c)) {
     return { cuenta: "3.1", tipo: "nomina" };
   }
-  if (/ADMIN/.test(c)) return { cuenta: "3.16", tipo: "nomina" };
+  if (/ADMIN/.test(c)) return { cuenta: "3.3", tipo: "nomina" };
 
   // 8. Por defecto, sólo si la categoría del reporte dice que es mano de obra
   if (esMO) return { cuenta: "3.1", tipo: "nomina" };

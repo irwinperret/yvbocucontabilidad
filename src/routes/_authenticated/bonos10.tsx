@@ -108,7 +108,7 @@ function Bonos10Page() {
       const { data } = await supabase
         .from("transacciones")
         .select("monto_usd")
-        .eq("cuenta_codigo", "13.4")
+        .eq("cuenta_codigo", "8.3")
         .eq("standby", false)
         .gte("fecha", `${anio}-01-01`)
         .lte("fecha", `${anio}-12-31`);
@@ -404,7 +404,7 @@ function RegistrarBonoDialog({ onClose }: { onClose: () => void }) {
 
     // 1) Transacción 13.4 (pasivo devengado, no afecta G&P)
     const { data: txEntrada, error: e1 } = await supabase.from("transacciones").insert({
-      fecha, cuenta_codigo: "13.4", centro_costo: centro as any,
+      fecha, cuenta_codigo: "8.3", centro_costo: centro as any,
       monto_bs: montoBs, monto_base_bs: montoBs, iva_bs: 0,
       iva_aplica: false, tipo_iva: null,
       tasa_bcv: tBcv || tPar, tasa_paralela: tPar,
@@ -526,7 +526,7 @@ function DistribuirBonoDialog({ bono, onClose }: { bono: Bono10; onClose: () => 
 
     // Salida 13.4 con monto NEGATIVO (descarga el pasivo)
     const { data: txSalida, error: e1 } = await supabase.from("transacciones").insert({
-      fecha, cuenta_codigo: "13.4", centro_costo: (bono.centro_costo ?? "YV") as any,
+      fecha, cuenta_codigo: "8.3", centro_costo: (bono.centro_costo ?? "YV") as any,
       monto_bs: -montoBs, monto_base_bs: -montoBs, iva_bs: 0,
       iva_aplica: false, tipo_iva: null,
       tasa_bcv: tBcv || tPar, tasa_paralela: tPar,

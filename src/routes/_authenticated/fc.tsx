@@ -180,8 +180,8 @@ function ReporteFC({ rows, cuentas }: { rows: Row[]; cuentas: any[] }) {
 
   const entOpItems = buildItems((c) => c.codigo.startsWith("1."));
   const salOpItems = buildItems((c) => /^[2-9]\./.test(c.codigo));
-  const entFinItems = buildItems((c) => ["10.1", "10.5"].includes(c.codigo));
-  const salFinItems = buildItems((c) => ["10.2", "10.4", "10.6"].includes(c.codigo));
+  const entFinItems = buildItems((c) => ["5.1", "5.5"].includes(c.codigo));
+  const salFinItems = buildItems((c) => ["5.2", "5.4", "5.6"].includes(c.codigo));
 
   const entOp = entOpItems.reduce((s, i) => s + i.total, 0);
   const salOp = salOpItems.reduce((s, i) => s + i.total, 0);

@@ -13,8 +13,8 @@ import {
   tasaBcvFactura,
 } from "@/lib/cxp-saldo";
 
-export const CUENTA_PAGO_CXP = "13.2";
-export const CUENTA_ANTICIPO = "14.2";
+export const CUENTA_PAGO_CXP = "8.2";
+export const CUENTA_ANTICIPO = "9.2";
 
 /** Marca en `referencia` de los pagos creados desde el pareo manual. */
 export const marcaPareo = (movId: string) => `PAREO:${movId}`;
@@ -101,7 +101,7 @@ export async function aplicarPareoCxp(args: {
       .from("transacciones")
       .select("id")
       .eq("grupo_transaccion_id", grupoId)
-      .eq("cuenta_codigo", "12.5")
+      .eq("cuenta_codigo", "7.4")
       .gt("monto_bs", 0)
       .limit(1);
     const split = await calcularSplitIvaPagoCxp(grupoId, aplicar, (ivaLegs?.length ?? 0) > 0);

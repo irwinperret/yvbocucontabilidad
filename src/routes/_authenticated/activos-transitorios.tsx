@@ -30,8 +30,8 @@ export const Route = createFileRoute("/_authenticated/activos-transitorios")({
 type TabKey = "prestamos" | "anticipos_nomina" | "prestaciones";
 
 const TAB_CONFIG: Record<TabKey, { label: string; cuenta: string; hasRecovery: boolean; recoveryLabel: string }> = {
-  prestamos:         { label: "Préstamos al personal",      cuenta: "14.1", hasRecovery: true,  recoveryLabel: "Total recuperado" },
-  anticipos_nomina:  { label: "Anticipos de nómina",        cuenta: "14.3", hasRecovery: true,  recoveryLabel: "Total aplicado" },
+  prestamos:         { label: "Préstamos al personal",      cuenta: "9.1", hasRecovery: true,  recoveryLabel: "Total recuperado" },
+  anticipos_nomina:  { label: "Anticipos de nómina",        cuenta: "9.3", hasRecovery: true,  recoveryLabel: "Total aplicado" },
   prestaciones:      { label: "Anticipos de prestaciones",  cuenta: "3.2", hasRecovery: false, recoveryLabel: "" },
 };
 
@@ -381,7 +381,7 @@ function ProveedoresTabBody() {
       const { data } = await supabase
         .from("transacciones")
         .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd, grupo_transaccion_id").neq("standby", true)
-        .eq("cuenta_codigo", "14.2")
+        .eq("cuenta_codigo", "9.2")
         .gte("fecha", desde)
         .lte("fecha", hasta)
         .gt("monto_usd", 0) // sólo registros de anticipo (excluye reversos)

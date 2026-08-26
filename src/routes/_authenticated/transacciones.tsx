@@ -49,7 +49,7 @@ const VIAS = [
   { value: "ajustes", label: "Importar ajustes ventas", cls: "bg-violet-100 text-violet-800 border-violet-300" },
 ];
 const VIA_BY_VALUE: Record<string, (typeof VIAS)[number]> = Object.fromEntries(VIAS.map((v) => [v.value, v]));
-const CUENTAS_COMPRAS_XETUX = new Set(["2.1", "12.5"]);
+const CUENTAS_COMPRAS_XETUX = new Set(["2.1", "7.4"]);
 
 function viaRegistro(t: any): (typeof VIAS)[number] {
   const ref = String(t?.referencia ?? "").trim();
@@ -488,11 +488,11 @@ function TransaccionesPage() {
       sortKey, sortDir, cuentaNombre, terceroById]);
 
   const totales = useMemo(() => {
-    const noIva = filtradas.filter((t: any) => t.cuenta_codigo !== "12.4" && t.cuenta_codigo !== "12.5");
+    const noIva = filtradas.filter((t: any) => t.cuenta_codigo !== "7.3" && t.cuenta_codigo !== "7.4");
     return {
       bs: noIva.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
       usd: noIva.reduce((s: number, t: any) => s + (Number(t.monto_usd) || 0), 0),
-      ivaBs: filtradas.filter((t: any) => t.cuenta_codigo === "12.4" || t.cuenta_codigo === "12.5")
+      ivaBs: filtradas.filter((t: any) => t.cuenta_codigo === "7.3" || t.cuenta_codigo === "7.4")
         .reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0),
     };
   }, [filtradas]);
@@ -1051,7 +1051,7 @@ function TransaccionesPage() {
                         <td className="py-2 px-2">
                           <div className="mono text-xs flex items-center gap-1.5">
                             {t.cuenta_codigo}
-                            {t.cuenta_codigo === "13.1" && (
+                            {t.cuenta_codigo === "8.1" && (
                               <Badge className="text-[9px] bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-300">Propina</Badge>
                             )}
                             {typeof t.notas === "string" && t.notas.startsWith("Pago CxP") && (

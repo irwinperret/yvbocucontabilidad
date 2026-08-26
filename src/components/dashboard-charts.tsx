@@ -66,16 +66,16 @@ export function DashboardCharts() {
         const base = Number(r.base_usd || 0);
         const total = Number(r.total_usd || 0);
         if (c.afecta_gyp) {
-          if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo === "11.1") ingresos += base;
+          if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo === "6.1") ingresos += base;
           else if (r.cuenta_codigo.startsWith("2.")) cogs += base;
           else gastos += base;
         }
         if (c.afecta_fc) {
-          if (r.cuenta_codigo.startsWith("1.") || ["10.1", "10.5"].includes(r.cuenta_codigo)) fcIn += total;
+          if (r.cuenta_codigo.startsWith("1.") || ["5.1", "5.5"].includes(r.cuenta_codigo)) fcIn += total;
           else fcOut += total;
         }
         // CapEx (activo fijo) — cuenta 10.6
-        if (r.cuenta_codigo === "10.6") capex += total;
+        if (r.cuenta_codigo === "5.6") capex += total;
       });
       const utilidad = ingresos - cogs - gastos;
       const flujoNeto = fcIn - fcOut;

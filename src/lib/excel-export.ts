@@ -291,8 +291,8 @@ function buildFCSingle(
   styleTotal(flujoOp, true);
   const flujoOpRef = `C${flujoOp.number}`;
 
-  const entFin = addSection("Financiamiento — Entradas", (c) => ["10.1", "10.5"].includes(c), false);
-  const salFin = addSection("Financiamiento — Salidas", (c) => ["10.2", "10.4", "10.6"].includes(c), true);
+  const entFin = addSection("Financiamiento — Entradas", (c) => ["5.1", "5.5"].includes(c), false);
+  const salFin = addSection("Financiamiento — Salidas", (c) => ["5.2", "5.4", "5.6"].includes(c), true);
 
   const flujoFin = ws.addRow(["", "FLUJO FINANCIAMIENTO NETO", { formula: `${entFin}+${salFin}` }]);
   flujoFin.getCell(3).numFmt = USD_FMT;
@@ -332,7 +332,7 @@ function buildFCComparativo(
     const r = ws.addRow([c.codigo, c.nombre, ...valores, null]);
     for (let i = 3; i <= 15; i++) r.getCell(i).numFmt = USD_FMT;
     r.getCell(15).value = { formula: `SUM(C${r.number}:N${r.number})` };
-    if (c.codigo.startsWith("1.") || ["10.1", "10.5"].includes(c.codigo)) entRows.push(r.number);
+    if (c.codigo.startsWith("1.") || ["5.1", "5.5"].includes(c.codigo)) entRows.push(r.number);
     else salRows.push(r.number);
   });
 

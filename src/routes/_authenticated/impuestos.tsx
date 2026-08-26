@@ -55,7 +55,7 @@ function ImpuestosPage() {
         return await supabase
           .from("transacciones")
           .select("id,fecha,cuenta_codigo,centro_costo,monto_bs,monto_base_bs,iva_bs,iva_aplica,tipo_iva,monto_usd,tasa_bcv,tasa_paralela,numero_factura,referencia,notas,grupo_transaccion_id").neq("standby", true)
-          .in("cuenta_codigo", ["12.4", "12.5"])
+          .in("cuenta_codigo", ["7.3", "7.4"])
           .gte("fecha", ini)
           .lte("fecha", fin)
           .order("fecha", { ascending: false })
@@ -78,8 +78,8 @@ function ImpuestosPage() {
     filtered.forEach((r) => {
       const bs = Number(r.monto_bs ?? 0);
       const usd = usdVisual(r as any, mode) ?? 0;
-      if (r.cuenta_codigo === "12.4") { debUsd += usd; debBs += bs; }
-      else if (r.cuenta_codigo === "12.5") { credUsd += usd; credBs += bs; }
+      if (r.cuenta_codigo === "7.3") { debUsd += usd; debBs += bs; }
+      else if (r.cuenta_codigo === "7.4") { credUsd += usd; credBs += bs; }
     });
     return {
       debUsd, debBs, credUsd, credBs,
@@ -97,8 +97,8 @@ function ImpuestosPage() {
       if (centroFiltro !== "Consolidado" && (r.centro_costo ?? "") !== centroFiltro) return;
       const m = Number(r.fecha.slice(5, 7));
       const usd = usdVisual(r as any, mode) ?? 0;
-      if (r.cuenta_codigo === "12.4") out[m].debito += usd;
-      else if (r.cuenta_codigo === "12.5") out[m].credito += usd;
+      if (r.cuenta_codigo === "7.3") out[m].debito += usd;
+      else if (r.cuenta_codigo === "7.4") out[m].credito += usd;
     });
     Object.values(out).forEach((r) => { r.neto = r.debito - r.credito; });
     return Object.values(out);
@@ -110,7 +110,7 @@ function ImpuestosPage() {
     filtered.forEach((r) => {
         const bs = Number(r.monto_bs ?? 0);
         const usd = Number(r.monto_usd ?? 0);
-        const tipo = r.cuenta_codigo === "12.4" ? "IVA Débito (Venta)" : "IVA Crédito (Compra)";
+        const tipo = r.cuenta_codigo === "7.3" ? "IVA Débito (Venta)" : "IVA Crédito (Compra)";
       const row = [
         r.fecha,
         tipo,
@@ -264,7 +264,7 @@ function ImpuestosPage() {
               </thead>
               <tbody>
                 {filtered.map((r) => {
-                   const isDeb = r.cuenta_codigo === "12.4";
+                   const isDeb = r.cuenta_codigo === "7.3";
                    const bs = Number(r.monto_bs ?? 0);
                    const usd = usdVisual(r as any, mode) ?? 0;
                   return (

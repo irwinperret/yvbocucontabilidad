@@ -155,7 +155,7 @@ export async function analizarReversion(batch: ImportBatch): Promise<RevertPlan>
   plan.cxpRestaurables = restaurables ?? 0;
 
   plan.anticiposRevertidos = plan.transacciones.filter(
-    (t) => t.cuenta_codigo === "14.2" && Number(t.monto_bs) < 0
+    (t) => t.cuenta_codigo === "9.2" && Number(t.monto_bs) < 0
   ).length;
 
   const fechas = Array.from(new Set(plan.transacciones.map((t) => t.fecha)));

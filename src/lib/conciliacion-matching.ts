@@ -15,9 +15,9 @@ export const ESTADO_LABEL: Record<EstadoConciliacion, string> = {
 const PREFIJOS_SIN_FACTURA = ["3.", "7.", "10.", "11.", "12."];
 /** Cuentas puntuales sin factura (p. ej. Condo + Alquiler, pasivos transitorios,
  *  operaciones de cambio (98) y cuentas no contables (99)) */
-const CUENTAS_SIN_FACTURA = new Set(["4.10", "13.1", "13.3", "13.4", "14.1", "14.3", "98", "99"]);
+const CUENTAS_SIN_FACTURA = new Set(["4.10", "8.1", "8.1", "8.3", "9.1", "9.3", "98", "99"]);
 /** Cuentas que sí pueden llevar factura pese al prefijo (CapEx, pagos de CxP, anticipos) */
-const EXCEPCIONES_CON_FACTURA = new Set(["10.6", "13.2", "14.2"]);
+const EXCEPCIONES_CON_FACTURA = new Set(["5.6", "8.2", "9.2"]);
 
 export function cuentaRequiereFactura(codigo?: string | null) {
   if (!codigo) return true;
@@ -30,7 +30,7 @@ export function cuentaRequiereFactura(codigo?: string | null) {
 const PREFIJOS_FACTURA_COMPRA = ["2.", "4.", "5.", "6.", "8.", "9."];
 export function esFacturaDeCompra(codigo?: string | null) {
   if (!codigo) return false;
-  if (codigo === "10.6") return true;
+  if (codigo === "5.6") return true;
   if (CUENTAS_SIN_FACTURA.has(codigo)) return false;
   return PREFIJOS_FACTURA_COMPRA.some((p) => codigo.startsWith(p));
 }
