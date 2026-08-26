@@ -3970,7 +3970,7 @@ function CierreForm() {
           supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd"),
           supabase
             .from("transacciones")
-            .select("fecha, referencia, tercero_id, numero_factura, monto_base_bs, tasa_bcv")
+            .select("fecha, referencia, tercero_id, numero_factura, monto_base_bs, tasa_bcv, tasa_paralela")
             .eq("cuenta_codigo", "2.1")
             .neq("standby", true)
             .order("fecha"),
@@ -4014,6 +4014,7 @@ function CierreForm() {
 
       const detalle: RowDetalleCompraCogs[] = (comprasTodas ?? []).map((r: any) => {
         const tasa = Number(r.tasa_bcv) || 0;
+        const tasaPar = Number(r.tasa_paralela) || 0;
         const montoBs = Number(r.monto_base_bs) || 0;
         const cxp = r.tercero_id && r.numero_factura ? cxpPorPar[`${r.tercero_id}::${r.numero_factura}`] : null;
         const estado = !cxp
@@ -4029,6 +4030,8 @@ function CierreForm() {
           montoBs,
           tasaBcv: tasa > 0 ? tasa : null,
           montoUsdBcv: tasa > 0 ? +(montoBs / tasa).toFixed(2) : null,
+          tasaParalela: tasaPar > 0 ? tasaPar : null,
+          montoUsdParalelo: tasaPar > 0 ? +(montoBs / tasaPar).toFixed(2) : null,
           origen: origenDeReferencia(r.referencia),
           estado,
         };

@@ -391,6 +391,8 @@ export type RowDetalleCompraCogs = {
   montoBs: number;
   tasaBcv: number | null;
   montoUsdBcv: number | null;
+  tasaParalela: number | null;
+  montoUsdParalelo: number | null;
   origen: "Xetux (importación de compras)" | "Movimientos bancarios" | "Manual";
   estado: string;
 };
@@ -534,6 +536,8 @@ export function exportCogsPorMes(opts: { resumen: RowResumenCogs[]; detalle: Row
     { header: "Monto Bs", key: "montoBs", width: 16 },
     { header: "Tasa BCV", key: "tasaBcv", width: 14 },
     { header: "Monto USD (BCV)", key: "montoUsdBcv", width: 18 },
+    { header: "Tasa paralela", key: "tasaParalela", width: 14 },
+    { header: "Monto USD (paralelo)", key: "montoUsdParalelo", width: 20 },
     { header: "Origen", key: "origen", width: 30 },
     { header: "Estado", key: "estado", width: 18 },
   ];
@@ -546,7 +550,21 @@ export function exportCogsPorMes(opts: { resumen: RowResumenCogs[]; detalle: Row
     if (typeof usdCell.value === "number") usdCell.numFmt = USD_FMT;
     const tasaCell = row.getCell("tasaBcv");
     if (typeof tasaCell.value === "number") tasaCell.numFmt = RATE_FMT;
+    const usdParCell = row.getCell("montoUsdParalelo");
+    if (typeof usdParCell.value === "number") usdParCell.numFmt = USD_FMT;
+    const tasaParCell = row.getCell("tasaParalela");
+    if (typeof tasaParCell.value === "number") tasaParCell.numFmt = RATE_FMT;
   });
+  const totalDetalleRow = ws2.addRow({
+    proveedor: "Total",
+    montoBs: detalle.reduce((s, r) => s + (r.montoBs || 0), 0),
+    montoUsdBcv: detalle.reduce((s, r) => s + (r.montoUsdBcv || 0), 0),
+    montoUsdParalelo: detalle.reduce((s, r) => s + (r.montoUsdParalelo || 0), 0),
+  });
+  styleTotal(totalDetalleRow);
+  totalDetalleRow.getCell("montoBs").numFmt = BS_FMT;
+  totalDetalleRow.getCell("montoUsdBcv").numFmt = USD_FMT;
+  totalDetalleRow.getCell("montoUsdParalelo").numFmt = USD_FMT;
 
   wb.xlsx.writeBuffer().then((buf) => {
     download(buf, `COGS_por_mes_${new Date().toISOString().slice(0, 10)}.xlsx`);
