@@ -5107,6 +5107,26 @@ function CierreForm() {
                           </tbody>
                         );
                       })}
+                    {(() => {
+                      const stTotal = subtotalCompras(compras ?? []);
+                      return (
+                        <tfoot>
+                          <tr className="border-t-2 border-foreground/30 bg-muted/60 font-bold">
+                            <td colSpan={3} className="py-2">Total general</td>
+                            <td className="text-right mono">{fmtBs(stTotal.netoBs)}</td>
+                            <td className="text-right mono">{fmtBs(stTotal.ivaBs)}</td>
+                            <td className="text-right mono">{fmtBs(stTotal.totalBs)}</td>
+                            <td className="text-right mono">{fmtUsd(stTotal.netoUsdBcv)}</td>
+                            <td className="text-right mono">{fmtUsd(stTotal.ivaUsdBcv)}</td>
+                            <td className="text-right mono">{fmtUsd(stTotal.totalUsdBcv)}</td>
+                            <td className="text-right mono">{fmtUsd(stTotal.netoUsdParalelo)}</td>
+                            <td className="text-right mono">{fmtUsd(stTotal.ivaUsdParalelo)}</td>
+                            <td className="text-right mono">{fmtUsd(stTotal.totalUsdParalelo)}</td>
+                            <td colSpan={2}></td>
+                          </tr>
+                        </tfoot>
+                      );
+                    })()}
                     <tfoot>
                       <tr className="border-t font-semibold">
                         <td colSpan={3} className="py-2">
