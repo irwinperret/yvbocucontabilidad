@@ -4511,8 +4511,12 @@ function CierreForm() {
     const iniBs = iniUsd * tasaBcvIniN;
     const finBs = finUsd * tasaBcvFinN;
     const cogsBs = iniBs + totalComprasNetoBs - finBs;
-    // COGS en USD: suma directa de componentes ya en USD (BCV).
-    const cogsUsdParalelo = iniUsd + totalComprasNetoUsdBcv - finUsd;
+    // COGS en USD (BCV): suma directa de componentes ya en USD (BCV).
+    const cogsUsdBcv = iniUsd + totalComprasNetoUsdBcv - finUsd;
+    // COGS en USD (paralelo): el inventario solo se ingresa en USD BCV, así que
+    // no hay un componente-a-componente en paralelo; se convierte el total en
+    // Bs con la tasa paralela promedio del mes.
+    const cogsUsdParalelo = paralelaPromedio > 0 ? cogsBs / paralelaPromedio : 0;
 
     const { error } = await supabase.from("cierres_de_mes").insert({
       periodo,
@@ -4520,7 +4524,8 @@ function CierreForm() {
       inventario_final_bs: finBs,
       compras_mes_bs: totalComprasNetoBs,
       cogs_bs: cogsBs,
-      cogs_usd: cogsUsdParalelo,
+      cogs_usd: cogsUsdBcv,
+      cogs_usd_paralelo: cogsUsdParalelo,
       tasa_bcv_promedio: tasaBcv,
 
       pasivos_laborales_bs: 0,

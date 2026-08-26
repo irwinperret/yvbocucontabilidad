@@ -85,7 +85,7 @@ async function recalcCierreForPeriod(
   supabase: any,
   periodo: string,
   userId: string,
-): Promise<{ periodo: string; cogs_usd: number; cogs_bs: number } | null> {
+): Promise<{ periodo: string; cogs_usd: number; cogs_usd_paralelo: number; cogs_bs: number } | null> {
   const { data: cierre } = await supabase
     .from("cierres_de_mes")
     .select("id, tasa_bcv_promedio")
@@ -151,6 +151,10 @@ async function recalcCierreForPeriod(
 
   const cogsBs = r2(iniBs + comprasNetoBs - finBs);
   const cogsUsd = r2(iniUsd + comprasNetoUsd - finUsd);
+  // COGS en USD paralelo: el inventario solo se ingresa en USD BCV, así que no
+  // hay componente-a-componente en paralelo; se convierte el total en Bs con
+  // la tasa paralela promedio del período.
+  const cogsUsdParalelo = paralelaProm > 0 ? r2(cogsBs / paralelaProm) : 0;
 
   // Reabrir cierre
   await supabase.from("cierres_de_mes").update({ estado: "abierto" }).eq("id", (cierre as any).id);
@@ -178,6 +182,7 @@ async function recalcCierreForPeriod(
       compras_mes_bs: r2(comprasNetoBs),
       cogs_bs: cogsBs,
       cogs_usd: cogsUsd,
+      cogs_usd_paralelo: cogsUsdParalelo,
       tasa_bcv_promedio: tasaBcvProm || null,
     } as any)
     .eq("id", (cierre as any).id);
@@ -194,7 +199,7 @@ async function recalcCierreForPeriod(
       iva_bs: 0,
       tasa_bcv: tasaBcvProm || null,
       tasa_paralela: paralelaProm || null,
-      monto_usd: cogsUsd,
+      monto_usd: cogsUsdParalelo,
       metodo_pago: "transferencia" as any,
       modo: "on_balance" as any,
       referencia: `CIERRE-${periodo}`,
@@ -206,7 +211,7 @@ async function recalcCierreForPeriod(
   // Volver a cerrar
   await supabase.from("cierres_de_mes").update({ estado: "cerrado" }).eq("id", (cierre as any).id);
 
-  return { periodo, cogs_usd: cogsUsd, cogs_bs: cogsBs };
+  return { periodo, cogs_usd: cogsUsd, cogs_usd_paralelo: cogsUsdParalelo, cogs_bs: cogsBs };
 }
 
 // Exportado para uso desde otros server functions (registrar.tsx llama vía server fn wrapper).
