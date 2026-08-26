@@ -128,14 +128,6 @@ function usdParaleloVisual(t: any, tasaParalelaFallback?: number | null) {
 }
 
 function usdBcvVisual(t: any) {
-  // El "Ajuste COGS por inventario" (cuenta 2.2) es un agregado mensual cuya tasa_bcv
-  // guardada es un promedio del período. Dividir el total del mes entre ese promedio no
-  // representa nada contable real, así que para esta cuenta se muestra monto_usd tal cual
-  // se guardó (ya calculado como suma directa de componentes en USD).
-  if (t.cuenta_codigo === "2.2") {
-    const usd = Number(t.monto_usd);
-    return Number.isFinite(usd) ? usd : null;
-  }
   const montoBs = Number(t.monto_bs) || 0;
   const tasaBcv = Number(t.tasa_bcv) || 0;
   return tasaBcv > 0 ? montoBs / tasaBcv : null;
