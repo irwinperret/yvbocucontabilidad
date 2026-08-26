@@ -116,7 +116,7 @@ function buildGyPSingle(
   const mbPctRow = ws.addRow(["", "% Margen bruto", { formula: `IFERROR(${mbRef}/${ing.totalCellRef},0)` }]);
   mbPctRow.getCell(3).numFmt = PCT_FMT;
 
-  const op = addSection("Gastos operativos", (c) => /^[3-9]\./.test(c), true);
+  const op = addSection("Gastos operativos", (c) => /^[3-6]\./.test(c), true);
 
   const utRow = ws.addRow(["", "UTILIDAD / PÉRDIDA NETA", { formula: `${mbRef}+${op.totalCellRef}` }]);
   utRow.getCell(3).numFmt = USD_FMT;
@@ -284,7 +284,7 @@ function buildFCSingle(
   };
 
   const entOp = addSection("Operativas — Entradas", (c) => c.startsWith("1."), false);
-  const salOp = addSection("Operativas — Salidas", (c) => /^[2-9]\./.test(c), true);
+  const salOp = addSection("Operativas — Salidas", (c) => /^[2-46-9]\./.test(c), true);
 
   const flujoOp = ws.addRow(["", "FLUJO OPERATIVO NETO", { formula: `${entOp}+${salOp}` }]);
   flujoOp.getCell(3).numFmt = USD_FMT;

@@ -179,7 +179,7 @@ function ReporteFC({ rows, cuentas }: { rows: Row[]; cuentas: any[] }) {
       .filter((x) => x.total !== 0);
 
   const entOpItems = buildItems((c) => c.codigo.startsWith("1."));
-  const salOpItems = buildItems((c) => /^[2-9]\./.test(c.codigo));
+  const salOpItems = buildItems((c) => /^[2-46-9]\./.test(c.codigo));
   const entFinItems = buildItems((c) => ["5.1", "5.5"].includes(c.codigo));
   const salFinItems = buildItems((c) => ["5.2", "5.4", "5.6"].includes(c.codigo));
 
