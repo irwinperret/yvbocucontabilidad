@@ -29,7 +29,7 @@ const SECCIONES = [
   { key: "Cocina",         cuenta: "3.2",  centro: "Compartido", color: "#0F6E56" },
   { key: "Bocú",           cuenta: "3.2",  centro: "Bocu",       color: "#534AB7" },
   { key: "YV",             cuenta: "3.2",  centro: "YV",         color: "#E8A87C" },
-  { key: "Administración", cuenta: "3.17", centro: "Compartido", color: "#3498DB" },
+  { key: "Administración", cuenta: "3.4", centro: "Compartido", color: "#3498DB" },
 ] as const;
 const CUENTAS_LIQ = Array.from(new Set(SECCIONES.map((s) => s.cuenta)));
 

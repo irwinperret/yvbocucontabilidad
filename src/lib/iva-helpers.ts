@@ -7,7 +7,7 @@ import { logAudit } from "@/lib/audit";
  *
  * Modelo: cada transacción con IVA se divide en 2 filas:
  *  - principal: monto_bs = base, iva_bs = 0, iva_aplica = false
- *  - leg IVA: cuenta_codigo = "12.4" (débito, ventas) ó "12.5" (crédito, compras),
+ *  - leg IVA: cuenta_codigo = "7.3" (débito, ventas) ó "7.4" (crédito, compras),
  *             monto_bs = iva_bs, iva_bs = 0
  *
  * Las cuentas 12.4 / 12.5 viven en el grupo Impuestos. Solo afectan FC (no G&P).
@@ -33,7 +33,7 @@ export type IvaLegInput = {
 
 export async function insertIvaLeg(input: IvaLegInput) {
   if (input.monto_bs_iva <= 0) return null;
-  const cuenta = input.tipo === "debito" ? "12.4" : "12.5";
+  const cuenta = input.tipo === "debito" ? "7.3" : "7.4";
   const notasBase = input.tipo === "debito" ? "IVA débito" : "IVA crédito";
   const { data, error } = await supabase.from("transacciones").insert({
     fecha: input.fecha,
@@ -75,7 +75,7 @@ export async function deleteIvaLegsByGrupo(grupoId: string | null | undefined) {
     .from("transacciones")
     .delete()
     .eq("grupo_transaccion_id", grupoId)
-    .in("cuenta_codigo", ["12.4", "12.5"]);
+    .in("cuenta_codigo", ["7.3", "7.4"]);
 }
 
 /**
@@ -98,10 +98,10 @@ export async function calcularSplitIvaPagoCxp(
     .select("cuenta_codigo, monto_bs, monto_base_bs, iva_bs").neq("standby", true)
     .eq("grupo_transaccion_id", grupoId);
   if (!data || data.length === 0) return fallback;
-  const ivaLeg = data.find((r: any) => r.cuenta_codigo === "12.5" && Number(r.monto_bs) > 0);
+  const ivaLeg = data.find((r: any) => r.cuenta_codigo === "7.4" && Number(r.monto_bs) > 0);
   if (!ivaLeg) return fallback;
   const principal = data.find(
-    (r: any) => r.cuenta_codigo !== "12.5" && r.cuenta_codigo !== "13.2"
+    (r: any) => r.cuenta_codigo !== "7.4" && r.cuenta_codigo !== "8.2"
       && Number(r.monto_base_bs ?? r.monto_bs) > 0,
   );
   const neto = Number(principal?.monto_base_bs ?? principal?.monto_bs ?? 0);

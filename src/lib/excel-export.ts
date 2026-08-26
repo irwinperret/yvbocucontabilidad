@@ -116,7 +116,7 @@ function buildGyPSingle(
   const mbPctRow = ws.addRow(["", "% Margen bruto", { formula: `IFERROR(${mbRef}/${ing.totalCellRef},0)` }]);
   mbPctRow.getCell(3).numFmt = PCT_FMT;
 
-  const op = addSection("Gastos operativos", (c) => /^[3-9]\./.test(c), true);
+  const op = addSection("Gastos operativos", (c) => /^[3-6]\./.test(c), true);
 
   const utRow = ws.addRow(["", "UTILIDAD / PÉRDIDA NETA", { formula: `${mbRef}+${op.totalCellRef}` }]);
   utRow.getCell(3).numFmt = USD_FMT;
@@ -284,15 +284,15 @@ function buildFCSingle(
   };
 
   const entOp = addSection("Operativas — Entradas", (c) => c.startsWith("1."), false);
-  const salOp = addSection("Operativas — Salidas", (c) => /^[2-9]\./.test(c), true);
+  const salOp = addSection("Operativas — Salidas", (c) => /^[2-46-9]\./.test(c), true);
 
   const flujoOp = ws.addRow(["", "FLUJO OPERATIVO NETO", { formula: `${entOp}+${salOp}` }]);
   flujoOp.getCell(3).numFmt = USD_FMT;
   styleTotal(flujoOp, true);
   const flujoOpRef = `C${flujoOp.number}`;
 
-  const entFin = addSection("Financiamiento — Entradas", (c) => ["10.1", "10.5"].includes(c), false);
-  const salFin = addSection("Financiamiento — Salidas", (c) => ["10.2", "10.4", "10.6"].includes(c), true);
+  const entFin = addSection("Financiamiento — Entradas", (c) => ["5.1", "5.5"].includes(c), false);
+  const salFin = addSection("Financiamiento — Salidas", (c) => ["5.2", "5.4", "5.6"].includes(c), true);
 
   const flujoFin = ws.addRow(["", "FLUJO FINANCIAMIENTO NETO", { formula: `${entFin}+${salFin}` }]);
   flujoFin.getCell(3).numFmt = USD_FMT;
@@ -332,7 +332,7 @@ function buildFCComparativo(
     const r = ws.addRow([c.codigo, c.nombre, ...valores, null]);
     for (let i = 3; i <= 15; i++) r.getCell(i).numFmt = USD_FMT;
     r.getCell(15).value = { formula: `SUM(C${r.number}:N${r.number})` };
-    if (c.codigo.startsWith("1.") || ["10.1", "10.5"].includes(c.codigo)) entRows.push(r.number);
+    if (c.codigo.startsWith("1.") || ["5.1", "5.5"].includes(c.codigo)) entRows.push(r.number);
     else salRows.push(r.number);
   });
 

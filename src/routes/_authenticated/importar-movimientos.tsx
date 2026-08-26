@@ -49,17 +49,17 @@ export const Route = createFileRoute("/_authenticated/importar-movimientos")({
   component: ImportarMovimientos,
 });
 
-const CUENTA_PAGO_CXP = "13.2";
+const CUENTA_PAGO_CXP = "8.2";
 
 // Mapa Categoría → cuenta del plan (fallback cuando el archivo no trae cuenta sugerida)
 // OJO: INV no se mapea a 2.1 — esas filas son pagos de compras que ya existen como CxP
 // y deben emparejarse manualmente (o asignarse a 99 — POR DETERMINAR).
 const CATEGORIA_CUENTA: Record<string, string> = {
-  ADM: "4.8",
-  MO: "3.16",
-  OC: "5.6",
-  MERCADEO: "6.2",
-  INVERSION: "10.6",
+  ADM: "4.1",
+  MO: "3.3",
+  OC: "4.6",
+  MERCADEO: "3.12",
+  INVERSION: "5.6",
 };
 
 /** Categorías cuyos movimientos siempre deben emparejarse contra una CxP existente. */
@@ -871,7 +871,7 @@ function ImportarMovimientosInner() {
           .from("transacciones")
           .select("id")
           .eq("grupo_transaccion_id", grupoId)
-          .eq("cuenta_codigo", "12.5")
+          .eq("cuenta_codigo", "7.4")
           .gt("monto_bs", 0)
           .limit(1);
         const hasIva = (ivaLegs?.length ?? 0) > 0;

@@ -55,7 +55,7 @@ function CapExPage() {
       const { data } = await supabase
         .from("transacciones")
         .select("*").neq("standby", true)
-        .eq("cuenta_codigo", "10.6")
+        .eq("cuenta_codigo", "5.6")
         .order("fecha", { ascending: false });
       return data ?? [];
     },

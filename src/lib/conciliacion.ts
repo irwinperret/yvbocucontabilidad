@@ -103,17 +103,17 @@ export function parseCodigosDoc(cell: unknown): CodigoDoc[] {
 
 /** Cuentas específicas sin factura (además de todo el grupo 3.x). */
 const CUENTAS_SIN_FACTURA_FIJAS = new Set([
-  "14.1", "14.3",           // activos transitorios
-  "13.1", "13.2", "13.4",   // pasivos transitorios / pago CxP / bonos 10%
-  "10.1", "10.2", "10.4", "10.5", "10.7", // financiamiento y depreciación
-  "12.1", "12.2", "12.3", "12.4", "12.5", // impuestos
-  "7.1",                    // financieros (incluye lo que antes era 7.2/7.3)
-  "11.1", "11.2",           // ganancia/pérdida cambiaria
+  "9.1", "9.3",           // activos transitorios
+  "8.1", "8.2", "8.3",   // pasivos transitorios / pago CxP / bonos 10%
+  "5.1", "5.2", "5.4", "5.5", "5.7", // financiamiento y depreciación
+  "7.1", "7.2", "4.11", "7.3", "7.4", // impuestos
+  "4.8",                    // financieros (incluye lo que antes era 7.2/7.3)
+  "6.1", "6.2",           // ganancia/pérdida cambiaria
   "98", "99",               // operaciones de cambio / no contable
 ]);
 
 /** Servicios públicos: se cruzan con la referencia bancaria, no con factura. */
-export const CUENTAS_SERVICIOS = new Set(["9.3", "9.4", "9.7"]);
+export const CUENTAS_SERVICIOS = new Set(["3.14", "3.15", "3.18"]);
 
 /**
  * Cuentas que, al importarse desde movimientos bancarios, se marcan
@@ -123,10 +123,10 @@ export const CUENTAS_SERVICIOS = new Set(["9.3", "9.4", "9.7"]);
  */
 export const CUENTAS_GASTO_DIRECTO_AUTO = new Set([
   "1.7", // Devoluciones / Notas de crédito
-  "3.23", // Transporte (antes 4.5, ahora dentro de Nómina)
-  "9.4", // Internet
-  "9.5", // Teléfono
-  "9.8", // Mantenimiento y Reparaciones
+  "3.5", // Transporte (antes 4.5, ahora dentro de Nómina)
+  "3.15", // Internet
+  "3.16", // Teléfono
+  "4.10", // Mantenimiento y Reparaciones
 ]);
 
 /** ¿Esta cuenta se concilia automáticamente como gasto directo sin factura? */

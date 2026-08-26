@@ -107,8 +107,8 @@ export async function analizarBorradoTransaccion(t: any): Promise<DeletePlan> {
     });
   }
 
-  // 3) Anticipo (cuenta 14.x con saldo aplicado)
-  if (t.cuenta_codigo?.startsWith("14.") && Number(t.monto_usd) > 0) {
+  // 3) Anticipo (cuenta 9.x con saldo aplicado)
+  if (t.cuenta_codigo?.startsWith("9.") && Number(t.monto_usd) > 0) {
     const aplicado = Number(t.anticipo_aplicado_usd ?? 0);
     if (aplicado > 0.005) {
       plan.bloqueoAnticipoAplicado = `Este anticipo ya tiene $${aplicado.toFixed(2)} aplicados contra facturas. Revierte la aplicación antes de eliminarlo.`;

@@ -366,7 +366,7 @@ function ImportarComprasInner() {
           await supabase.from("transacciones")
             .delete()
             .eq("grupo_transaccion_id", existe.grupo_transaccion_id)
-            .in("cuenta_codigo", ["2.1", "12.5"]);
+            .in("cuenta_codigo", ["2.1", "7.4"]);
         } else {
           await supabase.from("transacciones").delete().eq("id", existe.id);
         }

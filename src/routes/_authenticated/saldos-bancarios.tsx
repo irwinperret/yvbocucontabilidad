@@ -52,9 +52,9 @@ const TIPO_LABEL: Record<Ajuste["tipo"], string> = {
 // Para 13.1 (propinas en tránsito): el signo del monto define si es entrada o salida.
 // Todo lo demás con afecta_fc=true es salida.
 function esIngreso(grupo: string, codigo: string, monto: number): boolean {
-  if (codigo === "13.1") return monto >= 0;
+  if (codigo === "8.1") return monto >= 0;
   if (grupo === "Ingresos") return true;
-  if (codigo === "10.1" || codigo === "10.5") return true;
+  if (codigo === "5.1" || codigo === "5.5") return true;
   return false;
 }
 

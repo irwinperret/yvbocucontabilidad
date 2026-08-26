@@ -59,7 +59,7 @@ function ResumenEjecutivoPage() {
       const { data } = await supabase
         .from("transacciones")
         .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, detalle")
-        .in("cuenta_codigo", ["10.1", "10.4", "10.5"])
+        .in("cuenta_codigo", ["5.1", "5.4", "5.5"])
         .neq("standby", true)
         .order("fecha");
       return data ?? [];
@@ -67,21 +67,21 @@ function ResumenEjecutivoPage() {
   });
 
   const capitalTotal = useMemo(
-    () => (movsCapital ?? []).filter((t: any) => t.cuenta_codigo === "10.5").reduce((s, t: any) => s + (usdVisual(t, mode) ?? 0), 0),
+    () => (movsCapital ?? []).filter((t: any) => t.cuenta_codigo === "5.5").reduce((s, t: any) => s + (usdVisual(t, mode) ?? 0), 0),
     [movsCapital, mode],
   );
   const financiamientoTotal = useMemo(
-    () => (movsCapital ?? []).filter((t: any) => t.cuenta_codigo === "10.1").reduce((s, t: any) => s + (usdVisual(t, mode) ?? 0), 0),
+    () => (movsCapital ?? []).filter((t: any) => t.cuenta_codigo === "5.1").reduce((s, t: any) => s + (usdVisual(t, mode) ?? 0), 0),
     [movsCapital, mode],
   );
   const dividendosTotal = useMemo(
-    () => (movsCapital ?? []).filter((t: any) => t.cuenta_codigo === "10.4").reduce((s, t: any) => s + (usdVisual(t, mode) ?? 0), 0),
+    () => (movsCapital ?? []).filter((t: any) => t.cuenta_codigo === "5.4").reduce((s, t: any) => s + (usdVisual(t, mode) ?? 0), 0),
     [movsCapital, mode],
   );
   const porAportante = useMemo(() => {
     const m = new Map<string, number>();
     (movsCapital ?? [])
-      .filter((t: any) => t.cuenta_codigo === "10.5")
+      .filter((t: any) => t.cuenta_codigo === "5.5")
       .forEach((t: any) => {
         const k = t.detalle?.trim() || "—Sin nombre—";
         m.set(k, (m.get(k) ?? 0) + (usdVisual(t, mode) ?? 0));
@@ -93,7 +93,7 @@ function ResumenEjecutivoPage() {
   const capitalAcumuladoPorMes = useMemo(() => {
     const porMes = new Map<string, number>();
     (movsCapital ?? [])
-      .filter((t: any) => t.cuenta_codigo === "10.5")
+      .filter((t: any) => t.cuenta_codigo === "5.5")
       .forEach((t: any) => {
         const key = String(t.fecha).slice(0, 7);
         porMes.set(key, (porMes.get(key) ?? 0) + (usdVisual(t, mode) ?? 0));

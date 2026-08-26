@@ -21,7 +21,7 @@ import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { dentroDeTolerancia, pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv as saldoUsdBcv } from "@/lib/cxp-saldo";
 
-const CUENTA_PAGO_CXP = "13.2";
+const CUENTA_PAGO_CXP = "8.2";
 
 export const Route = createFileRoute("/_authenticated/pagar-cxp")({ component: PagarCxPPage });
 
@@ -317,7 +317,7 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
         .from("transacciones")
         .select("id, monto_bs").neq("standby", true)
         .eq("grupo_transaccion_id", grupoId)
-        .eq("cuenta_codigo", "12.5")
+        .eq("cuenta_codigo", "7.4")
         .gt("monto_bs", 0)
         .limit(1);
       const hasIva = (ivaLegs?.length ?? 0) > 0;

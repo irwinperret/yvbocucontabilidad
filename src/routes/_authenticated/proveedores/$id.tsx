@@ -244,7 +244,7 @@ function TableroProveedor() {
     // Pagos directos: el movimiento es la propia transacción 13.2.
     for (const mv of movimientos ?? []) {
       if (m.has(mv.id)) continue;
-      if (String(mv.cuenta_codigo) !== "13.2") continue;
+      if (String(mv.cuenta_codigo) !== "8.2") continue;
       const ligados = new Set<string>();
       const porGrupo = mv.grupo_transaccion_id ? grupoAFactura.get(mv.grupo_transaccion_id) : undefined;
       if (porGrupo) ligados.add(porGrupo);

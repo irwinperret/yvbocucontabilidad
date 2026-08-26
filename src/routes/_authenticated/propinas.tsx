@@ -108,11 +108,11 @@ function PropinasPage() {
       const { data } = await supabase
         .from("transacciones")
         .select("cuenta_codigo,monto_usd")
-        .in("cuenta_codigo", ["13.1", "13.4"])
+        .in("cuenta_codigo", ["8.1", "8.3"])
         .eq("standby", false)
         .gte("fecha", `${anio}-01-01`)
         .lte("fecha", `${anio}-12-31`);
-      const acc = { "13.1": 0, "13.4": 0 } as Record<string, number>;
+      const acc = { "8.1": 0, "8.3": 0 } as Record<string, number>;
       for (const r of (data ?? []) as any[]) acc[r.cuenta_codigo] += Number(r.monto_usd) || 0;
       return acc;
     },
@@ -297,7 +297,7 @@ function PropinasPage() {
             <CardTitle className="text-xs uppercase text-muted-foreground">13.1 · Propinas por pagar (saldo {anio})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmtUsd(saldosPersonal?.["13.1"] ?? 0)}</div>
+            <div className="text-2xl font-bold">{fmtUsd(saldosPersonal?.["8.1"] ?? 0)}</div>
             <div className="text-xs text-muted-foreground mt-1">Devengado en ventas menos lo pagado por banco</div>
           </CardContent>
         </Card>
@@ -306,7 +306,7 @@ function PropinasPage() {
             <CardTitle className="text-xs uppercase text-muted-foreground">13.4 · Bonos 10% por pagar (saldo {anio})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmtUsd(saldosPersonal?.["13.4"] ?? 0)}</div>
+            <div className="text-2xl font-bold">{fmtUsd(saldosPersonal?.["8.3"] ?? 0)}</div>
             <div className="text-xs text-muted-foreground mt-1">Devengado en ventas menos lo pagado por banco</div>
           </CardContent>
         </Card>
@@ -445,7 +445,7 @@ function RegistrarPropinaDialog({ onClose }: { onClose: () => void }) {
 
     // 1) Transacción 13.1 entrada
     const { data: txEntrada, error: e1 } = await supabase.from("transacciones").insert({
-      fecha, cuenta_codigo: "13.1", centro_costo: centro as any,
+      fecha, cuenta_codigo: "8.1", centro_costo: centro as any,
       monto_bs: montoBs, monto_base_bs: montoBs, iva_bs: 0,
       iva_aplica: false, tipo_iva: null,
       tasa_bcv: tBcv || tPar, tasa_paralela: tPar,
@@ -597,7 +597,7 @@ function DistribuirPropinaDialog({ propina, onClose }: { propina: Propina; onClo
 
     // Salida 13.1 con monto NEGATIVO (resta en FC / saldos bancarios)
     const { data: txSalida, error: e1 } = await supabase.from("transacciones").insert({
-      fecha, cuenta_codigo: "13.1", centro_costo: (propina.centro_costo ?? "YV") as any,
+      fecha, cuenta_codigo: "8.1", centro_costo: (propina.centro_costo ?? "YV") as any,
       monto_bs: -montoBs, monto_base_bs: -montoBs, iva_bs: 0,
       iva_aplica: false, tipo_iva: null,
       tasa_bcv: tBcv || tPar, tasa_paralela: tPar,

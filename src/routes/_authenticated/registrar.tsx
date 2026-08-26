@@ -41,7 +41,7 @@ import { PagarCxPInline } from "@/components/pagar-cxp-inline";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 import { tasaBcvQuery } from "@/lib/tasas";
 
-const CUENTA_PAGO_CXP = "13.2";
+const CUENTA_PAGO_CXP = "8.2";
 
 type Search = { tab?: string };
 export const Route = createFileRoute("/_authenticated/registrar")({
@@ -378,7 +378,7 @@ function VentasForm() {
   const tasaOffParalela = facturaTx ? Number(facturaTx.tasa_paralela) || tasaParalelaN : tasaParalelaN;
   const tasaOffN = tasaOffParalela || (facturaTx ? Number(facturaTx.tasa_bcv) || tasaBcvN : tasaBcvN);
   const tasaOffEsParalela = !!tasaOffParalela;
-  const cuentaBonoOff = "13.4"; // Bono 10% siempre va al pasivo (antes 3.5/3.10/3.14), estilo Propinas
+  const cuentaBonoOff = "8.3"; // Bono 10% siempre va al pasivo (antes 3.5/3.10/3.14), estilo Propinas
 
   // Autollenar bono = 10% del monto off si la persona no lo ha tocado
   useEffect(() => {
@@ -505,7 +505,7 @@ function VentasForm() {
             .from("transacciones")
             .insert({
               fecha: fechaOff,
-              cuenta_codigo: "13.4",
+              cuenta_codigo: "8.3",
               centro_costo: centroOff as any,
               monto_bs: bonoBs,
               monto_base_bs: bonoBs,
@@ -732,7 +732,7 @@ function VentasForm() {
         const usdActual = usdParCobrado;
         const fxUsd = +(usdActual - usdEsperado).toFixed(2);
         if (Math.abs(fxUsd) >= 0.01) {
-          const cuentaFx = fxUsd > 0 ? "11.1" : "11.2";
+          const cuentaFx = fxUsd > 0 ? "6.1" : "6.2";
           const absUsd = Math.abs(fxUsd);
           const absBs = +(absUsd * paralelaHoy).toFixed(2);
           const { data: txFx, error: errFx } = await supabase
@@ -773,7 +773,7 @@ function VentasForm() {
           .from("transacciones")
           .insert({
             fecha,
-            cuenta_codigo: "13.4",
+            cuenta_codigo: "8.3",
             centro_costo: centro as any,
             monto_bs: bonoServBsN,
             monto_base_bs: bonoServBsN,
@@ -821,7 +821,7 @@ function VentasForm() {
           .from("transacciones")
           .insert({
             fecha,
-            cuenta_codigo: "13.1",
+            cuenta_codigo: "8.1",
             centro_costo: centro as any,
             monto_bs: propinaBsN,
             monto_base_bs: propinaBsN,
@@ -1449,7 +1449,7 @@ function AnticipoProveedorRegisterForm({ onDone }: { onDone: () => void }) {
       .from("transacciones")
       .insert({
         fecha,
-        cuenta_codigo: "14.2",
+        cuenta_codigo: "9.2",
         centro_costo: centro as any,
         monto_bs: montoBsN,
         monto_base_bs: montoBsN,
@@ -1666,10 +1666,10 @@ function GastosFacturaForm() {
   const NOMINA_CODES = new Set([
     "3.1",
     "3.2",
-    "3.16",
-    "3.17",
-    "3.23",
-    "3.24",
+    "3.3",
+    "3.4",
+    "3.5",
+    "3.6",
   ]);
   const grupos = useMemo(() => {
     const g: Record<string, any[]> = {};
@@ -1677,7 +1677,7 @@ function GastosFacturaForm() {
       .filter((c: any) => !c.codigo.startsWith("1."))
       .filter((c: any) => c.codigo !== "2.1" && c.codigo !== "2.2") // COGS se maneja solo desde COGS e Inventario
       .filter((c: any) => !NOMINA_CODES.has(c.codigo)) // Nómina solo desde su pestaña
-      .filter((c: any) => !c.codigo.startsWith("10.")) // Financiamiento solo desde su pestaña
+      .filter((c: any) => !c.codigo.startsWith("5.")) // Financiamiento solo desde su pestaña
       .filter((c: any) => !c.centros_permitidos || c.centros_permitidos.includes(centro))
       .forEach((c: any) => {
         (g[c.grupo] ||= []).push(c);
@@ -2996,7 +2996,7 @@ function OpsIvaForm() {
 /* ---------------- ACTIVOS TRANSITORIOS — Personal ---------------- */
 const ACT_TRANS = {
   prestamo_personal: {
-    cuenta: "14.1",
+    cuenta: "9.1",
     label: "Préstamo al personal",
     tasaTipo: "paralela" as const,
     hasEntrada: true,
@@ -3004,7 +3004,7 @@ const ACT_TRANS = {
     salidaLabel: "Registrar préstamo",
   },
   anticipo_nomina: {
-    cuenta: "14.3",
+    cuenta: "9.3",
     label: "Anticipo de nómina",
     tasaTipo: "paralela" as const,
     hasEntrada: true,
@@ -3394,7 +3394,7 @@ function FinanciamientoBaseForm({
     detalle: detalle || null,
     modo: "on_balance" as any,
     cuenta_bancaria_id: muestraBanco && cuentaBancariaId ? cuentaBancariaId : null,
-    capex_categoria: cuenta === "10.6" ? capexCategoria : null,
+    capex_categoria: cuenta === "5.6" ? capexCategoria : null,
     created_by: user!.id,
   });
 
@@ -3412,7 +3412,7 @@ function FinanciamientoBaseForm({
         if (cap) {
           const { data: t1 } = await supabase
             .from("transacciones")
-            .insert(baseInsert("10.2", cap) as any)
+            .insert(baseInsert("5.2", cap) as any)
             .select()
             .single();
           if (t1) await logAudit("transacciones", "INSERT", t1.id, null, t1);
@@ -3420,7 +3420,7 @@ function FinanciamientoBaseForm({
         if (int) {
           const { data: t2 } = await supabase
             .from("transacciones")
-            .insert(baseInsert("10.3", int) as any)
+            .insert(baseInsert("5.3", int) as any)
             .select()
             .single();
           if (t2) await logAudit("transacciones", "INSERT", t2.id, null, t2);
@@ -3760,7 +3760,7 @@ function CierreForm() {
               .from("transacciones")
               .select("grupo_transaccion_id, monto_bs, monto_usd")
               .in("grupo_transaccion_id", grupos)
-              .eq("cuenta_codigo", "12.5")
+              .eq("cuenta_codigo", "7.4")
           : Promise.resolve({ data: [] as any[] }),
         pares.length
           ? supabase
@@ -4359,7 +4359,7 @@ function CierreForm() {
           .from("transacciones")
           .delete()
           .eq("grupo_transaccion_id", grupoId)
-          .in("cuenta_codigo", ["2.1", "12.5"]);
+          .in("cuenta_codigo", ["2.1", "7.4"]);
         setCompraBusy(false);
         return toast.error(cxpErr.message);
       }
@@ -4384,7 +4384,7 @@ function CierreForm() {
           .from("transacciones")
           .delete()
           .eq("grupo_transaccion_id", grupoId)
-          .in("cuenta_codigo", ["2.1", "12.5"]);
+          .in("cuenta_codigo", ["2.1", "7.4"]);
         setCompraBusy(false);
         return toast.error(`Anticipo: ${res.error}`);
       }
@@ -4469,7 +4469,7 @@ function CierreForm() {
         .from("transacciones")
         .delete()
         .eq("grupo_transaccion_id", c.grupo_transaccion_id)
-        .in("cuenta_codigo", ["2.1", "12.5"]);
+        .in("cuenta_codigo", ["2.1", "7.4"]);
       if (error) return toast.error(error.message);
     } else {
       const { error } = await supabase.from("transacciones").delete().eq("id", c.id);
@@ -5348,7 +5348,7 @@ function EditCompraDialog({
         .from("transacciones")
         .select("monto_bs, monto_usd, notas")
         .eq("grupo_transaccion_id", compra.grupo_transaccion_id)
-        .eq("cuenta_codigo", "14.2");
+        .eq("cuenta_codigo", "9.2");
       const bs = (data ?? []).reduce((s, r: any) => s + Math.abs(Number(r.monto_bs) || 0), 0);
       const usd = (data ?? []).reduce((s, r: any) => s + Math.abs(Number(r.monto_usd) || 0), 0);
       return { bs, usd };
@@ -5747,7 +5747,7 @@ const LIQ_SECCIONES = [
   { key: "Cocina", cuenta: "3.2", centro: "Compartido" as Centro },
   { key: "Bocú", cuenta: "3.2", centro: "Bocu" as Centro },
   { key: "YV", cuenta: "3.2", centro: "YV" as Centro },
-  { key: "Administración", cuenta: "3.17", centro: "Compartido" as Centro },
+  { key: "Administración", cuenta: "3.4", centro: "Compartido" as Centro },
 ] as const;
 
 function LiquidacionesForm() {

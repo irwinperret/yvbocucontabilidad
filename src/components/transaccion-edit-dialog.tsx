@@ -127,7 +127,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
       notas: notas || null,
       detalle: detalle || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
-      capex_categoria: tx.cuenta_codigo === "10.6" ? capexCategoria : tx.capex_categoria ?? null,
+      capex_categoria: tx.cuenta_codigo === "5.6" ? capexCategoria : tx.capex_categoria ?? null,
       tercero_id: terceroId || null,
     };
     const { data: updated, error } = await supabase
@@ -280,8 +280,8 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
           <div><Label>Referencia</Label><Input value={referencia} onChange={(e) => setReferencia(e.target.value)} /></div>
           {(() => {
             const labelByCode: Record<string, string> = {
-              "10.1": "Prestamista", "10.4": "Beneficiarios",
-              "10.5": "Aportante", "10.6": "Descripción activo",
+              "5.1": "Prestamista", "5.4": "Beneficiarios",
+              "5.5": "Aportante", "5.6": "Descripción activo",
             };
             const lbl = labelByCode[tx.cuenta_codigo];
             if (!lbl && !detalle) return null;
@@ -289,7 +289,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
               <div className="md:col-span-2"><Label>{lbl ?? "Detalle"}</Label><Input value={detalle} onChange={(e) => setDetalle(e.target.value)} /></div>
             );
           })()}
-          {tx.cuenta_codigo === "10.6" && (
+          {tx.cuenta_codigo === "5.6" && (
             <div className="md:col-span-2">
               <Label>Categoría CapEx</Label>
               <Select value={capexCategoria} onValueChange={setCapexCategoria}>

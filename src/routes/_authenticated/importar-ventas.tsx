@@ -269,11 +269,11 @@ function ImportarVentasPage() {
       const { data: pasivoExist } = await supabase.from("transacciones")
         .select("id")
         .eq("referencia", referencia)
-        .eq("cuenta_codigo", "13.4")
+        .eq("cuenta_codigo", "8.3")
         .eq("numero_factura", r.numero_factura)
         .limit(1).maybeSingle();
       const pasivoPayload: any = {
-        fecha: r.fecha, cuenta_codigo: "13.4", centro_costo: centroRow as any,
+        fecha: r.fecha, cuenta_codigo: "8.3", centro_costo: centroRow as any,
         monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
@@ -333,10 +333,10 @@ function ImportarVentasPage() {
         : supabase.from("transacciones").select("id").eq("numero_orden", r.numero_orden);
       const { data: propTxExist } = await dedupTx
         .eq("referencia", referencia)
-        .eq("cuenta_codigo", "13.1")
+        .eq("cuenta_codigo", "8.1")
         .limit(1).maybeSingle();
       const propTxPayload: any = {
-        fecha: r.fecha, cuenta_codigo: "13.1", centro_costo: centroRow as any,
+        fecha: r.fecha, cuenta_codigo: "8.1", centro_costo: centroRow as any,
         monto_bs: propinaBs, monto_base_bs: propinaBs, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
