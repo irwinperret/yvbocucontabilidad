@@ -321,9 +321,9 @@ function ImportarComprasInner() {
             grupo_transaccion_id: grupoId,
             tipo: "credito",
           });
-          if (!ivaRes) {
+          if (!ivaRes.ok && !ivaRes.skipped) {
             await supabase.from("transacciones").delete().eq("id", (txCompra as any).id);
-            throw new Error(`12.5 ${r.numero_factura}: no se pudo registrar IVA, se revirtió la compra`);
+            throw new Error(`7.4 ${r.numero_factura}: no se pudo registrar IVA (${ivaRes.error}), se revirtió la compra`);
           }
         }
 

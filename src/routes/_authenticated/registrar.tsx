@@ -4318,10 +4318,10 @@ function CierreForm() {
           grupo_transaccion_id: grupoId,
           tipo: "credito",
         });
-        if (!ivaRes) {
+        if (!ivaRes.ok && !ivaRes.skipped) {
           await supabase.from("transacciones").delete().eq("grupo_transaccion_id", grupoId).eq("cuenta_codigo", "2.1");
           setCompraBusy(false);
-          return toast.error(`IVA 12.5 ${compraNumFactura}: no se pudo registrar`);
+          return toast.error(`IVA 7.4 ${compraNumFactura}: no se pudo registrar — ${ivaRes.error}`);
         }
       }
     }

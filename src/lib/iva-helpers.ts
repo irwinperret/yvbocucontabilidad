@@ -31,8 +31,8 @@ export type IvaLegInput = {
   tipo: "debito" | "credito"; // débito = venta (12.4), crédito = compra (12.5)
 };
 
-export async function insertIvaLeg(input: IvaLegInput) {
-  if (input.monto_bs_iva <= 0) return null;
+export async function insertIvaLeg(input: IvaLegInput): Promise<{ ok: true; data: any } | { ok: false; skipped: true } | { ok: false; error: string }> {
+  if (input.monto_bs_iva <= 0) return { ok: false, skipped: true };
   const cuenta = input.tipo === "debito" ? "7.3" : "7.4";
   const notasBase = input.tipo === "debito" ? "IVA débito" : "IVA crédito";
   const { data, error } = await supabase.from("transacciones").insert({
@@ -59,10 +59,10 @@ export async function insertIvaLeg(input: IvaLegInput) {
   } as any).select().single();
   if (error) {
     console.error("insertIvaLeg failed", error);
-    return null;
+    return { ok: false, error: error.message };
   }
   if (data) await logAudit("transacciones", "INSERT", (data as any).id, null, data);
-  return data;
+  return { ok: true, data };
 }
 
 /**

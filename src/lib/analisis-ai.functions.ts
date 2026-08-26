@@ -27,11 +27,8 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
 
     const gastos_totales =
       (snap.cogs_usd ?? 0) +
-      (snap.nomina_usd ?? 0) +
-      (snap.gastos_admin_usd ?? 0) +
-      (snap.gastos_operativos_usd ?? 0) +
-      (snap.gastos_mercadeo_usd ?? 0) +
-      (snap.gastos_generales_usd ?? 0);
+      (snap.costos_fijos_usd ?? 0) +
+      (snap.costos_variables_usd ?? 0);
     const utilidad_neta_usd = (snap.ingresos_usd ?? 0) - gastos_totales;
     const margen_neto_pct = snap.ingresos_usd > 0 ? utilidad_neta_usd / snap.ingresos_usd : null;
 
@@ -64,11 +61,10 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       vista_usd: vista, // "paralela" o "bcv"
       ingresos_usd: round(snap.ingresos_usd ?? 0),
       cogs_usd: round(snap.cogs_usd ?? 0),
-      nomina_usd: round(snap.nomina_usd ?? 0),
-      gastos_admin_usd: round(snap.gastos_admin_usd ?? 0),
-      gastos_operativos_usd: round(snap.gastos_operativos_usd ?? 0),
-      gastos_mercadeo_usd: round(snap.gastos_mercadeo_usd ?? 0),
-      gastos_generales_usd: round(snap.gastos_generales_usd ?? 0),
+      costos_fijos_usd: round(snap.costos_fijos_usd ?? 0),
+      costos_variables_usd: round(snap.costos_variables_usd ?? 0),
+      nomina_usd_de_costos_fijos: round(snap.nomina_usd ?? 0),
+      gastos_mercadeo_usd_de_costos_fijos: round(snap.gastos_mercadeo_usd ?? 0),
       otros_gastos_gyp_usd: 0,
       utilidad_neta_usd: round(utilidad_neta_usd),
       margen_neto_pct: margen_neto_pct == null ? null : Number((margen_neto_pct * 100).toFixed(2)),
