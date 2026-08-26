@@ -4190,7 +4190,18 @@ function CierreForm() {
       const t = Number(c.tasa_bcv) || 0;
       return s + (t > 0 ? +((Number(c.iva_bs) || 0) / t).toFixed(2) : Number(c.iva_usd) || 0);
     }, 0);
-    return { netoBs, ivaBs, totalBs, netoUsdBcv, ivaUsdBcv, totalUsdBcv: netoUsdBcv + ivaUsdBcv, count: on.length };
+    // USD paralelo: ya viene calculado en cada transacción a la tasa de su propia fecha.
+    const netoUsdParalelo = on.reduce((s, c) => {
+      const n = Number(c.monto_base_usd);
+      if (Number.isFinite(n) && n !== 0) return s + n;
+      return s + Math.max(0, (Number(c.monto_usd) || 0) - (Number(c.iva_usd) || 0));
+    }, 0);
+    const ivaUsdParalelo = on.reduce((s, c) => s + (Number(c.iva_usd) || 0), 0);
+    return {
+      netoBs, ivaBs, totalBs, netoUsdBcv, ivaUsdBcv, totalUsdBcv: netoUsdBcv + ivaUsdBcv,
+      netoUsdParalelo, ivaUsdParalelo, totalUsdParalelo: netoUsdParalelo + ivaUsdParalelo,
+      count: on.length,
+    };
   };
 
   const iniUsd = Number(invIniUsd) || 0;
@@ -4953,6 +4964,18 @@ function CierreForm() {
                         <th className="text-right" title="Total neto + IVA a valor BCV — solo visualización">
                           Total USD BCV
                         </th>
+                        <th
+                          className="text-right"
+                          title="Monto neto sin IVA a la tasa paralela vigente en la fecha de la transacción"
+                        >
+                          Neto USD paralelo (sin IVA)
+                        </th>
+                        <th className="text-right" title="IVA a tasa paralela de la fecha de la transacción">
+                          IVA USD paralelo
+                        </th>
+                        <th className="text-right" title="Total neto + IVA a tasa paralela de la fecha de la transacción">
+                          Total USD paralelo
+                        </th>
                         <th className="text-center">Estado</th>
                         <th></th>
                       </tr>
@@ -4968,7 +4991,7 @@ function CierreForm() {
                         return (
                           <tbody key={g.key}>
                             <tr className="border-t bg-muted/40">
-                              <td colSpan={11} className="py-1.5">
+                              <td colSpan={14} className="py-1.5">
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -5022,6 +5045,9 @@ function CierreForm() {
                             <td className="text-right mono font-semibold">{fmtUsd(netoUsd)}</td>
                             <td className="text-right mono text-muted-foreground">{fmtUsd(ivaUsd)}</td>
                             <td className="text-right mono">{fmtUsd(totalUsd)}</td>
+                            <td className="text-right mono font-semibold">{fmtUsd(netoUsdParalelo)}</td>
+                            <td className="text-right mono text-muted-foreground">{fmtUsd(ivaUsdParalelo)}</td>
+                            <td className="text-right mono">{fmtUsd(totalUsdParalelo)}</td>
                             <td className="text-center">
                               {c.pagada ? (
                                 <span className="text-green-700">Pagada</span>
@@ -5068,6 +5094,9 @@ function CierreForm() {
                               <td className="text-right mono">{fmtUsd(st.netoUsdBcv)}</td>
                               <td className="text-right mono text-muted-foreground">{fmtUsd(st.ivaUsdBcv)}</td>
                               <td className="text-right mono">{fmtUsd(st.totalUsdBcv)}</td>
+                              <td className="text-right mono">{fmtUsd(st.netoUsdParalelo)}</td>
+                              <td className="text-right mono text-muted-foreground">{fmtUsd(st.ivaUsdParalelo)}</td>
+                              <td className="text-right mono">{fmtUsd(st.totalUsdParalelo)}</td>
                               <td colSpan={2}></td>
                             </tr>
                           </tbody>
