@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -269,6 +269,7 @@ export type Database = {
         Row: {
           cogs_bs: number
           cogs_usd: number
+          cogs_usd_paralelo: number | null
           compras_mes_bs: number
           created_at: string
           depreciacion_bs: number
@@ -285,6 +286,7 @@ export type Database = {
         Insert: {
           cogs_bs: number
           cogs_usd: number
+          cogs_usd_paralelo?: number | null
           compras_mes_bs: number
           created_at?: string
           depreciacion_bs?: number
@@ -301,6 +303,7 @@ export type Database = {
         Update: {
           cogs_bs?: number
           cogs_usd?: number
+          cogs_usd_paralelo?: number | null
           compras_mes_bs?: number
           created_at?: string
           depreciacion_bs?: number
@@ -801,6 +804,7 @@ export type Database = {
           grupo: string
           nombre: string
           orden: number
+          subgrupo: string | null
         }
         Insert: {
           activa?: boolean
@@ -813,6 +817,7 @@ export type Database = {
           grupo: string
           nombre: string
           orden?: number
+          subgrupo?: string | null
         }
         Update: {
           activa?: boolean
@@ -825,6 +830,7 @@ export type Database = {
           grupo?: string
           nombre?: string
           orden?: number
+          subgrupo?: string | null
         }
         Relationships: []
       }
