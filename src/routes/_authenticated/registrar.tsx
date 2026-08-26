@@ -1677,7 +1677,7 @@ function GastosFacturaForm() {
       .filter((c: any) => !c.codigo.startsWith("1."))
       .filter((c: any) => c.codigo !== "2.1" && c.codigo !== "2.2") // COGS se maneja solo desde COGS e Inventario
       .filter((c: any) => !NOMINA_CODES.has(c.codigo)) // Nómina solo desde su pestaña
-      .filter((c: any) => !c.codigo.startsWith("10.")) // Financiamiento solo desde su pestaña
+      .filter((c: any) => !c.codigo.startsWith("5.")) // Financiamiento solo desde su pestaña
       .filter((c: any) => !c.centros_permitidos || c.centros_permitidos.includes(centro))
       .forEach((c: any) => {
         (g[c.grupo] ||= []).push(c);
