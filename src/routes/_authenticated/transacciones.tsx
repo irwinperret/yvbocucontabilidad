@@ -18,10 +18,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { Pencil, Download, Trash2, Filter, ArrowUp, ArrowDown, X, PauseCircle } from "lucide-react";
 import { toast } from "sonner";
-import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
+import { fmtBs, fmtUsd, todayISO } from "@/lib/format";
 import { EliminarTransaccionDialog } from "@/components/eliminar-transaccion-dialog";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
-import { CENTROS, METODOS, CAPEX_CATEGORIAS, ordenarPorCodigo, type Centro } from "@/lib/account-helpers";
+import { CENTROS, METODOS, CAPEX_CATEGORIAS, ordenarPorCodigo, MESES, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { AdjuntoCell } from "@/components/adjunto-cell";
 import { fetchAllRows } from "@/lib/fetch-all";
@@ -131,6 +131,15 @@ function usdBcvVisual(t: any) {
   const montoBs = Number(t.monto_bs) || 0;
   const tasaBcv = Number(t.tasa_bcv) || 0;
   return tasaBcv > 0 ? montoBs / tasaBcv : null;
+}
+
+/** Formato mmm/dd/yyyy solo para esta pantalla (el resto de la app usa fmtDate = dd/mm/yyyy). */
+function fmtDateMDY(d: string | Date) {
+  const dt = typeof d === "string" ? new Date(d.includes("T") ? d : `${d}T00:00:00`) : d;
+  if (isNaN(dt.getTime())) return "—";
+  const mes = MESES[dt.getMonth()];
+  const dia = String(dt.getDate()).padStart(2, "0");
+  return `${mes}/${dia}/${dt.getFullYear()}`;
 }
 
 function loadState(): Partial<FilterState> | null {
@@ -1037,7 +1046,7 @@ function TransaccionesPage() {
                           <Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggleSel(t.id)} />
                         </td>
                         <td className="py-2 px-2 mono text-xs text-muted-foreground">{t.numero ?? "—"}</td>
-                        <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(t.fecha)}</td>
+                        <td className="py-2 px-2 mono whitespace-nowrap">{fmtDateMDY(t.fecha)}</td>
                         <td className="py-2 px-2">{t.centro_costo}</td>
                         <td className="py-2 px-2">
                           <div className="mono text-xs flex items-center gap-1.5">
