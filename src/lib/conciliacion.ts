@@ -107,7 +107,7 @@ const CUENTAS_SIN_FACTURA_FIJAS = new Set([
   "13.1", "13.2", "13.4",   // pasivos transitorios / pago CxP / bonos 10%
   "10.1", "10.2", "10.4", "10.5", "10.7", // financiamiento y depreciación
   "12.1", "12.2", "12.3", "12.4", "12.5", // impuestos
-  "7.1", "7.2",             // financieros
+  "7.1",                    // financieros (incluye lo que antes era 7.2/7.3)
   "11.1", "11.2",           // ganancia/pérdida cambiaria
   "98", "99",               // operaciones de cambio / no contable
 ]);

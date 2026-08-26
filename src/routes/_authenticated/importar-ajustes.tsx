@@ -183,7 +183,7 @@ function ImportarAjustesPage() {
         const legs: { cuenta: string; centro: "YV" | "Bocu" | "Compartido"; usdBcv: number; metodo: string; nota: string }[] = [];
         if (f.yv > 0) legs.push({ cuenta: "1.1", centro: "YV", usdBcv: f.yv, metodo: "efectivo_bs", nota: "Ajuste ventas lista (20% YV)" });
         if (f.bocu > 0) legs.push({ cuenta: "1.2", centro: "Bocu", usdBcv: f.bocu, metodo: "efectivo_bs", nota: "Ajuste ventas lista (80% Bocú)" });
-        if (f.servicioLista > 0) legs.push({ cuenta: "3.14", centro: "Compartido", usdBcv: f.servicioLista, metodo: "pendiente", nota: "Ajuste servicio lista (Otros Bonos)" });
+        if (f.servicioLista > 0) legs.push({ cuenta: "3.1", centro: "Compartido", usdBcv: f.servicioLista, metodo: "pendiente", nota: "Ajuste servicio lista (Sueldos)" });
         if (!legs.length) continue;
 
         const grupo = crypto.randomUUID();

@@ -35,17 +35,20 @@ export function cuentaVenta(centro: Centro, tipo: "contado" | "credito" | "cobro
 }
 
 export function cuentaNomina(tipo: string, centro: Centro): string {
-  // Compartido reutiliza los códigos que antes eran de Administración (3.1, 3.2, 3.3).
-  const map: Record<string, Record<string, string>> = {
-    regular:      { Bocu: "3.4", YV: "3.9",  Compartido: "3.1" },
+  // Tras la fusión de cuentas (ago-2026): sueldos, pasivos laborales y
+  // liquidaciones ya no distinguen por centro a nivel de cuenta contable,
+  // todo entra a una sola cuenta consolidada. El centro se sigue guardando
+  // en el campo centro_costo de cada transacción.
+  const map: Record<string, string> = {
+    regular:      "3.1",   // Sueldos
+    liquidacion:  "3.2",   // Pasivos laborales (incluye liquidaciones)
+    pasivos:      "3.2",   // Pasivos laborales
+    parafiscales: "3.2",   // Pasivos laborales
     // Bono 10%: ya no es gasto de nómina (3.5/3.10 retiradas). Es un pasivo
     // (13.4, estilo Propinas), igual para los tres centros.
-    bono:         { Bocu: "13.4", YV: "13.4", Compartido: "13.4" },
-    liquidacion:  { Bocu: "3.7", YV: "3.12", Compartido: "3.3" },
-    pasivos:      { Bocu: "3.6", YV: "3.11", Compartido: "3.2" },
-    parafiscales: { Bocu: "3.15",YV: "3.15", Compartido: "3.15" },
+    bono:         "13.4",
   };
-  return map[tipo]?.[centro] ?? "3.14";
+  return map[tipo] ?? "3.1";
 }
 
 

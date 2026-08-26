@@ -52,7 +52,7 @@ export function dentroDeTolerancia(diferencia: number, base: number): boolean {
 }
 
 /** Cuentas del plan usadas para registrar el diferencial cambiario (uso manual). */
-export const CUENTA_DIF_PERDIDA = "7.2";  // Diferencial cambiario (pérdida)
+export const CUENTA_DIF_PERDIDA = "7.1";  // Gastos financieros bancarios (antes 7.2, ya fusionada)
 export const CUENTA_DIF_GANANCIA = "11.1"; // Ganancia cambiaria por cobros
 
 /**

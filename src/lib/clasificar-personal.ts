@@ -56,9 +56,9 @@ export function clasificarPagoPersonal(
   const cen = norm(centro);
   const esMO = norm(categoria).trim() === "MO";
 
-  // 1. Parafiscales
+  // 1. Parafiscales (ya fusionado en 3.2 "Pasivos laborales")
   if (/IVSS|FAOV|INCES|PARAFISCAL|SEGURO\s*SOCIAL/.test(c)) {
-    return { cuenta: "3.15", tipo: "nomina" };
+    return { cuenta: "3.2", tipo: "nomina" };
   }
 
   // 2. Propinas → pago de pasivo
@@ -79,17 +79,15 @@ export function clasificarPagoPersonal(
     };
   }
 
-  // 4. Bono de alimentación
+  // 4. Bono de alimentación (ya fusionado en 3.1 "Sueldos")
   if (/BONO\s*ALIM|B\.?\s*ALIM|CESTA\s*TICKET|ALIMENTACION/.test(c)) {
-    return { cuenta: "3.20", tipo: "nomina" };
+    return { cuenta: "3.1", tipo: "nomina" };
   }
 
-  // 5. Liquidaciones (por centro / texto)
+  // 5. Liquidaciones (ya fusionadas: 3.17 Administración, 3.2 el resto)
   if (/LIQUID|TERMINACION|PERIODO\s*PRUEB/.test(c)) {
-    if (/ADMIN/.test(c)) return { cuenta: "3.18", tipo: "nomina" };
-    if (/COCINA|CHEF|COCINERO/.test(c)) return { cuenta: "3.3", tipo: "nomina" };
-    if (/BOCU/.test(c) || cen === "BOCU") return { cuenta: "3.7", tipo: "nomina" };
-    return { cuenta: "3.12", tipo: "nomina" };
+    if (/ADMIN/.test(c)) return { cuenta: "3.17", tipo: "nomina" };
+    return { cuenta: "3.2", tipo: "nomina" };
   }
 
   // 6. Préstamos y anticipos (activos transitorios)
@@ -100,14 +98,14 @@ export function clasificarPagoPersonal(
     return { cuenta: "14.3", tipo: "pasivo", nota: "Anticipo al personal — activo transitorio" };
   }
 
-  // 7. Nómina por área
-  if (/COCINA|CHEF|COCINERO/.test(c)) return { cuenta: "3.1", tipo: "nomina" };
-  if (/SALA\s*YV|NOMINA\s*YV|YV\s*SALA|\bYV\b/.test(c)) return { cuenta: "3.9", tipo: "nomina" };
-  if (/SALA\s*BOCU|NOMINA\s*BOCU|BOCU\s*SALA|\bBOCU\b/.test(c)) return { cuenta: "3.4", tipo: "nomina" };
+  // 7. Nómina por área (ya fusionada en 3.1 "Sueldos"; Administración sigue aparte en 3.16)
+  if (/COCINA|CHEF|COCINERO|SALA\s*YV|NOMINA\s*YV|YV\s*SALA|\bYV\b|SALA\s*BOCU|NOMINA\s*BOCU|BOCU\s*SALA|\bBOCU\b/.test(c)) {
+    return { cuenta: "3.1", tipo: "nomina" };
+  }
   if (/ADMIN/.test(c)) return { cuenta: "3.16", tipo: "nomina" };
 
   // 8. Por defecto, sólo si la categoría del reporte dice que es mano de obra
-  if (esMO) return { cuenta: "3.4", tipo: "nomina" };
+  if (esMO) return { cuenta: "3.1", tipo: "nomina" };
 
   return null;
 }

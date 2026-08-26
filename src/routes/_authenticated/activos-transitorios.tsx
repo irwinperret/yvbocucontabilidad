@@ -32,7 +32,7 @@ type TabKey = "prestamos" | "anticipos_nomina" | "prestaciones";
 const TAB_CONFIG: Record<TabKey, { label: string; cuenta: string; hasRecovery: boolean; recoveryLabel: string }> = {
   prestamos:         { label: "Préstamos al personal",      cuenta: "14.1", hasRecovery: true,  recoveryLabel: "Total recuperado" },
   anticipos_nomina:  { label: "Anticipos de nómina",        cuenta: "14.3", hasRecovery: true,  recoveryLabel: "Total aplicado" },
-  prestaciones:      { label: "Anticipos de prestaciones",  cuenta: "3.22", hasRecovery: false, recoveryLabel: "" },
+  prestaciones:      { label: "Anticipos de prestaciones",  cuenta: "3.2", hasRecovery: false, recoveryLabel: "" },
 };
 
 function parseDetalle(d: string | null): { cco: string; empleado: string } {

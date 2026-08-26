@@ -1666,15 +1666,10 @@ function GastosFacturaForm() {
   const NOMINA_CODES = new Set([
     "3.1",
     "3.2",
-    "3.3",
-    "3.4",
-    "3.6",
-    "3.7",
-    "3.9",
-    "3.11",
-    "3.12",
-    "3.14",
-    "3.15",
+    "3.16",
+    "3.17",
+    "3.23",
+    "3.24",
   ]);
   const grupos = useMemo(() => {
     const g: Record<string, any[]> = {};
@@ -2382,17 +2377,17 @@ function NominaRegularForm() {
     const NETO = "Salario neto (base − parafiscales)";
     {
       const c = secciones["BYV"];
-      pushIf("3.9", "YV", netoSec("BYV"), NETO);
-      pushIf("3.20", "YV", Number(c.alimentacion || 0), "Bono alimentación");
-      pushIf("3.14", "YV", Number(c.compensatorio || 0), "Bono compensatorio");
-      pushIf("3.15", "YV", Number(c.parafiscales || 0), "Parafiscales");
+      pushIf("3.1", "YV", netoSec("BYV"), NETO);
+      pushIf("3.1", "YV", Number(c.alimentacion || 0), "Bono alimentación");
+      pushIf("3.1", "YV", Number(c.compensatorio || 0), "Bono compensatorio");
+      pushIf("3.2", "YV", Number(c.parafiscales || 0), "Parafiscales");
     }
     {
       const c = secciones["BOCU"];
-      pushIf("3.4", "Bocu", netoSec("BOCU"), NETO);
-      pushIf("3.20", "Bocu", Number(c.alimentacion || 0), "Bono alimentación");
-      pushIf("3.14", "Bocu", Number(c.compensatorio || 0), "Bono compensatorio");
-      pushIf("3.15", "Bocu", Number(c.parafiscales || 0), "Parafiscales");
+      pushIf("3.1", "Bocu", netoSec("BOCU"), NETO);
+      pushIf("3.1", "Bocu", Number(c.alimentacion || 0), "Bono alimentación");
+      pushIf("3.1", "Bocu", Number(c.compensatorio || 0), "Bono compensatorio");
+      pushIf("3.2", "Bocu", Number(c.parafiscales || 0), "Parafiscales");
     }
     {
       const c = secciones["BYV-BOCU"];
@@ -2404,10 +2399,10 @@ function NominaRegularForm() {
         pushIf(cuentaBocu, "Bocu", bocu, `${concepto} (compartido 80%)`);
       };
 
-      split(netoSec("BYV-BOCU"), "3.9", "3.4", NETO);
-      split(Number(c.alimentacion || 0), "3.20", "3.20", "Bono alimentación");
-      split(Number(c.compensatorio || 0), "3.14", "3.14", "Bono compensatorio");
-      split(Number(c.parafiscales || 0), "3.15", "3.15", "Parafiscales");
+      split(netoSec("BYV-BOCU"), "3.1", "3.1", NETO);
+      split(Number(c.alimentacion || 0), "3.1", "3.1", "Bono alimentación");
+      split(Number(c.compensatorio || 0), "3.1", "3.1", "Bono compensatorio");
+      split(Number(c.parafiscales || 0), "3.2", "3.2", "Parafiscales");
     }
     return out;
   };
@@ -2644,10 +2639,10 @@ function NominaChefForm() {
       if (usd > 0.0001) out.push({ cuenta, centro, usd: +usd.toFixed(2), concepto });
     };
     const fields: { key: keyof NominaCampos; cuentaYV: string; cuentaBocu: string; concepto: string }[] = [
-      { key: "salario", cuentaYV: "3.9", cuentaBocu: "3.4", concepto: "Salario neto Chef (base − parafiscales)" },
-      { key: "alimentacion", cuentaYV: "3.20", cuentaBocu: "3.20", concepto: "Bono alimentación Chef" },
-      { key: "compensatorio", cuentaYV: "3.14", cuentaBocu: "3.14", concepto: "Bono compensatorio Chef" },
-      { key: "parafiscales", cuentaYV: "3.15", cuentaBocu: "3.15", concepto: "Parafiscales Chef" },
+      { key: "salario", cuentaYV: "3.1", cuentaBocu: "3.1", concepto: "Salario neto Chef (base − parafiscales)" },
+      { key: "alimentacion", cuentaYV: "3.1", cuentaBocu: "3.1", concepto: "Bono alimentación Chef" },
+      { key: "compensatorio", cuentaYV: "3.1", cuentaBocu: "3.1", concepto: "Bono compensatorio Chef" },
+      { key: "parafiscales", cuentaYV: "3.2", cuentaBocu: "3.2", concepto: "Parafiscales Chef" },
     ];
     for (const f of fields) {
       const usd = f.key === "salario" ? netoUsd : Number(campos[f.key] || 0);
@@ -3017,7 +3012,7 @@ const ACT_TRANS = {
     salidaLabel: "Registrar anticipo",
   },
   anticipo_prestaciones: {
-    cuenta: "3.22",
+    cuenta: "3.2",
     label: "Anticipo de prestaciones",
     tasaTipo: "bcv" as const,
     hasEntrada: false,
@@ -5745,11 +5740,14 @@ function EditCompraDialog({
 }
 
 /* ---------------- LIQUIDACIONES ---------------- */
+// Tras la fusión de cuentas (ago-2026): todas las liquidaciones van a la
+// cuenta consolidada "Pasivos laborales" (3.2), salvo Administración que
+// tiene la suya propia (3.17). El centro sigue guardándose por transacción.
 const LIQ_SECCIONES = [
-  { key: "Cocina", cuenta: "3.3", centro: "Compartido" as Centro },
-  { key: "Bocú", cuenta: "3.7", centro: "Bocu" as Centro },
-  { key: "YV", cuenta: "3.12", centro: "YV" as Centro },
-  { key: "Administración", cuenta: "3.18", centro: "Compartido" as Centro },
+  { key: "Cocina", cuenta: "3.2", centro: "Compartido" as Centro },
+  { key: "Bocú", cuenta: "3.2", centro: "Bocu" as Centro },
+  { key: "YV", cuenta: "3.2", centro: "YV" as Centro },
+  { key: "Administración", cuenta: "3.17", centro: "Compartido" as Centro },
 ] as const;
 
 function LiquidacionesForm() {

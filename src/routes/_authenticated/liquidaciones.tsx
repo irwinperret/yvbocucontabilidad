@@ -26,12 +26,12 @@ import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 
 const SECCIONES = [
-  { key: "Cocina",         cuenta: "3.3",  centro: "Compartido", color: "#0F6E56" },
-  { key: "Bocú",           cuenta: "3.7",  centro: "Bocu",       color: "#534AB7" },
-  { key: "YV",             cuenta: "3.12", centro: "YV",         color: "#E8A87C" },
-  { key: "Administración", cuenta: "3.18", centro: "Compartido", color: "#3498DB" },
+  { key: "Cocina",         cuenta: "3.2",  centro: "Compartido", color: "#0F6E56" },
+  { key: "Bocú",           cuenta: "3.2",  centro: "Bocu",       color: "#534AB7" },
+  { key: "YV",             cuenta: "3.2",  centro: "YV",         color: "#E8A87C" },
+  { key: "Administración", cuenta: "3.17", centro: "Compartido", color: "#3498DB" },
 ] as const;
-const CUENTAS_LIQ = SECCIONES.map((s) => s.cuenta);
+const CUENTAS_LIQ = Array.from(new Set(SECCIONES.map((s) => s.cuenta)));
 
 type SortKey = "fecha" | "empleado" | "seccion" | "cuenta_codigo" | "monto_bs" | "tasa_paralela" | "monto_usd" | "banco";
 
@@ -40,7 +40,11 @@ export const Route = createFileRoute("/_authenticated/liquidaciones")({
 });
 
 function seccionFromRow(row: any) {
-  const def = SECCIONES.find((s) => s.cuenta === row.cuenta_codigo);
+  // Tras la fusión de cuentas (ago-2026), Cocina/Bocú/YV comparten la misma
+  // cuenta (3.2); hay que distinguirlas también por centro_costo.
+  const def =
+    SECCIONES.find((s) => s.cuenta === row.cuenta_codigo && s.centro === row.centro_costo) ??
+    SECCIONES.find((s) => s.cuenta === row.cuenta_codigo);
   return def?.key ?? "—";
 }
 function empleadoFromRow(row: any): string {
