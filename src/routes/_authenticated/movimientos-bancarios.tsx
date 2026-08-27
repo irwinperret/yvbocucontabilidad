@@ -407,6 +407,27 @@ function MovimientosBancariosPage() {
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
   };
 
+  // "Sin pareo" que ya llevan más de 30 días esperando una factura que
+  // probablemente nunca va a llegar: se pueden limpiar de una sola vez.
+  const sinPareoAntiguos = useMemo(() => {
+    const corte = Date.now() - 30 * 86400000;
+    return filas.filter((f) => f.estado === "sin_pareo" && new Date(f.mov.fecha).getTime() < corte);
+  }, [filas]);
+  const [marcandoMasivo, setMarcandoMasivo] = useState(false);
+  const marcarAntiguosComoGastoDirecto = async () => {
+    if (!sinPareoAntiguos.length) return;
+    if (!window.confirm(`¿Marcar ${sinPareoAntiguos.length} movimientos "Sin pareo" de más de 30 días como gasto directo? No cambia ningún monto ni crea cuentas por pagar, solo los saca de la cola de pendientes.`)) return;
+    setMarcandoMasivo(true);
+    let ok = 0;
+    for (const f of sinPareoAntiguos) {
+      const r = await marcarEstadoConciliacion({ movimientoId: f.mov.id, estado: "gasto_directo", userId: user?.id ?? null });
+      if (r.ok) ok++;
+    }
+    setMarcandoMasivo(false);
+    toast.success(`${ok} de ${sinPareoAntiguos.length} movimientos marcados como gasto directo`);
+    qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+  };
+
 
   const guardarVinculo = async (
     movId: string,
@@ -618,6 +639,12 @@ function MovimientosBancariosPage() {
         </div>
         <div className="flex items-center gap-2">
           <UsdViewToggle />
+          {sinPareoAntiguos.length > 0 && (
+            <Button variant="outline" onClick={marcarAntiguosComoGastoDirecto} disabled={marcandoMasivo}>
+              <Check className="h-4 w-4 mr-2" />
+              {marcandoMasivo ? "Marcando…" : `Marcar ${sinPareoAntiguos.length} antiguos como gasto directo`}
+            </Button>
+          )}
           <Button variant="outline" onClick={async () => { await recargarDatos(); setRecalcOpen(true); }}>
             <RefreshCw className="h-4 w-4 mr-2" /> Recalcular pareos
             {propuestas.length > 0 && (
@@ -908,6 +935,17 @@ function MovimientosBancariosPage() {
                           {(f.estado === "pareado" || f.estado === "parcial") && (
                             <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => quitarPareo(f.mov.id)}>
                               <X className="h-3 w-3 mr-1" /> Quitar pareo
+                            </Button>
+                          )}
+                          {f.estado === "sin_pareo" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              title="No hace falta que aparezca una factura para esto — se deja como gasto ya contado, no crea ni cambia ninguna cuenta por pagar"
+                              onClick={() => marcarEstado(f.mov.id, "gasto_directo")}
+                            >
+                              <Check className="h-3 w-3 mr-1" /> Marcar como gasto directo
                             </Button>
                           )}
                           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditando(f.mov)}>
