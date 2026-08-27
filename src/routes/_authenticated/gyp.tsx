@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -392,10 +392,66 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
     return `py-1.5 px-2 text-right mono ${futuro ? "text-muted-foreground/40" : ""} ${v === 0 ? "text-muted-foreground/60" : ""}`;
   };
 
+  // ---------- Selección de celdas tipo Excel (clic y arrastra) ----------
+  // Cada fila visible (encabezado de grupo o cuenta expandida) recibe un
+  // índice secuencial "rIdx"; cada columna es 0-11 (meses) o 12 (Año).
+  let rIdx = -1;
+  const [selecting, setSelecting] = useState(false);
+  const [selStart, setSelStart] = useState<{ r: number; c: number } | null>(null);
+  const [selEnd, setSelEnd] = useState<{ r: number; c: number } | null>(null);
+
+  const enCeldaRango = (r: number, c: number) => {
+    if (!selStart || !selEnd) return false;
+    const r0 = Math.min(selStart.r, selEnd.r), r1 = Math.max(selStart.r, selEnd.r);
+    const c0 = Math.min(selStart.c, selEnd.c), c1 = Math.max(selStart.c, selEnd.c);
+    return r >= r0 && r <= r1 && c >= c0 && c <= c1;
+  };
+
+  const startSel = (r: number, c: number) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setSelecting(true);
+    setSelStart({ r, c });
+    setSelEnd({ r, c });
+  };
+  const overSel = (r: number, c: number) => () => {
+    if (selecting) setSelEnd({ r, c });
+  };
+
+  useEffect(() => {
+    const stop = () => setSelecting(false);
+    window.addEventListener("mouseup", stop);
+    return () => window.removeEventListener("mouseup", stop);
+  }, []);
+
+  // Acumula (valor, celda-en-rango) para calcular la suma después del render.
+  const seleccion = useMemo(() => {
+    if (!selStart || !selEnd) return { suma: 0, count: 0 };
+    let suma = 0, count = 0;
+    let r = -1;
+    grupos.forEach((g) => {
+      const key = `grp::${g.grupo}`;
+      const isOpen = ctx.isExpanded(key);
+      r++;
+      [...g.subtotales, g.totalAnio].forEach((v, c) => {
+        if (enCeldaRango(r, c)) { suma += v; count++; }
+      });
+      if (isOpen) {
+        g.items.forEach((it) => {
+          r++;
+          [...it.valores, it.total].forEach((v, c) => {
+            if (enCeldaRango(r, c)) { suma += v; count++; }
+          });
+        });
+      }
+    });
+    return { suma, count };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selStart, selEnd, grupos, ctx]);
+
   return (
     <>
     <Card>
-      <CardContent className="pt-4 overflow-x-auto">
+      <CardContent className="pt-4 overflow-x-auto select-none">
         <table className="w-full text-xs border-separate border-spacing-0">
           <thead className="border-b">
             <tr>
@@ -408,6 +464,8 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
             {grupos.map((g) => {
               const key = `grp::${g.grupo}`;
               const isOpen = ctx.isExpanded(key);
+              rIdx++;
+              const rGrupo = rIdx;
               return (
                 <>
                   <tr key={`h-${g.grupo}`} className="bg-muted/30">
@@ -418,21 +476,51 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
                       </button>
                     </td>
                     {g.subtotales.map((v, i) => (
-                      <td key={i} className={`${cellCls(i, v)} font-medium border-b`}>{v === 0 ? "—" : fmtUsd(v)}</td>
-                    ))}
-                    <td className="py-1.5 px-2 text-right mono font-semibold border-b">{fmtUsd(g.totalAnio)}</td>
-                  </tr>
-                  {isOpen && g.items.map((it) => (
-                    <tr key={it.cuenta.codigo} className="hover:bg-muted/10">
-                      <td className="py-1.5 px-2 sticky left-0 bg-background z-10 border-b pl-8">
-                        <span className="text-muted-foreground">{it.cuenta.codigo}</span> {it.cuenta.nombre}
+                      <td
+                        key={i}
+                        onMouseDown={startSel(rGrupo, i)}
+                        onMouseEnter={overSel(rGrupo, i)}
+                        className={`${cellCls(i, v)} font-medium border-b cursor-cell ${enCeldaRango(rGrupo, i) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                      >
+                        {v === 0 ? "—" : fmtUsd(v)}
                       </td>
-                      {it.valores.map((v, i) => (
-                        <td key={i} className={`${cellCls(i, v)} border-b`}>{v === 0 ? "—" : fmtUsd(v)}</td>
-                      ))}
-                      <td className="py-1.5 px-2 text-right mono font-semibold border-b">{fmtUsd(it.total)}</td>
-                    </tr>
-                  ))}
+                    ))}
+                    <td
+                      onMouseDown={startSel(rGrupo, 12)}
+                      onMouseEnter={overSel(rGrupo, 12)}
+                      className={`py-1.5 px-2 text-right mono font-semibold border-b cursor-cell ${enCeldaRango(rGrupo, 12) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                    >
+                      {fmtUsd(g.totalAnio)}
+                    </td>
+                  </tr>
+                  {isOpen && g.items.map((it) => {
+                    rIdx++;
+                    const rItem = rIdx;
+                    return (
+                      <tr key={it.cuenta.codigo} className="hover:bg-muted/10">
+                        <td className="py-1.5 px-2 sticky left-0 bg-background z-10 border-b pl-8">
+                          <span className="text-muted-foreground">{it.cuenta.codigo}</span> {it.cuenta.nombre}
+                        </td>
+                        {it.valores.map((v, i) => (
+                          <td
+                            key={i}
+                            onMouseDown={startSel(rItem, i)}
+                            onMouseEnter={overSel(rItem, i)}
+                            className={`${cellCls(i, v)} border-b cursor-cell ${enCeldaRango(rItem, i) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                          >
+                            {v === 0 ? "—" : fmtUsd(v)}
+                          </td>
+                        ))}
+                        <td
+                          onMouseDown={startSel(rItem, 12)}
+                          onMouseEnter={overSel(rItem, 12)}
+                          className={`py-1.5 px-2 text-right mono font-semibold border-b cursor-cell ${enCeldaRango(rItem, 12) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                        >
+                          {fmtUsd(it.total)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </>
               );
             })}
@@ -440,6 +528,15 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
         </table>
       </CardContent>
     </Card>
+    {seleccion.count > 0 && (
+      <div className="sticky bottom-0 z-20 flex justify-end">
+        <div className="bg-foreground text-background text-xs rounded-md shadow-lg px-4 py-2 mt-2 flex items-center gap-4 mono">
+          <span>Celdas: <b>{seleccion.count}</b></span>
+          <span>Promedio: <b>{fmtUsd(seleccion.suma / seleccion.count)}</b></span>
+          <span>Suma: <b>{fmtUsd(seleccion.suma)}</b></span>
+        </div>
+      </div>
+    )}
     <GyPCharts rows={rows} cuentas={cuentas} sumFn={() => true} titulo={`Año ${anioRows}`} />
     </>
   );
