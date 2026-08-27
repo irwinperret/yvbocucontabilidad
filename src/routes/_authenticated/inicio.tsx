@@ -48,18 +48,27 @@ function InicioPage() {
         <CardContent className="p-6 space-y-3 text-[15px] leading-relaxed">
           <h2 className="text-lg font-semibold tracking-tight">¿Cómo funciona este sistema?</h2>
           <p>
-            Este app analiza el desempeño financiero de YV y Bocú en tiempo real. Los ingresos y compras vienen
-            de los reportes que genera Xetux y se importan periódicamente al sistema.
+            Esta app analiza el desempeño financiero de YV y Bocú. La mayor parte de la información financiera se carga mensualmente mediante cuatro archivos de Excel. Cada archivo se importa una vez al sistema y, a partir de esa información, la app realiza los cálculos y reportes financieros.
           </p>
           <p>
-            Todo lo que no esté en esos reportes — nómina, gastos administrativos, operativos, generales,
-            mercadeo, pagos financieros y cualquier otro movimiento de caja — se registra manualmente en la
-            sección <span className="font-semibold">"Registrar movimiento"</span>.
+            Los cuatro archivos son:
           </p>
+          <ol className="list-decimal pl-6 space-y-1">
+            <li><span className="font-semibold">Informe de Ventas Xetux:</span> se genera automáticamente desde Xetux y contiene la información de ventas.</li>
+            <li><span className="font-semibold">Informe de Compras Xetux:</span> se genera automáticamente desde Xetux y contiene la información de compras.</li>
+            <li><span className="font-semibold">Movimientos Bancarios:</span> contiene los movimientos de las cuentas bancarias y permite identificar y clasificar los ingresos, gastos, pagos y demás movimientos de caja.</li>
+            <li><span className="font-semibold">Ajustes de Ventas:</span> contiene las correcciones o ajustes necesarios sobre las ventas reportadas por Xetux.</li>
+          </ol>
           <p>
-            Al cierre de mes se registran los inventarios y el sistema calcula el COGS:{" "}
-            <span className="font-mono text-sm">Inventario inicial + Compras − Inventario final</span>.
-            Sin ese cierre el COGS queda en cero y el G&amp;P no refleja la realidad.
+            Una vez cargados estos archivos, el sistema utiliza la información para alimentar <span className="font-semibold">Ganancias y Pérdidas, Flujo de Caja, CapEx, COGS</span> y los demás reportes financieros. Los movimientos que requieran un registro adicional o una corrección también pueden registrarse directamente mediante <span className="font-semibold">"Registrar movimiento"</span>.
+          </p>
+          <h2 className="text-lg font-semibold tracking-tight pt-2">Cierre de inventario</h2>
+          <p>
+            Al cierre de cada mes se deben registrar los inventarios. El sistema calcula automáticamente el <span className="font-semibold">COGS (Costo de Ventas)</span> utilizando:
+          </p>
+          <p className="font-mono text-sm">Inventario inicial + Compras − Inventario final = COGS</p>
+          <p>
+            Si no se registra el cierre de inventario, el COGS queda en cero y, por lo tanto, el <span className="font-semibold">G&amp;P no reflejará correctamente el resultado real del período</span>.
           </p>
         </CardContent>
       </Card>
