@@ -32,7 +32,27 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
   const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
   const [terceroId, setTerceroId] = useState<string | null>(tx.tercero_id ?? null);
   const [terceroOpciones, setTerceroOpciones] = useState<ComboOption[]>([]);
+  const [cuentaCodigo, setCuentaCodigo] = useState<string>(tx.cuenta_codigo);
+  const [cuentaOpciones, setCuentaOpciones] = useState<ComboOption[]>([]);
   const [busy, setBusy] = useState(false);
+
+  // Plan de cuentas vigente para poder reclasificar la transacción.
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("plan_de_cuentas")
+        .select("codigo, nombre, grupo, activa")
+        .eq("activa", true);
+      const ordenadas = ordenarPorCodigo((data ?? []) as any[]);
+      setCuentaOpciones(
+        ordenadas.map((c: any) => ({
+          value: c.codigo,
+          label: `${c.codigo} · ${c.nombre}`,
+          keywords: `${c.grupo ?? ""}`,
+        })),
+      );
+    })();
+  }, []);
 
   // Proveedores para el combo de "corregir proveedor" — útil cuando la
   // conciliación bancaria adivinó mal el proveedor a partir del memo.
