@@ -285,6 +285,57 @@ export function coberturaPareo(facturas: FacturaRef[], montoMov: number, tasaBcv
   return { total, monto, completa, diferencia: monto - total };
 }
 
+/**
+ * Busca una combinación de VARIOS movimientos bancarios (del mismo proveedor,
+ * ya que ninguno cubre la factura por sí solo) cuya suma se acerque al saldo
+ * pendiente de una factura — el caso típico de una factura grande pagada en
+ * cuotas a través de varias transferencias.
+ *
+ * No es un modelo de IA: es una búsqueda combinatoria acotada (2 a 5
+ * movimientos, máximo 12 candidatos), determinística y auditable, igual de
+ * "inteligente" para este propósito pero instantánea y sin costo.
+ */
+export function sugerirCombinacionParaFactura(
+  factura: { proveedor: string | null; pendienteBs: number },
+  candidatos: { id: string; monto_bs: number; notas?: string | null }[],
+  toleranciaBs = 5,
+): string[] {
+  const pend = Math.abs(Number(factura.pendienteBs) || 0);
+  if (pend <= 0) return [];
+
+  const relevantes = candidatos
+    .filter((m) => proveedorSimilar(factura.proveedor, m.notas))
+    .filter((m) => {
+      const monto = Math.abs(Number(m.monto_bs) || 0);
+      return monto > 0 && monto <= pend + toleranciaBs;
+    })
+    .slice(0, 12);
+
+  if (relevantes.length < 2) return []; // 0 o 1 candidato ya lo cubre el pareo individual normal
+
+  let mejor: number[] | null = null;
+  let mejorDiff = Infinity;
+
+  const buscar = (inicio: number, elegidos: number[], suma: number) => {
+    if (elegidos.length >= 2) {
+      const diff = Math.abs(suma - pend);
+      if (diff <= toleranciaBs && diff < mejorDiff) {
+        mejorDiff = diff;
+        mejor = [...elegidos];
+      }
+    }
+    if (elegidos.length >= 5 || suma > pend + toleranciaBs) return; // poda: tope de tamaño y de suma
+    for (let i = inicio; i < relevantes.length; i++) {
+      elegidos.push(i);
+      buscar(i + 1, elegidos, suma + Math.abs(Number(relevantes[i].monto_bs) || 0));
+      elegidos.pop();
+    }
+  };
+  buscar(0, [], 0);
+
+  return mejor ? mejor.map((i) => relevantes[i].id) : [];
+}
+
 /** Números del memo que existen realmente como factura y los que no */
 export function numerosMemoNoUbicados(
   memo: string | null | undefined,

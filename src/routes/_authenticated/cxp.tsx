@@ -20,6 +20,7 @@ import {
   bancoDeReferencia,
   normalizarFactura,
   parearMovimiento,
+  sugerirCombinacionParaFactura,
   type FacturaRef,
 } from "@/lib/conciliacion-matching";
 import { pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv } from "@/lib/cxp-saldo";
@@ -164,6 +165,15 @@ function CxPAnalisisPage() {
     return m;
   }, [movimientos]);
 
+  /** Movimientos ya confirmados contra CUALQUIER factura (no ofrecerlos de nuevo). */
+  const movimientosUsadosIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const v of vinculos ?? []) {
+      if (v.estado === "pareado" && v.transaccion_bancaria_id) s.add(v.transaccion_bancaria_id);
+    }
+    return s;
+  }, [vinculos]);
+
   const filas = useMemo(() => {
     return items.map((c) => {
       const fid = c.transaccion_id as string | null;
@@ -172,19 +182,37 @@ function CxPAnalisisPage() {
         .map((v) => movById.get(v.transaccion_bancaria_id))
         .filter(Boolean) as MovLite[];
       const sugeridos = fid ? sugeridosPorFactura.get(fid) ?? [] : [];
-      const movs = movsConf.length ? movsConf : sugeridos;
+
+      // Si no hay un pareo individual sugerido, intenta encontrar una
+      // COMBINACIÓN de varios movimientos del mismo proveedor (factura grande
+      // pagada en cuotas): búsqueda combinatoria, no un pareo de 1 a 1.
+      let sugeridosCombo: MovLite[] = [];
+      let esCombo = false;
+      if (!movsConf.length && !sugeridos.length) {
+        const disponibles = (movimientos ?? []).filter((m) => !movimientosUsadosIds.has(m.id));
+        const idsCombo = sugerirCombinacionParaFactura(
+          { proveedor: c.proveedor ?? null, pendienteBs: pendienteBsHistorico(c) },
+          disponibles,
+        );
+        if (idsCombo.length) {
+          sugeridosCombo = idsCombo.map((id) => movById.get(id)).filter(Boolean) as MovLite[];
+          esCombo = true;
+        }
+      }
+
+      const movs = movsConf.length ? movsConf : (sugeridos.length ? sugeridos : sugeridosCombo);
       const totalPareado = movs.reduce((s, m) => s + Math.abs(Number(m.monto_bs) || 0), 0);
       const estado: "pareada" | "posible" | "sin_pareo" = movsConf.length
         ? "pareada"
-        : sugeridos.length
+        : movs.length
           ? "posible"
           : "sin_pareo";
       const origen = movsConf.length
         ? confirmados.every((v) => v.origen === "auto") ? "auto" : "manual"
         : null;
-      return { c, estado, movs, totalPareado, origen, confirmable: !movsConf.length && sugeridos.length > 0 };
+      return { c, estado, movs, totalPareado, origen, confirmable: !movsConf.length && movs.length > 0, esCombo };
     });
-  }, [items, confirmadosPorFactura, sugeridosPorFactura, movById]);
+  }, [items, confirmadosPorFactura, sugeridosPorFactura, movById, movimientos, movimientosUsadosIds]);
 
   const filtradas = useMemo(
     () =>
@@ -396,6 +424,11 @@ function CxPAnalisisPage() {
                         <td className="py-2 px-2">
                           <div className="flex flex-col gap-1">
                             {badgePareo(f.estado)}
+                            {f.esCombo && (
+                              <span className="text-[11px] text-amber-600 font-medium">
+                                Combinación de {f.movs.length} movimientos (sugerido)
+                              </span>
+                            )}
                             {f.movs.map((m) => (
                               <span key={m.id} className="text-[11px] mono">
                                 {fmtDate(m.fecha)} · {bancoDeReferencia(m.referencia)} · {fmtBs(m.monto_bs)}
