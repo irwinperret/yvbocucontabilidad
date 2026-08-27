@@ -114,7 +114,11 @@ function CierresDeMesPage() {
   }, [cierres, snapshots, primeraFecha]);
 
   const abrirCerrar = (fila: FilaMes) => {
-    setCerrando({ periodo: fila.periodo, sugerido: fila.invIniUsd != null ? String(fila.invIniUsd) : "" });
+    // Si ya hay un inventario final cargado para este mes (p. ej. desde el
+    // checklist de Inicio), se precarga ESE valor. Si no, se usa el inicial
+    // del mes como punto de partida razonable.
+    const sugerido = fila.invFinUsd != null ? fila.invFinUsd : fila.invIniUsd;
+    setCerrando({ periodo: fila.periodo, sugerido: sugerido != null ? String(sugerido) : "" });
   };
 
   const confirmarCierre = async (invFinUsdStr: string) => {
