@@ -5012,7 +5012,7 @@ function CierreForm() {
                               </td>
                             </tr>
                             {abierto &&
-                              g.rows.map((c: any) => {
+                              g.rows.map((c: any, idx: number) => {
                         const prov = c.tercero_id ? tercerosMap[c.tercero_id] : null;
                         const conceptoBanco = (c.detalle ?? c.notas ?? "")
                           .replace(/^SIN FACTURA XETUX\s*·\s*/i, "")
@@ -5033,7 +5033,7 @@ function CierreForm() {
                         const ivaUsd = tasaBcv > 0 ? +(ivaBs / tasaBcv).toFixed(2) : ivaUsdParalelo;
                         const totalUsd = tasaBcv > 0 ? +(totalBs / tasaBcv).toFixed(2) : totalUsdParalelo;
                         return (
-                          <tr key={c.id} className="border-t">
+                          <tr key={c.id} className={`border-t ${idx % 2 === 1 ? "bg-muted/10" : ""}`}>
                             <td className="py-1">{c.fecha ?? new Date(c.created_at).toISOString().slice(0, 10)}</td>
                             <td className="max-w-[280px] truncate" title={prov?.razon_social ?? conceptoBanco}>
                               {prov?.razon_social ?? (conceptoBanco || "—")}
