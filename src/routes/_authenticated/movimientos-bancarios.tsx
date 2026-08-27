@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Download, Check, X, RefreshCw, Pencil } from "lucide-react";
+import { Download, Check, X, RefreshCw, Pencil, Link2 } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
@@ -903,7 +903,7 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2 text-right">
                         <div className="flex flex-col items-end gap-1">
                           <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setPareando(f)}>
-                            <Pencil className="h-3 w-3 mr-1" /> Editar / Parear
+                            <Link2 className="h-3 w-3 mr-1" /> Parear con factura
                           </Button>
                           {(f.estado === "pareado" || f.estado === "parcial") && (
                             <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => quitarPareo(f.mov.id)}>
@@ -911,7 +911,7 @@ function MovimientosBancariosPage() {
                             </Button>
                           )}
                           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditando(f.mov)}>
-                            Editar transacción
+                            <Pencil className="h-3 w-3 mr-1" /> Editar transacción
                           </Button>
                         </div>
                       </td>
