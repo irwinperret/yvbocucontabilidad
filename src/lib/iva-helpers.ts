@@ -31,7 +31,7 @@ export type IvaLegInput = {
   tipo: "debito" | "credito"; // débito = venta (12.4), crédito = compra (12.5)
 };
 
-export async function insertIvaLeg(input: IvaLegInput): Promise<{ ok: true; data: any } | { ok: false; skipped: true } | { ok: false; error: string }> {
+export async function insertIvaLeg(input: IvaLegInput): Promise<{ ok: true; data: any; skipped?: false; error?: undefined } | { ok: false; skipped: true; error?: undefined } | { ok: false; skipped?: false; error: string }> {
   if (input.monto_bs_iva <= 0) return { ok: false, skipped: true };
   const cuenta = input.tipo === "debito" ? "7.3" : "7.4";
   const notasBase = input.tipo === "debito" ? "IVA débito" : "IVA crédito";
