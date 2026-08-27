@@ -104,7 +104,7 @@ function AumentoCapitalPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Aumento de capital</h1>
-          <p className="text-sm text-muted-foreground">Aportes de capital social (cuenta 10.5) · {label}</p>
+          <p className="text-sm text-muted-foreground">Aportes de capital social (cuenta 5.5) · {label}</p>
         </div>
         <div className="flex items-center gap-2">
           <UsdViewToggle />

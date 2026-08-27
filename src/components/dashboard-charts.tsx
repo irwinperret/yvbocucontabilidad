@@ -74,7 +74,7 @@ export function DashboardCharts() {
           if (r.cuenta_codigo.startsWith("1.") || ["5.1", "5.5"].includes(r.cuenta_codigo)) fcIn += total;
           else fcOut += total;
         }
-        // CapEx (activo fijo) — cuenta 10.6
+        // CapEx (activo fijo) — cuenta 5.6
         if (r.cuenta_codigo === "5.6") capex += total;
       });
       const utilidad = ingresos - cogs - gastos;

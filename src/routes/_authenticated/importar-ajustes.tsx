@@ -273,7 +273,7 @@ function ImportarAjustesPage() {
           </div>
           <div className="text-xs text-muted-foreground">
             Se lee la hoja «todo»: fechas en la fila de encabezado y las filas «Venta Lista», «IVA Lista» y «Servicio Lista».
-            Ajuste a ventas = Venta Lista + IVA Lista → 20% cuenta 1.1 (YV) y 80% cuenta 1.2 (Bocú). Servicio Lista → cuenta 3.14 (Otros Bonos, Compartido).
+            Ajuste a ventas = Venta Lista + IVA Lista → 20% cuenta 1.1 (YV) y 80% cuenta 1.2 (Bocú). Servicio Lista → cuenta 3.1 (Sueldos, Compartido).
           </div>
           {cargando && <div className="text-sm">Leyendo archivo y tasas…</div>}
         </CardContent>

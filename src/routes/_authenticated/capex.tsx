@@ -17,16 +17,18 @@ import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 
+// Grupos para "Gastos operativos por mes": solo cuentas que son gasto
+// operativo real. Se excluyen a propósito Financiamiento (5.x: incluye el
+// propio CapEx, capital social, préstamos y dividendos — nada de eso es un
+// gasto operativo), Otros (6.x: ganancia/pérdida cambiaria), Pasivos
+// transitorios (8.x: son pagos de pasivos ya reconocidos como gasto en otro
+// lado, no un gasto nuevo) y Activos transitorios (9.x: préstamos/anticipos,
+// no son gasto).
 const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
-  { key: "cogs",   label: "COGS (2.x)",            prefix: "2.",  color: "#E74C3C" },
-  { key: "nomina", label: "Nómina (3.x)",          prefix: "3.",  color: "#534AB7" },
-  { key: "admin",  label: "Administrativos (4.x)", prefix: "4.",  color: "#3498DB" },
-  { key: "ops",    label: "Operativos (5.x)",      prefix: "5.",  color: "#0F6E56" },
-  { key: "mkt",    label: "Mercadeo (6.x)",        prefix: "6.",  color: "#E8A87C" },
-  { key: "fin",    label: "Financieros (7.x)",     prefix: "7.",  color: "#16A085" },
-  { key: "inv",    label: "Investigación (8.x)",   prefix: "8.",  color: "#9B59B6" },
-  { key: "gen",    label: "Generales (9.x)",       prefix: "9.",  color: "#41B3A3" },
-  { key: "imp",    label: "Impuestos (12.x)",      prefix: "12.", color: "#D35400" },
+  { key: "cogs",   label: "COGS (2.x)",             prefix: "2.", color: "#E74C3C" },
+  { key: "fijos",  label: "Costos Fijos (3.x)",     prefix: "3.", color: "#534AB7" },
+  { key: "var",    label: "Costos Variables (4.x)", prefix: "4.", color: "#3498DB" },
+  { key: "imp",    label: "Impuestos (7.x)",        prefix: "7.", color: "#D35400" },
 ];
 
 export const Route = createFileRoute("/_authenticated/capex")({ component: CapExPage });
@@ -168,7 +170,7 @@ function CapExPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CapEx</h1>
-          <p className="text-sm text-muted-foreground">Inversiones en activo fijo (cuenta 10.6) · {label}</p>
+          <p className="text-sm text-muted-foreground">Inversiones en activo fijo (cuenta 5.6) · {label}</p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           <UsdViewToggle />

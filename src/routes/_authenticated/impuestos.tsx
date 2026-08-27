@@ -139,7 +139,7 @@ function ImpuestosPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Impuestos · IVA</h1>
           <p className="text-sm text-muted-foreground">
-            Movimientos de IVA débito (ventas, cuenta 12.4) y crédito (compras, cuenta 12.5) · neto a declarar · {label}
+            Movimientos de IVA débito (ventas, cuenta 7.3) y crédito (compras, cuenta 7.4) · neto a declarar · {label}
           </p>
         </div>
         <UsdViewToggle />

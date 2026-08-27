@@ -1317,7 +1317,7 @@ function VentasForm() {
                       />
                       <p className="text-xs text-muted-foreground mt-1">
                         Sugerido: {pagoEnUsd ? fmtUsd(bonoServAuto) : fmtBs(bonoServAuto)} (10% de la base). Se
-                        contabiliza como pasivo en cuenta 13.4 (no afecta G&P, seguimiento en la pestaña Bonos 10%)
+                        contabiliza como pasivo en cuenta 8.3 (no afecta G&P, seguimiento en la pestaña Bonos 10%)
                         .
                       </p>
                     </div>
@@ -1719,7 +1719,7 @@ function GastosFacturaForm() {
     const divisorUsdMain = tasaParaContable || tasaN;
     const montoUsdGastoBase = divisorUsdMain > 0 ? +(base / divisorUsdMain).toFixed(2) : 0;
     const montoUsdIva = tieneIva && divisorUsdMain > 0 ? +(iva / divisorUsdMain).toFixed(2) : 0;
-    // Fila principal: solo NETO (sin IVA). El IVA va en una fila aparte a cuenta 12.5.
+    // Fila principal: solo NETO (sin IVA). El IVA va en una fila aparte a cuenta 7.4.
     const { data: tx, error } = await supabase
       .from("transacciones")
       .insert({
@@ -1750,7 +1750,7 @@ function GastosFacturaForm() {
       return toast.error(error.message);
     }
     if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
-    // Leg IVA crédito fiscal (12.5) — fila separada
+    // Leg IVA crédito fiscal (7.4) — fila separada
     if (tieneIva) {
       const { insertIvaLeg } = await import("@/lib/iva-helpers");
       await insertIvaLeg({
