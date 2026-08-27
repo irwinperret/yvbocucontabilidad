@@ -113,6 +113,18 @@ function PagarCxPPage() {
     });
   };
 
+  const lista = data ?? [];
+  const vencidas = lista.filter((c: any) => c.fecha_vencimiento && c.fecha_vencimiento < todayISO());
+  const porVencer = lista.filter(
+    (c: any) =>
+      c.fecha_vencimiento &&
+      c.fecha_vencimiento >= todayISO() &&
+      (new Date(c.fecha_vencimiento).getTime() - Date.now()) / 86400000 <= 7,
+  );
+  const totalVencidas = vencidas.reduce((s: number, c: any) => s + saldoUsdBcv(c), 0);
+  const totalPorVencer = porVencer.reduce((s: number, c: any) => s + saldoUsdBcv(c), 0);
+  const total = lista.reduce((s: number, c: any) => s + saldoUsdBcv(c), 0);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -121,6 +133,13 @@ function PagarCxPPage() {
           <p className="text-sm text-muted-foreground">Registra el pago de facturas pendientes (genera el movimiento de FC)</p>
         </div>
         <Button variant="outline" onClick={exportarExcel} disabled={!data?.length}>Exportar a Excel</Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <KpiCxP label="Vencidas (USD BCV)" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
+        <KpiCxP label="Por vencer 7d (USD BCV)" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
+        <KpiCxP label="Vigentes (USD BCV)" value={fmtUsd(total - totalVencidas - totalPorVencer)} count={lista.length - vencidas.length - porVencer.length} color="positive" />
+        <KpiCxP label="Total (USD BCV)" value={fmtUsd(total)} count={lista.length} color="" />
       </div>
 
       <Card>
@@ -443,5 +462,17 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function KpiCxP({ label, value, count, color }: { label: string; value: string; count: number; color: string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</CardTitle></CardHeader>
+      <CardContent>
+        <div className={`text-2xl font-bold mono ${color === "negative" ? "negative" : color === "warning" ? "text-orange-600" : color === "positive" ? "positive" : ""}`}>{value}</div>
+        <div className="text-xs text-muted-foreground">{count} registros</div>
+      </CardContent>
+    </Card>
   );
 }
