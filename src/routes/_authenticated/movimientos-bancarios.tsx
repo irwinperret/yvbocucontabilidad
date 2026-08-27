@@ -545,7 +545,7 @@ function MovimientosBancariosPage() {
             ? (f.claseNoAplica === "no_contable" ? "No aplica (no contable)" : "Gasto directo (sin factura)")
             : ESTADO_LABEL[f.estado],
         impactoReportes:
-          f.estado === "no_aplica" && f.claseNoAplica === "no_contable" ? "No afecta G&P/FC" : "Afecta G&P y FC",
+          f.estado === "no_aplica" && f.claseNoAplica === "no_contable" && f.mov.cuenta_codigo !== "99" ? "No afecta G&P/FC" : "Afecta G&P y FC",
 
         factura: f.facturas.map((x) => x.numero_factura).filter(Boolean).join(", "),
         totalPareado: f.facturas.length ? f.total : 0,
@@ -648,7 +648,7 @@ function MovimientosBancariosPage() {
           value={fmtUsd(resumen.bsPorDeterminar)}
           tone={resumen.porDeterminar > 0 ? "text-destructive" : undefined}
           highlight={resumen.porDeterminar > 0}
-          sub={`${resumen.porDeterminar} movimiento(s) · no entran a G&P/FC hasta reclasificarse`}
+          sub={`${resumen.porDeterminar} movimiento(s) · entran a G&P/FC aun sin reclasificarse`}
         />
         <Kpi label={`No contable · ${usdLabel}`} value={fmtUsd(resumen.bsNoContable)} tone="text-muted-foreground" sub="Traspasos y operaciones de cambio" />
       </div>

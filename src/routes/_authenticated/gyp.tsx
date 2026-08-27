@@ -188,7 +188,7 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
   const sumFn = (r: Row) => r.mes === mes;
   const ing = buildGrupos(cuentas, (c) => c.startsWith("1."), rows, sumFn);
   const cogs = buildGrupos(cuentas, (c) => c.startsWith("2."), rows, sumFn);
-  const op = buildGrupos(cuentas, (c) => /^[3-6]\./.test(c), rows, sumFn);
+  const op = buildGrupos(cuentas, (c) => /^[3-6]\./.test(c) || c === "99", rows, sumFn);
   const imp = buildGrupos(cuentas, (c) => c.startsWith("7."), rows, sumFn);
 
   const sum = (g: GrupoData[]) => g.reduce((s, x) => s + x.subtotal, 0);
@@ -227,7 +227,7 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
   const sumFn = (r: Row) => r.mes <= hastaMes;
   const ing = buildGrupos(cuentas, (c) => c.startsWith("1."), rows, sumFn);
   const cogs = buildGrupos(cuentas, (c) => c.startsWith("2."), rows, sumFn);
-  const op = buildGrupos(cuentas, (c) => /^[3-6]\./.test(c), rows, sumFn);
+  const op = buildGrupos(cuentas, (c) => /^[3-6]\./.test(c) || c === "99", rows, sumFn);
   const imp = buildGrupos(cuentas, (c) => c.startsWith("7."), rows, sumFn);
   const sum = (g: GrupoData[]) => g.reduce((s, x) => s + x.subtotal, 0);
   const totalIng = sum(ing), totalCogs = sum(cogs), totalOp = sum(op), totalImp = sum(imp);

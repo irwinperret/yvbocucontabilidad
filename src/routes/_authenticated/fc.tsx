@@ -126,7 +126,7 @@ function FCPage() {
       const ingresos = sum(CUENTAS_INGRESO_GYP, mes);
       const cogs = sum(CUENTAS_COGS, mes);
       const costosFijos = r.filter((x) => x.cuenta_codigo.startsWith("3.") && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
-      const costosVariables = r.filter((x) => x.cuenta_codigo.startsWith("4.") && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
+      const costosVariables = r.filter((x) => (x.cuenta_codigo.startsWith("4.") || x.cuenta_codigo === "99") && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
       const ebitda = ingresos - cogs - costosFijos - costosVariables;
 
       const ventasCredito = sumTotal(CUENTA_INGRESO_CREDITO, mes);
