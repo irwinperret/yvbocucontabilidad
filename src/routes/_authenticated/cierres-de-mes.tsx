@@ -39,7 +39,8 @@ type FilaMes = {
   invFinTasaBcv: number | null;
   cogsBs: number | null;
   cogsUsdBcv: number | null;
-  cogsUsdParalelo: number | null;
+  comprasXetuxUsd: number;
+  comprasMovBancariosUsd: number;
   registradoPor: string | null;
   actualizadoEn: string | null;
 };
@@ -77,6 +78,37 @@ function CierresDeMesPage() {
     },
   });
 
+  // Compras de mercancía (2.1), separadas por de dónde vinieron: Xetux
+  // (importación de compras) vs. movimientos bancarios (gastos sin factura
+  // clasificados directo a esta cuenta). En USD BCV, cada fila a su propia tasa.
+  const { data: comprasRaw } = useQuery({
+    queryKey: ["cierres-compras-2-1"],
+    queryFn: async () => {
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows<any>(async (from, to) =>
+        supabase.from("transacciones")
+          .select("fecha, monto_bs, monto_base_bs, tasa_bcv, monto_usd, referencia")
+          .eq("cuenta_codigo", "2.1").neq("standby", true).neq("modo", "off_balance")
+          .range(from, to),
+      );
+    },
+  });
+  const comprasPorPeriodo = useMemo(() => {
+    const map = new Map<string, { xetux: number; bancarios: number }>();
+    for (const t of comprasRaw ?? []) {
+      const periodo = String(t.fecha).slice(0, 7);
+      const neto = Number(t.monto_base_bs) || Number(t.monto_bs) || 0;
+      const tasa = Number(t.tasa_bcv) || 0;
+      const usd = tasa > 0 ? neto / tasa : Number(t.monto_usd) || 0;
+      const ref = String(t.referencia ?? "");
+      const entry = map.get(periodo) ?? { xetux: 0, bancarios: 0 };
+      if (ref.startsWith("BANK:")) entry.bancarios += usd;
+      else if (ref === "xetux" || ref === "xetux-iva") entry.xetux += usd;
+      map.set(periodo, entry);
+    }
+    return map;
+  }, [comprasRaw]);
+
   const filas: FilaMes[] = useMemo(() => {
     if (!primeraFecha) return [];
     const inicio = String(primeraFecha).slice(0, 7);
@@ -97,6 +129,7 @@ function CierresDeMesPage() {
       const c: any = cierrePorPeriodo.get(periodo);
       const inicial: any = snapPorPeriodoTipo.get(`${periodo}::inicial`);
       const final: any = snapPorPeriodoTipo.get(`${periodo}::final`);
+      const compras = comprasPorPeriodo.get(periodo) ?? { xetux: 0, bancarios: 0 };
       return {
         periodo,
         cerrado: c?.estado === "cerrado",
@@ -106,12 +139,13 @@ function CierresDeMesPage() {
         invFinTasaBcv: final ? Number(final.tasa_bcv) || null : null,
         cogsBs: c ? Number(c.cogs_bs) : null,
         cogsUsdBcv: c ? Number(c.cogs_usd) : null,
-        cogsUsdParalelo: c && c.cogs_usd_paralelo != null ? Number(c.cogs_usd_paralelo) : null,
+        comprasXetuxUsd: compras.xetux,
+        comprasMovBancariosUsd: compras.bancarios,
         registradoPor: c?.registrado_por ?? null,
         actualizadoEn: c?.updated_at ?? c?.created_at ?? null,
       };
     }).reverse(); // más reciente primero
-  }, [cierres, snapshots, primeraFecha]);
+  }, [cierres, snapshots, primeraFecha, comprasPorPeriodo]);
 
   const abrirCerrar = (fila: FilaMes) => {
     // Si ya hay un inventario final cargado para este mes (p. ej. desde el
@@ -131,7 +165,7 @@ function CierresDeMesPage() {
     setBusy(true);
     try {
       const r = await calcularYGuardarCierre(cerrando.periodo, invIniUsd, invFinUsd, user.id);
-      toast.success(`${periodoLabel(cerrando.periodo)} cerrado. COGS (BCV): ${fmtUsd(r.cogsUsdBcv)} · COGS (paralelo): ${fmtUsd(r.cogsUsdParalelo)}`);
+      toast.success(`${periodoLabel(cerrando.periodo)} cerrado. COGS (BCV): ${fmtUsd(r.cogsUsdBcv)}`);
       setCerrando(null);
       qc.invalidateQueries();
     } catch (err: any) {
@@ -232,7 +266,8 @@ function CierresDeMesPage() {
                 <th className="text-right py-2 px-2">Inv. inicial (USD BCV)</th>
                 <th className="text-right py-2 px-2">Inv. final (USD BCV)</th>
                 <th className="text-right py-2 px-2">COGS (BCV)</th>
-                <th className="text-right py-2 px-2">COGS (paralelo)</th>
+                <th className="text-right py-2 px-2">Compras Xetux</th>
+                <th className="text-right py-2 px-2">Compras mov. bancarios</th>
                 <th className="text-center py-2 px-2 w-40">Acciones</th>
               </tr>
             </thead>
@@ -263,7 +298,8 @@ function CierresDeMesPage() {
                     </div>
                   </td>
                   <td className="py-2 px-2 text-right mono">{f.cogsUsdBcv != null ? fmtUsd(f.cogsUsdBcv) : "—"}</td>
-                  <td className="py-2 px-2 text-right mono">{f.cogsUsdParalelo != null ? fmtUsd(f.cogsUsdParalelo) : "—"}</td>
+                  <td className="py-2 px-2 text-right mono text-muted-foreground">{fmtUsd(f.comprasXetuxUsd)}</td>
+                  <td className="py-2 px-2 text-right mono text-muted-foreground">{fmtUsd(f.comprasMovBancariosUsd)}</td>
                   <td className="py-2 px-2 text-center">
                     {f.cerrado ? (
                       <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => confirmarReabrir(f.periodo)} disabled={busy}>
@@ -278,7 +314,7 @@ function CierresDeMesPage() {
                 </tr>
               ))}
               {filas.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-muted-foreground text-sm">Sin transacciones registradas todavía.</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-muted-foreground text-sm">Sin transacciones registradas todavía.</td></tr>
               )}
             </tbody>
           </table>
