@@ -53,7 +53,7 @@ function FCPage() {
   const { mode, label } = useUsdView();
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [centro, setCentro] = useState<string>("Consolidado");
-  const [incluirOff, setIncluirOff] = useState(false);
+  const [incluirOff, setIncluirOff] = useState(true);
   const [mesSel, setMesSel] = useState(new Date().getMonth() + 1);
   const [hastaMes, setHastaMes] = useState(new Date().getMonth() + 1);
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("todas");
