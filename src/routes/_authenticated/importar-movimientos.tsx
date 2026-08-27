@@ -669,10 +669,17 @@ function ImportarMovimientosInner() {
     const { data: tercerosCat } = await supabase.from("terceros").select("id, razon_social");
     const tercerosRef = (tercerosCat ?? []).map((t: any) => ({ id: t.id, nombre: t.razon_social as string }));
     const facturaDeMemo = (texto: string) => {
-      const m = String(texto ?? "")
-        .toUpperCase()
-        .match(/\b(?:FACT|FACTURA|FAC|F)[\s.:#-]*([A-Z0-9-]{3,20})\b/);
-      return m?.[1] ?? null;
+      const t = String(texto ?? "").toUpperCase();
+      // Con la palabra explícita de factura: separador flexible, número desde 1 dígito/letra.
+      let m = t.match(/\b(?:FACTURAS?|FACTS?|FAC)[\s.:#-]*([A-Z0-9-]{1,20})\b/);
+      if (m) return m[1];
+      // "F" sola (con o sin un espacio después): solo cuenta si justo antes de
+      // un dígito (ej. "F4704", "F 9424", "F30FP0885333"). Sin esto, nombres
+      // de proveedor o de persona que empiezan con F (FEMSA, Ferretería,
+      // Floristería, Franklin, Fonseca, Farfán...) se leían como si el resto
+      // del nombre fuera el número de factura.
+      m = t.match(/\bF\s?(\d[A-Z0-9-]{0,19})\b/);
+      return m ? m[1] : null;
     };
 
     for (const m of toImport) {
