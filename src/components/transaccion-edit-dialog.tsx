@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
-import { CENTROS, METODOS, CAPEX_CATEGORIAS, type Centro } from "@/lib/account-helpers";
+import { CENTROS, METODOS, CAPEX_CATEGORIAS, ordenarPorCodigo, type Centro } from "@/lib/account-helpers";
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { SearchCombobox, type ComboOption } from "@/components/search-combobox";
 import { tasaBcvQuery } from "@/lib/tasas";
@@ -32,7 +32,27 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
   const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
   const [terceroId, setTerceroId] = useState<string | null>(tx.tercero_id ?? null);
   const [terceroOpciones, setTerceroOpciones] = useState<ComboOption[]>([]);
+  const [cuentaCodigo, setCuentaCodigo] = useState<string>(tx.cuenta_codigo);
+  const [cuentaOpciones, setCuentaOpciones] = useState<ComboOption[]>([]);
   const [busy, setBusy] = useState(false);
+
+  // Plan de cuentas vigente para poder reclasificar la transacción.
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("plan_de_cuentas")
+        .select("codigo, nombre, grupo, activa")
+        .eq("activa", true);
+      const ordenadas = ordenarPorCodigo((data ?? []) as any[]);
+      setCuentaOpciones(
+        ordenadas.map((c: any) => ({
+          value: c.codigo,
+          label: `${c.codigo} · ${c.nombre}`,
+          keywords: `${c.grupo ?? ""}`,
+        })),
+      );
+    })();
+  }, []);
 
   // Proveedores para el combo de "corregir proveedor" — útil cuando la
   // conciliación bancaria adivinó mal el proveedor a partir del memo.
@@ -111,8 +131,10 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
     if (!tasaN) return toast.error("Falta tasa");
     if (!usdN) return toast.error("Indica un monto en USD");
     setBusy(true);
+    if (!cuentaCodigo) return toast.error("Selecciona una cuenta contable");
     const patch = {
       fecha,
+      cuenta_codigo: cuentaCodigo,
       centro_costo: centro as any,
       monto_bs: total,
       monto_base_bs: base,
@@ -127,7 +149,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
       notas: notas || null,
       detalle: detalle || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
-      capex_categoria: tx.cuenta_codigo === "5.6" ? capexCategoria : tx.capex_categoria ?? null,
+      capex_categoria: cuentaCodigo === "5.6" ? capexCategoria : tx.capex_categoria ?? null,
       tercero_id: terceroId || null,
     };
     const { data: updated, error } = await supabase
@@ -217,6 +239,22 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
         )}
         <form onSubmit={save} className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
+          <div className="md:col-span-2">
+            <Label>Cuenta contable</Label>
+            <SearchCombobox
+              options={cuentaOpciones}
+              value={cuentaCodigo}
+              onChange={(v) => setCuentaCodigo(v ?? "")}
+              placeholder="Selecciona una cuenta"
+              searchPlaceholder="Buscar cuenta por código o nombre…"
+              triggerClassName="w-full"
+            />
+            {cuentaCodigo !== tx.cuenta_codigo && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                Se reclasificará de {tx.cuenta_codigo} a {cuentaCodigo}.
+              </p>
+            )}
+          </div>
           <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
           <div>
             <Label>Centro</Label>
@@ -283,13 +321,13 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
               "5.1": "Prestamista", "5.4": "Beneficiarios",
               "5.5": "Aportante", "5.6": "Descripción activo",
             };
-            const lbl = labelByCode[tx.cuenta_codigo];
+            const lbl = labelByCode[cuentaCodigo];
             if (!lbl && !detalle) return null;
             return (
               <div className="md:col-span-2"><Label>{lbl ?? "Detalle"}</Label><Input value={detalle} onChange={(e) => setDetalle(e.target.value)} /></div>
             );
           })()}
-          {tx.cuenta_codigo === "5.6" && (
+          {cuentaCodigo === "5.6" && (
             <div className="md:col-span-2">
               <Label>Categoría CapEx</Label>
               <Select value={capexCategoria} onValueChange={setCapexCategoria}>
