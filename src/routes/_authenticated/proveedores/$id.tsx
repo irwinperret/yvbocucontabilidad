@@ -76,6 +76,12 @@ function FacturaChip({
   disabled?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `cxp:${cxp.id}`, disabled });
+  // "Aplicado" se guarda internamente en Bs; se muestra en USD BCV usando la
+  // misma proporción sobre el monto total de la factura (misma tasa implícita).
+  const montoBsFactura = Number(cxp.monto_bs) || 0;
+  const usdBcvTotal = usdBcvFactura(cxp);
+  const aplicadoUsd =
+    typeof aplicadoBs === "number" && montoBsFactura > 0 ? +((aplicadoBs / montoBsFactura) * usdBcvTotal).toFixed(2) : undefined;
   return (
     <div
       className={`flex items-center gap-2 rounded-md border bg-card px-2 py-1 text-xs ${isDragging ? "opacity-50" : ""}`}
@@ -90,9 +96,9 @@ function FacturaChip({
         <span className="font-medium">Fact. {cxp.numero_factura ?? "s/n"}</span>
         <span className="text-muted-foreground">emisión {emision ? fmtDate(emision) : "—"}</span>
         <span className="mono">{fmtBs(Number(cxp.monto_bs) || 0)}</span>
-        <span className="mono text-muted-foreground">{fmtUsd(usdBcvFactura(cxp))} BCV</span>
-        {typeof aplicadoBs === "number" && (
-          <span className="mono text-muted-foreground">aplicado {fmtBs(aplicadoBs)}</span>
+        <span className="mono text-muted-foreground">{fmtUsd(usdBcvTotal)} BCV</span>
+        {typeof aplicadoUsd === "number" && (
+          <span className="mono text-muted-foreground">aplicado {fmtUsd(aplicadoUsd)} USD BCV</span>
         )}
         <Badge variant={cxp.estado === "pagada" ? "secondary" : cxp.estado === "parcial" ? "default" : "outline"}>
           {cxp.estado === "pagada" ? "Pagada" : cxp.estado === "parcial" ? "Parcial" : "Pendiente"}
@@ -314,7 +320,12 @@ function TableroProveedor() {
     }
     const aplicado = +(montoMov - Math.max(0, restante)).toFixed(2);
     const sinAplicar = dentroDeTolerancia(restante, montoMov) ? 0 : Math.max(0, restante);
-    return { lista, montoMov, aplicado, sinAplicar, aplicadoPorCxp };
+    // Equivalente en USD BCV: misma proporción sobre el monto del movimiento
+    // ya expresado en USD BCV (misma tasa que ya se muestra en pantalla).
+    const usdBcvMov = usdBcvDeMov(mov);
+    const aplicadoUsd = montoMov > 0 ? +((aplicado / montoMov) * usdBcvMov).toFixed(2) : 0;
+    const sinAplicarUsd = montoMov > 0 ? +((sinAplicar / montoMov) * usdBcvMov).toFixed(2) : 0;
+    return { lista, montoMov, aplicado, sinAplicar, aplicadoUsd, sinAplicarUsd, aplicadoPorCxp };
   };
 
   const movsFiltrados = useMemo(() => {
@@ -663,7 +674,7 @@ function TableroProveedor() {
                 <p className="text-sm text-muted-foreground">Sin movimientos para este filtro.</p>
               )}
               {movsFiltrados.map((mv) => {
-                const { lista, montoMov, aplicado, sinAplicar, aplicadoPorCxp } = resumenMov(mv);
+                const { lista, montoMov, aplicado, sinAplicar, aplicadoUsd, sinAplicarUsd, aplicadoPorCxp } = resumenMov(mv);
                 const asignables = facturasSinMov.filter((c) => c.transaccion_id);
                 return (
                   <Zona key={mv.id} id={`mov:${mv.id}`} className="border rounded-md p-3">
@@ -676,7 +687,13 @@ function TableroProveedor() {
                           <span className="mono text-muted-foreground">{fmtUsd(usdBcvDeMov(mv))} USD BCV</span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Aplicado {fmtBs(aplicado)} · Sin aplicar {fmtBs(sinAplicar)} · {lista.length} factura(s)
+                          Aplicado {fmtUsd(aplicadoUsd)} USD BCV ·{" "}
+                          {sinAplicarUsd > 0.01 ? (
+                            <span className="font-bold text-foreground">Sin aplicar {fmtUsd(sinAplicarUsd)} USD BCV</span>
+                          ) : (
+                            <>Sin aplicar {fmtUsd(sinAplicarUsd)} USD BCV</>
+                          )}{" "}
+                          · {lista.length} factura(s)
                         </div>
                         <div className="text-xs text-muted-foreground truncate max-w-[28rem]">
                           {mv.notas ?? mv.detalle ?? ""}
