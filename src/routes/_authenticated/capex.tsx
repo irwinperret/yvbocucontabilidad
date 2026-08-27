@@ -248,7 +248,12 @@ function CapExPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Gastos operativos por mes ({anio})</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Gastos operativos por mes ({anio})</CardTitle>
+            <p className="text-xs text-muted-foreground font-normal">
+              No tiene relación con el CapEx de arriba — está aquí solo para comparar rápido el nivel de gasto operativo del mismo período.
+            </p>
+          </CardHeader>
           <CardContent>
             <div style={{ width: "100%", height: 360 }}>
               <ResponsiveContainer>
