@@ -570,3 +570,99 @@ export function exportCogsPorMes(opts: { resumen: RowResumenCogs[]; detalle: Row
     download(buf, `COGS_por_mes_${new Date().toISOString().slice(0, 10)}.xlsx`);
   });
 }
+
+// ============ Flujo de Caja (método indirecto) export ============
+export type LineasFCMes = {
+  ebitda: number;
+  cambioCxC: number;
+  cambioInventario: number;
+  cambioCxP: number;
+  compraInmuebles: number;
+  compraEquipos: number;
+  aumentoCapital: number;
+  aumentoPrestamos: number;
+  gastoIntereses: number;
+  gastoImpuestos: number;
+  gastoDividendos: number;
+};
+
+const FILAS_FC_EXPORT: { label: string; get: (l: LineasFCMes) => number; bold?: boolean }[] = [
+  { label: "EBITDA", get: (l) => l.ebitda },
+  { label: "Cambios en Cuentas por cobrar", get: (l) => l.cambioCxC },
+  { label: "Cambios Inventario (Almacenado)", get: (l) => l.cambioInventario },
+  { label: "Cambios en Cuentas por pagar", get: (l) => l.cambioCxP },
+  { label: "Total Flujo de Caja de Actividades Operativas", get: (l) => l.ebitda + l.cambioCxC + l.cambioInventario + l.cambioCxP, bold: true },
+  { label: "Compra de Inmuebles", get: (l) => -l.compraInmuebles },
+  { label: "Compra de Equipos", get: (l) => -l.compraEquipos },
+  { label: "Total Flujo de Caja de Actividades de Inversión", get: (l) => -l.compraInmuebles - l.compraEquipos, bold: true },
+  { label: "Aumento en el Capital Social", get: (l) => l.aumentoCapital },
+  { label: "Aumento en Préstamos por Pagar", get: (l) => l.aumentoPrestamos },
+  { label: "Gasto en Intereses", get: (l) => -l.gastoIntereses },
+  { label: "Gasto en Impuestos", get: (l) => -l.gastoImpuestos },
+  { label: "Gasto en Dividendos", get: (l) => -l.gastoDividendos },
+  { label: "Total Flujo de Caja de Actividades Financieras", get: (l) => l.aumentoCapital + l.aumentoPrestamos - l.gastoIntereses - l.gastoImpuestos - l.gastoDividendos, bold: true },
+  { label: "VARIACIÓN NETA DE CAJA", get: (l) => l.ebitda + l.cambioCxC + l.cambioInventario + l.cambioCxP - l.compraInmuebles - l.compraEquipos + l.aumentoCapital + l.aumentoPrestamos - l.gastoIntereses - l.gastoImpuestos - l.gastoDividendos, bold: true },
+];
+
+function sumarLineasFC(lista: LineasFCMes[]): LineasFCMes {
+  return lista.reduce(
+    (acc, l) => ({
+      ebitda: acc.ebitda + l.ebitda, cambioCxC: acc.cambioCxC + l.cambioCxC,
+      cambioInventario: acc.cambioInventario + l.cambioInventario, cambioCxP: acc.cambioCxP + l.cambioCxP,
+      compraInmuebles: acc.compraInmuebles + l.compraInmuebles, compraEquipos: acc.compraEquipos + l.compraEquipos,
+      aumentoCapital: acc.aumentoCapital + l.aumentoCapital, aumentoPrestamos: acc.aumentoPrestamos + l.aumentoPrestamos,
+      gastoIntereses: acc.gastoIntereses + l.gastoIntereses, gastoImpuestos: acc.gastoImpuestos + l.gastoImpuestos,
+      gastoDividendos: acc.gastoDividendos + l.gastoDividendos,
+    }),
+    { ebitda: 0, cambioCxC: 0, cambioInventario: 0, cambioCxP: 0, compraInmuebles: 0, compraEquipos: 0, aumentoCapital: 0, aumentoPrestamos: 0, gastoIntereses: 0, gastoImpuestos: 0, gastoDividendos: 0 },
+  );
+}
+
+export function exportFCIndirecto(opts: {
+  tab: "mes" | "ytd" | "comp";
+  anio: number;
+  mes?: number;
+  hastaMes?: number;
+  lineasPorMes: LineasFCMes[];
+}) {
+  const { tab, anio, mes, hastaMes, lineasPorMes } = opts;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Yvbocu Contabilidad";
+  wb.created = new Date();
+
+  const MESES_ES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
+  if (tab !== "comp") {
+    const lineas = tab === "mes" ? lineasPorMes[(mes ?? 1) - 1] : sumarLineasFC(lineasPorMes.slice(0, hastaMes ?? 12));
+    const titulo = tab === "mes" ? `${MESES_ES[(mes ?? 1) - 1]} ${anio}` : `Acumulado hasta ${MESES_ES[(hastaMes ?? 12) - 1]} ${anio}`;
+    const ws = wb.addWorksheet("Flujo de Caja");
+    ws.columns = [{ header: `Estado de Flujo de Efectivo — ${titulo}`, key: "label", width: 50 }, { header: "USD", key: "valor", width: 18 }];
+    styleHeader(ws.getRow(1));
+    FILAS_FC_EXPORT.forEach((f) => {
+      const row = ws.addRow({ label: f.label, valor: f.get(lineas) });
+      row.getCell("valor").numFmt = USD_FMT;
+      if (f.bold) styleTotal(row);
+    });
+  } else {
+    const ws = wb.addWorksheet("Comparativo mensual");
+    ws.columns = [
+      { header: "Concepto", key: "label", width: 46 },
+      ...MESES_ES.map((m) => ({ header: m, key: m, width: 13 })),
+      { header: `Año ${anio}`, key: "anioTotal", width: 14 },
+    ];
+    styleHeader(ws.getRow(1));
+    FILAS_FC_EXPORT.forEach((f) => {
+      const valores = lineasPorMes.map(f.get);
+      const rowData: any = { label: f.label };
+      MESES_ES.forEach((m, i) => { rowData[m] = valores[i]; });
+      rowData.anioTotal = valores.reduce((s, v) => s + v, 0);
+      const row = ws.addRow(rowData);
+      [...MESES_ES, "anioTotal"].forEach((k) => { row.getCell(k).numFmt = USD_FMT; });
+      if (f.bold) styleTotal(row);
+    });
+  }
+
+  wb.xlsx.writeBuffer().then((buf) => {
+    download(buf, `FlujoDeCaja_${anio}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  });
+}

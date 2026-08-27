@@ -9,8 +9,12 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { fmtUsd } from "@/lib/format";
 import { CENTROS, MESES } from "@/lib/account-helpers";
+import { useCuentasBancarias } from "@/components/bank-account-select";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
+import { exportFCIndirecto } from "@/lib/excel-export";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
 
@@ -52,13 +56,38 @@ function FCPage() {
   const [incluirOff, setIncluirOff] = useState(false);
   const [mesSel, setMesSel] = useState(new Date().getMonth() + 1);
   const [hastaMes, setHastaMes] = useState(new Date().getMonth() + 1);
+  const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("todas");
+
+  const { data: bancos } = useCuentasBancarias();
 
   const modoFiltro = incluirOff ? undefined : "on_balance";
 
   const { data: rows } = useQuery({
-    queryKey: ["fc-rows", anio, centro, modoFiltro, mode],
+    queryKey: ["fc-rows", anio, centro, modoFiltro, mode, cuentaBancariaId],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
+      if (cuentaBancariaId !== "todas") {
+        const data = await fetchAllRows<any>(async (from, to) => {
+          let q = supabase.from("transacciones").select("fecha, cuenta_codigo, centro_costo, modo, monto_bs, monto_usd, tasa_bcv")
+            .neq("standby", true).gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`)
+            .eq("cuenta_bancaria_id" as any, cuentaBancariaId).range(from, to);
+          if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
+          if (modoFiltro) q = q.eq("modo", modoFiltro as any);
+          return await q;
+        });
+        const map = new Map<string, Row>();
+        for (const t of data) {
+          const d = new Date(t.fecha);
+          const k = `${d.getFullYear()}-${d.getMonth() + 1}-${t.cuenta_codigo}-${t.centro_costo}-${t.modo}`;
+          const bs = Number(t.monto_bs || 0);
+          const tbcv = Number(t.tasa_bcv || 0);
+          const usd = mode === "bcv" ? (tbcv > 0 ? bs / tbcv : 0) : Number(t.monto_usd || 0);
+          const existing = map.get(k);
+          if (existing) { existing.base_usd += usd; existing.total_usd += usd; }
+          else map.set(k, { anio: d.getFullYear(), mes: d.getMonth() + 1, cuenta_codigo: t.cuenta_codigo, centro_costo: t.centro_costo, modo: t.modo, base_usd: usd, total_usd: usd });
+        }
+        return Array.from(map.values());
+      }
       let q = (supabase as any).from(mensualView(mode)).select("*").eq("anio", anio);
       if (centro !== "Consolidado") q = q.eq("centro_costo", centro);
       if (modoFiltro) q = q.eq("modo", modoFiltro);
@@ -68,7 +97,7 @@ function FCPage() {
 
   // CapEx individual (para separar Inmuebles vs Equipos por categoría)
   const { data: capexRows } = useQuery({
-    queryKey: ["fc-capex", anio, centro, modoFiltro, mode],
+    queryKey: ["fc-capex", anio, centro, modoFiltro, mode, cuentaBancariaId],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
       return await fetchAllRows<any>(async (from, to) => {
@@ -77,6 +106,7 @@ function FCPage() {
           .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`);
         if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
         if (modoFiltro) q = q.eq("modo", modoFiltro as any);
+        if (cuentaBancariaId !== "todas") q = q.eq("cuenta_bancaria_id" as any, cuentaBancariaId);
         return await q.range(from, to);
       });
     },
@@ -173,6 +203,17 @@ function FCPage() {
           <div><Label className="text-xs">Año</Label><Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}><SelectTrigger className="w-24"><SelectValue /></SelectTrigger><SelectContent>{[2024,2025,2026,2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></div>
           <div><Label className="text-xs">Centro de costo</Label><Select value={centro} onValueChange={setCentro}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Consolidado">Consolidado</SelectItem>{CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
           <div className="flex items-center gap-2"><Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="off" /><Label htmlFor="off" className="text-xs">Incluir off-balance</Label></div>
+          <div><Label className="text-xs">Cuenta bancaria</Label>
+            <Select value={cuentaBancariaId} onValueChange={setCuentaBancariaId}>
+              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas las cuentas</SelectItem>
+                {(bancos ?? []).map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.nombre} — {b.banco} ({b.moneda})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -192,6 +233,9 @@ function FCPage() {
                 <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <Button size="sm" variant="outline" onClick={() => exportFCIndirecto({ tab: "mes", anio, mes: mesSel, lineasPorMes })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
           </div>
           <ReporteFCIndirecto lineas={lineasPorMes[mesSel - 1]} />
         </TabsContent>
@@ -205,11 +249,19 @@ function FCPage() {
                 <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <Button size="sm" variant="outline" onClick={() => exportFCIndirecto({ tab: "ytd", anio, hastaMes, lineasPorMes })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
           </div>
           <ReporteFCIndirecto lineas={sumarLineas(lineasPorMes.slice(0, hastaMes))} />
         </TabsContent>
 
         <TabsContent value="comp">
+          <div className="mb-3 flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => exportFCIndirecto({ tab: "comp", anio, lineasPorMes })}>
+              <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+            </Button>
+          </div>
           <ReporteFCComparativo lineasPorMes={lineasPorMes} anio={anio} />
         </TabsContent>
       </Tabs>
