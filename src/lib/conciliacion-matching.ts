@@ -12,10 +12,11 @@ export const ESTADO_LABEL: Record<EstadoConciliacion, string> = {
 };
 
 /** Cuentas que por naturaleza no requieren una factura asociada */
-const PREFIJOS_SIN_FACTURA = ["3.", "7.", "10.", "11.", "12."];
-/** Cuentas puntuales sin factura (p. ej. Condo + Alquiler, pasivos transitorios,
- *  operaciones de cambio (98) y cuentas no contables (99)) */
-const CUENTAS_SIN_FACTURA = new Set(["4.10", "8.1", "8.1", "8.3", "9.1", "9.3", "98", "99"]);
+const PREFIJOS_SIN_FACTURA = ["3.", "5.", "6.", "7."];
+/** Cuentas puntuales sin factura (p. ej. Alquiler, gastos financieros, pasivos
+ *  transitorios, activos transitorios, operaciones de cambio (98) y cuentas
+ *  no contables (99)) */
+const CUENTAS_SIN_FACTURA = new Set(["4.3", "4.8", "8.1", "8.3", "9.1", "9.3", "98", "99"]);
 /** Cuentas que sí pueden llevar factura pese al prefijo (CapEx, pagos de CxP, anticipos) */
 const EXCEPCIONES_CON_FACTURA = new Set(["5.6", "8.2", "9.2"]);
 
@@ -27,7 +28,7 @@ export function cuentaRequiereFactura(codigo?: string | null) {
 }
 
 /** Cuentas de compra/gasto: las únicas cuyas facturas pueden parear con un egreso bancario */
-const PREFIJOS_FACTURA_COMPRA = ["2.", "4.", "5.", "6.", "8.", "9."];
+const PREFIJOS_FACTURA_COMPRA = ["2.", "4."];
 export function esFacturaDeCompra(codigo?: string | null) {
   if (!codigo) return false;
   if (codigo === "5.6") return true;
