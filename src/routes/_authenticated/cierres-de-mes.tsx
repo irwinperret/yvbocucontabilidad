@@ -265,9 +265,9 @@ function CierresDeMesPage() {
                 <th className="text-center py-2 px-2">Estado</th>
                 <th className="text-right py-2 px-2">Inv. inicial (USD BCV)</th>
                 <th className="text-right py-2 px-2">Inv. final (USD BCV)</th>
-                <th className="text-right py-2 px-2">COGS (BCV)</th>
                 <th className="text-right py-2 px-2">Compras Xetux</th>
                 <th className="text-right py-2 px-2">Compras mov. bancarios</th>
+                <th className="text-right py-2 px-2">COGS (BCV)</th>
                 <th className="text-center py-2 px-2 w-40">Acciones</th>
               </tr>
             </thead>
@@ -297,9 +297,9 @@ function CierresDeMesPage() {
                       </Button>
                     </div>
                   </td>
-                  <td className="py-2 px-2 text-right mono">{f.cogsUsdBcv != null ? fmtUsd(f.cogsUsdBcv) : "—"}</td>
                   <td className="py-2 px-2 text-right mono text-muted-foreground">{fmtUsd(f.comprasXetuxUsd)}</td>
                   <td className="py-2 px-2 text-right mono text-muted-foreground">{fmtUsd(f.comprasMovBancariosUsd)}</td>
+                  <td className="py-2 px-2 text-right mono">{f.cogsUsdBcv != null ? fmtUsd(f.cogsUsdBcv) : "—"}</td>
                   <td className="py-2 px-2 text-center">
                     {f.cerrado ? (
                       <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => confirmarReabrir(f.periodo)} disabled={busy}>
