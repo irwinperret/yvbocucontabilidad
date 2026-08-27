@@ -50,7 +50,7 @@ export function SearchCombobox({
   const selected = options.find((o) => o.value === value);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -63,7 +63,7 @@ export function SearchCombobox({
           <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className={cn("w-[320px] p-0", className)} align="start">
+      <PopoverContent className={cn("w-[320px] p-0 z-[100]", className)} align="start">
         <Command shouldFilter={false}>
           <CommandInput placeholder={searchPlaceholder} value={query} onValueChange={setQuery} />
           <CommandList>
