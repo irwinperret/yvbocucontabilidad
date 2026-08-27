@@ -4048,10 +4048,8 @@ function CierreForm() {
       )
     )
       return;
-    const { error } = await supabase.from("cierres_de_mes").delete().eq("id", cierreActual.id);
-    if (error) return toast.error(error.message);
-    // Borrar la transacción COGS generada por el cierre
-    await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
+    const { reabrirMes: reabrirMesCompartido } = await import("@/lib/cierre-mes");
+    await reabrirMesCompartido(periodo).catch((err: any) => toast.error(err?.message ?? String(err)));
     toast.success(`Mes ${periodo} reabierto`);
     qc.invalidateQueries();
   };
@@ -4502,89 +4500,12 @@ function CierreForm() {
 
     setBusy(true);
 
-    // Bs derivado de USD × tasa BCV del día específico (primer/último día del mes).
-    const iniBs = iniUsd * tasaBcvIniN;
-    const finBs = finUsd * tasaBcvFinN;
-    const cogsBs = iniBs + totalComprasNetoBs - finBs;
-    // COGS en USD (BCV): suma directa de componentes ya en USD (BCV).
-    const cogsUsdBcv = iniUsd + totalComprasNetoUsdBcv - finUsd;
-    // COGS en USD (paralelo): el inventario solo se ingresa en USD BCV, así que
-    // no hay un componente-a-componente en paralelo; se convierte el total en
-    // Bs con la tasa paralela promedio del mes.
-    const cogsUsdParalelo = paralelaPromedio > 0 ? cogsBs / paralelaPromedio : 0;
-
-    const { error } = await supabase.from("cierres_de_mes").insert({
-      periodo,
-      inventario_inicial_bs: iniBs,
-      inventario_final_bs: finBs,
-      compras_mes_bs: totalComprasNetoBs,
-      cogs_bs: cogsBs,
-      cogs_usd: cogsUsdBcv,
-      cogs_usd_paralelo: cogsUsdParalelo,
-      tasa_bcv_promedio: tasaBcv,
-
-      pasivos_laborales_bs: 0,
-      depreciacion_bs: 0,
-      notas: notas || null,
-      registrado_por: user.id,
-      estado: "cerrado",
-    } as any);
-    if (error) {
-      setBusy(false);
-      return toast.error(error.message);
-    }
-
-    // Upsert snapshots inicial/final del período: monto_bs = USD × BCV del día específico
-    await supabase.from("inventario_snapshots").upsert(
-      {
-        periodo,
-        tipo: "inicial",
-        monto_bs: iniBs,
-        monto_usd: iniUsd,
-        tasa_bcv: tasaBcvIniN || null,
-        registrado_por: user.id,
-        fecha: `${periodo}-01`,
-      } as any,
-      { onConflict: "periodo,tipo" },
-    );
-    const finDateSnap = new Date(`${periodo}-01T00:00:00`);
-    finDateSnap.setMonth(finDateSnap.getMonth() + 1);
-    finDateSnap.setDate(0);
-    await supabase.from("inventario_snapshots").upsert(
-      {
-        periodo,
-        tipo: "final",
-        monto_bs: finBs,
-        monto_usd: finUsd,
-        tasa_bcv: tasaBcvFinN || null,
-        registrado_por: user.id,
-        fecha: finDateSnap.toISOString().slice(0, 10),
-      } as any,
-      { onConflict: "periodo,tipo" },
-    );
-
-
-    // Postear COGS como transacción 2.2
-    if (cogsBs && Math.abs(cogsBs) > 0.01) {
-      const fechaCierre = finDateSnap.toISOString().slice(0, 10);
-      await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
-      await supabase.from("transacciones").insert({
-        fecha: fechaCierre,
-        cuenta_codigo: "2.2",
-        centro_costo: "Compartido" as any,
-        monto_bs: cogsBs,
-        monto_base_bs: cogsBs,
-        iva_bs: 0,
-        tasa_bcv: tasaBcv,
-        tasa_paralela: paralelaPromedio || null,
-        monto_usd: cogsUsdParalelo,
-        metodo_pago: "transferencia" as any,
-        modo: "on_balance" as any,
-        referencia: `CIERRE-${periodo}`,
-        notas: `COGS automático del cierre de ${periodo}`,
-        created_by: user.id,
-      } as any);
-    }
+    const { calcularYGuardarCierre } = await import("@/lib/cierre-mes");
+    const r = await calcularYGuardarCierre(periodo, iniUsd, finUsd, user.id, notas).catch((err: any) => {
+      toast.error(err?.message ?? String(err));
+      return null;
+    });
+    if (!r) { setBusy(false); return; }
 
     // Cascade: si el usuario cambió el inv inicial, actualizar snapshot final del mes anterior
     // y delegar el recálculo del cierre anterior al server (recalcCierrePeriodo).

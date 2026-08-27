@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   BarChart3,
   Landmark,
+  Lock,
   ListChecks,
   ArrowLeftRight,
   Wallet,
@@ -53,6 +54,7 @@ const registroImportar = [
   { title: "Importar movimientos bancarios", url: "/importar-movimientos", icon: Landmark },
   { title: "Importar ajustes ventas", url: "/importar-ajustes", icon: Upload },
   { title: "Historial de importaciones", url: "/importaciones", icon: HistoryIcon },
+  { title: "Cierres de Mes", url: "/cierres-de-mes", icon: Lock },
 ];
 
 
