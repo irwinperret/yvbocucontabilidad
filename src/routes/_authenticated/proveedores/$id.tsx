@@ -160,15 +160,48 @@ function TableroProveedor() {
     },
   });
   const [registrando, setRegistrando] = useState(false);
-  const [rifForm, setRifForm] = useState({ tipo_rif: "J", rif: "" });
+  const [rifForm, setRifForm] = useState({ razon_social: "", nombre_comercial: "", tipo_rif: "J", rif: "" });
+  const abrirRegistro = () => {
+    setRifForm({
+      razon_social: proveedorActual?.razon_social ?? "",
+      nombre_comercial: proveedorActual?.nombre_comercial ?? "",
+      tipo_rif: "J",
+      rif: "",
+    });
+    setRegistrando(true);
+  };
   const registrarOficialmente = async () => {
+    if (!rifForm.razon_social.trim()) return toast.error("Ingresa el nombre del proveedor");
     if (!rifForm.rif.trim()) return toast.error("Ingresa el RIF");
     const { error } = await supabase
       .from("terceros")
-      .update({ estado_registro: "oficial", tipo_rif: rifForm.tipo_rif, rif: rifForm.rif.trim() } as any)
+      .update({
+        estado_registro: "oficial",
+        razon_social: rifForm.razon_social.trim(),
+        nombre_comercial: rifForm.nombre_comercial.trim() || null,
+        tipo_rif: rifForm.tipo_rif,
+        rif: rifForm.rif.trim(),
+      } as any)
       .eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Proveedor registrado oficialmente");
+    setRegistrando(false);
+    qc.invalidateQueries({ queryKey: ["tercero-actual", id] });
+    qc.invalidateQueries({ queryKey: ["terceros-tablero"] });
+  };
+
+  /** Guarda solo el nombre corregido, sin exigir RIF ni cambiar el estado (sigue como candidato). */
+  const guardarSoloNombre = async () => {
+    if (!rifForm.razon_social.trim()) return toast.error("Ingresa el nombre del proveedor");
+    const { error } = await supabase
+      .from("terceros")
+      .update({
+        razon_social: rifForm.razon_social.trim(),
+        nombre_comercial: rifForm.nombre_comercial.trim() || null,
+      } as any)
+      .eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Nombre actualizado — sigue pendiente de verificar hasta que registres el RIF");
     setRegistrando(false);
     qc.invalidateQueries({ queryKey: ["tercero-actual", id] });
     qc.invalidateQueries({ queryKey: ["terceros-tablero"] });
@@ -622,12 +655,20 @@ function TableroProveedor() {
           )}
         </div>
         {proveedorActual?.estado_registro === "candidato" && !registrando && (
-          <Button size="sm" variant="outline" onClick={() => setRegistrando(true)}>Registrar oficialmente</Button>
+          <Button size="sm" variant="outline" onClick={abrirRegistro}>Registrar oficialmente</Button>
         )}
       </div>
       {proveedorActual?.estado_registro === "candidato" && registrando && (
         <Card>
           <CardContent className="pt-4 flex flex-wrap items-end gap-3">
+            <div>
+              <Label className="text-xs">Razón social</Label>
+              <Input value={rifForm.razon_social} onChange={(e) => setRifForm({ ...rifForm, razon_social: e.target.value })} placeholder="Nombre del proveedor" className="w-56" />
+            </div>
+            <div>
+              <Label className="text-xs">Nombre comercial (opcional)</Label>
+              <Input value={rifForm.nombre_comercial} onChange={(e) => setRifForm({ ...rifForm, nombre_comercial: e.target.value })} placeholder="Como se conoce comúnmente" className="w-56" />
+            </div>
             <div>
               <Label className="text-xs">Tipo</Label>
               <Select value={rifForm.tipo_rif} onValueChange={(v) => setRifForm({ ...rifForm, tipo_rif: v })}>
@@ -641,7 +682,8 @@ function TableroProveedor() {
               <Label className="text-xs">RIF</Label>
               <Input value={rifForm.rif} onChange={(e) => setRifForm({ ...rifForm, rif: e.target.value })} placeholder="12345678-9" className="w-40" />
             </div>
-            <Button size="sm" onClick={registrarOficialmente}>Guardar</Button>
+            <Button size="sm" variant="secondary" onClick={guardarSoloNombre}>Guardar solo nombre</Button>
+            <Button size="sm" onClick={registrarOficialmente}>Registrar con RIF</Button>
             <Button size="sm" variant="ghost" onClick={() => setRegistrando(false)}>Cancelar</Button>
           </CardContent>
         </Card>
