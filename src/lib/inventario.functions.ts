@@ -107,7 +107,7 @@ async function recalcCierreForPeriod(
   // Paralela promedio del período (para expresar COGS en USD paralelo).
   const paralelaProm = await fetchParalelaPromedio(supabase, periodo);
 
-  const [{ data: iniSnap }, { data: finSnap }, { data: compras }] = await Promise.all([
+  const [{ data: iniSnap }, { data: finSnap }, { data: compras, error: comprasError }] = await Promise.all([
     supabase
       .from("inventario_snapshots")
       .select("id, monto_usd")
@@ -122,11 +122,17 @@ async function recalcCierreForPeriod(
       .maybeSingle(),
     supabase
       .from("transacciones")
-      .select("monto_bs, monto_base_bs, monto_usd, monto_base_usd, tasa_bcv").neq("standby", true)
+      .select("monto_bs, monto_base_bs, monto_usd, tasa_bcv").neq("standby", true)
       .eq("cuenta_codigo", "2.1")
       .gte("fecha", from)
       .lte("fecha", to),
   ]);
+  if (comprasError) {
+    // Antes este error se ignoraba en silencio, dejando las compras del
+    // período en 0 siempre que la consulta fallara (pasó justo esto: se
+    // pedía la columna "monto_base_usd", que no existe en la tabla).
+    throw new Error(`No se pudieron traer las compras del período ${periodo}: ${comprasError.message}`);
+  }
 
   const iniUsd = Number((iniSnap as any)?.monto_usd) || 0;
   const finUsd = Number((finSnap as any)?.monto_usd) || 0;
@@ -145,8 +151,7 @@ async function recalcCierreForPeriod(
     const netoBs = Number(r.monto_base_bs) || Number(r.monto_bs) || 0;
     const tasa = Number(r.tasa_bcv) || 0;
     if (tasa > 0) return s + r2(netoBs / tasa);
-    const neto = Number(r.monto_base_usd);
-    return s + (Number.isFinite(neto) && neto !== 0 ? neto : Number(r.monto_usd) || 0);
+    return s + (Number(r.monto_usd) || 0);
   }, 0);
 
   const cogsBs = r2(iniBs + comprasNetoBs - finBs);

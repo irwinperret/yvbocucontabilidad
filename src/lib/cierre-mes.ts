@@ -64,21 +64,27 @@ async function tasasDelPeriodo(periodo: string) {
 async function comprasNetoDelPeriodo(periodo: string) {
   const finExclusivo = new Date(`${periodo}-01T00:00:00`);
   finExclusivo.setMonth(finExclusivo.getMonth() + 1);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("transacciones")
-    .select("monto_bs, monto_base_bs, monto_usd, monto_base_usd, tasa_bcv, modo")
+    .select("monto_bs, monto_base_bs, monto_usd, tasa_bcv, modo")
     .eq("cuenta_codigo", "2.1")
     .neq("standby", true)
     .gte("fecha", `${periodo}-01`)
     .lt("fecha", finExclusivo.toISOString().slice(0, 10));
+  if (error) {
+    // Antes este error se ignoraba en silencio (solo se desestructuraba
+    // `data`), dejando compras_mes_bs en 0 siempre que la consulta fallara
+    // — que es justo lo que pasaba: se pedía una columna ("monto_base_usd")
+    // que no existe en la tabla, la consulta fallaba, y nadie se enteraba.
+    throw new Error(`No se pudieron traer las compras del período ${periodo}: ${error.message}`);
+  }
   const comprasOn = (data ?? []).filter((c: any) => c.modo !== "off_balance");
   const totalComprasNetoBs = comprasOn.reduce((s: number, c: any) => s + (Number(c.monto_base_bs) || Number(c.monto_bs) || 0), 0);
   const totalComprasNetoUsdBcv = comprasOn.reduce((s: number, c: any) => {
     const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
     const tasa = Number(c.tasa_bcv) || 0;
     if (tasa > 0) return s + +(netoBs / tasa).toFixed(2);
-    const neto = Number(c.monto_base_usd);
-    return s + (Number.isFinite(neto) && neto !== 0 ? neto : Number(c.monto_usd) || 0);
+    return s + (Number(c.monto_usd) || 0);
   }, 0);
   return { totalComprasNetoBs, totalComprasNetoUsdBcv };
 }
