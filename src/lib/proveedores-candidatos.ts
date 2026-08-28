@@ -79,6 +79,7 @@ export async function obtenerOCrearCandidato(nombreCrudo: string): Promise<{ id:
       razon_social: nombre,
       tipo: "proveedor" as any,
       estado_registro: "candidato",
+      origen_registro: "movimientos_bancarios",
       rif: null,
       tipo_rif: null,
     } as any)

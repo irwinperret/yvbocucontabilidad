@@ -33,6 +33,12 @@ import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib
 import { bancoDeReferencia } from "@/lib/conciliacion-matching";
 import { CUENTA_CAMBIO } from "@/lib/operaciones-cambio";
 
+const ORIGEN_LABEL: Record<string, string> = {
+  manual: "Manual",
+  xetux: "Xetux (Compras)",
+  movimientos_bancarios: "Movimientos bancarios",
+};
+
 export const Route = createFileRoute("/_authenticated/proveedores/$id")({
   component: TableroProveedor,
   head: () => ({
@@ -652,6 +658,11 @@ function TableroProveedor() {
           <h1 className="text-xl font-semibold">{nombreProveedor}</h1>
           {proveedorActual?.estado_registro === "candidato" && (
             <Badge variant="outline" className="text-amber-600 border-amber-600/40">Pendiente de verificar</Badge>
+          )}
+          {proveedorActual?.origen_registro && proveedorActual.origen_registro !== "desconocido" && (
+            <Badge variant="secondary" className="text-[10px]">
+              {ORIGEN_LABEL[proveedorActual.origen_registro] ?? proveedorActual.origen_registro}
+            </Badge>
           )}
         </div>
         {proveedorActual?.estado_registro === "candidato" && !registrando && (

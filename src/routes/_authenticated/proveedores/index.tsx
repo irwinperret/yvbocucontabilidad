@@ -14,6 +14,13 @@ import { toast } from "sonner";
 import { DeleteButton } from "@/components/delete-button";
 import { logAudit } from "@/lib/audit";
 
+const ORIGEN_LABEL: Record<string, string> = {
+  manual: "Manual",
+  xetux: "Xetux (Compras)",
+  movimientos_bancarios: "Movimientos bancarios",
+  desconocido: "—",
+};
+
 export const Route = createFileRoute("/_authenticated/proveedores/")({
   component: ProveedoresPage,
   head: () => ({
@@ -59,7 +66,7 @@ function ProveedoresPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data: created, error } = await supabase.from("terceros").insert(form as any).select().single();
+    const { data: created, error } = await supabase.from("terceros").insert({ ...form, origen_registro: "manual" } as any).select().single();
     if (error) return toast.error(error.message);
     if (created) await logAudit("terceros", "INSERT", created.id, null, created);
     toast.success("Proveedor creado");
@@ -158,6 +165,7 @@ function ProveedoresPage() {
                     <th className="text-left py-2 px-2">Razón social</th>
                     <th className="text-left py-2 px-2">RIF</th>
                     <th className="text-left py-2 px-2">Tipo</th>
+                    <th className="text-left py-2 px-2">Origen</th>
                     <th className="text-left py-2 px-2">Email</th>
                     <th className="text-left py-2 px-2">Tel.</th>
                     <th></th>
@@ -211,6 +219,7 @@ function ProveedoresPage() {
                         {t.estado_registro === "candidato" ? <span className="text-muted-foreground">— sin RIF —</span> : `${t.tipo_rif}-${t.rif}`}
                       </td>
                       <td className="py-2 px-2">{t.tipo}</td>
+                      <td className="py-2 px-2 text-xs text-muted-foreground">{ORIGEN_LABEL[t.origen_registro] ?? "—"}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.email ?? "—"}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.telefono ?? "—"}</td>
                       <td className="py-2 px-2 text-right">

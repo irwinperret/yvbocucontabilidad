@@ -201,6 +201,7 @@ function ImportarComprasInner() {
       rif: r.rif,
       razon_social: r.proveedor,
       tipo: "proveedor" as any,
+      origen_registro: "xetux",
     } as any).select().single();
     if (error) {
       // Carrera: si ya existe, busca y devuelve.
