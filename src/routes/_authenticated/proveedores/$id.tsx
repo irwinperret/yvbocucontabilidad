@@ -348,6 +348,7 @@ function TableroProveedor() {
 
   const movsSinFacturas = movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).length);
   const totalSinAplicar = movsDelProveedor.reduce((s, mv) => s + resumenMov(mv).sinAplicar, 0);
+  const totalSinAplicarUsd = movsDelProveedor.reduce((s, mv) => s + resumenMov(mv).sinAplicarUsd, 0);
 
   const totalUsdBcvFacturasSinMov = facturasSinMov.reduce((s, c) => s + pendienteUsdBcv(c), 0);
   const totalUsdBcvMovsSinFactura = movsSinFacturas.reduce((s, mv) => s + usdBcvDeMov(mv), 0);
@@ -631,8 +632,8 @@ function TableroProveedor() {
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Sin aplicar</div>
-            <div className="text-lg font-semibold mono">{fmtBs(totalSinAplicar)}</div>
+            <div className="text-xs text-muted-foreground">Sin aplicar (USD BCV)</div>
+            <div className="text-lg font-semibold mono">{fmtUsd(totalSinAplicarUsd)}</div>
           </CardContent>
         </Card>
         <Card
