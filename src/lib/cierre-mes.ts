@@ -197,15 +197,31 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
   ]);
   const cerrados = new Set((cierres ?? []).map((c: any) => c.periodo));
 
+  const hoy = new Date();
+  const periodoActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+
   const resultado = new Map<string, CogsEstimado>();
   for (let mes = 1; mes <= 12; mes++) {
     const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
     if (cerrados.has(periodo)) continue; // cerrado: usar el valor real, no estimar
     const ini = (snaps ?? []).find((s: any) => s.periodo === periodo && s.tipo === "inicial");
-    const fin = (snaps ?? []).find((s: any) => s.periodo === periodo && s.tipo === "final");
-    if (!ini || !fin) continue; // sin inventario final todavía: no se puede estimar
+    if (!ini) continue; // sin inventario inicial: no se puede estimar nada
 
-    const r = await calcularCierre(periodo, Number((ini as any).monto_usd) || 0, Number((fin as any).monto_usd) || 0);
+    let finUsd: number;
+    if (periodo === periodoActual) {
+      // Mes actual (el "último" mes, todavía en curso): no se sabe cuánto
+      // inventario queda de verdad, así que se ASUME que no hubo cambio
+      // (final = inicial) para no inflar el COGS con un valor de relleno
+      // (ej. "0.00") que nadie terminó de cargar todavía. Esto es solo para
+      // el cálculo en pantalla — nunca se guarda nada en inventario_snapshots.
+      finUsd = Number((ini as any).monto_usd) || 0;
+    } else {
+      const fin = (snaps ?? []).find((s: any) => s.periodo === periodo && s.tipo === "final");
+      if (!fin) continue; // otro mes abierto sin inventario final: no se puede estimar
+      finUsd = Number((fin as any).monto_usd) || 0;
+    }
+
+    const r = await calcularCierre(periodo, Number((ini as any).monto_usd) || 0, finUsd);
     resultado.set(periodo, { cogsBs: r.cogsBs, cogsUsdBcv: r.cogsUsdBcv, cogsUsdParalelo: r.cogsUsdParalelo });
   }
   return resultado;
