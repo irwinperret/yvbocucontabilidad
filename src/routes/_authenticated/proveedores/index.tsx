@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Inbox } from "lucide-react";
+import { Plus, Inbox, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { DeleteButton } from "@/components/delete-button";
 import { logAudit } from "@/lib/audit";
@@ -33,6 +33,16 @@ function ProveedoresPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busca, setBusca] = useState("");
+  const [editandoNombreId, setEditandoNombreId] = useState<string | null>(null);
+  const [nombreEdit, setNombreEdit] = useState("");
+  const guardarNombreInline = async (id: string) => {
+    if (!nombreEdit.trim()) return toast.error("Ingresa un nombre");
+    const { error } = await supabase.from("terceros").update({ razon_social: nombreEdit.trim() } as any).eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Nombre actualizado");
+    setEditandoNombreId(null);
+    qc.invalidateQueries({ queryKey: ["proveedores"] });
+  };
   const blank = {
     razon_social: "", nombre_comercial: "", tipo_rif: "J", rif: "",
     tipo: "proveedor", email: "", telefono: "", direccion_fiscal: "",
@@ -157,17 +167,44 @@ function ProveedoresPage() {
                   {filtrados.map((t: any) => (
                     <tr key={t.id} className="border-b last:border-0">
                       <td className="py-2 px-2">
-                        <Link
-                          to="/proveedores/$id"
-                          params={{ id: t.id }}
-                          className="text-primary hover:underline"
-                        >
-                          {t.razon_social}
-                        </Link>
-                        {t.estado_registro === "candidato" && (
-                          <Badge variant="outline" className="ml-2 text-[10px] text-amber-600 border-amber-600/40">
-                            Pendiente de verificar
-                          </Badge>
+                        {editandoNombreId === t.id ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              autoFocus
+                              value={nombreEdit}
+                              onChange={(e) => setNombreEdit(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") guardarNombreInline(t.id); if (e.key === "Escape") setEditandoNombreId(null); }}
+                              className="h-7 w-56"
+                            />
+                            <Button size="sm" className="h-7 px-2" onClick={() => guardarNombreInline(t.id)}>Guardar</Button>
+                            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditandoNombreId(null)}>Cancelar</Button>
+                          </div>
+                        ) : (
+                          <>
+                            <Link
+                              to="/proveedores/$id"
+                              params={{ id: t.id }}
+                              className="text-primary hover:underline"
+                            >
+                              {t.razon_social}
+                            </Link>
+                            {t.estado_registro === "candidato" && (
+                              <>
+                                <Badge variant="outline" className="ml-2 text-[10px] text-amber-600 border-amber-600/40">
+                                  Pendiente de verificar
+                                </Badge>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 ml-1"
+                                  title="Editar nombre"
+                                  onClick={() => { setEditandoNombreId(t.id); setNombreEdit(t.razon_social ?? ""); }}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
+                          </>
                         )}
                       </td>
                       <td className="py-2 px-2 mono text-xs">
