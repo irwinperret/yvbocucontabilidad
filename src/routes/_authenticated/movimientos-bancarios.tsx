@@ -446,7 +446,7 @@ function MovimientosBancariosPage() {
     // Secuencial a propósito: evita crear dos candidatos duplicados para el
     // mismo nombre si dos movimientos con el mismo memo se procesaran en paralelo.
     for (const f of sinPareoSinProveedor) {
-      const nombre = nombreProveedorDeMemo(f.mov.notas);
+      const nombre = nombreProveedorDeMemo(f.mov.detalle);
       if (!nombre) { sinNombre++; continue; }
       const candidato = await obtenerOCrearCandidato(nombre);
       if (!candidato) { sinNombre++; continue; }

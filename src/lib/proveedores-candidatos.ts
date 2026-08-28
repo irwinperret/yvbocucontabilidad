@@ -1,14 +1,24 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Extrae un nombre de proveedor candidato del memo de un movimiento bancario
- * sin factura pareada. Toma el texto ANTES de donde empieza cualquier patrón
- * de número de documento (FACT/F+dígito/NE/PEDIDO/referencia suelta), ya que
- * esa es casi siempre la parte que identifica a quién se le pagó.
+ * Extrae un nombre de proveedor candidato de un texto descriptivo (el campo
+ * "detalle" de un movimiento bancario, con formato tipo
+ * "SIN FACTURA XETUX · NOMBRE DEL PROVEEDOR NE 12345" o similar — nunca el
+ * campo "notas", que siempre arranca con el texto fijo "Conciliación
+ * bancaria..." y NO es el nombre).
+ *
+ * Primero se queda con el último segmento después del separador "·" (ahí es
+ * donde vive el texto original del concepto bancario), y sobre ESE segmento
+ * corta donde empieza cualquier patrón de número de documento
+ * (FACT/F+dígito/NE/PEDIDO/PTTO/referencia suelta), ya que esa es casi
+ * siempre la parte que identifica a quién se le pagó.
  */
 export function nombreProveedorDeMemo(memo: string | null | undefined): string | null {
-  const t = String(memo ?? "").trim();
-  if (!t) return null;
+  const crudo = String(memo ?? "").trim();
+  if (!crudo) return null;
+  // Si hay separadores "·", el texto útil es el ÚLTIMO segmento.
+  const partes = crudo.split("·").map((p) => p.trim()).filter(Boolean);
+  const t = partes.length ? partes[partes.length - 1] : crudo;
   const mayus = t.toUpperCase();
 
   // Buscar la posición más temprana de cualquier patrón de documento.
@@ -17,6 +27,7 @@ export function nombreProveedorDeMemo(memo: string | null | undefined): string |
     /\bF\s?\d/,
     /\bNE\.?\s*\d/,
     /\bPEDIDOS?\b/,
+    /\bPTTO\.?\b/,
     /\bCONF#/i,
     /\b\d{4,}\b/, // número suelto de 4+ dígitos (referencia, cédula, etc.)
   ];
