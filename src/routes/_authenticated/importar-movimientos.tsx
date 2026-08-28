@@ -783,6 +783,16 @@ function ImportarMovimientosInner() {
             .select();
           if (errCambio) throw new Error(errCambio.message);
           for (const tx of legs ?? []) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+          // La pata bancaria queda conciliada de una vez como "no contable":
+          // una operación de cambio nunca va a tener factura ni proveedor.
+          const legBanco = (legs ?? []).find((l: any) => l.referencia === bankRow.huella) ?? (legs ?? [])[0];
+          if (legBanco) {
+            await marcarEstadoConciliacion({
+              movimientoId: (legBanco as any).id,
+              estado: "no_contable",
+              userId: user.id,
+            });
+          }
           noAplicaCount++;
           importados.add(bankRow.id);
           setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
