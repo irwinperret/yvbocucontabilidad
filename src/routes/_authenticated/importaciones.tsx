@@ -257,7 +257,7 @@ function ImportacionesPage() {
             <div>
               <CardTitle className="text-base">Residuos de importaciones</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Transacciones de origen importado (movimientos bancarios, compras Xetux, pareos) que quedaron
+                Transacciones de origen importado (movimientos bancarios, compras Xetux) que quedaron
                 sin carga asociada y por eso no se borran al revertir. No incluye registros manuales ni standby.
               </p>
             </div>

@@ -234,14 +234,18 @@ export const ORIGEN_LABEL: Record<Residuo["origen"], string> = {
 export async function listarResiduos(): Promise<Residuo[]> {
   const cols = "id, fecha, cuenta_codigo, monto_bs, monto_usd, referencia, notas, created_at, standby";
   const base = () => supabase.from("transacciones").select(cols).is("import_batch_id", null);
-  const [bank, pareo, xetux] = await Promise.all([
+  // OJO: las transacciones "PAREO:..." (pago de CxP generado al confirmar un
+  // pareo manual) NUNCA tienen import_batch_id por diseño — no vienen de un
+  // archivo importado en lote, se crean una por una al confirmar el pareo en
+  // pantalla. Incluirlas aquí las hacía aparecer siempre como "residuo",
+  // aunque sean pagos reales y válidos que no hay que tocar.
+  const [bank, xetux] = await Promise.all([
     base().like("referencia", "BANK:%"),
-    base().like("referencia", "PAREO:%"),
     base().eq("referencia", "xetux"),
   ]);
-  const error = bank.error ?? pareo.error ?? xetux.error;
+  const error = bank.error ?? xetux.error;
   if (error) throw error;
-  const data = [...(bank.data ?? []), ...(pareo.data ?? []), ...(xetux.data ?? [])].sort((a: any, b: any) =>
+  const data = [...(bank.data ?? []), ...(xetux.data ?? [])].sort((a: any, b: any) =>
     a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0
   );
   return (data ?? [])
