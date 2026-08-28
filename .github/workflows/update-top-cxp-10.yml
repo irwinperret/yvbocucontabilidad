@@ -42,3 +42,5 @@ jobs:
           git add .github/workflows/update-top-cxp-10.yml
           git commit -m 'Remove temporary CxP top 10 workflow'
           git push
+          # Triggered by a fresh main-branch commit so the workflow executes.
+          # This workflow is intentionally one-shot.
