@@ -903,7 +903,11 @@ function MovimientosBancariosPage() {
                               </Button>
                             </div>
                           )}
-                          {f.tienePareoFactura ? (
+                          {esCuentaNoConciliable(f.mov.cuenta_codigo) ? (
+                            <span className="text-[11px] text-muted-foreground pt-1">
+                              Operación de cambio (98): no se concilia con facturas ni se asigna a un proveedor.
+                            </span>
+                          ) : f.tienePareoFactura ? (
                             <span className="text-[11px] text-muted-foreground pt-1">
                               Para cambiar el estado a mano, primero quita el pareo.
                             </span>

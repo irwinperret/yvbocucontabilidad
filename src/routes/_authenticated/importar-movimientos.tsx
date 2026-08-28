@@ -31,7 +31,7 @@ import {
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
-import { CUENTA_CAMBIO, esCambio } from "@/lib/operaciones-cambio";
+import { CUENTA_CAMBIO, esCambio, esCuentaNoConciliable } from "@/lib/operaciones-cambio";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { pendienteBsAFecha, pendienteUsdBcv } from "@/lib/cxp-saldo";
 import {
@@ -783,6 +783,16 @@ function ImportarMovimientosInner() {
             .select();
           if (errCambio) throw new Error(errCambio.message);
           for (const tx of legs ?? []) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+          // La pata bancaria queda conciliada de una vez como "no contable":
+          // una operación de cambio nunca va a tener factura ni proveedor.
+          const legBanco = (legs ?? []).find((l: any) => l.referencia === bankRow.huella) ?? (legs ?? [])[0];
+          if (legBanco) {
+            await marcarEstadoConciliacion({
+              movimientoId: (legBanco as any).id,
+              estado: "no_contable",
+              userId: user.id,
+            });
+          }
           noAplicaCount++;
           importados.add(bankRow.id);
           setProgress((p) => p ? { ...p, done: p.done + 1 } : p);
@@ -815,8 +825,10 @@ function ImportarMovimientosInner() {
 
           // Proveedor y N° de factura deducidos del concepto bancario, para que
           // la fila no quede "en blanco" en la tabla de compras del mes.
-          const provAdivinado = noAplica ? null : proveedorDeMemo(bankRow.concepto, tercerosRef);
-          const factAdivinada = noAplica ? null : facturaDeMemo(bankRow.concepto);
+          // La cuenta 98 (operaciones de cambio) nunca admite proveedor ni factura.
+          const sinProveedor = noAplica || esCuentaNoConciliable(m.cuentaCodigo);
+          const provAdivinado = sinProveedor ? null : proveedorDeMemo(bankRow.concepto, tercerosRef);
+          const factAdivinada = sinProveedor ? null : facturaDeMemo(bankRow.concepto);
 
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
@@ -850,10 +862,10 @@ function ImportarMovimientosInner() {
           // Cuentas que por naturaleza nunca van a tener factura de Xetux (servicios,
           // transporte, mantenimiento, devoluciones) quedan conciliadas de una vez
           // como "gasto directo", sin esperar revisión manual.
-          if (tx && esGastoDirectoAuto(m.cuentaCodigo)) {
+          if (tx && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo))) {
             await marcarEstadoConciliacion({
               movimientoId: (tx as any).id,
-              estado: "gasto_directo",
+              estado: esCuentaNoConciliable(m.cuentaCodigo) ? "no_contable" : "gasto_directo",
               userId: user.id,
             });
           }
