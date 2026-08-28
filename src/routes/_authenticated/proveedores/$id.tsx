@@ -496,6 +496,31 @@ function TableroProveedor() {
     }
   };
 
+  /**
+   * Igual que moverFactura, pero NO quita el vínculo que la factura ya tenga
+   * con otro movimiento — se usa para dividir el pago de una factura entre
+   * 2 o 3 movimientos distintos (una factura grande pagada en varias partes).
+   */
+  const agregarFacturaAOtroMovimiento = async (cxpId: string, destinoMovId: string) => {
+    const cxp = (cxps ?? []).find((c) => c.id === cxpId);
+    if (!cxp) return;
+    if (!cxp.transaccion_id) return toast.error("La factura no tiene transacción asociada.");
+    const destino = movsDelProveedor.find((mv) => mv.id === destinoMovId) ?? null;
+    if (!destino) return;
+    if (cxpsDeMov(destino.id).some((c) => c.id === cxpId)) return; // ya está ahí
+
+    setBusy(true);
+    try {
+      await aplicarConjunto(destino, [...cxpsDeMov(destino.id), cxp]);
+      toast.success("Factura agregada también a este movimiento (pago dividido)");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo agregar la factura");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /** Libera todas las facturas de un movimiento. */
   const liberarMov = async (mov: any) => {
     setBusy(true);
@@ -791,6 +816,17 @@ function TableroProveedor() {
               {movsFiltrados.map((mv) => {
                 const { lista, montoMov, aplicado, sinAplicar, aplicadoUsd, sinAplicarUsd, aplicadoPorCxp } = resumenMov(mv);
                 const asignables = facturasSinMov.filter((c) => c.transaccion_id);
+                // Facturas que YA están en otro movimiento de este proveedor,
+                // pero todavía tienen saldo pendiente: se pueden agregar TAMBIÉN
+                // aquí para dividir su pago entre varios movimientos.
+                const facturasParaDividir = (cxps ?? []).filter(
+                  (c) =>
+                    c.transaccion_id &&
+                    c.estado !== "pagada" &&
+                    pendienteUsdBcv(c) > 0.01 &&
+                    !cxpsDeMov(mv.id).some((x) => x.id === c.id) &&
+                    movsDelProveedor.some((m) => m.id !== mv.id && cxpsDeMov(m.id).some((x) => x.id === c.id)),
+                );
                 return (
                   <Zona key={mv.id} id={`mov:${mv.id}`} className="border rounded-md p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -858,17 +894,35 @@ function TableroProveedor() {
                           />
                         ))
                       )}
-                      {asignables.length > 0 && (
-                        <Select onValueChange={(v) => moverFactura(v, mv.id)}>
+                      {(asignables.length > 0 || facturasParaDividir.length > 0) && (
+                        <Select
+                          onValueChange={(v) => {
+                            const [accion, id] = v.split(":");
+                            if (accion === "dividir") agregarFacturaAOtroMovimiento(id, mv.id);
+                            else moverFactura(id, mv.id);
+                          }}
+                        >
                           <SelectTrigger className="h-8 text-xs w-64 mt-1">
                             <SelectValue placeholder="Agregar factura…" />
                           </SelectTrigger>
                           <SelectContent>
                             {asignables.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
+                              <SelectItem key={c.id} value={`mover:${c.id}`}>
                                 {c.numero_factura ?? "s/n"} · {fmtBs(pendienteBsHistorico(c))}
                               </SelectItem>
                             ))}
+                            {facturasParaDividir.length > 0 && (
+                              <>
+                                <div className="px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wide">
+                                  Dividir pago (ya asignadas a otro movimiento)
+                                </div>
+                                {facturasParaDividir.map((c) => (
+                                  <SelectItem key={`div-${c.id}`} value={`dividir:${c.id}`}>
+                                    {c.numero_factura ?? "s/n"} · {fmtUsd(pendienteUsdBcv(c))} USD BCV pendiente
+                                  </SelectItem>
+                                ))}
+                              </>
+                            )}
                           </SelectContent>
                         </Select>
                       )}
