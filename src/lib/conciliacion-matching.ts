@@ -333,7 +333,7 @@ export function sugerirCombinacionParaFactura(
   };
   buscar(0, [], 0);
 
-  return mejor ? mejor.map((i) => relevantes[i].id) : [];
+  return mejor ? (mejor as number[]).map((i) => relevantes[i].id) : [];
 }
 
 /** Números del memo que existen realmente como factura y los que no */
