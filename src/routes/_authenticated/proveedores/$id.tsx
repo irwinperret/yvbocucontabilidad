@@ -270,6 +270,14 @@ function TableroProveedor() {
 
   const movsDelProveedor = useMemo(() => {
     return (movimientos ?? []).filter((mv) => {
+      // An explicit supplier assignment on the bank movement is authoritative for
+      // the supplier dashboard. A reconciliation link must not hide that movement.
+      if (esSin) {
+        if (mv.tercero_id) return false;
+      } else if (mv.tercero_id === id) {
+        return true;
+      }
+
       const ligados = movAFacturas.get(mv.id) ?? [];
       if (ligados.some((f) => facturaIds.has(f))) return true;
       if (ligados.length) return false; // pareado con otro proveedor
