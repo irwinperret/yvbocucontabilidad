@@ -862,10 +862,10 @@ function ImportarMovimientosInner() {
           // Cuentas que por naturaleza nunca van a tener factura de Xetux (servicios,
           // transporte, mantenimiento, devoluciones) quedan conciliadas de una vez
           // como "gasto directo", sin esperar revisión manual.
-          if (tx && esGastoDirectoAuto(m.cuentaCodigo)) {
+          if (tx && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo))) {
             await marcarEstadoConciliacion({
               movimientoId: (tx as any).id,
-              estado: "gasto_directo",
+              estado: esCuentaNoConciliable(m.cuentaCodigo) ? "no_contable" : "gasto_directo",
               userId: user.id,
             });
           }
