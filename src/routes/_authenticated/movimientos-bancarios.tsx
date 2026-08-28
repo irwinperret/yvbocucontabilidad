@@ -622,7 +622,7 @@ function MovimientosBancariosPage() {
         provFuente: f.provFuente === "asignado" ? "Asignado" : f.provFuente === "memo" ? "Deducido del memo" : "—",
         estado:
           f.estado === "no_aplica"
-            ? (f.claseNoAplica === "no_contable" ? "No aplica (no contable)" : "Gasto directo (sin factura)")
+            ? (f.claseNoAplica === "no_contable" ? "No aplica (no contable)" : "Gasto Stand-Alone (sin factura)")
             : ESTADO_LABEL[f.estado],
         impactoReportes:
           f.estado === "no_aplica" && f.claseNoAplica === "no_contable" && f.mov.cuenta_codigo !== "99" ? "No afecta G&P/FC" : "Afecta G&P y FC",
@@ -662,7 +662,7 @@ function MovimientosBancariosPage() {
     if (e === "no_aplica")
       return clase === "no_contable"
         ? <Badge variant="outline">No aplica (no contable)</Badge>
-        : <Badge variant="secondary">Gasto directo (sin factura)</Badge>;
+        : <Badge variant="secondary">Gasto Stand-Alone (sin factura)</Badge>;
 
     return <Badge variant="destructive">Sin pareo</Badge>;
   };
@@ -727,14 +727,14 @@ function MovimientosBancariosPage() {
         <Kpi label="Pareados" value={resumen.pareado} tone="text-green-600" />
         <Kpi label="Pareo parcial" value={resumen.parcial} tone="text-amber-600" />
         <Kpi label="Posible pareo" value={resumen.posible} tone="text-orange-600" />
-        <Kpi label="Gasto directo (sin factura)" value={resumen.gasto_directo} tone="text-muted-foreground" />
+        <Kpi label="Gasto Stand-Alone (sin factura)" value={resumen.gasto_directo} tone="text-muted-foreground" />
         <Kpi label="Pendiente de revisión" value={resumen.pendiente_revision} tone="text-blue-600" highlight={resumen.pendiente_revision > 0} />
         <Kpi label="Sin pareo" value={resumen.sin_pareo} tone="text-destructive" highlight={resumen.sin_pareo > 0} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Kpi label={`Pagado contra facturas (CxP) · ${usdLabel}`} value={fmtUsd(resumen.bsPareado)} tone="text-green-600" sub="Afecta G&P y FC" />
-        <Kpi label={`Gasto directo sin factura · ${usdLabel}`} value={fmtUsd(resumen.bsGastoDirecto)} sub="Afecta G&P y FC" />
+        <Kpi label={`Gasto Stand-Alone sin factura · ${usdLabel}`} value={fmtUsd(resumen.bsGastoDirecto)} sub="Afecta G&P y FC" />
         <Kpi
           label={`En 99 — POR DETERMINAR · ${usdLabel}`}
           value={fmtUsd(resumen.bsPorDeterminar)}
@@ -764,7 +764,7 @@ function MovimientosBancariosPage() {
                 <SelectItem value="pareado">Pareado</SelectItem>
                 <SelectItem value="parcial">Pareado parcial</SelectItem>
                 <SelectItem value="posible">Posible pareo</SelectItem>
-                <SelectItem value="no_aplica">Gasto directo / no aplica</SelectItem>
+                <SelectItem value="no_aplica">Gasto Stand-Alone / no aplica</SelectItem>
                 <SelectItem value="pendiente_revision">Pendiente de revisión</SelectItem>
                 <SelectItem value="sin_pareo">Sin pareo</SelectItem>
               </SelectContent>

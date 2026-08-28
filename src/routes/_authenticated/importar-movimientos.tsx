@@ -1237,7 +1237,7 @@ function ImportarMovimientosInner() {
                           )}
                           {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && noAplicaFactura(m) && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0">
-                              Gasto directo (sin factura) — afecta G&P y FC
+                              Gasto Stand-Alone (sin factura) — afecta G&P y FC
                             </Badge>
                           )}
                           {!m.duplicado && m.cxps.length === 0 && m.cuentaCodigo && !noAplicaFactura(m) && !requiereCxP(m.bankRow.categoria) && (

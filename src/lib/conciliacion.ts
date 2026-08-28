@@ -117,7 +117,7 @@ export const CUENTAS_SERVICIOS = new Set(["3.14", "3.15", "3.18"]);
 
 /**
  * Cuentas que, al importarse desde movimientos bancarios, se marcan
- * automáticamente como "Gasto directo (sin factura)" en la conciliación:
+ * automáticamente como "Gasto Stand-Alone (sin factura)" en la conciliación:
  * nunca van a tener una factura de Xetux asociada, así que no tiene sentido
  * dejarlas pendientes de revisión.
  */
@@ -240,7 +240,7 @@ export async function guardarVinculosConciliacion(
 export type EstadoManual = "gasto_directo" | "no_contable" | "sin_pareo" | "pareado" | "pendiente_revision";
 
 export const ESTADO_MANUAL_LABEL: Record<EstadoManual, string> = {
-  gasto_directo: "Gasto directo (sin factura)",
+  gasto_directo: "Gasto Stand-Alone (sin factura)",
   no_contable: "No aplica (no contable)",
   sin_pareo: "Sin pareo (revisado)",
   pareado: "Pareado (sin factura)",
