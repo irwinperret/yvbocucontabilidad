@@ -8,6 +8,14 @@
  */
 export const CUENTA_CAMBIO = "98";
 
+/**
+ * ¿Esta cuenta nunca se concilia contra facturas ni admite proveedor?
+ * Solo la 98 (operaciones de cambio): no hay factura ni tercero posible, y
+ * confundirlas con un proveedor ensucia el tablero de conciliación.
+ */
+export const esCuentaNoConciliable = (codigo?: string | null): boolean =>
+  String(codigo ?? "").trim() === CUENTA_CAMBIO;
+
 export type TipoCambio = "compra" | "venta";
 
 export const TIPO_CAMBIO_LABEL: Record<TipoCambio, string> = {
