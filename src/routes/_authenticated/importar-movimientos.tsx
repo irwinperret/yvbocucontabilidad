@@ -31,7 +31,7 @@ import {
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
-import { CUENTA_CAMBIO, esCambio } from "@/lib/operaciones-cambio";
+import { CUENTA_CAMBIO, esCambio, esCuentaNoConciliable } from "@/lib/operaciones-cambio";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { pendienteBsAFecha, pendienteUsdBcv } from "@/lib/cxp-saldo";
 import {
