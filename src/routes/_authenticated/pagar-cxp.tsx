@@ -125,7 +125,7 @@ function PagarCxPPage() {
   const totalPorVencer = porVencer.reduce((s: number, c: any) => s + saldoUsdBcv(c), 0);
   const total = lista.reduce((s: number, c: any) => s + saldoUsdBcv(c), 0);
 
-  const top5Proveedores = useMemo(() => {
+  const top10Proveedores = useMemo(() => {
     const porTercero = new Map<string, { nombre: string; total: number }>();
     for (const c of lista) {
       if (!c.tercero_id) continue; // sin proveedor vinculado: no hay a dónde navegar, se excluye
@@ -137,7 +137,7 @@ function PagarCxPPage() {
     }
     return Array.from(porTercero, ([tercero_id, v]) => ({ tercero_id, ...v }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
+      .slice(0, 10);
   }, [lista, terceros]);
 
   return (
@@ -157,13 +157,13 @@ function PagarCxPPage() {
         <KpiCxP label="Total (USD BCV)" value={fmtUsd(total)} count={lista.length} color="" />
       </div>
 
-      {top5Proveedores.length > 0 && (
+      {top10Proveedores.length > 0 && (
         <div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-            Top 5 proveedores con más CxP pendiente
+            Top 10 proveedores con más CxP pendiente
           </p>
-          <div className="grid gap-3 md:grid-cols-5">
-            {top5Proveedores.map((p) => (
+          <div className="grid gap-3 md:grid-cols-5 lg:grid-cols-10">
+            {top10Proveedores.map((p) => (
               <Link key={p.tercero_id} to="/proveedores/$id" params={{ id: p.tercero_id }}>
                 <Card className="h-full hover:border-primary/60 hover:bg-muted/30 transition-colors cursor-pointer">
                   <CardContent className="pt-4">
