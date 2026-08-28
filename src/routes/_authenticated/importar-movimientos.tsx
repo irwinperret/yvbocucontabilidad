@@ -825,8 +825,10 @@ function ImportarMovimientosInner() {
 
           // Proveedor y N° de factura deducidos del concepto bancario, para que
           // la fila no quede "en blanco" en la tabla de compras del mes.
-          const provAdivinado = noAplica ? null : proveedorDeMemo(bankRow.concepto, tercerosRef);
-          const factAdivinada = noAplica ? null : facturaDeMemo(bankRow.concepto);
+          // La cuenta 98 (operaciones de cambio) nunca admite proveedor ni factura.
+          const sinProveedor = noAplica || esCuentaNoConciliable(m.cuentaCodigo);
+          const provAdivinado = sinProveedor ? null : proveedorDeMemo(bankRow.concepto, tercerosRef);
+          const factAdivinada = sinProveedor ? null : facturaDeMemo(bankRow.concepto);
 
           const { data: tx, error } = await supabase.from("transacciones").insert({
             fecha: bankRow.fecha,
