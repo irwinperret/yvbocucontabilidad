@@ -13,6 +13,8 @@ export type LineasFCMes = {
   gastoIntereses: number;
   gastoImpuestos: number;
   gastoDividendos: number;
+  /** true si el COGS de este mes es un estimado (mes abierto, sin cierre formal aún). */
+  cogsEsEstimado?: boolean;
 };
 
 export const CUENTA_INGRESO_CREDITO = "1.4";
@@ -58,8 +60,10 @@ export function calcularLineasFC(opts: {
   cxpCreadas: { created_at: string; monto_usd: number }[];
   anio: number;
   usdDe: (t: any) => number;
+  /** Meses abiertos con COGS estimado (de estimarCogsMesesAbiertos en cierre-mes.ts). */
+  cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number }>;
 }): LineasFCMes[] {
-  const { rows: r, capexRows, inventario, cxpCreadas, anio, usdDe } = opts;
+  const { rows: r, capexRows, inventario, cxpCreadas, anio, usdDe, cogsEstimadoPorMes } = opts;
   const sum = (codigos: string[], mes: number) =>
     r.filter((x) => codigos.includes(x.cuenta_codigo) && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
   const sumTotal = (codigo: string, mes: number) =>
@@ -70,7 +74,8 @@ export function calcularLineasFC(opts: {
     const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
 
     const ingresos = sum(CUENTAS_INGRESO_GYP, mes);
-    const cogs = sum(CUENTAS_COGS, mes);
+    const estimado = cogsEstimadoPorMes?.get(periodo);
+    const cogs = estimado ? estimado.cogsUsdBcv : sum(CUENTAS_COGS, mes);
     const costosFijos = r.filter((x) => x.cuenta_codigo.startsWith("3.") && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
     const costosVariables = r.filter((x) => (x.cuenta_codigo.startsWith("4.") || x.cuenta_codigo === "99") && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
     const ebitda = ingresos - cogs - costosFijos - costosVariables;
@@ -99,7 +104,7 @@ export function calcularLineasFC(opts: {
     const gastoImpuestos = sum(CUENTAS_IMPUESTOS_GASTO, mes);
     const gastoDividendos = sumTotal(CUENTA_DIVIDENDOS, mes);
 
-    return { ebitda, cambioCxC, cambioInventario, cambioCxP, compraInmuebles, compraEquipos, aumentoCapital, aumentoPrestamos, gastoIntereses, gastoImpuestos, gastoDividendos };
+    return { ebitda, cambioCxC, cambioInventario, cambioCxP, compraInmuebles, compraEquipos, aumentoCapital, aumentoPrestamos, gastoIntereses, gastoImpuestos, gastoDividendos, cogsEsEstimado: !!estimado };
   });
 }
 

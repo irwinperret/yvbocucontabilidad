@@ -15,6 +15,7 @@ import { exportGyP } from "@/lib/excel-export";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { GyPCharts } from "@/components/gyp-charts";
+import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
@@ -31,6 +32,8 @@ type ExpandCtx = {
   isExpanded: (k: string) => boolean;
   centro: string;
   rows: Row[];
+  cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number }> | undefined;
+  anio: number;
 };
 
 function GyPPage() {
@@ -73,6 +76,15 @@ function GyPPage() {
     },
   });
 
+  // COGS estimado para meses abiertos (sin cierre formal, con inventario ya
+  // cargado) — misma fórmula que un cierre real, para que G&P no muestre un
+  // COGS incompleto (solo compras, sin el ajuste de inventario) en el mes
+  // en curso.
+  const { data: cogsEstimadoPorMes } = useQuery({
+    queryKey: ["gyp-cogs-estimado", anio],
+    queryFn: () => estimarCogsMesesAbiertos(anio),
+  });
+
   const allGroupKeys = useMemo(() => {
     const s = new Set<string>();
     (cuentas ?? []).forEach((c) => { if (c.grupo) s.add(`grp::${c.grupo}`); });
@@ -82,7 +94,7 @@ function GyPPage() {
   const expandAll = () => setExpanded(new Set(allGroupKeys));
   const collapseAll = () => setExpanded(new Set());
 
-  const ctx: ExpandCtx = { expanded, toggle, isExpanded, centro, rows: rows ?? [] };
+  const ctx: ExpandCtx = { expanded, toggle, isExpanded, centro, rows: rows ?? [], cogsEstimadoPorMes, anio };
 
   const ExpandControls = () => (
     <div className="flex gap-2">
@@ -183,11 +195,53 @@ function buildGrupos(cuentas: Cuenta[], filterCodigo: (codigo: string) => boolea
   return Object.values(map);
 }
 
+/**
+ * Para meses abiertos (sin cierre formal) donde ya se cargó el inventario,
+ * calcula cuánto habría que AJUSTAR el COGS ya sumado (que solo tiene
+ * compras, sin el ajuste de inventario que crea el cierre real) para que
+ * refleje el estimado — mismo criterio que Flujo de Caja y el Dashboard.
+ */
+function ajusteCogsEstimado(
+  rows: Row[],
+  cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number }> | undefined,
+  anio: number,
+  meses: number[],
+): { ajuste: number; mesesEstimados: number[] } {
+  if (!cogsEstimadoPorMes?.size) return { ajuste: 0, mesesEstimados: [] };
+  let ajuste = 0;
+  const mesesEstimados: number[] = [];
+  for (const mes of meses) {
+    const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
+    const estimado = cogsEstimadoPorMes.get(periodo);
+    if (!estimado) continue;
+    const cogsYaSumado = rows.filter((r) => r.cuenta_codigo.startsWith("2.") && r.mes === mes).reduce((s, r) => s + Number(r.base_usd || 0), 0);
+    ajuste += estimado.cogsUsdBcv - cogsYaSumado;
+    mesesEstimados.push(mes);
+  }
+  return { ajuste, mesesEstimados };
+}
+
+/** Agrega el ajuste como una fila más dentro del grupo COGS (si hay alguno distinto de cero). */
+function conAjusteCogs(cogs: GrupoData[], ajuste: number): GrupoData[] {
+  if (Math.abs(ajuste) < 0.01) return cogs;
+  const cuentaFicticia: Cuenta = { codigo: "2.2*", nombre: "Ajuste estimado (mes abierto)", grupo: "COGS" };
+  const existente = cogs.find((g) => g.grupo === "COGS");
+  if (existente) {
+    return cogs.map((g) =>
+      g.grupo === "COGS"
+        ? { ...g, subtotal: g.subtotal + ajuste, items: [...g.items, { cuenta: cuentaFicticia, total: ajuste }] }
+        : g,
+    );
+  }
+  return [...cogs, { grupo: "COGS", subtotal: ajuste, items: [{ cuenta: cuentaFicticia, total: ajuste }] }];
+}
+
 // ---------- Mes individual ----------
 function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[]; mes: number; ctx: ExpandCtx }) {
   const sumFn = (r: Row) => r.mes === mes;
   const ing = buildGrupos(cuentas, (c) => c.startsWith("1."), rows, sumFn);
-  const cogs = buildGrupos(cuentas, (c) => c.startsWith("2."), rows, sumFn);
+  const { ajuste: ajusteCogs, mesesEstimados } = ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, [mes]);
+  const cogs = conAjusteCogs(buildGrupos(cuentas, (c) => c.startsWith("2."), rows, sumFn), ajusteCogs);
   const op = buildGrupos(cuentas, (c) => /^[3-6]\./.test(c) || c === "99", rows, sumFn);
   const imp = buildGrupos(cuentas, (c) => c.startsWith("7."), rows, sumFn);
 
@@ -201,6 +255,11 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
     <>
     <Card>
       <CardContent className="pt-4">
+        {mesesEstimados.length > 0 && (
+          <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 mb-3">
+            ⚠ El COGS de este mes es <b>estimado</b> — sigue abierto (sin cierre formal). Se calculó con el inventario y las compras ya cargados, pero puede cambiar cuando cierres el mes de verdad.
+          </div>
+        )}
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
         <Total label="TOTAL INGRESOS" value={totalIng} positive />
         <Seccion titulo="COGS" grupos={cogs} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} />
@@ -226,7 +285,9 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
 function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cuenta[]; hastaMes: number; ctx: ExpandCtx }) {
   const sumFn = (r: Row) => r.mes <= hastaMes;
   const ing = buildGrupos(cuentas, (c) => c.startsWith("1."), rows, sumFn);
-  const cogs = buildGrupos(cuentas, (c) => c.startsWith("2."), rows, sumFn);
+  const mesesYtd = Array.from({ length: hastaMes }, (_, i) => i + 1);
+  const { ajuste: ajusteCogs, mesesEstimados } = ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, mesesYtd);
+  const cogs = conAjusteCogs(buildGrupos(cuentas, (c) => c.startsWith("2."), rows, sumFn), ajusteCogs);
   const op = buildGrupos(cuentas, (c) => /^[3-6]\./.test(c) || c === "99", rows, sumFn);
   const imp = buildGrupos(cuentas, (c) => c.startsWith("7."), rows, sumFn);
   const sum = (g: GrupoData[]) => g.reduce((s, x) => s + x.subtotal, 0);
@@ -238,6 +299,11 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
     <>
     <Card>
       <CardContent className="pt-4">
+        {mesesEstimados.length > 0 && (
+          <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 mb-3">
+            ⚠ El COGS de {mesesEstimados.map((m) => MESES[m - 1]).join(", ")} es <b>estimado</b> — {mesesEstimados.length > 1 ? "esos meses siguen" : "ese mes sigue"} abierto(s) (sin cierre formal), calculado con el inventario y las compras ya cargados.
+          </div>
+        )}
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
         <Total label="TOTAL INGRESOS" value={totalIng} positive />
         <Seccion titulo="COGS" grupos={cogs} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} />
@@ -384,8 +450,20 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
       valores.forEach((v, i) => { map[c.grupo].subtotales[i] += v; });
       map[c.grupo].totalAnio += total;
     });
+    // Ajuste de COGS estimado por mes abierto (misma lógica que Mes/YTD).
+    if (ctx.cogsEstimadoPorMes?.size) {
+      const ajustesPorMes = MESES.map((_, i) => ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, [i + 1]).ajuste);
+      if (ajustesPorMes.some((a) => Math.abs(a) > 0.01)) {
+        const cuentaFicticia: Cuenta = { codigo: "2.2*", nombre: "Ajuste estimado (mes abierto)", grupo: "COGS" };
+        const totalAjuste = ajustesPorMes.reduce((s, a) => s + a, 0);
+        (map["COGS"] ||= { grupo: "COGS", items: [], subtotales: Array(12).fill(0), totalAnio: 0 });
+        map["COGS"].items.push({ cuenta: cuentaFicticia, valores: ajustesPorMes, total: totalAjuste });
+        ajustesPorMes.forEach((a, i) => { map["COGS"].subtotales[i] += a; });
+        map["COGS"].totalAnio += totalAjuste;
+      }
+    }
     return Object.values(map);
-  }, [cuentas, rows]);
+  }, [cuentas, rows, ctx.cogsEstimadoPorMes, ctx.anio]);
 
   const cellCls = (i: number, v: number) => {
     const futuro = anioRows >= anioActual && i + 1 > mesActual;

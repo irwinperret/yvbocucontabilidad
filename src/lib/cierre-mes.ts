@@ -178,3 +178,35 @@ export async function reabrirMes(periodo: string) {
   if (error) throw error;
   await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
 }
+
+export type CogsEstimado = { cogsBs: number; cogsUsdBcv: number; cogsUsdParalelo: number };
+
+/**
+ * Para meses ABIERTOS (sin cierre formal) donde ya se cargó el inventario
+ * inicial y final, calcula un COGS estimado con la MISMA fórmula del cierre
+ * oficial (Inicial + Compras − Final) — sin guardar nada, solo para mostrar
+ * en pantalla con una advertencia de "estimado, mes abierto".
+ *
+ * Los meses YA cerrados no aparecen en el resultado — para esos se debe
+ * seguir usando el valor real (la transacción 2.2 que ya existe).
+ */
+export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string, CogsEstimado>> {
+  const [{ data: cierres }, { data: snaps }] = await Promise.all([
+    supabase.from("cierres_de_mes").select("periodo").gte("periodo", `${anio}-01`).lte("periodo", `${anio}-12`),
+    supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd").gte("periodo", `${anio}-01`).lte("periodo", `${anio}-12`),
+  ]);
+  const cerrados = new Set((cierres ?? []).map((c: any) => c.periodo));
+
+  const resultado = new Map<string, CogsEstimado>();
+  for (let mes = 1; mes <= 12; mes++) {
+    const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
+    if (cerrados.has(periodo)) continue; // cerrado: usar el valor real, no estimar
+    const ini = (snaps ?? []).find((s: any) => s.periodo === periodo && s.tipo === "inicial");
+    const fin = (snaps ?? []).find((s: any) => s.periodo === periodo && s.tipo === "final");
+    if (!ini || !fin) continue; // sin inventario final todavía: no se puede estimar
+
+    const r = await calcularCierre(periodo, Number((ini as any).monto_usd) || 0, Number((fin as any).monto_usd) || 0);
+    resultado.set(periodo, { cogsBs: r.cogsBs, cogsUsdBcv: r.cogsUsdBcv, cogsUsdParalelo: r.cogsUsdParalelo });
+  }
+  return resultado;
+}

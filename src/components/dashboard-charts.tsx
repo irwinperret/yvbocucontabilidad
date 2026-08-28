@@ -10,6 +10,7 @@ import { fmtUsd } from "@/lib/format";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { CENTROS, MESES } from "@/lib/account-helpers";
 import { calcularLineasFC, fetchInsumosFC, totalFCMes } from "@/lib/flujo-caja";
+import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
   Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -55,6 +56,10 @@ export function DashboardCharts() {
     queryKey: ["dash-insumos-fc", anio, centro, incluirOff],
     queryFn: () => fetchInsumosFC({ anio, centro, modoFiltro: incluirOff ? undefined : "on_balance" }),
   });
+  const { data: cogsEstimadoPorMes } = useQuery({
+    queryKey: ["dash-cogs-estimado", anio],
+    queryFn: () => estimarCogsMesesAbiertos(anio),
+  });
   const usdDe = (t: any) => {
     if (mode === "bcv") {
       const tbcv = Number(t.tasa_bcv || 0);
@@ -71,9 +76,10 @@ export function DashboardCharts() {
         cxpCreadas: insumosFC?.cxpCreadas ?? [],
         anio,
         usdDe,
+        cogsEstimadoPorMes,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, insumosFC, anio, mode],
+    [rows, insumosFC, anio, mode, cogsEstimadoPorMes],
   );
 
   const mapCuentas = useMemo(() => {
@@ -86,6 +92,7 @@ export function DashboardCharts() {
   const data = useMemo(() => {
     return MESES.map((nombre, i) => {
       const mes = i + 1;
+      const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
       const rs = (rows ?? []).filter((r) => r.mes === mes);
       let ingresos = 0, cogs = 0, gastos = 0, capex = 0;
       rs.forEach((r) => {
@@ -100,6 +107,12 @@ export function DashboardCharts() {
         // CapEx (activo fijo) — cuenta 5.6
         if (r.cuenta_codigo === "5.6") capex += Number(r.total_usd || 0);
       });
+      // Mes abierto con inventario ya cargado: usa el COGS estimado en vez
+      // de la suma incompleta de transacciones (que solo tendría compras,
+      // sin el ajuste de inventario que normalmente crea el cierre formal).
+      const estimado = cogsEstimadoPorMes?.get(periodo);
+      const cogsEsEstimado = !!estimado;
+      if (estimado) cogs = estimado.cogsUsdBcv;
       const utilidad = ingresos - cogs - gastos;
       // Flujo de caja: mismo cálculo (método indirecto) que la pantalla de
       // Flujo de Caja, para que ambas SIEMPRE coincidan — nunca dos fórmulas
@@ -114,6 +127,7 @@ export function DashboardCharts() {
         utilidad: Math.round(utilidad),
         cogsNeg: -Math.round(cogs),
         gastosNeg: -Math.round(gastos),
+        cogsEsEstimado,
         fcOperativo: Math.round(operativo), fcInversion: Math.round(inversion), fcFinanciero: Math.round(financiero),
         flujoNeto: Math.round(neto),
         capex: Math.round(capex),
@@ -122,7 +136,7 @@ export function DashboardCharts() {
         utilidadAcum: 0, // se llena abajo
       };
     });
-  }, [rows, mapCuentas, lineasFC]);
+  }, [rows, mapCuentas, lineasFC, cogsEstimadoPorMes, anio]);
 
 
   // Acumulados: efectivo, CapEx y utilidad
@@ -164,6 +178,7 @@ export function DashboardCharts() {
   }, [rows, mapCuentas, esAnioActual, mesHoy]);
   const totalGastosOp = gastosPorGrupo.reduce((s, d) => s + d.value, 0);
   const COLORS_GRP = ["#ef4444","#f97316","#f59e0b","#eab308","#84cc16","#10b981","#06b6d4","#0ea5e9","#8b5cf6","#d946ef","#ec4899"];
+  const hayMesEstimado = data.some((d) => d.cogsEsEstimado);
 
 
 
@@ -200,7 +215,14 @@ export function DashboardCharts() {
         {/* Utilidad mensual (G&P) */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Utilidad mensual (G&P)</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              Utilidad mensual (G&P)
+              {hayMesEstimado && (
+                <Badge variant="outline" className="text-[10px] font-normal border-amber-500 text-amber-600">
+                  Incluye COGS estimado
+                </Badge>
+              )}
+            </CardTitle>
             <div className="flex gap-6 text-xs mt-1">
               <span className="text-muted-foreground">YTD utilidad neta</span>
               <span className={`mono font-semibold ${ytdUtilidad >= 0 ? "text-emerald-600" : "text-red-600"}`}>{fmtUsd(ytdUtilidad)}</span>
@@ -234,6 +256,11 @@ export function DashboardCharts() {
               <Badge variant="outline" className="text-[10px] font-normal border-amber-500 text-amber-600">
                 Beta · En Construcción
               </Badge>
+              {hayMesEstimado && (
+                <Badge variant="outline" className="text-[10px] font-normal border-amber-500 text-amber-600">
+                  Incluye COGS estimado
+                </Badge>
+              )}
             </CardTitle>
             <div className="flex gap-6 text-xs mt-1">
               <span className="text-muted-foreground">Saldo acumulado</span>
@@ -377,6 +404,9 @@ function TipGyp({ active, payload, label }: any) {
       <div className="border-t mt-1 pt-1">
         <Row k="Utilidad neta" v={d.utilidad} bold />
       </div>
+      {d.cogsEsEstimado && (
+        <div className="text-amber-600 mt-1 max-w-[220px]">⚠ COGS estimado — mes abierto (sin cierre formal)</div>
+      )}
     </div>
   );
 }
@@ -394,6 +424,9 @@ function TipFC({ active, payload, label }: any) {
       <div className="border-t mt-1 pt-1">
         <Row k="Efectivo acumulado" v={d.efectivo} bold />
       </div>
+      {d.cogsEsEstimado && (
+        <div className="text-amber-600 mt-1 max-w-[220px]">⚠ Incluye COGS estimado — mes abierto (sin cierre formal)</div>
+      )}
     </div>
   );
 }

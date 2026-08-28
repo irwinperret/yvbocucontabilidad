@@ -16,6 +16,7 @@ import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { exportFCIndirecto } from "@/lib/excel-export";
 import { calcularLineasFC, fetchInsumosFC, type LineasFCMes, CUENTA_CAPEX } from "@/lib/flujo-caja";
+import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
 
@@ -109,6 +110,13 @@ function FCPage() {
     },
   });
 
+  // COGS estimado para meses abiertos (sin cierre formal, pero con inventario
+  // inicial/final ya cargado) — misma fórmula que un cierre real.
+  const { data: cogsEstimadoPorMes } = useQuery({
+    queryKey: ["fc-cogs-estimado", anio],
+    queryFn: () => estimarCogsMesesAbiertos(anio),
+  });
+
   const usdDe = (t: any) => {
     if (mode === "bcv") {
       const tbcv = Number(t.tasa_bcv || 0);
@@ -125,9 +133,10 @@ function FCPage() {
       cxpCreadas: cxpCreadas ?? [],
       anio,
       usdDe,
+      cogsEstimadoPorMes,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, capexRows, inventario, cxpCreadas, anio, mode]);
+  }, [rows, capexRows, inventario, cxpCreadas, anio, mode, cogsEstimadoPorMes]);
 
   return (
     <div className="space-y-6">
@@ -224,8 +233,9 @@ function sumarLineas(lista: LineasMes[]): LineasMes {
       gastoIntereses: acc.gastoIntereses + l.gastoIntereses,
       gastoImpuestos: acc.gastoImpuestos + l.gastoImpuestos,
       gastoDividendos: acc.gastoDividendos + l.gastoDividendos,
+      cogsEsEstimado: acc.cogsEsEstimado || !!l.cogsEsEstimado,
     }),
-    { ebitda: 0, cambioCxC: 0, cambioInventario: 0, cambioCxP: 0, compraInmuebles: 0, compraEquipos: 0, aumentoCapital: 0, aumentoPrestamos: 0, gastoIntereses: 0, gastoImpuestos: 0, gastoDividendos: 0 },
+    { ebitda: 0, cambioCxC: 0, cambioInventario: 0, cambioCxP: 0, compraInmuebles: 0, compraEquipos: 0, aumentoCapital: 0, aumentoPrestamos: 0, gastoIntereses: 0, gastoImpuestos: 0, gastoDividendos: 0, cogsEsEstimado: false },
   );
 }
 
@@ -238,6 +248,11 @@ function ReporteFCIndirecto({ lineas: l }: { lineas: LineasMes }) {
   return (
     <Card>
       <CardContent className="pt-4 space-y-1">
+        {l.cogsEsEstimado && (
+          <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 mb-2">
+            ⚠ El EBITDA incluye un COGS <b>estimado</b> — al menos un mes de este período sigue abierto (sin cierre formal). Se calculó con el inventario y las compras ya cargados para ese mes, pero puede cambiar cuando cierres el mes de verdad.
+          </div>
+        )}
         <Seccion titulo="Flujo de Caja de Actividades Operativas">
           <Linea label="EBITDA" v={l.ebitda} />
           <Linea label="Cambios en Cuentas por cobrar" v={l.cambioCxC} />
@@ -374,6 +389,7 @@ function ReporteFCComparativo({ lineasPorMes, anio }: { lineasPorMes: LineasMes[
                         className={`py-1.5 px-2 text-right mono border-b cursor-cell ${fila.bold ? "font-semibold" : ""} ${v === 0 ? "text-muted-foreground/60" : ""} ${enRango(r, c) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                       >
                         {v === 0 ? "—" : fmtUsd(v)}
+                        {fila.label === "EBITDA" && lineasPorMes[c]?.cogsEsEstimado && <span className="text-amber-600">*</span>}
                       </td>
                     ))}
                     <td
@@ -388,6 +404,11 @@ function ReporteFCComparativo({ lineasPorMes, anio }: { lineasPorMes: LineasMes[
               })}
             </tbody>
           </table>
+          {lineasPorMes.some((l) => l.cogsEsEstimado) && (
+            <p className="text-xs text-amber-700 mt-2">
+              * EBITDA con COGS estimado — ese mes sigue abierto (sin cierre formal), calculado con el inventario y las compras ya cargados para ese mes.
+            </p>
+          )}
         </CardContent>
       </Card>
       {seleccion.count > 0 && (
