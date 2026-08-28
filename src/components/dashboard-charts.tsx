@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { fmtUsd } from "@/lib/format";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { CENTROS, MESES } from "@/lib/account-helpers";
+import { calcularLineasFC, fetchInsumosFC, totalFCMes } from "@/lib/flujo-caja";
 import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
   Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -48,6 +49,33 @@ export function DashboardCharts() {
     },
   });
 
+  // Mismos 3 insumos que usa la pantalla de Flujo de Caja, para calcular
+  // exactamente lo mismo aquí (método indirecto compartido).
+  const { data: insumosFC } = useQuery({
+    queryKey: ["dash-insumos-fc", anio, centro, incluirOff],
+    queryFn: () => fetchInsumosFC({ anio, centro, modoFiltro: incluirOff ? undefined : "on_balance" }),
+  });
+  const usdDe = (t: any) => {
+    if (mode === "bcv") {
+      const tbcv = Number(t.tasa_bcv || 0);
+      return tbcv > 0 ? Number(t.monto_bs || 0) / tbcv : Number(t.monto_usd || 0);
+    }
+    return Number(t.monto_usd || 0);
+  };
+  const lineasFC = useMemo(
+    () =>
+      calcularLineasFC({
+        rows: rows ?? [],
+        capexRows: insumosFC?.capexRows ?? [],
+        inventario: insumosFC?.inventario ?? [],
+        cxpCreadas: insumosFC?.cxpCreadas ?? [],
+        anio,
+        usdDe,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, insumosFC, anio, mode],
+  );
+
   const mapCuentas = useMemo(() => {
     const m = new Map<string, Cuenta>();
     (cuentas ?? []).forEach((c) => m.set(c.codigo, c));
@@ -59,41 +87,42 @@ export function DashboardCharts() {
     return MESES.map((nombre, i) => {
       const mes = i + 1;
       const rs = (rows ?? []).filter((r) => r.mes === mes);
-      let ingresos = 0, cogs = 0, gastos = 0, fcIn = 0, fcOut = 0, capex = 0;
+      let ingresos = 0, cogs = 0, gastos = 0, capex = 0;
       rs.forEach((r) => {
         const c = mapCuentas.get(r.cuenta_codigo);
         if (!c) return;
         const base = Number(r.base_usd || 0);
-        const total = Number(r.total_usd || 0);
         if (c.afecta_gyp) {
           if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo === "6.1") ingresos += base;
           else if (r.cuenta_codigo.startsWith("2.")) cogs += base;
           else gastos += base;
         }
-        if (c.afecta_fc) {
-          if (r.cuenta_codigo.startsWith("1.") || ["5.1", "5.5"].includes(r.cuenta_codigo)) fcIn += total;
-          else fcOut += total;
-        }
         // CapEx (activo fijo) — cuenta 5.6
-        if (r.cuenta_codigo === "5.6") capex += total;
+        if (r.cuenta_codigo === "5.6") capex += Number(r.total_usd || 0);
       });
       const utilidad = ingresos - cogs - gastos;
-      const flujoNeto = fcIn - fcOut;
+      // Flujo de caja: mismo cálculo (método indirecto) que la pantalla de
+      // Flujo de Caja, para que ambas SIEMPRE coincidan — nunca dos fórmulas
+      // separadas que se puedan desincronizar.
+      const linea = lineasFC[i];
+      const { operativo, inversion, financiero, neto } = linea
+        ? totalFCMes(linea)
+        : { operativo: 0, inversion: 0, financiero: 0, neto: 0 };
       return {
         mes: nombre, mesNum: mes,
         ingresos: Math.round(ingresos), cogs: Math.round(cogs), gastos: Math.round(gastos),
         utilidad: Math.round(utilidad),
         cogsNeg: -Math.round(cogs),
         gastosNeg: -Math.round(gastos),
-        fcIn: Math.round(fcIn), fcOut: Math.round(fcOut),
-        flujoNeto: Math.round(flujoNeto),
+        fcOperativo: Math.round(operativo), fcInversion: Math.round(inversion), fcFinanciero: Math.round(financiero),
+        flujoNeto: Math.round(neto),
         capex: Math.round(capex),
         efectivo: 0, // se llena abajo
         capexAcum: 0, // se llena abajo
         utilidadAcum: 0, // se llena abajo
       };
     });
-  }, [rows, mapCuentas]);
+  }, [rows, mapCuentas, lineasFC]);
 
 
   // Acumulados: efectivo, CapEx y utilidad
@@ -358,8 +387,9 @@ function TipFC({ active, payload, label }: any) {
   return (
     <div className="rounded-md border bg-background p-2 text-xs shadow-md">
       <div className="font-semibold mb-1">{label}</div>
-      <Row k="Entradas" v={d.fcIn} positive />
-      <Row k="Salidas" v={-d.fcOut} />
+      <Row k="Operativo" v={d.fcOperativo} />
+      <Row k="Inversión" v={d.fcInversion} />
+      <Row k="Financiero" v={d.fcFinanciero} />
       <Row k="Flujo neto" v={d.flujoNeto} bold />
       <div className="border-t mt-1 pt-1">
         <Row k="Efectivo acumulado" v={d.efectivo} bold />
