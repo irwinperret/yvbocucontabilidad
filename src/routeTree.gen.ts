@@ -42,8 +42,10 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
+import { Route as AuthenticatedCierresDeMesRouteImport } from './routes/_authenticated/cierres-de-mes'
 import { Route as AuthenticatedCapexRouteImport } from './routes/_authenticated/capex'
 import { Route as AuthenticatedBonos10RouteImport } from './routes/_authenticated/bonos10'
+import { Route as AuthenticatedAyudaRouteImport } from './routes/_authenticated/ayuda'
 import { Route as AuthenticatedAumentoCapitalRouteImport } from './routes/_authenticated/aumento-capital'
 import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/_authenticated/anticipos-proveedores'
 import { Route as AuthenticatedAnalisisAiRouteImport } from './routes/_authenticated/analisis-ai'
@@ -233,6 +235,12 @@ const AuthenticatedCuentasBancariasRoute =
     path: '/cuentas-bancarias',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCierresDeMesRoute =
+  AuthenticatedCierresDeMesRouteImport.update({
+    id: '/cierres-de-mes',
+    path: '/cierres-de-mes',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedCapexRoute = AuthenticatedCapexRouteImport.update({
   id: '/capex',
   path: '/capex',
@@ -241,6 +249,11 @@ const AuthenticatedCapexRoute = AuthenticatedCapexRouteImport.update({
 const AuthenticatedBonos10Route = AuthenticatedBonos10RouteImport.update({
   id: '/bonos10',
   path: '/bonos10',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAyudaRoute = AuthenticatedAyudaRouteImport.update({
+  id: '/ayuda',
+  path: '/ayuda',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAumentoCapitalRoute =
@@ -297,8 +310,10 @@ export interface FileRoutesByFullPath {
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
+  '/ayuda': typeof AuthenticatedAyudaRoute
   '/bonos10': typeof AuthenticatedBonos10Route
   '/capex': typeof AuthenticatedCapexRoute
+  '/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
@@ -341,8 +356,10 @@ export interface FileRoutesByTo {
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
+  '/ayuda': typeof AuthenticatedAyudaRoute
   '/bonos10': typeof AuthenticatedBonos10Route
   '/capex': typeof AuthenticatedCapexRoute
+  '/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
@@ -387,8 +404,10 @@ export interface FileRoutesById {
   '/_authenticated/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/_authenticated/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/_authenticated/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
+  '/_authenticated/ayuda': typeof AuthenticatedAyudaRoute
   '/_authenticated/bonos10': typeof AuthenticatedBonos10Route
   '/_authenticated/capex': typeof AuthenticatedCapexRoute
+  '/_authenticated/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
   '/_authenticated/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/_authenticated/cxc': typeof AuthenticatedCxcRoute
   '/_authenticated/cxp': typeof AuthenticatedCxpRoute
@@ -433,8 +452,10 @@ export interface FileRouteTypes {
     | '/analisis-ai'
     | '/anticipos-proveedores'
     | '/aumento-capital'
+    | '/ayuda'
     | '/bonos10'
     | '/capex'
+    | '/cierres-de-mes'
     | '/cuentas-bancarias'
     | '/cxc'
     | '/cxp'
@@ -477,8 +498,10 @@ export interface FileRouteTypes {
     | '/analisis-ai'
     | '/anticipos-proveedores'
     | '/aumento-capital'
+    | '/ayuda'
     | '/bonos10'
     | '/capex'
+    | '/cierres-de-mes'
     | '/cuentas-bancarias'
     | '/cxc'
     | '/cxp'
@@ -522,8 +545,10 @@ export interface FileRouteTypes {
     | '/_authenticated/analisis-ai'
     | '/_authenticated/anticipos-proveedores'
     | '/_authenticated/aumento-capital'
+    | '/_authenticated/ayuda'
     | '/_authenticated/bonos10'
     | '/_authenticated/capex'
+    | '/_authenticated/cierres-de-mes'
     | '/_authenticated/cuentas-bancarias'
     | '/_authenticated/cxc'
     | '/_authenticated/cxp'
@@ -801,6 +826,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCuentasBancariasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/cierres-de-mes': {
+      id: '/_authenticated/cierres-de-mes'
+      path: '/cierres-de-mes'
+      fullPath: '/cierres-de-mes'
+      preLoaderRoute: typeof AuthenticatedCierresDeMesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/capex': {
       id: '/_authenticated/capex'
       path: '/capex'
@@ -813,6 +845,13 @@ declare module '@tanstack/react-router' {
       path: '/bonos10'
       fullPath: '/bonos10'
       preLoaderRoute: typeof AuthenticatedBonos10RouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/ayuda': {
+      id: '/_authenticated/ayuda'
+      path: '/ayuda'
+      fullPath: '/ayuda'
+      preLoaderRoute: typeof AuthenticatedAyudaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/aumento-capital': {
@@ -879,8 +918,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAnalisisAiRoute: typeof AuthenticatedAnalisisAiRoute
   AuthenticatedAnticiposProveedoresRoute: typeof AuthenticatedAnticiposProveedoresRoute
   AuthenticatedAumentoCapitalRoute: typeof AuthenticatedAumentoCapitalRoute
+  AuthenticatedAyudaRoute: typeof AuthenticatedAyudaRoute
   AuthenticatedBonos10Route: typeof AuthenticatedBonos10Route
   AuthenticatedCapexRoute: typeof AuthenticatedCapexRoute
+  AuthenticatedCierresDeMesRoute: typeof AuthenticatedCierresDeMesRoute
   AuthenticatedCuentasBancariasRoute: typeof AuthenticatedCuentasBancariasRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRoute
   AuthenticatedCxpRoute: typeof AuthenticatedCxpRoute
@@ -921,8 +962,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAnticiposProveedoresRoute:
     AuthenticatedAnticiposProveedoresRoute,
   AuthenticatedAumentoCapitalRoute: AuthenticatedAumentoCapitalRoute,
+  AuthenticatedAyudaRoute: AuthenticatedAyudaRoute,
   AuthenticatedBonos10Route: AuthenticatedBonos10Route,
   AuthenticatedCapexRoute: AuthenticatedCapexRoute,
+  AuthenticatedCierresDeMesRoute: AuthenticatedCierresDeMesRoute,
   AuthenticatedCuentasBancariasRoute: AuthenticatedCuentasBancariasRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRoute,
   AuthenticatedCxpRoute: AuthenticatedCxpRoute,
