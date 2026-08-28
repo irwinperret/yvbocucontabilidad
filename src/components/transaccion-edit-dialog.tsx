@@ -15,6 +15,7 @@ import { CENTROS, METODOS, CAPEX_CATEGORIAS, ordenarPorCodigo, type Centro } fro
 import { BankAccountSelect } from "@/components/bank-account-select";
 import { SearchCombobox, type ComboOption } from "@/components/search-combobox";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { esCuentaNoConciliable } from "@/lib/operaciones-cambio";
 
 export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; onSaved: () => void }) {
   const [fecha, setFecha] = useState<string>(tx.fecha);
@@ -132,6 +133,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
     if (!usdN) return toast.error("Indica un monto en USD");
     setBusy(true);
     if (!cuentaCodigo) return toast.error("Selecciona una cuenta contable");
+    const aCuentaNoConciliable = esCuentaNoConciliable(cuentaCodigo);
     const patch = {
       fecha,
       cuenta_codigo: cuentaCodigo,
@@ -150,7 +152,8 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
       detalle: detalle || null,
       cuenta_bancaria_id: cuentaBancariaId || null,
       capex_categoria: cuentaCodigo === "5.6" ? capexCategoria : tx.capex_categoria ?? null,
-      tercero_id: terceroId || null,
+      // Operaciones de cambio (98) nunca llevan proveedor.
+      tercero_id: aCuentaNoConciliable ? null : (terceroId || null),
     };
     const { data: updated, error } = await supabase
       .from("transacciones")
@@ -160,6 +163,12 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
       .single();
     if (error) { setBusy(false); return toast.error(error.message); }
     if (updated) await logAudit("transacciones", "UPDATE", tx.id, tx, updated);
+
+    // Si se reclasificó a 98, no puede quedar ningún vínculo de conciliación
+    // (ni con facturas, ni el estado manual "no aplica" viejo): se limpia todo.
+    if (aCuentaNoConciliable) {
+      await (supabase.from as any)("conciliacion_bancaria").delete().eq("transaccion_bancaria_id", tx.id);
+    }
 
     // Propagación a hermanos del grupo (solo campos seguros: fecha, centro, tasas).
     let propagados = 0;

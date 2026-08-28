@@ -30,6 +30,7 @@ import {
 } from "@/lib/pareo-cxp";
 import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib/cxp-saldo";
 import { bancoDeReferencia } from "@/lib/conciliacion-matching";
+import { CUENTA_CAMBIO } from "@/lib/operaciones-cambio";
 
 export const Route = createFileRoute("/_authenticated/proveedores/$id")({
   component: TableroProveedor,
@@ -169,6 +170,7 @@ function TableroProveedor() {
           .from("transacciones")
           .select("*")
           .neq("standby", true)
+          .neq("cuenta_codigo", CUENTA_CAMBIO)
           .like("referencia", "BANK:%")
           .order("fecha", { ascending: false })
           .range(from, to),

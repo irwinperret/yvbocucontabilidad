@@ -37,6 +37,7 @@ import {
   type FacturaRef,
   type TerceroRef,
 } from "@/lib/conciliacion-matching";
+import { esCuentaNoConciliable } from "@/lib/operaciones-cambio";
 
 
 
@@ -933,10 +934,12 @@ function MovimientosBancariosPage() {
                       </td>
                       <td className="py-2 px-2 text-right">
                         <div className="flex flex-col items-end gap-1">
-                          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setPareando(f)}>
-                            <Link2 className="h-3 w-3 mr-1" /> Parear con factura
-                          </Button>
-                          {(f.estado === "pareado" || f.estado === "parcial") && (
+                          {!esCuentaNoConciliable(f.mov.cuenta_codigo) && (
+                            <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setPareando(f)}>
+                              <Link2 className="h-3 w-3 mr-1" /> Parear con factura
+                            </Button>
+                          )}
+                          {!esCuentaNoConciliable(f.mov.cuenta_codigo) && (f.estado === "pareado" || f.estado === "parcial") && (
                             <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => quitarPareo(f.mov.id)}>
                               <X className="h-3 w-3 mr-1" /> Quitar pareo
                             </Button>
