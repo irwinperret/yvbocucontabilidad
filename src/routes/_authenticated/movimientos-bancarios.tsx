@@ -28,6 +28,7 @@ import {
   normalizarFactura,
   parearMovimiento,
   proveedorDeMemo,
+  proveedorSimilar,
   coberturaPareo,
   recalcularPareos,
   esFacturaDeCompra,
@@ -406,6 +407,33 @@ function MovimientosBancariosPage() {
     if (!r.ok) { toast.error(r.error ?? "No se pudo guardar el estado"); return; }
     toast.success(estado ? `Marcado como ${ESTADO_MANUAL_LABEL[estado]}` : "Estado devuelto a automático");
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+  };
+
+  /**
+   * Antes de aceptar un "Sin pareo" como gasto directo, revisa si hay alguna
+   * CxP pendiente de un proveedor parecido y monto cercano — señal de que
+   * este movimiento probablemente SÍ es el pago de esa factura, solo que el
+   * pareo automático no lo detectó (mal escrito el memo, referencia distinta,
+   * etc). Si encuentra algo, avisa antes de dejar continuar.
+   */
+  const marcarComoGastoDirectoConAviso = (f: any) => {
+    const montoMovUsd = Math.abs(Number(f.mov.monto_usd) || 0);
+    const memo = f.mov.detalle || f.mov.notas || "";
+    const candidata = (facturas ?? []).find((fa: any) => {
+      const pendUsd = Number(fa.cxp?.monto_pendiente_usd_bcv) || 0;
+      if (pendUsd <= 0.01) return false;
+      if (!proveedorSimilar(fa.proveedor, memo)) return false;
+      if (montoMovUsd <= 0) return true; // sin monto de referencia, solo el proveedor ya es señal
+      const diff = Math.abs(pendUsd - montoMovUsd);
+      return diff <= Math.max(2, montoMovUsd * 0.15); // tolerancia: $2 o 15%, lo mayor
+    });
+    if (candidata) {
+      const ok = window.confirm(
+        `Hay una factura pendiente de "${candidata.proveedor ?? "este proveedor"}" por ${fmtUsd(Number(candidata.cxp?.monto_pendiente_usd_bcv) || 0)} USD BCV — ¿seguro que este movimiento no es su pago? Si es así, mejor usa "Parear con factura" en vez de marcarlo como gasto directo.\n\n¿Continuar de todos modos como gasto directo?`,
+      );
+      if (!ok) return;
+    }
+    marcarEstado(f.mov.id, "gasto_directo");
   };
 
   // "Sin pareo" que ya llevan más de 30 días esperando una factura que
@@ -986,7 +1014,7 @@ function MovimientosBancariosPage() {
                               variant="ghost"
                               className="h-7 px-2"
                               title="No hace falta que aparezca una factura para esto — se deja como gasto ya contado, no crea ni cambia ninguna cuenta por pagar"
-                              onClick={() => marcarEstado(f.mov.id, "gasto_directo")}
+                              onClick={() => marcarComoGastoDirectoConAviso(f)}
                             >
                               <Check className="h-3 w-3 mr-1" /> Marcar como gasto directo
                             </Button>

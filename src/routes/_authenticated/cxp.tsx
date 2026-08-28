@@ -214,6 +214,14 @@ function CxPAnalisisPage() {
     });
   }, [items, confirmadosPorFactura, sugeridosPorFactura, movById, movimientos, movimientosUsadosIds]);
 
+  const posiblesPagadas = useMemo(
+    () =>
+      filas
+        .filter((f) => f.estado === "posible")
+        .sort((a, b) => pendienteUsdBcv(b.c) - pendienteUsdBcv(a.c)),
+    [filas],
+  );
+
   const filtradas = useMemo(
     () =>
       filas.filter((f) => {
@@ -341,6 +349,38 @@ function CxPAnalisisPage() {
           <Kpi label="Total (USD BCV)" value={fmtUsd(total)} count={lista.length} color="" />
         </div>
       </div>
+
+      {posiblesPagadas.length > 0 && (
+        <Card className="border-amber-300/60">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              CxP con posible pago ya hecho
+              <Badge variant="outline" className="text-amber-700 border-amber-600/40">{posiblesPagadas.length}</Badge>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground font-normal">
+              Facturas sin pareo confirmado, pero donde el sistema encontró un movimiento (o combinación de movimientos) que probablemente ya la paga. Ordenadas de mayor a menor monto pendiente.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {posiblesPagadas.slice(0, 15).map((f) => (
+              <div key={f.c.id} className="flex items-center justify-between gap-3 py-1.5 border-b last:border-0 text-sm">
+                <div className="min-w-0">
+                  <span className="font-medium">{f.c.proveedor ?? "—"}</span>{" "}
+                  <span className="text-muted-foreground">· Fact {f.c.numero_factura ?? "s/n"}</span>{" "}
+                  {f.esCombo && <Badge variant="outline" className="text-[10px] ml-1">combinación de {f.movs.length}</Badge>}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="mono">{fmtUsd(pendienteUsdBcv(f.c))} USD BCV</span>
+                  <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setManualPara(f)}>Revisar</Button>
+                </div>
+              </div>
+            ))}
+            {posiblesPagadas.length > 15 && (
+              <p className="text-xs text-muted-foreground pt-2">Mostrando las 15 de mayor monto — hay {posiblesPagadas.length - 15} más abajo, en la tabla completa.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Filtros</CardTitle></CardHeader>
