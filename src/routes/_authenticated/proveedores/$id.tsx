@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
@@ -149,6 +150,29 @@ function TableroProveedor() {
     : (terceros ?? []).find((t) => t.id === id)?.nombre_comercial ||
       (terceros ?? []).find((t) => t.id === id)?.razon_social ||
       "Proveedor";
+
+  const { data: proveedorActual } = useQuery({
+    queryKey: ["tercero-actual", id],
+    enabled: !esSin,
+    queryFn: async () => {
+      const { data } = await supabase.from("terceros").select("*").eq("id", id).maybeSingle();
+      return data as any;
+    },
+  });
+  const [registrando, setRegistrando] = useState(false);
+  const [rifForm, setRifForm] = useState({ tipo_rif: "J", rif: "" });
+  const registrarOficialmente = async () => {
+    if (!rifForm.rif.trim()) return toast.error("Ingresa el RIF");
+    const { error } = await supabase
+      .from("terceros")
+      .update({ estado_registro: "oficial", tipo_rif: rifForm.tipo_rif, rif: rifForm.rif.trim() } as any)
+      .eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Proveedor registrado oficialmente");
+    setRegistrando(false);
+    qc.invalidateQueries({ queryKey: ["tercero-actual", id] });
+    qc.invalidateQueries({ queryKey: ["terceros-tablero"] });
+  };
 
   const { data: cxps } = useQuery({
     queryKey: ["tablero-cxp", id],
@@ -593,7 +617,35 @@ function TableroProveedor() {
             <Link to="/proveedores"><ArrowLeft className="h-4 w-4 mr-1" />Proveedores</Link>
           </Button>
           <h1 className="text-xl font-semibold">{nombreProveedor}</h1>
+          {proveedorActual?.estado_registro === "candidato" && (
+            <Badge variant="outline" className="text-amber-600 border-amber-600/40">Pendiente de verificar</Badge>
+          )}
         </div>
+        {proveedorActual?.estado_registro === "candidato" && !registrando && (
+          <Button size="sm" variant="outline" onClick={() => setRegistrando(true)}>Registrar oficialmente</Button>
+        )}
+      </div>
+      {proveedorActual?.estado_registro === "candidato" && registrando && (
+        <Card>
+          <CardContent className="pt-4 flex flex-wrap items-end gap-3">
+            <div>
+              <Label className="text-xs">Tipo</Label>
+              <Select value={rifForm.tipo_rif} onValueChange={(v) => setRifForm({ ...rifForm, tipo_rif: v })}>
+                <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["J", "V", "E", "G"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">RIF</Label>
+              <Input value={rifForm.rif} onChange={(e) => setRifForm({ ...rifForm, rif: e.target.value })} placeholder="12345678-9" className="w-40" />
+            </div>
+            <Button size="sm" onClick={registrarOficialmente}>Guardar</Button>
+            <Button size="sm" variant="ghost" onClick={() => setRegistrando(false)}>Cancelar</Button>
+          </CardContent>
+        </Card>
+      )}
         <div className="flex flex-wrap items-center gap-2">
           <Select value={filtroEstado} onValueChange={setFiltroEstado}>
             <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
@@ -619,7 +671,6 @@ function TableroProveedor() {
             <Download className="h-4 w-4 mr-1" />Excel
           </Button>
         </div>
-      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <Card>

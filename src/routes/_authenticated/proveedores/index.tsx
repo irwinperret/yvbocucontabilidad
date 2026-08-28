@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -153,8 +154,15 @@ function ProveedoresPage() {
                         >
                           {t.razon_social}
                         </Link>
+                        {t.estado_registro === "candidato" && (
+                          <Badge variant="outline" className="ml-2 text-[10px] text-amber-600 border-amber-600/40">
+                            Pendiente de verificar
+                          </Badge>
+                        )}
                       </td>
-                      <td className="py-2 px-2 mono text-xs">{t.tipo_rif}-{t.rif}</td>
+                      <td className="py-2 px-2 mono text-xs">
+                        {t.estado_registro === "candidato" ? <span className="text-muted-foreground">— sin RIF —</span> : `${t.tipo_rif}-${t.rif}`}
+                      </td>
                       <td className="py-2 px-2">{t.tipo}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.email ?? "—"}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.telefono ?? "—"}</td>

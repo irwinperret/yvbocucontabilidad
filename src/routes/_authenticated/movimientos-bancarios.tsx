@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Download, Check, X, RefreshCw, Pencil, Link2 } from "lucide-react";
+import { Download, Check, X, RefreshCw, Pencil, Link2, Users2 } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
 import { MultiSelectFilter } from "@/components/multi-select-filter";
@@ -429,6 +429,36 @@ function MovimientosBancariosPage() {
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
   };
 
+  // Movimientos "Sin pareo" que todavía no tienen ningún proveedor asignado:
+  // candidatos a generarles un proveedor "pendiente de verificar" a partir
+  // del nombre deducido del memo bancario.
+  const sinPareoSinProveedor = useMemo(
+    () => filas.filter((f) => f.estado === "sin_pareo" && !f.mov.tercero_id),
+    [filas],
+  );
+  const [generandoCandidatos, setGenerandoCandidatos] = useState(false);
+  const generarProveedoresCandidatos = async () => {
+    if (!sinPareoSinProveedor.length) return;
+    if (!window.confirm(`¿Generar proveedores candidatos para ${sinPareoSinProveedor.length} movimientos "Sin pareo" sin proveedor? Se agrupan por nombre deducido del memo bancario; quedan marcados como "Pendiente de verificar" hasta que registres su RIF real.`)) return;
+    setGenerandoCandidatos(true);
+    const { nombreProveedorDeMemo, obtenerOCrearCandidato } = await import("@/lib/proveedores-candidatos");
+    let vinculados = 0, creados = 0, sinNombre = 0;
+    // Secuencial a propósito: evita crear dos candidatos duplicados para el
+    // mismo nombre si dos movimientos con el mismo memo se procesaran en paralelo.
+    for (const f of sinPareoSinProveedor) {
+      const nombre = nombreProveedorDeMemo(f.mov.notas);
+      if (!nombre) { sinNombre++; continue; }
+      const candidato = await obtenerOCrearCandidato(nombre);
+      if (!candidato) { sinNombre++; continue; }
+      const { error } = await supabase.from("transacciones").update({ tercero_id: candidato.id } as any).eq("id", f.mov.id);
+      if (!error) { vinculados++; if (candidato.creado) creados++; }
+    }
+    setGenerandoCandidatos(false);
+    toast.success(`${vinculados} movimiento(s) vinculados a ${creados} proveedor(es) candidato(s) nuevo(s)${sinNombre ? ` · ${sinNombre} sin nombre reconocible` : ""}`);
+    qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+    qc.invalidateQueries({ queryKey: ["terceros-min"] });
+  };
+
 
   const guardarVinculo = async (
     movId: string,
@@ -640,6 +670,12 @@ function MovimientosBancariosPage() {
         </div>
         <div className="flex items-center gap-2">
           <UsdViewToggle />
+          {sinPareoSinProveedor.length > 0 && (
+            <Button variant="outline" onClick={generarProveedoresCandidatos} disabled={generandoCandidatos}>
+              <Users2 className="h-4 w-4 mr-2" />
+              {generandoCandidatos ? "Generando…" : `Generar proveedores para ${sinPareoSinProveedor.length} sin pareo`}
+            </Button>
+          )}
           {sinPareoAntiguos.length > 0 && (
             <Button variant="outline" onClick={marcarAntiguosComoGastoDirecto} disabled={marcandoMasivo}>
               <Check className="h-4 w-4 mr-2" />
