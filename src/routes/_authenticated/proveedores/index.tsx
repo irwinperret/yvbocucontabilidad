@@ -61,13 +61,23 @@ function ProveedoresPage() {
   const eliminar = async (p: any) => {
     const { count } = await supabase.from("transacciones").select("*", { count: "exact", head: true }).eq("tercero_id", p.id);
     if (count && count > 0) {
-      toast.error(`Proveedor con ${count} movimientos — no se puede eliminar`);
-      throw new Error("blocked");
+      if (p.estado_registro === "candidato") {
+        // Un candidato es "barato" de deshacer: no representa historial
+        // contable formal todavía, así que se libera y se borra.
+        if (!window.confirm(`Este candidato tiene ${count} movimiento(s) vinculado(s). ¿Liberarlos (quedarían sin proveedor) y eliminar el candidato?`)) {
+          throw new Error("blocked");
+        }
+        await supabase.from("transacciones").update({ tercero_id: null } as any).eq("tercero_id", p.id);
+        await supabase.from("cuentas_por_pagar").update({ tercero_id: null } as any).eq("tercero_id", p.id);
+      } else {
+        toast.error(`Proveedor con ${count} movimientos — no se puede eliminar`);
+        throw new Error("blocked");
+      }
     }
     const { error } = await supabase.from("terceros").delete().eq("id", p.id);
     if (error) throw error;
     await logAudit("terceros", "DELETE", p.id, p, null);
-    toast.success("Proveedor eliminado");
+    toast.success(count && count > 0 ? `Candidato eliminado, ${count} movimiento(s) liberado(s)` : "Proveedor eliminado");
     qc.invalidateQueries({ queryKey: ["proveedores"] });
   };
 
