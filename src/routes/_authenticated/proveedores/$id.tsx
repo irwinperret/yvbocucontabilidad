@@ -20,7 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
-import { ArrowLeft, GripVertical, Link2Off, Wand2, Download } from "lucide-react";
+import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil } from "lucide-react";
+import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
 import {
   aplicarPareoCxp,
@@ -166,6 +167,7 @@ function TableroProveedor() {
     },
   });
   const [registrando, setRegistrando] = useState(false);
+  const [editandoMov, setEditandoMov] = useState<any | null>(null);
   const [rifForm, setRifForm] = useState({ razon_social: "", nombre_comercial: "", tipo_rif: "J", rif: "" });
   const abrirRegistro = () => {
     setRifForm({
@@ -874,6 +876,9 @@ function TableroProveedor() {
                             <Link2Off className="h-3.5 w-3.5 mr-1" />Liberar todo
                           </Button>
                         )}
+                        <Button variant="ghost" size="sm" onClick={() => setEditandoMov(mv)}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" />Editar
+                        </Button>
                       </div>
                     </div>
 
@@ -983,6 +988,13 @@ function TableroProveedor() {
           </Card>
         </div>
       </DndContext>
+      {editandoMov && (
+        <EditDialog
+          tx={editandoMov}
+          onClose={() => setEditandoMov(null)}
+          onSaved={async () => { setEditandoMov(null); await refrescar(); }}
+        />
+      )}
     </div>
   );
 }
