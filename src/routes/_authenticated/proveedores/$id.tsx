@@ -846,7 +846,7 @@ function TableroProveedor() {
                           )}{" "}
                           · {lista.length} factura(s)
                         </div>
-                        <div className="text-xs text-muted-foreground truncate max-w-[28rem]">
+                        <div className="text-xs text-muted-foreground break-words">
                           {mv.notas ?? mv.detalle ?? ""}
                         </div>
                       </div>
