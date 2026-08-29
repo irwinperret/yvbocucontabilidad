@@ -197,6 +197,15 @@ export async function guardarVinculosConciliacion(
   const { movimientoId, facturaId, contrapartes, estado, origen, userId, facturasRechazadas } = args;
   const tabla = (supabase.from as any)("conciliacion_bancaria");
 
+  // Facturas que quedaban vinculadas ANTES de este cambio (para poder
+  // resincronizar su CxP también si se les quita el vínculo).
+  const previas = movimientoId
+    ? (await tabla.select("transaccion_factura_id").eq("transaccion_bancaria_id", movimientoId)).data ?? []
+    : [];
+  const facturasAfectadas = new Set<string>(
+    previas.map((p: any) => p.transaccion_factura_id).filter(Boolean),
+  );
+
   const del = movimientoId
     ? await tabla.delete().eq("transaccion_bancaria_id", movimientoId)
     : await tabla.delete().eq("transaccion_factura_id", facturaId);
@@ -223,12 +232,25 @@ export async function guardarVinculosConciliacion(
   } else if (facturaId && estado !== "rechazado") {
     rows = contrapartes.map((mid) => ({ ...base, transaccion_bancaria_id: mid, transaccion_factura_id: facturaId }));
   }
+  if (facturaId) facturasAfectadas.add(facturaId);
+  if (movimientoId && estado !== "rechazado") contrapartes.forEach((fid) => facturasAfectadas.add(fid));
 
+  if (rows.length) {
+    const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(rows);
+    if (error) return { ok: false, error: error.message };
+  }
 
-  if (!rows.length) return { ok: true };
+  // A diferencia de aplicarPareoCxp() (que crea la transacción de pago 8.2 Y
+  // actualiza la CxP), este camino solo vincula un movimiento que ya existe
+  // como transacción propia — así que hay que sincronizar la CxP a mano para
+  // que no se quede "pendiente" para siempre aunque ya esté pareada de verdad.
+  if (facturasAfectadas.size) {
+    const { sincronizarCxpDesdeVinculos } = await import("@/lib/pareo-cxp");
+    for (const fid of facturasAfectadas) {
+      await sincronizarCxpDesdeVinculos(fid);
+    }
+  }
 
-  const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(rows);
-  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 

@@ -41,6 +41,60 @@ export type ResultadoPareo = {
  * movimiento), actualiza los saldos de las CxP, opcionalmente registra el
  * excedente como anticipo (14.2) y guarda el vínculo de conciliación.
  */
+/**
+ * Recalcula el estado y el saldo pendiente de UNA factura desde cero, a
+ * partir de sus vínculos ACTIVOS en conciliacion_bancaria (pareado/parcial),
+ * sumando los movimientos bancarios realmente vinculados. Se usa después de
+ * guardar/quitar un vínculo desde guardarVinculosConciliacion(), que crea el
+ * vínculo pero — a diferencia de aplicarPareoCxp() — no crea una transacción
+ * de pago 8.2 nueva (el movimiento ya existe), así que sin esto la CxP se
+ * quedaba "pendiente" para siempre aunque ya estuviera pareada de verdad.
+ */
+export async function sincronizarCxpDesdeVinculos(facturaId: string): Promise<void> {
+  const { data: cxp } = await supabase.from("cuentas_por_pagar").select("*").eq("id", facturaId).maybeSingle();
+  if (!cxp) return;
+
+  const montoOriginalUsdBcv = Number((cxp as any).usd_bcv_factura ?? (cxp as any).monto_usd) || 0;
+  if (montoOriginalUsdBcv <= 0) return; // sin base para comparar, no se toca
+
+  const { data: vinculos } = await supabase
+    .from("conciliacion_bancaria")
+    .select("transaccion_bancaria_id, estado")
+    .eq("transaccion_factura_id", facturaId)
+    .in("estado", ["pareado", "parcial"]);
+
+  let aplicadoUsdBcv = 0;
+  for (const v of vinculos ?? []) {
+    const { data: mov } = await supabase
+      .from("transacciones")
+      .select("monto_bs, tasa_bcv")
+      .eq("id", (v as any).transaccion_bancaria_id)
+      .maybeSingle();
+    if (!mov) continue;
+    const tasa = Number((mov as any).tasa_bcv) || 0;
+    if (tasa > 0) aplicadoUsdBcv += Math.abs(Number((mov as any).monto_bs) || 0) / tasa;
+  }
+  aplicadoUsdBcv = +aplicadoUsdBcv.toFixed(2);
+
+  const pendienteUsd = +Math.max(0, montoOriginalUsdBcv - aplicadoUsdBcv).toFixed(2);
+  const tasaFactura = tasaBcvFactura(cxp);
+  const saldada = pendienteUsd <= 0.01;
+
+  await supabase
+    .from("cuentas_por_pagar")
+    .update(
+      saldada
+        ? { estado: "pagada", pagada_at: new Date().toISOString(), monto_pendiente_bs: 0, monto_pendiente_usd_bcv: 0 }
+        : {
+            estado: aplicadoUsdBcv > 0.01 ? "parcial" : "pendiente",
+            pagada_at: null,
+            monto_pendiente_usd_bcv: pendienteUsd,
+            monto_pendiente_bs: +(pendienteUsd * (tasaFactura || 0)).toFixed(2),
+          },
+    )
+    .eq("id", facturaId);
+}
+
 export async function aplicarPareoCxp(args: {
   mov: any;
   terceroId: string;
