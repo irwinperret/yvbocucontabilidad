@@ -226,3 +226,30 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
   }
   return resultado;
 }
+
+/**
+ * Dado un conjunto de meses (mes individual, YTD, o cualquier rango), calcula
+ * cuánto hay que AJUSTAR el COGS ya sumado desde transacciones (que en un mes
+ * abierto solo tiene compras, sin el ajuste de inventario que crea un cierre
+ * real) para que refleje el estimado de estimarCogsMesesAbiertos(). Se usa
+ * en G&P (tablas y gráficos) y en Flujo de Caja.
+ */
+export function ajusteCogsEstimado(
+  rows: { cuenta_codigo: string; mes: number; base_usd: number }[],
+  cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number }> | undefined,
+  anio: number,
+  meses: number[],
+): { ajuste: number; mesesEstimados: number[] } {
+  if (!cogsEstimadoPorMes?.size) return { ajuste: 0, mesesEstimados: [] };
+  let ajuste = 0;
+  const mesesEstimados: number[] = [];
+  for (const mes of meses) {
+    const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
+    const estimado = cogsEstimadoPorMes.get(periodo);
+    if (!estimado) continue;
+    const cogsYaSumado = rows.filter((r) => r.cuenta_codigo.startsWith("2.") && r.mes === mes).reduce((s, r) => s + Number(r.base_usd || 0), 0);
+    ajuste += estimado.cogsUsdBcv - cogsYaSumado;
+    mesesEstimados.push(mes);
+  }
+  return { ajuste, mesesEstimados };
+}

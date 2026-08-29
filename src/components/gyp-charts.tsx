@@ -6,21 +6,21 @@ import {
 } from "chart.js";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtUsd } from "@/lib/format";
+import { ajusteCogsEstimado } from "@/lib/cierre-mes";
 
 ChartJS.register(BarElement, ArcElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 type Row = { cuenta_codigo: string; mes: number; base_usd: number; [k: string]: any };
 type Cuenta = { codigo: string; nombre: string; grupo: string; [k: string]: any };
 
-const CATS = ["COGS", "Nómina", "Administrativos", "Operativos", "Generales", "Impuestos", "Otros"] as const;
+const CATS = ["COGS", "Costos Fijos", "Costos Variables", "Financiamiento", "Impuestos", "Otros"] as const;
 type Cat = (typeof CATS)[number];
 
 const CAT_COLORS: Record<Cat, string> = {
   COGS: "#0ea5e9",
-  "Nómina": "#f59e0b",
-  Administrativos: "#8b5cf6",
-  Operativos: "#ec4899",
-  Generales: "#10b981",
+  "Costos Fijos": "#f59e0b",
+  "Costos Variables": "#ec4899",
+  Financiamiento: "#8b5cf6",
   Impuestos: "#ef4444",
   Otros: "#64748b",
 };
@@ -33,18 +33,21 @@ function catDeCuenta(c: Cuenta): Cat | null {
   if (c.codigo.startsWith("1.")) return null;
   if (c.codigo.startsWith("2.")) return "COGS";
   const g = (c.grupo || "").toLowerCase();
-  if (g.startsWith("nomina") || g.startsWith("nómina")) return "Nómina";
-  if (g.startsWith("administrativo")) return "Administrativos";
-  if (g.startsWith("operativo")) return "Operativos";
-  if (g.startsWith("general")) return "Generales";
+  if (g.startsWith("costos fijos")) return "Costos Fijos";
+  if (g.startsWith("costos variables")) return "Costos Variables";
+  if (g.startsWith("financiamiento")) return "Financiamiento";
   if (g.startsWith("impuesto")) return "Impuestos";
   return "Otros";
 }
 
-export function GyPCharts({ rows, cuentas, sumFn, titulo }: {
+export function GyPCharts({ rows, cuentas, sumFn, titulo, meses, cogsEstimadoPorMes, anio }: {
   rows: Row[]; cuentas: Cuenta[]; sumFn: (r: any) => boolean; titulo: string;
+  /** Meses (1-12) que representa este reporte — para el ajuste de COGS estimado. */
+  meses?: number[];
+  cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number }>;
+  anio?: number;
 }) {
-  const { ingresos, cats, utilidad } = useMemo(() => {
+  const { ingresos, cats, utilidad, hayEstimado } = useMemo(() => {
     const mapC = new Map<string, Cuenta>();
     cuentas.forEach((c) => mapC.set(c.codigo, c));
     let ing = 0;
@@ -58,10 +61,20 @@ export function GyPCharts({ rows, cuentas, sumFn, titulo }: {
       if (!cat) return;
       acc.set(cat, (acc.get(cat) ?? 0) + v);
     });
+    // Mes(es) abierto(s) con inventario ya cargado: ajusta el COGS para que
+    // refleje el estimado (Inicial + Compras − Final), igual que en la tabla.
+    let hayEst = false;
+    if (meses?.length && cogsEstimadoPorMes?.size && anio) {
+      const { ajuste, mesesEstimados } = ajusteCogsEstimado(rows, cogsEstimadoPorMes, anio, meses);
+      if (mesesEstimados.length) {
+        acc.set("COGS", (acc.get("COGS") ?? 0) + ajuste);
+        hayEst = true;
+      }
+    }
     const list = CATS.map((k) => ({ cat: k, value: acc.get(k) ?? 0 })).filter((d) => d.value > 0);
     const total = list.reduce((s, d) => s + d.value, 0);
-    return { ingresos: ing, cats: list, utilidad: ing - total };
-  }, [rows, cuentas, sumFn]);
+    return { ingresos: ing, cats: list, utilidad: ing - total, hayEstimado: hayEst };
+  }, [rows, cuentas, sumFn, meses, cogsEstimadoPorMes, anio]);
 
   const pct = (v: number) => (ingresos ? `${((v / ingresos) * 100).toFixed(1)}%` : "—");
 
@@ -109,7 +122,14 @@ export function GyPCharts({ rows, cuentas, sumFn, titulo }: {
     <div className="grid gap-4 lg:grid-cols-2 mb-4">
       <Card>
         <CardHeader className="pb-1">
-          <CardTitle className="text-sm">Waterfall de resultados · {titulo}</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2">
+            Waterfall de resultados · {titulo}
+            {hayEstimado && (
+              <span className="text-[10px] font-normal text-amber-600 border border-amber-500/40 rounded px-1.5 py-0.5">
+                Incluye COGS estimado (mes abierto)
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <div style={{ height: 260 }}>

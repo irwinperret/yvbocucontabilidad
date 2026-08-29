@@ -15,7 +15,7 @@ import { exportGyP } from "@/lib/excel-export";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { GyPCharts } from "@/components/gyp-charts";
-import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
+import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
@@ -195,32 +195,6 @@ function buildGrupos(cuentas: Cuenta[], filterCodigo: (codigo: string) => boolea
   return Object.values(map);
 }
 
-/**
- * Para meses abiertos (sin cierre formal) donde ya se cargó el inventario,
- * calcula cuánto habría que AJUSTAR el COGS ya sumado (que solo tiene
- * compras, sin el ajuste de inventario que crea el cierre real) para que
- * refleje el estimado — mismo criterio que Flujo de Caja y el Dashboard.
- */
-function ajusteCogsEstimado(
-  rows: Row[],
-  cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number }> | undefined,
-  anio: number,
-  meses: number[],
-): { ajuste: number; mesesEstimados: number[] } {
-  if (!cogsEstimadoPorMes?.size) return { ajuste: 0, mesesEstimados: [] };
-  let ajuste = 0;
-  const mesesEstimados: number[] = [];
-  for (const mes of meses) {
-    const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
-    const estimado = cogsEstimadoPorMes.get(periodo);
-    if (!estimado) continue;
-    const cogsYaSumado = rows.filter((r) => r.cuenta_codigo.startsWith("2.") && r.mes === mes).reduce((s, r) => s + Number(r.base_usd || 0), 0);
-    ajuste += estimado.cogsUsdBcv - cogsYaSumado;
-    mesesEstimados.push(mes);
-  }
-  return { ajuste, mesesEstimados };
-}
-
 /** Agrega el ajuste como una fila más dentro del grupo COGS (si hay alguno distinto de cero). */
 function conAjusteCogs(cogs: GrupoData[], ajuste: number): GrupoData[] {
   if (Math.abs(ajuste) < 0.01) return cogs;
@@ -277,7 +251,7 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
         <Total label={`UTILIDAD / PÉRDIDA NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
-    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`${MESES[mes - 1]}`} />
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`${MESES[mes - 1]}`} meses={[mes]} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} />
     </>
   );
 }
@@ -319,7 +293,7 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
         <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
-    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} />
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} meses={mesesYtd} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} />
     </>
   );
 }
@@ -615,7 +589,7 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
         </div>
       </div>
     )}
-    <GyPCharts rows={rows} cuentas={cuentas} sumFn={() => true} titulo={`Año ${anioRows}`} />
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={() => true} titulo={`Año ${anioRows}`} meses={Array.from({ length: 12 }, (_, i) => i + 1)} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} />
     </>
   );
 }
