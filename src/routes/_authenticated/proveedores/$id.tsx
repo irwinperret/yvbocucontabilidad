@@ -22,6 +22,7 @@ import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
 import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
+import { FacturaDetalleDialog } from "@/components/factura-detalle-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
 import {
   aplicarPareoCxp,
@@ -78,12 +79,14 @@ function FacturaChip({
   aplicadoBs,
   onQuitar,
   disabled,
+  onEditar,
 }: {
   cxp: any;
   emision?: string;
   aplicadoBs?: number;
   onQuitar?: () => void;
   disabled?: boolean;
+  onEditar?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `cxp:${cxp.id}`, disabled });
   // "Aplicado" se guarda internamente en Bs; se muestra en USD BCV usando la
@@ -94,7 +97,9 @@ function FacturaChip({
     typeof aplicadoBs === "number" && montoBsFactura > 0 ? +((aplicadoBs / montoBsFactura) * usdBcvTotal).toFixed(2) : undefined;
   return (
     <div
-      className={`flex items-center gap-2 rounded-md border bg-card px-2 py-1 text-xs ${isDragging ? "opacity-50" : ""}`}
+      className={`flex items-center gap-2 rounded-md border bg-card px-2 py-1 text-xs ${isDragging ? "opacity-50" : ""} ${onEditar ? "cursor-pointer hover:bg-muted/50" : ""}`}
+      onClick={(e) => { if (onEditar && !(e.target as HTMLElement).closest("button")) onEditar(); }}
+      title={onEditar ? "Abrir y editar factura" : undefined}
     >
       <span
         ref={setNodeRef}
@@ -123,10 +128,10 @@ function FacturaChip({
   );
 }
 
-function Zona({ id, children, className }: { id: string; children: React.ReactNode; className?: string }) {
+function Zona({ id, children, className, onClick }: { id: string; children: React.ReactNode; className?: string; onClick?: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={`${className ?? ""} ${isOver ? "ring-2 ring-primary rounded-md" : ""}`}>
+    <div ref={setNodeRef} onClick={onClick} className={`${className ?? ""} ${isOver ? "ring-2 ring-primary rounded-md" : ""}`}>
       {children}
     </div>
   );
@@ -169,6 +174,7 @@ function TableroProveedor() {
   });
   const [registrando, setRegistrando] = useState(false);
   const [editandoMov, setEditandoMov] = useState<any | null>(null);
+  const [editandoFactura, setEditandoFactura] = useState<any | null>(null);
   const [rifForm, setRifForm] = useState({ razon_social: "", nombre_comercial: "", tipo_rif: "J", rif: "" });
   const abrirRegistro = () => {
     setRifForm({
@@ -843,7 +849,7 @@ function TableroProveedor() {
                     movsDelProveedor.some((m) => m.id !== mv.id && cxpsDeMov(m.id).some((x) => x.id === c.id)),
                 );
                 return (
-                  <Zona key={mv.id} id={`mov:${mv.id}`} className="border rounded-md p-3">
+                  <Zona key={mv.id} id={`mov:${mv.id}`} className="border rounded-md p-3 cursor-pointer hover:bg-muted/20" onClick={() => setEditandoMov(mv)}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="text-sm">
                         <span className="font-medium">{fmtDate(mv.fecha)}</span>{" "}
@@ -866,7 +872,7 @@ function TableroProveedor() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <Badge
                           variant={!lista.length ? "destructive" : sinAplicar > 0.01 ? "default" : "secondary"}
                         >
@@ -911,7 +917,7 @@ function TableroProveedor() {
                       </div>
                     </div>
 
-                    <div className="mt-2 space-y-1">
+                    <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
                       {lista.length === 0 ? (
                         <p className="text-xs text-muted-foreground italic">
                           Sin facturas asignadas — suelta aquí una factura…
@@ -925,6 +931,7 @@ function TableroProveedor() {
                             aplicadoBs={aplicadoPorCxp.get(c.id)}
                             disabled={busy}
                             onQuitar={() => moverFactura(c.id, null)}
+                            onEditar={() => setEditandoFactura(c)}
                           />
                         ))
                       )}
@@ -980,7 +987,7 @@ function TableroProveedor() {
                 )}
                 {facturasSinMov.map((c) => (
                   <div key={c.id} className="space-y-1">
-                    <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} />
+                    <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} onEditar={() => setEditandoFactura(c)} />
                     <div className="flex gap-2">
                       <Select onValueChange={(v) => moverFactura(c.id, v)}>
                         <SelectTrigger className="h-8 text-xs">
@@ -1017,6 +1024,13 @@ function TableroProveedor() {
           </Card>
         </div>
       </DndContext>
+      {editandoFactura && (
+        <FacturaDetalleDialog
+          factura={editandoFactura}
+          onClose={() => setEditandoFactura(null)}
+          onSaved={async () => { setEditandoFactura(null); await refrescar(); }}
+        />
+      )}
       {editandoMov && (
         <EditDialog
           tx={editandoMov}
