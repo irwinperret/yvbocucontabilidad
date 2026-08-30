@@ -16,6 +16,7 @@ import { UsdRateBadge } from "@/components/usd-rate-badge";
 import { toast } from "sonner";
 import { Check, X, Link2, Download } from "lucide-react";
 import { exportTableToExcel } from "@/lib/excel-table";
+import { FacturaDetalleDialog } from "@/components/factura-detalle-dialog";
 import {
   bancoDeReferencia,
   normalizarFactura,
@@ -629,89 +630,3 @@ function Kpi({ label, value, count, color }: { label: string; value: string; cou
   );
 }
 
-function FacturaDetalleDialog({ factura, onClose, onSaved }: { factura: any; onClose: () => void; onSaved: () => void }) {
-  const [proveedor, setProveedor] = useState(factura.proveedor ?? "");
-  const [numeroFactura, setNumeroFactura] = useState(factura.numero_factura ?? "");
-  const [fechaVencimiento, setFechaVencimiento] = useState(factura.fecha_vencimiento ?? "");
-  const [montoBs, setMontoBs] = useState(String(factura.monto_bs ?? ""));
-  const [montoUsd, setMontoUsd] = useState(String(factura.monto_usd ?? ""));
-  const [guardando, setGuardando] = useState(false);
-
-  const montoCambio = Number(montoBs) !== Number(factura.monto_bs) || Number(montoUsd) !== Number(factura.monto_usd);
-
-  const guardar = async () => {
-    setGuardando(true);
-    const nuevaTasa = Number(montoUsd) > 0 ? +(Number(montoBs) / Number(montoUsd)).toFixed(6) : 0;
-    const { error } = await supabase
-      .from("cuentas_por_pagar")
-      .update({
-        proveedor: proveedor.trim() || null,
-        numero_factura: numeroFactura.trim() || null,
-        fecha_vencimiento: fechaVencimiento || null,
-        monto_bs: Number(montoBs) || 0,
-        monto_usd: Number(montoUsd) || 0,
-        usd_bcv_factura: Number(montoUsd) || 0,
-        ...(montoCambio && nuevaTasa > 0 ? { tasa_bcv_factura: nuevaTasa } : {}),
-      } as any)
-      .eq("id", factura.id);
-    if (error) { setGuardando(false); return toast.error(error.message); }
-
-    // Si el monto original cambió, recalcula el pendiente desde los pagos
-    // realmente vinculados (mismo mecanismo que usa el pareo bancario), en
-    // vez de solo mover el pendiente proporcionalmente.
-    if (montoCambio) {
-      const { sincronizarCxpDesdeVinculos } = await import("@/lib/pareo-cxp");
-      await sincronizarCxpDesdeVinculos(factura.id);
-    }
-    setGuardando(false);
-    toast.success("Factura actualizada");
-    onSaved();
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Detalle de la factura</DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <Label className="text-xs">Proveedor</Label>
-            <Input value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-xs">Nº de factura</Label>
-            <Input value={numeroFactura} onChange={(e) => setNumeroFactura(e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-xs">Fecha de vencimiento</Label>
-            <Input type="date" value={fechaVencimiento ?? ""} onChange={(e) => setFechaVencimiento(e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-xs">Monto original (Bs)</Label>
-            <Input type="number" value={montoBs} onChange={(e) => setMontoBs(e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-xs">Monto original (USD)</Label>
-            <Input type="number" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} />
-          </div>
-          <div className="col-span-2 border-t pt-3 mt-1 text-xs text-muted-foreground space-y-1">
-            <div>Estado: <span className="font-medium text-foreground">{factura.estado}</span></div>
-            <div>Origen: <span className="font-medium text-foreground">{factura.origen === "xetux" ? "Xetux" : "Manual"}</span></div>
-            <div>Pendiente actual: <span className="font-medium text-foreground">{fmtUsd(Number(factura.monto_pendiente_usd_bcv) || 0)} USD BCV</span></div>
-            <div>Registrada el: <span className="font-medium text-foreground">{fmtDate(factura.created_at)}</span></div>
-          </div>
-          {montoCambio && (
-            <div className="col-span-2 text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5">
-              ⚠ Cambiaste el monto original — al guardar, el saldo pendiente se recalcula desde los pagos ya vinculados a esta factura.
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={guardar} disabled={guardando}>{guardando ? "Guardando…" : "Guardar cambios"}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}

@@ -849,7 +849,7 @@ function TableroProveedor() {
                     movsDelProveedor.some((m) => m.id !== mv.id && cxpsDeMov(m.id).some((x) => x.id === c.id)),
                 );
                 return (
-                  <Zona key={mv.id} id={`mov:${mv.id}`} className="border rounded-md p-3 cursor-pointer hover:bg-muted/20" onClick={() => setEditandoMov(mv)}>
+                  <Zona key={mv.id} id={`mov:${mv.id}`} className="border rounded-md p-3 hover:bg-muted/20">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="text-sm">
                         <span className="font-medium">{fmtDate(mv.fecha)}</span>{" "}
