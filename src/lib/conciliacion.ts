@@ -123,11 +123,21 @@ export const CUENTAS_SERVICIOS = new Set(["3.14", "3.15", "3.18"]);
  */
 export const CUENTAS_GASTO_DIRECTO_AUTO = new Set([
   "1.7", // Devoluciones / Notas de crédito
+  "3.1", // Sueldos
+  "3.2", // Pasivos laborales
+  "3.3", // Salarios Administrativos
+  "3.4", // Pasivos laborales Administrativos
   "3.5", // Transporte (antes 4.5, ahora dentro de Nómina)
+  "3.6", // Sueldo Mónica
   "3.15", // Internet
   "3.16", // Teléfono
+  "4.3", // Alquiler
+  "4.4", // Condominio
   "4.10", // Mantenimiento y Reparaciones
+  "4.11", // IMAE (tasa alcaldía 5%)
   "8.1", // Propinas — pago de pasivo ya devengado en ventas, nunca lleva factura
+  "9.1", // Préstamos al personal
+  "9.3", // Anticipos de nómina
 ]);
 
 /** ¿Esta cuenta se concilia automáticamente como gasto directo sin factura? */
