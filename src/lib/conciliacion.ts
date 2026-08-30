@@ -129,8 +129,14 @@ export const CUENTAS_GASTO_DIRECTO_AUTO = new Set([
   "3.4", // Pasivos laborales Administrativos
   "3.5", // Transporte (antes 4.5, ahora dentro de Nómina)
   "3.6", // Sueldo Mónica
+  "3.13", // Aseo
+  "3.14", // Agua
   "3.15", // Internet
   "3.16", // Teléfono
+  "3.17", // Software
+  "3.18", // Electricidad
+  "3.19", // DirecTV
+  "3.20", // Fumigación
   "4.3", // Alquiler
   "4.4", // Condominio
   "4.10", // Mantenimiento y Reparaciones
