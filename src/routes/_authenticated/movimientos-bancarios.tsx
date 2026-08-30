@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -920,7 +920,13 @@ function MovimientosBancariosPage() {
                       <td className="py-2 px-2 text-xs">
                         {f.proveedor ? (
                           <div className="flex flex-col">
-                            <span>{f.proveedor.nombre}</span>
+                            <Link
+                              to="/proveedores/$id"
+                              params={{ id: f.proveedor.id }}
+                              className="text-primary hover:underline"
+                            >
+                              {f.proveedor.nombre}
+                            </Link>
                             {f.provFuente === "memo" && (
                               <span className="text-[10px] text-muted-foreground">deducido del memo</span>
                             )}
