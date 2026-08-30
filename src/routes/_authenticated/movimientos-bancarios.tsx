@@ -664,7 +664,7 @@ function MovimientosBancariosPage() {
         ? <Badge variant="outline">No aplica (no contable)</Badge>
         : <Badge variant="secondary">Gasto Stand-Alone (sin factura)</Badge>;
 
-    return <Badge variant="destructive">Sin pareo</Badge>;
+    return <Badge variant="destructive">Sin pareo (falta soporte)</Badge>;
   };
 
   const setPreset = (p: string) => {
@@ -729,7 +729,7 @@ function MovimientosBancariosPage() {
         <Kpi label="Posible pareo" value={resumen.posible} tone="text-orange-600" />
         <Kpi label="Gasto Stand-Alone (sin factura)" value={resumen.gasto_directo} tone="text-muted-foreground" />
         <Kpi label="Pendiente de revisión" value={resumen.pendiente_revision} tone="text-blue-600" highlight={resumen.pendiente_revision > 0} />
-        <Kpi label="Sin pareo" value={resumen.sin_pareo} tone="text-destructive" highlight={resumen.sin_pareo > 0} />
+        <Kpi label="Sin pareo (falta soporte)" value={resumen.sin_pareo} tone="text-destructive" highlight={resumen.sin_pareo > 0} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -766,7 +766,7 @@ function MovimientosBancariosPage() {
                 <SelectItem value="posible">Posible pareo</SelectItem>
                 <SelectItem value="no_aplica">Gasto Stand-Alone / no aplica</SelectItem>
                 <SelectItem value="pendiente_revision">Pendiente de revisión</SelectItem>
-                <SelectItem value="sin_pareo">Sin pareo</SelectItem>
+                <SelectItem value="sin_pareo">Sin pareo (falta soporte)</SelectItem>
               </SelectContent>
             </Select>
             <Select value={origenF} onValueChange={setOrigenF}>
