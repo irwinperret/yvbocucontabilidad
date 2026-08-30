@@ -38,7 +38,7 @@ export function esPagoPersonal(concepto: string, categoria?: string | null): boo
   const cat = norm(categoria).trim();
   if (cat === "MO") return true;
   const c = norm(concepto);
-  return /NOMINA|SUELDO|SALARIO|PROPINA|\bPROP\b|BONO|LIQUID|PARAFISCAL|IVSS|FAOV|INCES|SEGURO\s*SOCIAL|CESTA\s*TICKET|ANTICIPO|ANTC|PRESTAMO/.test(
+  return /NOMINA|SUELDO|SALARIO|PROPINA|\bPROP\b|BONO|LIQUID|PARAFISCAL|IVSS|FAOV|INCES|SEGURO\s*SOCIAL|CESTA\s*TICKET|ANTICIPO|ANTC|PRESTAMO|\bQNA\b|QUINCENA/.test(
     c,
   );
 }
@@ -103,6 +103,10 @@ export function clasificarPagoPersonal(
     return { cuenta: "3.1", tipo: "nomina" };
   }
   if (/ADMIN/.test(c)) return { cuenta: "3.3", tipo: "nomina" };
+
+  // 7b. Quincena genérica, sin ninguna otra palabra clave (ej. "PRIM QNA
+  // MAYO26", "SDA QNA MAYO26") → nómina genérica.
+  if (/\bQNA\b|QUINCENA/.test(c)) return { cuenta: "3.1", tipo: "nomina" };
 
   // 8. Por defecto, sólo si la categoría del reporte dice que es mano de obra
   if (esMO) return { cuenta: "3.1", tipo: "nomina" };
