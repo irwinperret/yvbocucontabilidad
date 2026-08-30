@@ -861,8 +861,11 @@ function ImportarMovimientosInner() {
           if (tx) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
           // Cuentas que por naturaleza nunca van a tener factura de Xetux (servicios,
           // transporte, mantenimiento, devoluciones) quedan conciliadas de una vez
-          // como "gasto directo", sin esperar revisión manual.
-          if (tx && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo))) {
+          // como "gasto directo", sin esperar revisión manual. Los bonos al personal
+          // (que caen en varias cuentas distintas según el tipo) también, detectados
+          // por el texto del memo en vez de por cuenta contable.
+          const esBono = /\bBONOS?\b/i.test(bankRow.concepto ?? "");
+          if (tx && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)) {
             await marcarEstadoConciliacion({
               movimientoId: (tx as any).id,
               estado: esCuentaNoConciliable(m.cuentaCodigo) ? "no_contable" : "gasto_directo",
