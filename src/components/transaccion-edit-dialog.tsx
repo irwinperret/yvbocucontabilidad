@@ -32,6 +32,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>(tx.cuenta_bancaria_id ?? "");
   const [capexCategoria, setCapexCategoria] = useState<string>(tx.capex_categoria ?? "Otros");
   const [terceroId, setTerceroId] = useState<string | null>(tx.tercero_id ?? null);
+  const [sinProveedorDeducido, setSinProveedorDeducido] = useState<boolean>(!!tx.sin_proveedor_deducido);
   const [terceroOpciones, setTerceroOpciones] = useState<ComboOption[]>([]);
   const [cuentaCodigo, setCuentaCodigo] = useState<string>(tx.cuenta_codigo);
   const [cuentaOpciones, setCuentaOpciones] = useState<ComboOption[]>([]);
@@ -154,6 +155,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
       capex_categoria: cuentaCodigo === "5.6" ? capexCategoria : tx.capex_categoria ?? null,
       // Operaciones de cambio (98) nunca llevan proveedor.
       tercero_id: aCuentaNoConciliable ? null : (terceroId || null),
+      sin_proveedor_deducido: sinProveedorDeducido,
     };
     const { data: updated, error } = await supabase
       .from("transacciones")
@@ -320,6 +322,10 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
             <p className="text-[11px] text-muted-foreground mt-1">
               Corrige aquí si la conciliación bancaria adivinó mal el proveedor a partir del memo del banco.
             </p>
+            <label className="flex items-center gap-2 mt-2 text-xs">
+              <Checkbox checked={sinProveedorDeducido} onCheckedChange={(v) => setSinProveedorDeducido(!!v)} />
+              Rechazar sugerencia — no volver a deducir proveedor para este movimiento
+            </label>
           </div>
           <div className="md:col-span-2">
             <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} />

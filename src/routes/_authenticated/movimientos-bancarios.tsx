@@ -233,9 +233,11 @@ function MovimientosBancariosPage() {
   const filas = useMemo(() => {
     const lista = terceros ?? [];
     return (movimientos ?? []).map((mov: any) => {
-      // Proveedor: el asignado en la transacción, si no, el adivinado del memo (columna F)
+      // Proveedor: el asignado en la transacción, si no, el adivinado del memo
+      // (columna F) — salvo que el usuario haya rechazado explícitamente la
+      // sugerencia para este movimiento en particular.
       const provDirecto = mov.tercero_id ? tercerosById.get(mov.tercero_id) ?? null : null;
-      const provAdivinado = provDirecto ? null : proveedorDeMemo(mov.notas, lista);
+      const provAdivinado = provDirecto || mov.sin_proveedor_deducido ? null : proveedorDeMemo(mov.notas, lista);
       const proveedor = provDirecto ?? provAdivinado;
       const provFuente: "asignado" | "memo" | null = provDirecto ? "asignado" : provAdivinado ? "memo" : null;
 
@@ -485,7 +487,7 @@ function MovimientosBancariosPage() {
   // candidatos a generarles un proveedor "pendiente de verificar" a partir
   // del nombre deducido del memo bancario.
   const sinPareoSinProveedor = useMemo(
-    () => filas.filter((f) => f.estado === "sin_pareo" && !f.mov.tercero_id),
+    () => filas.filter((f) => f.estado === "sin_pareo" && !f.mov.tercero_id && !f.mov.sin_proveedor_deducido),
     [filas],
   );
   const [generandoCandidatos, setGenerandoCandidatos] = useState(false);
