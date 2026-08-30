@@ -1,1 +1,0 @@
-Temporary operational note.
