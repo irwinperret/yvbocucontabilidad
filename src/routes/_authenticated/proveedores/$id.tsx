@@ -33,6 +33,7 @@ import {
 import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib/cxp-saldo";
 import { bancoDeReferencia } from "@/lib/conciliacion-matching";
 import { CUENTA_CAMBIO } from "@/lib/operaciones-cambio";
+import { marcarEstadoConciliacion, normalizarEstadoManual, ESTADO_MANUAL_LABEL, type EstadoManual } from "@/lib/conciliacion";
 
 const ORIGEN_LABEL: Record<string, string> = {
   manual: "Manual",
@@ -435,6 +436,18 @@ function TableroProveedor() {
     await qc.invalidateQueries({ queryKey: ["tablero-movs"] });
     await qc.invalidateQueries({ queryKey: ["cxp-analisis"] });
     await qc.invalidateQueries({ queryKey: ["mov-bancarios"] });
+  };
+
+  /** Estado manual actual de un movimiento (vínculo sin factura, si existe). */
+  const estadoManualDeMov = (movId: string): EstadoManual | null => {
+    const v = (vinculos ?? []).find((x: any) => x.transaccion_bancaria_id === movId && !x.transaccion_factura_id);
+    return v ? normalizarEstadoManual(v.estado) : null;
+  };
+  const cambiarEstadoManual = async (movId: string, estado: EstadoManual | null) => {
+    const r = await marcarEstadoConciliacion({ movimientoId: movId, estado, userId: user?.id ?? null });
+    if (!r.ok) { toast.error(r.error ?? "No se pudo cambiar el estado"); return; }
+    toast.success(estado ? `Marcado como ${ESTADO_MANUAL_LABEL[estado]}` : "Estado devuelto a automático");
+    await refrescar();
   };
 
   /** Deja el movimiento con exactamente el conjunto de facturas indicado. */
@@ -879,6 +892,22 @@ function TableroProveedor() {
                         <Button variant="ghost" size="sm" onClick={() => setEditandoMov(mv)}>
                           <Pencil className="h-3.5 w-3.5 mr-1" />Editar
                         </Button>
+                        {lista.length === 0 ? (
+                          <Select
+                            value={estadoManualDeMov(mv.id) ?? "auto"}
+                            onValueChange={(v) => cambiarEstadoManual(mv.id, v === "auto" ? null : (v as EstadoManual))}
+                          >
+                            <SelectTrigger className="h-7 w-[190px] text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">Automático (sugerido)</SelectItem>
+                              {(Object.keys(ESTADO_MANUAL_LABEL) as EstadoManual[]).map((k) => (
+                                <SelectItem key={k} value={k}>{ESTADO_MANUAL_LABEL[k]}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">Para cambiar el estado a mano, primero quita el pareo.</span>
+                        )}
                       </div>
                     </div>
 
