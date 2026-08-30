@@ -107,13 +107,22 @@ function tokensProveedor(n?: string | null) {
     .filter((t) => t.length >= 4 && !SUFIJOS.has(t) && !/^\d+$/.test(t));
 }
 
-/** ¿El memo bancario menciona (aprox.) al proveedor? */
+/**
+ * ¿El memo bancario menciona (aprox.) al proveedor?
+ *
+ * Si el nombre del proveedor tiene VARIOS tokens significativos (ej.
+ * "MANICERIA SAN JORGE" → "MANICERIA", "JORGE"), no basta con que aparezca
+ * uno solo — de lo contrario, un nombre de persona común como "Jorge"
+ * (en un pago de nómina) haría match falso con cualquier proveedor que
+ * tenga esa palabra suelta en su razón social.
+ */
 export function proveedorSimilar(proveedor?: string | null, memo?: string | null) {
   const toks = tokensProveedor(proveedor);
   if (!toks.length) return false;
   const texto = normalizarProveedor(memo);
   if (!texto) return false;
-  return toks.some((t) => texto.includes(t));
+  const coincidencias = toks.filter((t) => texto.includes(t)).length;
+  return toks.length === 1 ? coincidencias >= 1 : coincidencias >= 2;
 }
 
 export type TerceroRef = { id: string; nombre: string };
@@ -132,7 +141,12 @@ export function proveedorDeMemo(memo: string | null | undefined, terceros: Terce
     const toks = tokensProveedor(t.nombre);
     if (!toks.length) continue;
     let score = 0;
-    for (const tok of toks) if (texto.includes(tok)) score += tok.length;
+    let coincidencias = 0;
+    for (const tok of toks) if (texto.includes(tok)) { score += tok.length; coincidencias++; }
+    // Igual que proveedorSimilar: si el proveedor tiene varios tokens
+    // significativos, una sola palabra suelta (ej. un nombre de persona
+    // común que también aparece en la razón social) no basta.
+    if (toks.length > 1 && coincidencias < 2) continue;
     if (score > mejorScore) { mejorScore = score; mejor = t; }
   }
   // exigir una coincidencia mínimamente significativa
