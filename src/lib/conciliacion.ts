@@ -127,6 +127,7 @@ export const CUENTAS_GASTO_DIRECTO_AUTO = new Set([
   "3.15", // Internet
   "3.16", // Teléfono
   "4.10", // Mantenimiento y Reparaciones
+  "8.1", // Propinas — pago de pasivo ya devengado en ventas, nunca lleva factura
 ]);
 
 /** ¿Esta cuenta se concilia automáticamente como gasto directo sin factura? */
