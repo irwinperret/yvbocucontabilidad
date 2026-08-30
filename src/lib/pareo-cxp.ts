@@ -249,8 +249,18 @@ export async function aplicarPareoCxp(args: {
   }
 
   const facturaIds = cxps.map((c) => c.transaccion_id).filter(Boolean) as string[];
-  const estadoVinculo: "pareado" | "parcial" =
-    excedenteReal > 0.01 || quedoPendiente ? "parcial" : "pareado";
+  // El estado del VÍNCULO debe coincidir con el estado REAL que quedó cada
+  // CxP (ya actualizada arriba) — antes se recalculaba aparte con un criterio
+  // de tolerancia en Bs revaluados a la tasa del día del pago, que podía
+  // divergir del criterio en USD BCV usado para la CxP si la tasa cambió
+  // entre la fecha de la factura y la fecha del pago (la CxP quedaba
+  // "pagada" pero el vínculo se marcaba "parcial", inconsistente).
+  const { data: cxpsActualizadas } = await supabase
+    .from("cuentas_por_pagar")
+    .select("id, estado")
+    .in("id", cxps.map((c) => c.id));
+  const todasSaldadas = (cxpsActualizadas ?? []).every((c: any) => c.estado === "pagada");
+  const estadoVinculo: "pareado" | "parcial" = excedenteReal > 0.01 || !todasSaldadas ? "parcial" : "pareado";
 
   if (facturaIds.length) {
     const r = await guardarVinculosConciliacion({
