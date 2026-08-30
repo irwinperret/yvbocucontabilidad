@@ -44,6 +44,20 @@ import { esCuentaNoConciliable } from "@/lib/operaciones-cambio";
 
 export const Route = createFileRoute("/_authenticated/movimientos-bancarios")({
   component: MovimientosBancariosPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    banco: typeof search.banco === "string" ? search.banco : "todos",
+    estadoF: typeof search.estadoF === "string" ? search.estadoF : "todos",
+    conciliacionF: Array.isArray(search.conciliacionF) ? (search.conciliacionF as string[]) : [],
+    origenF: typeof search.origenF === "string" ? search.origenF : "todos",
+    desde: typeof search.desde === "string" ? search.desde : "",
+    hasta: typeof search.hasta === "string" ? search.hasta : "",
+    texto: typeof search.texto === "string" ? search.texto : "",
+    cuentasSel: Array.isArray(search.cuentasSel) ? (search.cuentasSel as string[]) : [],
+    centrosSel: Array.isArray(search.centrosSel) ? (search.centrosSel as string[]) : [],
+    provSel: Array.isArray(search.provSel) ? (search.provSel as string[]) : [],
+    pageSize: search.pageSize === "all" ? ("all" as const) : (Number(search.pageSize) || 50),
+    page: Number(search.page) || 0,
+  }),
   head: () => ({
     meta: [
       { title: "Movimientos bancarios | Yvbocu Contabilidad" },
@@ -63,18 +77,28 @@ function MovimientosBancariosPage() {
   const { user } = useAuth();
   const { mode: usdMode, label: usdLabel } = useUsdView();
 
-  const [banco, setBanco] = useState("todos");
-  const [estadoF, setEstadoF] = useState("todos");
-  const [conciliacionF, setConciliacionF] = useState<string[]>([]);
-  const [origenF, setOrigenF] = useState("todos");
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
-  const [texto, setTexto] = useState("");
-  const [cuentasSel, setCuentasSel] = useState<string[]>([]);
-  const [centrosSel, setCentrosSel] = useState<string[]>([]);
-  const [provSel, setProvSel] = useState<string[]>([]);
-  const [pageSize, setPageSize] = useState<number | "all">(50);
-  const [page, setPage] = useState(0);
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // Los filtros viven en la URL (no en useState local) para que se mantengan
+  // al usar "Volver" del navegador, al refrescar, o al compartir el link.
+  // "replace: true" evita llenar el historial con una entrada por cada
+  // cambio de filtro — un solo "Volver" saca de la página completa.
+  function setSearchField<K extends keyof typeof search>(key: K, value: (typeof search)[K]) {
+    navigate({ search: (prev: any) => ({ ...prev, [key]: value }), replace: true });
+  }
+  const { banco, estadoF, conciliacionF, origenF, desde, hasta, texto, cuentasSel, centrosSel, provSel, pageSize, page } = search;
+  const setBanco = (v: string) => setSearchField("banco", v);
+  const setEstadoF = (v: string) => setSearchField("estadoF", v);
+  const setConciliacionF = (v: string[]) => setSearchField("conciliacionF", v);
+  const setOrigenF = (v: string) => setSearchField("origenF", v);
+  const setDesde = (v: string) => setSearchField("desde", v);
+  const setHasta = (v: string) => setSearchField("hasta", v);
+  const setTexto = (v: string) => setSearchField("texto", v);
+  const setCuentasSel = (v: string[]) => setSearchField("cuentasSel", v);
+  const setCentrosSel = (v: string[]) => setSearchField("centrosSel", v);
+  const setProvSel = (v: string[]) => setSearchField("provSel", v);
+  const setPageSize = (v: number | "all") => setSearchField("pageSize", v);
+  const setPage = (v: number) => setSearchField("page", v);
 
 
   const { data: movimientos, isLoading } = useQuery({
