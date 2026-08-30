@@ -7,7 +7,7 @@ export const ESTADO_LABEL: Record<EstadoConciliacion, string> = {
   parcial: "Pareado parcial",
   posible: "Posible pareo",
   no_aplica: "Gasto Stand-Alone (sin factura)",
-  sin_pareo: "Sin pareo (falta soporte)",
+  sin_pareo: "Sin pareo (soporte pendiente)",
   pendiente_revision: "Pendiente de revisión",
 };
 
