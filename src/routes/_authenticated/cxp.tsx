@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -450,7 +450,15 @@ function CxPAnalisisPage() {
                     const saldo = pendBs - f.totalPareado;
                     return (
                       <tr key={c.id} className="border-b last:border-0 align-top">
-                        <td className="py-2 px-2">{c.proveedor ?? "—"}</td>
+                        <td className="py-2 px-2">
+                          {c.tercero_id ? (
+                            <Link to="/proveedores/$id" params={{ id: c.tercero_id }} className="text-primary hover:underline">
+                              {c.proveedor ?? "—"}
+                            </Link>
+                          ) : (
+                            c.proveedor ?? "—"
+                          )}
+                        </td>
                         <td className="py-2 px-2 mono text-xs">
                           <button type="button" onClick={() => setVerFactura(c)} className="text-primary hover:underline">
                             {c.numero_factura ?? "s/n"}
