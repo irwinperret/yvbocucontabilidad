@@ -141,6 +141,8 @@ function TableroProveedor() {
   const { id } = useParams({ from: "/_authenticated/proveedores/$id" });
   const qc = useQueryClient();
   const { user } = useAuth();
+  // Edición de facturas restringida a estas dos cuentas específicas.
+  const puedeEditarFacturas = user?.email === "irwinperret@hotmail.com" || user?.email === "irwinperret@gmail.com";
   const esSin = id === SIN;
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [busca, setBusca] = useState("");
@@ -931,7 +933,7 @@ function TableroProveedor() {
                             aplicadoBs={aplicadoPorCxp.get(c.id)}
                             disabled={busy}
                             onQuitar={() => moverFactura(c.id, null)}
-                            onEditar={() => setEditandoFactura(c)}
+                            onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
                           />
                         ))
                       )}
@@ -987,7 +989,7 @@ function TableroProveedor() {
                 )}
                 {facturasSinMov.map((c) => (
                   <div key={c.id} className="space-y-1">
-                    <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} onEditar={() => setEditandoFactura(c)} />
+                    <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined} />
                     <div className="flex gap-2">
                       <Select onValueChange={(v) => moverFactura(c.id, v)}>
                         <SelectTrigger className="h-8 text-xs">
