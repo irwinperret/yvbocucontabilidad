@@ -668,6 +668,14 @@ function ImportarMovimientosInner() {
     const { proveedorDeMemo } = await import("@/lib/conciliacion-matching");
     const { data: tercerosCat } = await supabase.from("terceros").select("id, razon_social");
     const tercerosRef = (tercerosCat ?? []).map((t: any) => ({ id: t.id, nombre: t.razon_social as string }));
+
+    // Proveedores que ya tienen al menos una factura registrada: si el memo
+    // deduce uno de estos, no se marca "gasto directo" automáticamente (ni
+    // siquiera por BONO u otra palabra clave) — es más probable que el
+    // movimiento esté esperando parear con una factura real de ese proveedor
+    // que ser un gasto genuinamente sin soporte.
+    const { data: cxpProveedores } = await supabase.from("cuentas_por_pagar").select("tercero_id").not("tercero_id", "is", null);
+    const proveedoresConFactura = new Set((cxpProveedores ?? []).map((c: any) => c.tercero_id));
     const facturaDeMemo = (texto: string) => {
       const t = String(texto ?? "").toUpperCase();
       // Con la palabra explícita de factura: separador flexible, número desde 1 dígito/letra.
@@ -863,9 +871,12 @@ function ImportarMovimientosInner() {
           // transporte, mantenimiento, devoluciones) quedan conciliadas de una vez
           // como "gasto directo", sin esperar revisión manual. Los bonos al personal
           // (que caen en varias cuentas distintas según el tipo) también, detectados
-          // por el texto del memo en vez de por cuenta contable.
+          // por el texto del memo en vez de por cuenta contable. PERO: si el memo
+          // deduce un proveedor que ya tiene facturas registradas, no se marca —
+          // es más probable que esté esperando parear con una de esas facturas.
           const esBono = /\bBONOS?\b/i.test(bankRow.concepto ?? "");
-          if (tx && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)) {
+          const proveedorTieneFacturas = !!provAdivinado && proveedoresConFactura.has(provAdivinado.id);
+          if (tx && !proveedorTieneFacturas && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)) {
             await marcarEstadoConciliacion({
               movimientoId: (tx as any).id,
               estado: esCuentaNoConciliable(m.cuentaCodigo) ? "no_contable" : "gasto_directo",
