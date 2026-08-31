@@ -1,0 +1,46 @@
+name: One-time Iris menu change
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  change:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Move Iris outside Gestión
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/components/app-sidebar.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          old_item = '  { title: "Iris", url: "/iris", icon: ShieldCheck, especial: true },\n'
+          if old_item not in text:
+              raise SystemExit('Expected Iris item in registroGestion was not found')
+          text = text.replace(old_item, '', 1)
+
+          marker = '''            </SidebarGroup>\n          </>\n        ) : ('''
+          standalone = '''            </SidebarGroup>\n\n            <SidebarGroup>\n              <SidebarGroupContent>\n                <SidebarMenu>\n                  <SidebarMenuItem>\n                    <SidebarMenuButton asChild isActive={isActive("/iris")}>\n                      <Link to="/iris" className="flex items-center gap-2 font-bold text-purple-600">\n                        <ShieldCheck className="h-4 w-4 text-purple-600" />\n                        {!collapsed && <span>Iris</span>}\n                      </Link>\n                    </SidebarMenuButton>\n                  </SidebarMenuItem>\n                </SidebarMenu>\n              </SidebarGroupContent>\n            </SidebarGroup>\n          </>\n        ) : ('''
+          if marker not in text:
+              raise SystemExit('Expected end of Registro groups was not found')
+          text = text.replace(marker, standalone, 1)
+          path.write_text(text, encoding='utf-8')
+          print('Iris moved outside Gestión.')
+
+      - name: Commit changes and remove workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/one-time-iris-menu-change.yml
+          git add src/components/app-sidebar.tsx .github/workflows/one-time-iris-menu-change.yml
+          git commit -m "Move Iris outside Gestion in sidebar"
+          git push origin main
