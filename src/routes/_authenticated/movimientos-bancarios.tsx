@@ -168,9 +168,16 @@ function MovimientosBancariosPage() {
   const { data: vinculos } = useQuery({
     queryKey: ["conciliacion-bancaria"],
     queryFn: async () => {
-      const { data, error } = await (supabase.from as any)("conciliacion_bancaria").select("*");
-      if (error) throw error;
-      return (data ?? []) as any[];
+      // CRÍTICO: sin paginación explícita, Supabase limita a 1000 filas por
+      // defecto. La tabla ya superó ese límite (más de 1000 vínculos entre
+      // pareos y estados manuales) — sin esto, cualquier vínculo que caiga
+      // más allá de la fila 1000 simplemente no llegaba al navegador, y el
+      // movimiento se veía "sin confirmar" aunque su vínculo SÍ estuviera
+      // guardado correctamente en la base de datos.
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows<any>(async (from, to) =>
+        await (supabase.from as any)("conciliacion_bancaria").select("*").range(from, to),
+      );
     },
   });
 

@@ -95,9 +95,10 @@ function CxPAnalisisPage() {
   const { data: vinculos } = useQuery({
     queryKey: ["conciliacion-bancaria"],
     queryFn: async () => {
-      const { data, error } = await (supabase.from as any)("conciliacion_bancaria").select("*");
-      if (error) throw error;
-      return (data ?? []) as any[];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows<any>(async (from, to) =>
+        await (supabase.from as any)("conciliacion_bancaria").select("*").range(from, to),
+      );
     },
   });
 
