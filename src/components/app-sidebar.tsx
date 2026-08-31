@@ -70,7 +70,6 @@ const registroGestion = [
   { title: "Proveedores", url: "/proveedores", icon: Users },
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
-  { title: "Iris", url: "/iris", icon: ShieldCheck, especial: true },
 ];
 
 const analisisPrincipales = [
@@ -228,6 +227,21 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/iris")}>
+                      <Link to="/iris" className="flex items-center gap-2 font-bold text-purple-600">
+                        <ShieldCheck className="h-4 w-4 text-purple-600" />
+                        {!collapsed && <span>Iris</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
