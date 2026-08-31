@@ -327,7 +327,7 @@ function MovimientosBancariosPage() {
                 : "gasto_directo",
 
         tienePareoFactura: confirmados.length > 0,
-        manual: confirmados.some((v) => v.origen === "manual"),
+        manual: confirmados.some((v) => v.origen === "manual") || !!estadoManual,
         confirmable: (!confirmados.length && !estadoManual) && (!vs.length || (!!filaRechazo && !mismoRechazo)) && auto.facturas.length > 0,
         estadoSugerido: (auto.estado === "parcial" ? "parcial" : "pareado") as "pareado" | "parcial",
         // "Evidente": el propio matching ya encontró el N° de factura con monto

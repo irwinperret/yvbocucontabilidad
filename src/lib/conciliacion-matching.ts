@@ -538,8 +538,11 @@ export function recalcularPareos(entradas: EntradaRecalculo[]): ResultadoRecalcu
     const sugeridas = e.auto.facturas ?? [];
     const idsSug = sugeridas.map((f) => f.id);
 
-    // nunca se pisa un pareo manual confirmado
-    if (e.manual && e.confirmadas.length) continue;
+    // nunca se pisa una decisión manual — con factura confirmada, o sin ella
+    // (ej. "Sin pareo (revisado)" o "Gasto Stand-Alone": el usuario ya
+    // revisó este movimiento y decidió que no lleva factura, así que no
+    // debe volver a aparecer como sugerencia de recálculo).
+    if (e.manual) continue;
 
     if (e.confirmadas.length) {
       // ¿pareo parcial que ahora se puede completar?
