@@ -28,6 +28,7 @@ import {
   Receipt,
   Sparkles,
   PauseCircle,
+  ShieldCheck,
 
 } from "lucide-react";
 import { History as HistoryIcon } from "lucide-react";
@@ -69,6 +70,7 @@ const registroGestion = [
   { title: "Proveedores", url: "/proveedores", icon: Users },
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
+  { title: "Iris", url: "/iris", icon: ShieldCheck, especial: true },
 ];
 
 const analisisPrincipales = [
@@ -216,11 +218,11 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   {gestionOpen &&
-                    registroGestion.map((item) => (
+                    registroGestion.map((item: any) => (
                       <SidebarMenuItem key={item.url}>
                         <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
-                          <Link to={item.url} className="flex items-center gap-2">
-                            <item.icon className="h-3.5 w-3.5" />
+                          <Link to={item.url} className={`flex items-center gap-2 ${item.especial ? "font-bold text-purple-600" : ""}`}>
+                            <item.icon className={`h-3.5 w-3.5 ${item.especial ? "text-purple-600" : ""}`} />
                             {!collapsed && <span className="text-sm">{item.title}</span>}
                           </Link>
                         </SidebarMenuButton>
