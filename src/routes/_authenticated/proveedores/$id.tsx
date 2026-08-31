@@ -795,7 +795,7 @@ function TableroProveedor() {
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Sin aplicar (USD BCV)</div>
+            <div className="text-xs text-muted-foreground">Saldo pendiente de movimientos (USD BCV)</div>
             <div className="text-lg font-semibold mono">{fmtUsd(totalSinAplicarUsd)}</div>
           </CardContent>
         </Card>
@@ -808,15 +808,7 @@ function TableroProveedor() {
             <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvFacturasSinMov)}</div>
           </CardContent>
         </Card>
-        <Card
-          className={`cursor-pointer transition-colors ${focusResumen === "movs-sin-factura" ? "ring-2 ring-primary" : ""}`}
-          onClick={() => onResumenClick("movs-sin-factura")}
-        >
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Movimientos sin factura (USD BCV)</div>
-            <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvMovsSinFactura)}</div>
-          </CardContent>
-        </Card>
+
       </div>
 
 
