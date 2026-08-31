@@ -214,6 +214,21 @@ export async function guardarVinculosConciliacion(
   const { movimientoId, facturaId, contrapartes, estado, origen, userId, facturasRechazadas } = args;
   const tabla = (supabase.from as any)("conciliacion_bancaria");
 
+  // Protección de raíz contra condiciones de carrera: un guardado AUTOMÁTICO
+  // (ej. el "auto-confirmar evidentes" que corre solo al cargar la pantalla)
+  // nunca debe pisar una decisión MANUAL ya guardada para el mismo
+  // movimiento — se consulta la base de datos directamente aquí (no el
+  // estado en memoria, que puede estar un paso atrás justo después de que
+  // el usuario acaba de guardar un cambio manual).
+  if (origen === "auto" && movimientoId) {
+    const { data: yaManual } = await tabla
+      .select("id")
+      .eq("transaccion_bancaria_id", movimientoId)
+      .eq("origen", "manual")
+      .limit(1);
+    if (yaManual && yaManual.length) return { ok: true };
+  }
+
   // Facturas que quedaban vinculadas ANTES de este cambio (para poder
   // resincronizar su CxP también si se les quita el vínculo).
   const previas = movimientoId
