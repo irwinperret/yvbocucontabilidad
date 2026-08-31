@@ -4,11 +4,12 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { fmtUsd, fmtDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
 import { marcarEstadoConciliacion } from "@/lib/conciliacion";
+import { EditDialog } from "@/components/transaccion-edit-dialog";
 
 export const Route = createFileRoute("/_authenticated/iris/movimientos-sin-proveedor")({
   component: MovimientosSinProveedorPage,
@@ -24,6 +25,7 @@ function MovimientosSinProveedorPage() {
   const qc = useQueryClient();
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [confirmandoTodos, setConfirmandoTodos] = useState(false);
+  const [movimientoEditando, setMovimientoEditando] = useState<any | null>(null);
 
   const { data: movimientos, isLoading } = useQuery({
     queryKey: ["iris-movs-sin-proveedor"],
@@ -32,7 +34,7 @@ function MovimientosSinProveedorPage() {
       const movs = await fetchAllRows<any>(async (from, to) =>
         await supabase
           .from("transacciones")
-          .select("id, fecha, monto_bs, monto_usd, tasa_bcv, notas, detalle")
+          .select("*")
           .like("referencia", "BANK:%")
           .neq("standby", true)
           .is("tercero_id", null)
@@ -83,6 +85,12 @@ function MovimientosSinProveedorPage() {
     qc.invalidateQueries({ queryKey: ["iris-sin-proveedor-count"] });
   };
 
+  const afterSaved = () => {
+    setMovimientoEditando(null);
+    qc.invalidateQueries({ queryKey: ["iris-movs-sin-proveedor"] });
+    qc.invalidateQueries({ queryKey: ["iris-sin-proveedor-count"] });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -92,7 +100,7 @@ function MovimientosSinProveedorPage() {
           </Button>
           <h1 className="text-2xl font-bold tracking-tight">Movimientos sin proveedor</h1>
           <p className="text-sm text-muted-foreground">
-            Confirma que estos movimientos son efectivamente Gasto Stand-Alone. Solo aparecen los que aún no se han confirmado. Montos en USD BCV.
+            Revisa, edita y confirma estos movimientos. Puedes asignar el proveedor correcto desde la edición del movimiento. Montos en USD BCV.
           </p>
         </div>
         {!!movimientos?.length && (
@@ -116,7 +124,7 @@ function MovimientosSinProveedorPage() {
                   <th className="text-left py-2 px-4">Fecha</th>
                   <th className="text-right py-2 px-4">USD BCV</th>
                   <th className="text-left py-2 px-4">Notas / memo</th>
-                  <th className="text-center py-2 px-4 w-40">Acción</th>
+                  <th className="text-center py-2 px-4 w-48">Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,10 +134,16 @@ function MovimientosSinProveedorPage() {
                     <td className="py-2 px-4 text-right mono">{fmtUsd(usdBcv(m))}</td>
                     <td className="py-2 px-4">{m.notas ?? m.detalle ?? "—"}</td>
                     <td className="py-2 px-4 text-center">
-                      <Button size="sm" variant="outline" onClick={() => confirmar(m.id)} disabled={confirmandoId === m.id || confirmandoTodos}>
-                        <Check className="h-3.5 w-3.5 mr-1" />
-                        {confirmandoId === m.id ? "…" : "Confirmar"}
-                      </Button>
+                      <div className="flex items-center justify-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setMovimientoEditando(m)} disabled={confirmandoTodos}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" />
+                          Editar
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => confirmar(m.id)} disabled={confirmandoId === m.id || confirmandoTodos}>
+                          <Check className="h-3.5 w-3.5 mr-1" />
+                          {confirmandoId === m.id ? "…" : "Confirmar"}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -138,6 +152,14 @@ function MovimientosSinProveedorPage() {
           )}
         </CardContent>
       </Card>
+
+      {movimientoEditando && (
+        <EditDialog
+          tx={movimientoEditando}
+          onClose={() => setMovimientoEditando(null)}
+          onSaved={afterSaved}
+        />
+      )}
     </div>
   );
 }
