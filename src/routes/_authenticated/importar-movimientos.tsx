@@ -951,6 +951,7 @@ function ImportarMovimientosInner() {
 
 
         let restanteUsdBcv = rates.bcv > 0 ? +(montoBs / rates.bcv).toFixed(2) : 0;
+        let todasCubiertas = true;
         for (const cxp of m.cxps) {
           if (restanteUsdBcv <= 0.01) break;
           const pendUsdBcv = pendUsdBcvFn(cxp);
@@ -965,6 +966,7 @@ function ImportarMovimientosInner() {
 
           const nuevoBs = Math.max(0, +(nuevoUsdBcv * (Number(cxp.tasa_bcv_factura) || rates.bcv || 1)).toFixed(2));
           const cubreTodo = nuevoUsdBcv <= 0.01;
+          if (!cubreTodo) todasCubiertas = false;
 
           await supabase.from("cuentas_por_pagar").update({
             revert_batch_id: (cxp as any).revert_batch_id ?? batch?.id ?? null,
@@ -985,6 +987,20 @@ function ImportarMovimientosInner() {
           if (cubreTodo) ok++; else partial++;
           restanteUsdBcv = +(restanteUsdBcv - aplicarUsdBcv).toFixed(2);
         }
+
+        // El pago y la actualización de las CxP ya quedaron registrados arriba,
+        // pero sin esto el movimiento se seguía viendo "sin resolver" en
+        // Movimientos Bancarios — nunca se completaba la trazabilidad formal
+        // del pareo (conciliacion_bancaria), aunque las facturas ya estuvieran
+        // saldadas desde el momento de la importación.
+        const { guardarVinculosConciliacion } = await import("@/lib/conciliacion");
+        await guardarVinculosConciliacion({
+          movimientoId: (tx as any).id,
+          contrapartes: m.cxps.map((c) => c.transaccion_id).filter(Boolean) as string[],
+          estado: todasCubiertas ? "pareado" : "parcial",
+          origen: "auto",
+          userId: user.id,
+        });
 
 
 
