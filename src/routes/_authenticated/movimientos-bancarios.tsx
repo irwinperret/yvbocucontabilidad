@@ -989,7 +989,7 @@ function MovimientosBancariosPage() {
                                 size="sm"
                                 variant="outline"
                                 className="h-7 px-2"
-                                onClick={() => guardarVinculo(f.mov.id, f.sugeridas.map((s) => s.id), f.estadoSugerido, "auto")}
+                                onClick={() => guardarVinculo(f.mov.id, f.sugeridas.map((s) => s.id), f.estadoSugerido, "manual")}
                               >
                                 <Check className="h-3 w-3 mr-1" />
                                 {f.estadoSugerido === "parcial" ? "Confirmar parcial" : "Confirmar"}
