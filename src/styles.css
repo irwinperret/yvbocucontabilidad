@@ -8,14 +8,7 @@
  * Design system definition.
  *
  * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * classes (e.g. --color-primary -> bg-primary, text-foreground).
  */
 
 @theme inline {
@@ -69,7 +62,6 @@
   --card-foreground: oklch(0.15 0.02 264);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0.02 264);
-  /* MODO REGISTRO morado #534AB7 */
   --primary: oklch(0.45 0.17 285);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.96 0.005 250);
@@ -112,7 +104,6 @@
 .positive { color: var(--positive); }
 .negative { color: var(--negative); }
 
-
 .dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
@@ -149,118 +140,77 @@
 }
 
 @layer base {
-  * {
-    border-color: var(--color-border);
-  }
-
-  body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-  }
+  * { border-color: var(--color-border); }
+  body { background-color: var(--color-background); color: var(--color-foreground); }
 }
 
-/* Impresión: horizontal y márgenes ajustados, para que los informes con
-   tablas anchas (ej. comparativos mensuales) aprovechen mejor la página. */
 @media print {
-  @page {
-    size: landscape;
-    margin: 10mm;
-  }
-
-  /* Sin esto, los navegadores omiten colores de fondo y de gráficos por
-     defecto al imprimir — se perdería todo el código de color (rojo para
-     egresos, verde/rojo para utilidad, etc.). */
+  @page { size: landscape; margin: 8mm; }
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
+  .shadow { box-shadow: none !important; }
 
-  /* Las sombras de las tarjetas no imprimen bien (se ven como manchas grises). */
-  .shadow {
-    box-shadow: none !important;
+  /* Remove the desktop sidebar AND its reserved spacer from the printed page. */
+  .group.peer[data-side="left"],
+  .group.peer[data-side="right"] {
+    display: none !important;
   }
-}
 
+  /* The report must use the complete printable width. */
+  .group\/sidebar-wrapper > main,
+  main {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
 
-/* IPA Mensual — diseño específico para impresión */
-@media print {
-  /* The report root has a distinctive combination of utility classes.
-     Keep the interactive screen layout untouched and only reorder/compact
-     the report when printing. */
+  /* IPA report: compact, report-like print layout. */
   [class~="space-y-6"][class~="print:space-y-1.5"] {
     display: flex !important;
     flex-direction: column !important;
-    gap: 5mm !important;
+    gap: 3mm !important;
+    width: 100% !important;
   }
 
-  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="bg-amber-50"] {
-    order: 2;
-  }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > *:first-child { order: 1; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > .rounded-xl.border.bg-card { order: 2; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="md:grid-cols-4"] { order: 3; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] { order: 4; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table thead) { order: 5; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table tbody):not(:has(table thead)) { order: 6; }
 
-  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table thead) {
-    order: 5;
-  }
-
-  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table tbody):not(:has(table thead)) {
-    order: 6;
-  }
-
-  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] {
-    order: 7;
-  }
-
-  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="md:grid-cols-4"] {
-    order: 4;
-  }
-
-  [class~="space-y-6"][class~="print:space-y-1.5"] > *:first-child {
-    order: 1;
-  }
-
-  /* Analysis immediately follows the title. */
-  [class~="space-y-6"][class~="print:space-y-1.5"] > .rounded-xl.border.bg-card {
-    order: 3;
-  }
-
-  /* Selection summaries are useful on screen but should never appear in the PDF. */
   [class~="space-y-6"][class~="print:space-y-1.5"] > .flex.justify-end {
     display: none !important;
   }
 
-  /* Give the printed tables a clean report appearance. */
   [class~="space-y-6"][class~="print:space-y-1.5"] table {
     width: 100% !important;
     border-collapse: collapse !important;
   }
-
-  [class~="space-y-6"][class~="print:space-y-1.5"] thead {
-    display: table-header-group;
-  }
-
+  [class~="space-y-6"][class~="print:space-y-1.5"] thead { display: table-header-group; }
   [class~="space-y-6"][class~="print:space-y-1.5"] tr {
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  [class~="space-y-6"][class~="print:space-y-1.5"] th { border-bottom: 1px solid #888 !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] .overflow-x-auto { overflow: visible !important; }
 
-  [class~="space-y-6"][class~="print:space-y-1.5"] th {
-    border-bottom: 1px solid #888 !important;
-  }
-
-  /* Charts get a little more vertical room in the PDF while staying compact. */
-  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] > * {
+  /* Keep the complete G&P section together. It starts on page 2 rather than
+     leaving a partial G&P table at the bottom of page 1. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table tbody):not(:has(table thead)) {
+    break-before: page;
+    page-break-before: always;
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  /* Avoid horizontal scrolling containers clipping printed tables. */
-  [class~="space-y-6"][class~="print:space-y-1.5"] .overflow-x-auto {
-    overflow: visible !important;
-  }
-
-  /* Keep each major section together whenever the browser can do so. */
-  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table) {
-    break-inside: auto;
-    page-break-inside: auto;
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] > * {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
