@@ -12,7 +12,7 @@ import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
 import {
-  Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart,
+  Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
 } from "recharts";
 import { Wrench, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 
@@ -302,10 +302,11 @@ function ResumenEjecutivoMensualPage() {
         <CardHeader><CardTitle className="text-base">Utilidad mensual por categorías — {anio}</CardTitle></CardHeader>
         <CardContent style={{ height: 360 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={serie}>
+            <ComposedChart data={serie} stackOffset="sign">
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis dataKey="mesLabel" fontSize={11} />
               <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
+              <ReferenceLine y={0} stroke="#111827" strokeWidth={1} />
               <Tooltip formatter={(v: number) => fmtUsd(v)} />
               <Legend />
               {categoriasConDatos.map((c) => (
