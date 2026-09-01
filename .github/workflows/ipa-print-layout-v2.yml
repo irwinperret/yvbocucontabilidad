@@ -1,0 +1,35 @@
+name: Improve IPA print pagination
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event.head_commit.message != 'Improve IPA print pagination'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update IPA G&P print break
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/routes/_authenticated/resumen-ejecutivo-mensual.tsx')
+          s = p.read_text()
+          old = '<Card className="print:break-inside-avoid">\n        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose G&P — {labelMes}</CardTitle></CardHeader>'
+          new = '<Card className="print:break-before-page print:break-inside-avoid">\n        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose G&P — {labelMes}</CardTitle></CardHeader>'
+          if old not in s:
+              raise SystemExit('Target G&P card not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/resumen-ejecutivo-mensual.tsx
+          git rm .github/workflows/ipa-print-layout-v2.yml
+          git commit -m "Improve IPA print pagination"
+          git push
