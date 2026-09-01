@@ -1,0 +1,48 @@
+name: Reorder IPA monthly tables
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/reorder-ipa-monthly.yml'
+      - 'src/routes/_authenticated/resumen-ejecutivo-mensual.tsx'
+
+permissions:
+  contents: write
+
+jobs:
+  reorder:
+    if: github.event.head_commit.message != 'Reorder IPA monthly tables'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reorder tables
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/routes/_authenticated/resumen-ejecutivo-mensual.tsx')
+          s = p.read_text()
+          start_gp = s.index('      {/* b) Desglose mensual de G&P */}')
+          start_monthly = s.index('      {/* Comparativo mensual — Enero hasta el mes de corte */}')
+          end_monthly = s.index('      <Card className="print:break-inside-avoid">', start_monthly)
+          # The monthly comparison card ends immediately before the following CxP card.
+          end_monthly = s.index('      <Card className="print:break-inside-avoid">', end_monthly + 1) if s[start_monthly:end_monthly].count('<Card ') == 0 else end_monthly
+          # Locate the CxP card directly after the monthly comparison card by its title.
+          cxp_marker = '      <Card className="print:break-inside-avoid">\n        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Cuentas por pagar'
+          cxp = s.index(cxp_marker)
+          # G&P block is between its comment and the monthly comparison comment.
+          gp = s[start_gp:start_monthly]
+          monthly = s[start_monthly:cxp]
+          if start_gp > start_monthly:
+              raise SystemExit('Unexpected table order')
+          s = s[:start_gp] + monthly + gp + s[cxp:]
+          p.write_text(s)
+          PY
+      - name: Commit change
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/routes/_authenticated/resumen-ejecutivo-mensual.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'Reorder IPA monthly tables'
+          git push
