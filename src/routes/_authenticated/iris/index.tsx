@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldCheck, ArrowLeftRight, ChevronRight, StickyNote, Plus, Check } from "lucide-react";
+import { ShieldCheck, ArrowLeftRight, ChevronRight, StickyNote, Plus, Check, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { fmtUsd, fmtDate } from "@/lib/format";
 import { pendienteUsdBcv } from "@/lib/cxp-saldo";
@@ -147,6 +147,7 @@ type Pendiente = {
   texto: string;
   estado: "pendiente" | "resuelta";
   created_at: string;
+  created_by: string | null;
   resuelta_at: string | null;
 };
 
@@ -157,12 +158,16 @@ function PendientesCard() {
   const [guardando, setGuardando] = useState(false);
   const [resolviendoId, setResolviendoId] = useState<string | null>(null);
   const [verResueltas, setVerResueltas] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [editTexto, setEditTexto] = useState("");
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
   const { data: pendientes, isLoading } = useQuery({
     queryKey: ["iris-pendientes"],
     queryFn: async () => {
       const { data, error } = await (supabase.from as any)("iris_pendientes")
-        .select("id, texto, estado, created_at, resuelta_at")
+        .select("id, texto, estado, created_at, created_by, resuelta_at")
         .order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []) as Pendiente[];
@@ -199,6 +204,41 @@ function PendientesCard() {
     qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
   };
 
+  // Editar y borrar están limitados (por RLS en la base) al autor de la
+  // nota — cada quien solo puede tocar lo que escribió. Marcar como
+  // resuelta sigue abierto a cualquiera del equipo, como ya era.
+  const iniciarEdicion = (p: Pendiente) => {
+    setEditandoId(p.id);
+    setEditTexto(p.texto);
+  };
+
+  const cancelarEdicion = () => {
+    setEditandoId(null);
+    setEditTexto("");
+  };
+
+  const guardarEdicion = async (id: string) => {
+    const t = editTexto.trim();
+    if (!t) return toast.error("El texto no puede quedar vacío");
+    setGuardandoEdit(true);
+    const { error } = await (supabase.from as any)("iris_pendientes").update({ texto: t }).eq("id", id);
+    setGuardandoEdit(false);
+    if (error) return toast.error(error.message || "No se pudo editar la nota");
+    toast.success("Nota editada");
+    cancelarEdicion();
+    qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
+  };
+
+  const borrar = async (id: string) => {
+    if (!confirm("¿Borrar esta nota? No se puede deshacer.")) return;
+    setBorrandoId(id);
+    const { error } = await (supabase.from as any)("iris_pendientes").delete().eq("id", id);
+    setBorrandoId(null);
+    if (error) return toast.error(error.message || "No se pudo borrar la nota");
+    toast.success("Nota borrada");
+    qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -230,18 +270,62 @@ function PendientesCard() {
           <p className="text-sm text-muted-foreground">No hay pendientes abiertos.</p>
         ) : (
           <div className="divide-y">
-            {abiertas.map((p) => (
-              <div key={p.id} className="flex items-start justify-between gap-3 py-2">
-                <div>
-                  <p className="text-sm">{p.texto}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(p.created_at)}</p>
+            {abiertas.map((p) => {
+              const esAutor = !!user && p.created_by === user.id;
+              const enEdicion = editandoId === p.id;
+              return (
+                <div key={p.id} className="flex items-start justify-between gap-3 py-2">
+                  {enEdicion ? (
+                    <div className="flex-1 space-y-1.5">
+                      <Textarea
+                        value={editTexto}
+                        onChange={(e) => setEditTexto(e.target.value)}
+                        className="min-h-[50px] text-sm"
+                        autoFocus
+                      />
+                      <div className="flex gap-1.5">
+                        <Button size="sm" onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit || !editTexto.trim()}>
+                          {guardandoEdit ? "…" : "Guardar"}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardandoEdit}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm">{p.texto}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(p.created_at)}</p>
+                    </div>
+                  )}
+                  {!enEdicion && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {esAutor && (
+                        <>
+                          <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => borrar(p.id)}
+                            disabled={borrandoId === p.id}
+                            title="Borrar"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => resolver(p.id)} disabled={resolviendoId === p.id}>
+                        <Check className="h-3.5 w-3.5 mr-1" />
+                        {resolviendoId === p.id ? "…" : "Resuelta"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <Button size="sm" variant="outline" onClick={() => resolver(p.id)} disabled={resolviendoId === p.id}>
-                  <Check className="h-3.5 w-3.5 mr-1" />
-                  {resolviendoId === p.id ? "…" : "Resuelta"}
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -256,14 +340,58 @@ function PendientesCard() {
             </button>
             {verResueltas && (
               <div className="divide-y mt-2">
-                {resueltas.map((p) => (
-                  <div key={p.id} className="py-2">
-                    <p className="text-sm text-muted-foreground line-through">{p.texto}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Resuelta {p.resuelta_at ? fmtDate(p.resuelta_at) : ""}
-                    </p>
-                  </div>
-                ))}
+                {resueltas.map((p) => {
+                  const esAutor = !!user && p.created_by === user.id;
+                  const enEdicion = editandoId === p.id;
+                  return (
+                    <div key={p.id} className="py-2">
+                      {enEdicion ? (
+                        <div className="space-y-1.5">
+                          <Textarea
+                            value={editTexto}
+                            onChange={(e) => setEditTexto(e.target.value)}
+                            className="min-h-[50px] text-sm"
+                            autoFocus
+                          />
+                          <div className="flex gap-1.5">
+                            <Button size="sm" onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit || !editTexto.trim()}>
+                              {guardandoEdit ? "…" : "Guardar"}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardandoEdit}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm text-muted-foreground line-through">{p.texto}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Resuelta {p.resuelta_at ? fmtDate(p.resuelta_at) : ""}
+                            </p>
+                          </div>
+                          {esAutor && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => borrar(p.id)}
+                                disabled={borrandoId === p.id}
+                                title="Borrar"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
