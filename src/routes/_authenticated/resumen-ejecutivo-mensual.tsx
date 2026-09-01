@@ -10,6 +10,7 @@ import { MESES, ordenarPorCodigo } from "@/lib/account-helpers";
 import { useAuth } from "@/lib/auth-context";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
+import { useExcelCellSelection } from "@/components/excel-cell-selection";
 import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
 import {
   Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
@@ -241,6 +242,18 @@ function ResumenEjecutivoMensualPage() {
     }).filter((g) => g.items.length > 0);
   }, [rowsAnio, cuentas, mes, actual]);
 
+  const categoriasComparativo = CATEGORIAS.filter((cat) => comparativoMensual.some((c) => Math.abs(c.t[cat]) > 0.009));
+  const valoresComparativoSeleccion = useMemo(() => [
+    ...categoriasComparativo.map((cat) => comparativoMensual.map((c) => c.t[cat])),
+    comparativoMensual.map((c) => c.utilidad),
+  ], [categoriasComparativo, comparativoMensual]);
+  const valoresGpSeleccion = useMemo(
+    () => desglose.flatMap((g) => [g.subtotal, ...g.items.map((i) => i.total)]).map((v) => [v]),
+    [desglose],
+  );
+  const seleccionComparativo = useExcelCellSelection(valoresComparativoSeleccion);
+  const seleccionGp = useExcelCellSelection(valoresGpSeleccion);
+
   // CxP pendiente al cierre del mes vs mes anterior, y su evolución mes a
   // mes (Enero al mes de corte) para el gráfico de tendencia.
   const cxpSaldos = useMemo(() => {
@@ -429,8 +442,8 @@ function ResumenEjecutivoMensualPage() {
       {/* Comparativo mensual — Enero hasta el mes de corte */}
       <Card className="print:break-inside-avoid">
         <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto print:p-1.5">
-          <table className="w-full text-sm print:text-[6.5px]">
+        <CardContent className="overflow-x-auto print:p-1.5 select-none">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
                 <th className="text-left py-2 px-2 text-xs uppercase text-muted-foreground print:py-0 print:px-0.5 print:text-[6.5px]">Categoría</th>
@@ -442,18 +455,28 @@ function ResumenEjecutivoMensualPage() {
               </tr>
             </thead>
             <tbody>
-              {CATEGORIAS.filter((cat) => comparativoMensual.some((c) => Math.abs(c.t[cat]) > 0.009)).map((cat) => (
+              {categoriasComparativo.map((cat, r) => (
                 <tr key={cat} className="border-b last:border-0">
                   <td className="py-1.5 px-2 print:py-0 print:px-0.5">{cat}</td>
-                  {comparativoMensual.map((c) => (
-                    <td key={c.mesLabel} className="py-1.5 px-2 text-right mono print:py-0 print:px-0.5">{fmtUsd(c.t[cat])}</td>
+                  {comparativoMensual.map((c, ci) => (
+                    <td
+                      key={c.mesLabel}
+                      onMouseDown={seleccionComparativo.startSelection(r, ci)}
+                      onMouseEnter={seleccionComparativo.overSelection(r, ci)}
+                      className={`py-1.5 px-2 text-right mono print:py-0 print:px-0.5 cursor-cell select-none ${seleccionComparativo.isSelected(r, ci) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                    >{fmtUsd(c.t[cat])}</td>
                   ))}
                 </tr>
               ))}
               <tr className="border-t-2">
                 <td className="py-2 px-2 font-bold print:py-0.5 print:px-0.5">{comparativoMensual.some((c) => c.utilidad < 0) ? "Utilidad / pérdida neta" : "Utilidad neta"}</td>
-                {comparativoMensual.map((c) => (
-                  <td key={c.mesLabel} className={`py-2 px-2 text-right mono font-bold print:py-0.5 print:px-0.5 ${c.utilidad < 0 ? "text-destructive" : "text-green-600"}`}>
+                {comparativoMensual.map((c, ci) => (
+                  <td
+                    key={c.mesLabel}
+                    onMouseDown={seleccionComparativo.startSelection(categoriasComparativo.length, ci)}
+                    onMouseEnter={seleccionComparativo.overSelection(categoriasComparativo.length, ci)}
+                    className={`py-2 px-2 text-right mono font-bold print:py-0.5 print:px-0.5 cursor-cell select-none ${c.utilidad < 0 ? "text-destructive" : "text-green-600"} ${seleccionComparativo.isSelected(categoriasComparativo.length, ci) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                  >
                     {fmtUsd(c.utilidad)}
                   </td>
                 ))}
@@ -465,26 +488,47 @@ function ResumenEjecutivoMensualPage() {
           )}
         </CardContent>
       </Card>
+      {seleccionComparativo.selection.count > 0 && (
+        <div className="flex justify-end -mt-4">
+          <div className="bg-foreground text-background text-xs rounded-md shadow-lg px-4 py-2 flex items-center gap-4 mono">
+            <span>Celdas: <b>{seleccionComparativo.selection.count}</b></span>
+            <span>Promedio: <b>{fmtUsd(seleccionComparativo.selection.average)}</b></span>
+            <span>Suma: <b>{fmtUsd(seleccionComparativo.selection.suma)}</b></span>
+          </div>
+        </div>
+      )}
+
       {/* b) Desglose mensual de G&P */}
       <Card className="print:break-inside-avoid">
         <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose G&P — {labelMes}</CardTitle></CardHeader>
-        <CardContent className="print:p-1.5">
+        <CardContent className="print:p-1.5 select-none">
           <table className="w-full text-sm print:text-[7px]">
             <tbody>
-              {desglose.map((g) => (
+              {desglose.map((g, gi) => {
+                const rowBase = desglose.slice(0, gi).reduce((n, x) => n + 1 + x.items.length, 0);
+                return (
                 <Fragment key={g.cat}>
                   <tr className="bg-muted/50">
                     <td className="py-1.5 px-2 text-xs font-semibold uppercase tracking-wide print:py-0 print:px-1 print:text-[7px]">{g.cat}</td>
-                    <td className="py-1.5 px-2 text-right mono font-semibold print:py-0 print:px-1">{fmtUsd(g.subtotal)}</td>
+                    <td
+                      onMouseDown={seleccionGp.startSelection(rowBase, 0)}
+                      onMouseEnter={seleccionGp.overSelection(rowBase, 0)}
+                      className={`py-1.5 px-2 text-right mono font-semibold print:py-0 print:px-1 cursor-cell select-none ${seleccionGp.isSelected(rowBase, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                    >{fmtUsd(g.subtotal)}</td>
                   </tr>
-                  {g.items.map((i) => (
+                  {g.items.map((i, ii) => (
                     <tr key={`${g.cat}-${i.codigo}`} className="border-b last:border-0">
                       <td className="py-1 px-2 pl-6 text-muted-foreground print:py-0 print:px-1 print:pl-3">{i.codigo} · {i.nombre}</td>
-                      <td className="py-1 px-2 text-right mono print:py-0 print:px-1">{fmtUsd(i.total)}</td>
+                      <td
+                        onMouseDown={seleccionGp.startSelection(rowBase + 1 + ii, 0)}
+                        onMouseEnter={seleccionGp.overSelection(rowBase + 1 + ii, 0)}
+                        className={`py-1 px-2 text-right mono print:py-0 print:px-1 cursor-cell select-none ${seleccionGp.isSelected(rowBase + 1 + ii, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                      >{fmtUsd(i.total)}</td>
                     </tr>
                   ))}
                 </Fragment>
-              ))}
+                );
+              })}
               <tr className="border-t-2">
                 <td className="py-2 px-2 font-semibold print:py-0.5 print:px-1">Margen bruto {ingresos > 0 ? `· ${((margenBruto / ingresos) * 100).toFixed(1)}%` : ""}</td>
                 <td className="py-2 px-2 text-right mono font-semibold print:py-0.5 print:px-1">{fmtUsd(margenBruto)}</td>
@@ -497,6 +541,15 @@ function ResumenEjecutivoMensualPage() {
           </table>
         </CardContent>
       </Card>
+      {seleccionGp.selection.count > 0 && (
+        <div className="flex justify-end -mt-4">
+          <div className="bg-foreground text-background text-xs rounded-md shadow-lg px-4 py-2 flex items-center gap-4 mono">
+            <span>Celdas: <b>{seleccionGp.selection.count}</b></span>
+            <span>Promedio: <b>{fmtUsd(seleccionGp.selection.average)}</b></span>
+            <span>Suma: <b>{fmtUsd(seleccionGp.selection.suma)}</b></span>
+          </div>
+        </div>
+      )}
 
       <Card className="print:break-inside-avoid">
         <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
