@@ -17,9 +17,23 @@ import { InventarioFinalQuickEntry } from "@/components/inventario-final-quick-e
 
 type Paso = { label: string; ruta: string; hecho: boolean; nota?: string };
 
+/**
+ * Durante los primeros 10 días del mes mostramos el checklist del mes anterior,
+ * porque ese es el periodo que se está terminando de cerrar en esos días.
+ * A partir del día 11 se muestra el checklist del mes corriente.
+ */
+function periodoChecklistInicio(): string {
+  const hoy = new Date();
+  if (hoy.getDate() <= 10) {
+    const mesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+    return `${mesAnterior.getFullYear()}-${String(mesAnterior.getMonth() + 1).padStart(2, "0")}`;
+  }
+  return periodoActual();
+}
+
 export function ChecklistMensualCard() {
   const [historialAbierto, setHistorialAbierto] = useState(false);
-  const periodo = periodoActual();
+  const periodo = periodoChecklistInicio();
 
   const { data } = useQuery({
     queryKey: ["home-checklist-mes", periodo],
