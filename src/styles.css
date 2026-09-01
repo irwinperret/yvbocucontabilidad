@@ -177,7 +177,12 @@
     width: 100% !important;
   }
 
-  [class~="space-y-6"][class~="print:space-y-1.5"] > *:first-child { order: 1; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+[class~="space-y-6"][class~="print:space-y-1.5"] > *:first-child { order: 1; }
   [class~="space-y-6"][class~="print:space-y-1.5"] > .rounded-xl.border.bg-card { order: 2; }
   [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="md:grid-cols-4"] { order: 3; }
   [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] { order: 4; }
