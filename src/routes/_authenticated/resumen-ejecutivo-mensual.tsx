@@ -298,6 +298,33 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
+      {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Análisis del mes</CardTitle></CardHeader>
+        <CardContent className="space-y-3 text-sm leading-relaxed">
+          <p className="text-muted-foreground">
+            Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
+          </p>
+          <p>
+            {frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt)}
+          </p>
+          <p>
+            {frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt)}
+          </p>
+          <p>
+            {frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt)}
+          </p>
+          <p>
+            {frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt)}
+          </p>
+          <p className="text-muted-foreground">
+            La utilidad neta del mes fue de {fmtUsd(utilidadNeta)}
+            {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""} y la deuda con
+            proveedores {cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"} en {fmtUsd(Math.abs(cxpSaldos.cambio))}.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={labelMes} />
         <KpiCard icon={TrendingDown} label="COGS" value={fmtUsd(cogs)} sub={actual.estimado ? "Estimado (mes abierto)" : undefined} />
@@ -413,33 +440,6 @@ function ResumenEjecutivoMensualPage() {
           </p>
           <p className="text-sm text-muted-foreground mt-2">
             La deuda con proveedores {cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"} respecto a {labelMesAnt}.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* d) Texto analítico */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Análisis del mes</CardTitle></CardHeader>
-        <CardContent className="space-y-3 text-sm leading-relaxed">
-          <p className="text-muted-foreground">
-            Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
-          </p>
-          <p>
-            {frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt)}
-          </p>
-          <p>
-            {frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt)}
-          </p>
-          <p>
-            {frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt)}
-          </p>
-          <p>
-            {frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt)}
-          </p>
-          <p className="text-muted-foreground">
-            La utilidad neta del mes fue de {fmtUsd(utilidadNeta)}
-            {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""} y la deuda con
-            proveedores {cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"} en {fmtUsd(Math.abs(cxpSaldos.cambio))}.
           </p>
         </CardContent>
       </Card>
