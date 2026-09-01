@@ -205,17 +205,19 @@ function ResumenEjecutivoMensualPage() {
   }, [totalesMes, rowsAnio, cogsEstimadoPorMes, anio, mes]);
 
   // Serie mensual del año para el gráfico
+  // Nunca mostrar meses posteriores al de corte, aunque el año siga
+  // corriendo (si el corte es agosto, el gráfico llega hasta agosto).
   const serie = useMemo(() => {
-    return MESES.map((nombre, i) => {
+    return Array.from({ length: mes }, (_, i) => {
       const { t } = totalesMes.calc(rowsAnio ?? [], i + 1, cogsEstimadoPorMes, anio);
       const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
       return {
-        mesLabel: nombre,
+        mesLabel: MESES[i],
         ...Object.fromEntries(CATEGORIAS.map((c) => [c, Number((c === "Ingresos" ? t[c] : -t[c]).toFixed(2))])),
         utilidad: Number((t["Ingresos"] - gastos).toFixed(2)),
       } as any;
     });
-  }, [totalesMes, rowsAnio, cogsEstimadoPorMes, anio]);
+  }, [totalesMes, rowsAnio, cogsEstimadoPorMes, anio, mes]);
 
   const categoriasConDatos = CATEGORIAS.filter((c) => serie.some((s: any) => Math.abs(s[c]) > 0.009));
 
@@ -355,7 +357,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* a) Gráfico de utilidad mensual por categorías grandes */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — {anio}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
         <CardContent style={{ height: 360 }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={serie} stackOffset="sign">
