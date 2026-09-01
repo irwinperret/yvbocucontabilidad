@@ -1,0 +1,56 @@
+name: Fix IPA print layout
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix print layout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/styles.css')
+          s = p.read_text()
+          old = '''  /* IPA print report: explicit order. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3mm !important;
+    width: 100% !important;
+  }
+'''
+          new = '''  /* IPA print report: dedicated print layout. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3mm !important;
+    width: 100% !important;
+  }
+  /* On paper: header/analysis first, then charts, then monthly detail. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > * { width: 100% !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > *:first-child { order: 1 !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > .rounded-xl.border.bg-card { order: 2 !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="md:grid-cols-4"] { order: 3 !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] { order: 4 !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table thead) { order: 5 !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > .print\\:break-before-page { order: 6 !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > .flex.justify-end { display: none !important; }
+'''
+          if old not in s:
+              raise SystemExit('Expected IPA print block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/styles.css
+          git rm .github/workflows/fix-ipa-print.yml
+          git commit -m 'Fix IPA monthly print order and layout'
+          git push
