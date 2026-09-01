@@ -99,6 +99,7 @@ const analisisDetalles = [
   { title: "Propinas", url: "/propinas", icon: DollarSign },
   { title: "Bonos 10%", url: "/bonos10", icon: DollarSign },
   { title: "Resumen IPA", url: "/resumen-ejecutivo", icon: BarChart3 },
+  { title: "Resumen IPA Mensual", url: "/resumen-ejecutivo-mensual", icon: BarChart3 },
 ];
 
 export function AppSidebar() {

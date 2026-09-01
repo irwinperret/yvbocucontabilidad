@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,7 +40,6 @@ const CATEGORIAS = [
   "Otros",
   "Impuestos",
 ] as const;
-type Categoria = (typeof CATEGORIAS)[number];
 
 const COLOR_CAT: Record<string, string> = {
   Ingresos: "#0F6E56",
@@ -325,8 +324,8 @@ function ResumenEjecutivoMensualPage() {
           <table className="w-full text-sm">
             <tbody>
               {desglose.map((g) => (
-                <>
-                  <tr key={g.cat} className="bg-muted/50">
+                <Fragment key={g.cat}>
+                  <tr className="bg-muted/50">
                     <td className="py-1.5 px-2 text-xs font-semibold uppercase tracking-wide">{g.cat}</td>
                     <td className="py-1.5 px-2 text-right mono font-semibold">{fmtUsd(g.subtotal)}</td>
                   </tr>
@@ -336,7 +335,7 @@ function ResumenEjecutivoMensualPage() {
                       <td className="py-1 px-2 text-right mono">{fmtUsd(i.total)}</td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               ))}
               <tr className="border-t-2">
                 <td className="py-2 px-2 font-semibold">MARGEN BRUTO {ingresos > 0 ? `· ${((margenBruto / ingresos) * 100).toFixed(1)}%` : ""}</td>
