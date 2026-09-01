@@ -11,14 +11,18 @@ CREATE TABLE IF NOT EXISTS public.iris_pendientes (
 
 ALTER TABLE public.iris_pendientes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "iris_pendientes_select" ON public.iris_pendientes;
 CREATE POLICY "iris_pendientes_select" ON public.iris_pendientes
   FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "iris_pendientes_insert" ON public.iris_pendientes;
 CREATE POLICY "iris_pendientes_insert" ON public.iris_pendientes
   FOR INSERT TO authenticated WITH CHECK (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "iris_pendientes_update" ON public.iris_pendientes;
 CREATE POLICY "iris_pendientes_update" ON public.iris_pendientes
   FOR UPDATE TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "iris_pendientes_delete_admin" ON public.iris_pendientes;
 CREATE POLICY "iris_pendientes_delete_admin" ON public.iris_pendientes
-  FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'));
+  FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'::app_role));
