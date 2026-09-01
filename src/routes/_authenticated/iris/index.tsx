@@ -1,11 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, ArrowLeftRight, ChevronRight } from "lucide-react";
-import { fmtUsd } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { ShieldCheck, ArrowLeftRight, ChevronRight, StickyNote, Plus, Check } from "lucide-react";
+import { toast } from "sonner";
+import { fmtUsd, fmtDate } from "@/lib/format";
 import { pendienteUsdBcv } from "@/lib/cxp-saldo";
+import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/_authenticated/iris/")({
   component: IrisPage,
@@ -84,6 +89,8 @@ function IrisPage() {
         </p>
       </div>
 
+      <PendientesCard />
+
       <Link to="/iris/movimientos-sin-proveedor">
         <Card className="hover:border-primary/60 hover:bg-muted/30 transition-colors cursor-pointer">
           <CardContent className="pt-4 flex items-center justify-between">
@@ -131,5 +138,137 @@ function IrisPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+
+type Pendiente = {
+  id: string;
+  texto: string;
+  estado: "pendiente" | "resuelta";
+  created_at: string;
+  resuelta_at: string | null;
+};
+
+function PendientesCard() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [texto, setTexto] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [resolviendoId, setResolviendoId] = useState<string | null>(null);
+  const [verResueltas, setVerResueltas] = useState(false);
+
+  const { data: pendientes, isLoading } = useQuery({
+    queryKey: ["iris-pendientes"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as any)("iris_pendientes")
+        .select("id, texto, estado, created_at, resuelta_at")
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Pendiente[];
+    },
+  });
+
+  const abiertas = (pendientes ?? []).filter((p) => p.estado === "pendiente");
+  const resueltas = (pendientes ?? []).filter((p) => p.estado === "resuelta");
+
+  const agregar = async () => {
+    const t = texto.trim();
+    if (!t || !user) return;
+    setGuardando(true);
+    const { error } = await (supabase.from as any)("iris_pendientes").insert({
+      texto: t,
+      estado: "pendiente",
+      created_by: user.id,
+    });
+    setGuardando(false);
+    if (error) return toast.error(error.message || "No se pudo guardar la nota");
+    setTexto("");
+    toast.success("Nota agregada");
+    qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
+  };
+
+  const resolver = async (id: string) => {
+    setResolviendoId(id);
+    const { error } = await (supabase.from as any)("iris_pendientes")
+      .update({ estado: "resuelta", resuelta_at: new Date().toISOString(), resuelta_by: user?.id ?? null })
+      .eq("id", id);
+    setResolviendoId(null);
+    if (error) return toast.error(error.message || "No se pudo marcar como resuelta");
+    toast.success("Marcada como resuelta");
+    qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <StickyNote className="h-4 w-4 text-muted-foreground" />
+          Pendientes / Notas
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <Textarea
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Anotar algo para dar seguimiento…"
+            className="min-h-[60px]"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) agregar();
+            }}
+          />
+          <Button onClick={agregar} disabled={guardando || !texto.trim()} className="self-end">
+            <Plus className="h-4 w-4 mr-1" />
+            Agregar
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Cargando…</p>
+        ) : abiertas.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No hay pendientes abiertos.</p>
+        ) : (
+          <div className="divide-y">
+            {abiertas.map((p) => (
+              <div key={p.id} className="flex items-start justify-between gap-3 py-2">
+                <div>
+                  <p className="text-sm">{p.texto}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(p.created_at)}</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => resolver(p.id)} disabled={resolviendoId === p.id}>
+                  <Check className="h-3.5 w-3.5 mr-1" />
+                  {resolviendoId === p.id ? "…" : "Resuelta"}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {resueltas.length > 0 && (
+          <div className="pt-2 border-t">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:underline"
+              onClick={() => setVerResueltas((v) => !v)}
+            >
+              {verResueltas ? "Ocultar" : "Ver"} resueltas ({resueltas.length})
+            </button>
+            {verResueltas && (
+              <div className="divide-y mt-2">
+                {resueltas.map((p) => (
+                  <div key={p.id} className="py-2">
+                    <p className="text-sm text-muted-foreground line-through">{p.texto}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Resuelta {p.resuelta_at ? fmtDate(p.resuelta_at) : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
