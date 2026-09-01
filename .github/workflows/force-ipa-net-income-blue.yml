@@ -1,0 +1,35 @@
+name: Force IPA net income blue
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message != 'Force IPA net income blue'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Force bright blue net income line
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/routes/_authenticated/resumen-ejecutivo-mensual.tsx')
+          s = p.read_text()
+          old = '<Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#0066FF" strokeWidth={3} dot={{ r: 3, fill: "#0066FF", stroke: "#0066FF" }} connectNulls />'
+          new = '<Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={4} dot={{ r: 4, fill: "#00BFFF", stroke: "#00BFFF", strokeWidth: 2 }} activeDot={{ r: 6, fill: "#00BFFF", stroke: "#00BFFF" }} connectNulls />'
+          if old not in s:
+              raise SystemExit('Target line not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit and remove workflow
+        run: |
+          rm .github/workflows/force-ipa-net-income-blue.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/resumen-ejecutivo-mensual.tsx .github/workflows/force-ipa-net-income-blue.yml
+          git commit -m "Force IPA net income blue"
+          git push
