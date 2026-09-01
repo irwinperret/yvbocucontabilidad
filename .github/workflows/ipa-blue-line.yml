@@ -1,0 +1,38 @@
+name: Update IPA utility line color
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    if: ${{ !contains(github.event.head_commit.message, 'chore: highlight utility line') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Highlight utilidad neta line
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/routes/_authenticated/resumen-ejecutivo-mensual.tsx')
+          s = p.read_text()
+          old = 'dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} connectNulls'
+          new = 'dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#0066FF" strokeWidth={3} dot={{ r: 3 }} connectNulls'
+          if old not in s:
+              raise SystemExit('Target line not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit and clean up
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/resumen-ejecutivo-mensual.tsx .github/workflows/ipa-blue-line.yml
+          git commit -m "chore: highlight utility line"
+          git rm .github/workflows/ipa-blue-line.yml
+          git commit -m "chore: remove temporary IPA workflow"
+          git push
