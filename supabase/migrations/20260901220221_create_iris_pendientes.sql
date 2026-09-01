@@ -23,6 +23,8 @@ DROP POLICY IF EXISTS "iris_pendientes_update" ON public.iris_pendientes;
 CREATE POLICY "iris_pendientes_update" ON public.iris_pendientes
   FOR UPDATE TO authenticated USING (true);
 
+-- Sin política de DELETE a propósito: esta base no tiene un sistema de
+-- roles/admin real (ver conversación), y la pantalla de Iris nunca borra
+-- notas, solo las marca como resueltas. Sin política de DELETE y con RLS
+-- activo, nadie puede borrar filas vía la API — es el default más seguro.
 DROP POLICY IF EXISTS "iris_pendientes_delete_admin" ON public.iris_pendientes;
-CREATE POLICY "iris_pendientes_delete_admin" ON public.iris_pendientes
-  FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'::app_role));
