@@ -255,12 +255,21 @@ function ResumenEjecutivoMensualPage() {
     };
     const hoySaldo = saldoAl(anio, mes);
     const prevSaldo = saldoAl(anioMesAnterior, mesAnterior);
-    const serieMensual = Array.from({ length: mes }, (_, i) => ({
-      mesLabel: MESES[i],
-      saldo: Number(saldoAl(anio, i + 1).toFixed(2)),
-    }));
-    return { hoySaldo, prevSaldo, cambio: hoySaldo - prevSaldo, serieMensual };
+    return { hoySaldo, prevSaldo, cambio: hoySaldo - prevSaldo };
   }, [cxp, anio, mes, mesAnterior, anioMesAnterior, mode]);
+
+  // Márgenes operativos (%) mes a mes — vista de eficiencia del negocio,
+  // independiente del volumen de ventas. Nunca más allá del mes de corte.
+  const serieMargenes = useMemo(() => {
+    return Array.from({ length: mes }, (_, i) => {
+      const { t } = totalesMes.calc(rowsAnio ?? [], i + 1, cogsEstimadoPorMes, anio);
+      const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
+      const ing = t["Ingresos"] ?? 0;
+      const margenBrutoPct = ing > 0 ? +(((ing - t["COGS"]) / ing) * 100).toFixed(1) : null;
+      const utilidadNetaPct = ing > 0 ? +(((ing - gastos) / ing) * 100).toFixed(1) : null;
+      return { mesLabel: MESES[i], margenBrutoPct, utilidadNetaPct };
+    });
+  }, [totalesMes, rowsAnio, cogsEstimadoPorMes, anio, mes]);
 
   const ingresos = actual.t["Ingresos"] ?? 0;
   const cogs = actual.t["COGS"] ?? 0;
@@ -451,28 +460,31 @@ function ResumenEjecutivoMensualPage() {
       <Card>
         <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            <div>
-              <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">Cambio neto en la deuda con proveedores</p>
-              <p className={`text-3xl font-bold mono mt-1 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
-                {cxpSaldos.cambio >= 0 ? "+" : "−"}{fmtUsd(Math.abs(cxpSaldos.cambio)).replace("$ ", "$")}
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                La deuda con proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> respecto a {labelMesAnt}.
-              </p>
-            </div>
-            <div style={{ height: 180 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={cxpSaldos.serieMensual}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="mesLabel" fontSize={11} />
-                  <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} width={45} />
-                  <Tooltip formatter={(v: number) => fmtUsd(v)} />
-                  <Line type="monotone" dataKey="saldo" name="Saldo CxP" stroke="#B91C1C" strokeWidth={2} dot={{ r: 3 }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">Cambio neto en la deuda con proveedores</p>
+          <p className={`text-3xl font-bold mono mt-1 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
+            {cxpSaldos.cambio >= 0 ? "+" : "−"}{fmtUsd(Math.abs(cxpSaldos.cambio)).replace("$ ", "$")}
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            La deuda con proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> respecto a {labelMesAnt}.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Segundo gráfico: márgenes operativos (%) — eficiencia del negocio en el tiempo */}
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+        <CardContent style={{ height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={serieMargenes}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="mesLabel" fontSize={11} />
+              <YAxis tickFormatter={(v) => `${v}%`} fontSize={11} width={45} />
+              <Tooltip formatter={(v: number) => `${v}%`} />
+              <Legend />
+              <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+            </ComposedChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
     </div>
