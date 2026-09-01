@@ -11,78 +11,44 @@ import { useAuth } from "@/lib/auth-context";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
-import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
+import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import {
   Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
 } from "recharts";
 import { Wrench, TrendingUp, TrendingDown, Wallet, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
+  pct, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
+  construirDesglose, calcularCxpSaldos, calcularPrestamosYDividendos,
+} from "@/lib/resumen-mensual-calc";
 
 export const Route = createFileRoute("/_authenticated/resumen-ejecutivo-mensual")({
   component: ResumenEjecutivoMensualPage,
 });
 
-const PERMITIDOS = [
+export const PERMITIDOS_RESUMEN_MENSUAL = [
   "irwinperret@hotmail.com",
   "irwinperret@gmail.com",
   "cristobalperret@gmail.com",
   "marianaperret@gmail.com",
 ];
 
-type Cuenta = { codigo: string; nombre: string; grupo: string };
-type Row = { periodo: string; anio: number; mes: number; cuenta_codigo: string; modo: string; base_usd: number };
-
-/** Categorías grandes en el orden en que se presentan en el informe. */
-const CATEGORIAS = [
-  "Ingresos",
-  "COGS",
-  "Costos Fijos",
-  "Costos Variables (operativos)",
-  "Financiamiento",
-  "Otros",
-  "Impuestos",
-] as const;
-
-// Ingresos en verde; TODO lo demás (egresos) en distintos tonos de rojo,
-// para que de un vistazo se distinga claramente qué entra vs. qué sale.
-const COLOR_CAT: Record<string, string> = {
-  Ingresos: "#0F6E56",
-  COGS: "#7F1D1D",
-  "Costos Fijos": "#B91C1C",
-  "Costos Variables (operativos)": "#DC2626",
-  Financiamiento: "#EF4444",
-  Otros: "#F87171",
-  Impuestos: "#FCA5A5",
-};
-
 function KpiCard({ icon: Icon, label, value, sub, tone }: { icon: any; label: string; value: string; sub?: string; tone?: "pos" | "neg" }) {
   return (
-    <Card className="print:break-inside-avoid">
-      <CardContent className="pt-5 print:pt-1.5 print:pb-1.5 print:px-2">
+    <Card>
+      <CardContent className="pt-5">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground print:text-[7px]">{label}</p>
-            <p className={`text-2xl font-bold mt-1 print:text-xs print:mt-0 ${tone === "neg" ? "text-destructive" : tone === "pos" ? "text-green-600" : ""}`}>{value}</p>
-            {sub && <p className="text-xs text-muted-foreground mt-1 print:text-[7px] print:mt-0">{sub}</p>}
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+            <p className={`text-2xl font-bold mt-1 ${tone === "neg" ? "text-destructive" : tone === "pos" ? "text-green-600" : ""}`}>{value}</p>
+            {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
           </div>
-          <Icon className="h-5 w-5 text-muted-foreground/50 print:hidden" />
+          <Icon className="h-5 w-5 text-muted-foreground/50" />
         </div>
       </CardContent>
     </Card>
   );
-}
-
-const pct = (actual: number, previo: number) =>
-  previo > 0 ? ((actual - previo) / previo) * 100 : null;
-
-function frase(nombre: string, actual: number, prevMes: number, labelPrevMes: string, prevAnio: number | null, labelPrevAnio: string) {
-  const pm = pct(actual, prevMes);
-  const pa = prevAnio != null ? pct(actual, prevAnio) : null;
-  let t = `${nombre} de **${fmtUsd(actual)}**`;
-  if (pm != null) t += `, un **${Math.abs(pm).toFixed(1)}%** ${pm >= 0 ? "más" : "menos"} que ${labelPrevMes} (${fmtUsd(prevMes)})`;
-  else t += `, sin cifra comparable en ${labelPrevMes}`;
-  if (pa != null) t += ` y un **${Math.abs(pa).toFixed(1)}%** ${pa >= 0 ? "más" : "menos"} que ${labelPrevAnio} (${fmtUsd(prevAnio as number)})`;
-  return t + ".";
 }
 
 /** Convierte los **negrita** de frase() en <b> reales dentro de un <p>. */
@@ -150,97 +116,46 @@ function ResumenEjecutivoMensualPage() {
     },
   });
 
-  const grupoDe = useMemo(() => {
-    const m = new Map<string, string>();
-    (cuentas ?? []).forEach((c) => m.set(c.codigo, c.grupo));
-    return m;
-  }, [cuentas]);
-
-  /** Totales por categoría grande para un mes dado, con COGS estimado si el mes está abierto. */
-  const totalesMes = useMemo(() => {
-    const calc = (rows: Row[], m: number, estimados: Map<string, { cogsUsdBcv: number }> | undefined, y: number) => {
-      const t: Record<string, number> = {};
-      CATEGORIAS.forEach((c) => (t[c] = 0));
-      rows.filter((r) => r.mes === m).forEach((r) => {
-        const g = grupoDe.get(r.cuenta_codigo);
-        if (!g || !(g in t)) return;
-        t[g] += Number(r.base_usd) || 0;
-      });
-      const { ajuste, mesesEstimados } = ajusteCogsEstimado(rows, estimados, y, [m]);
-      t["COGS"] += ajuste;
-      return { t, estimado: mesesEstimados.length > 0 };
-    };
-    return { calc };
-  }, [grupoDe]);
+  const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
   const actual = useMemo(
-    () => totalesMes.calc(rowsAnio ?? [], mes, cogsEstimadoPorMes, anio),
-    [totalesMes, rowsAnio, mes, cogsEstimadoPorMes, anio],
+    () => calcularTotalesMes(rowsAnio ?? [], grupoDe, mes, cogsEstimadoPorMes, anio),
+    [grupoDe, rowsAnio, mes, cogsEstimadoPorMes, anio],
   );
   const mesAnterior = mes === 1 ? 12 : mes - 1;
   const anioMesAnterior = mes === 1 ? anio - 1 : anio;
   const anterior = useMemo(
-    () => totalesMes.calc(
+    () => calcularTotalesMes(
       mes === 1 ? (rowsPrev ?? []) : (rowsAnio ?? []),
+      grupoDe,
       mesAnterior,
       mes === 1 ? cogsEstimadoPrev : cogsEstimadoPorMes,
       anioMesAnterior,
     ),
-    [totalesMes, rowsAnio, rowsPrev, mes, mesAnterior, anioMesAnterior, cogsEstimadoPorMes, cogsEstimadoPrev],
+    [grupoDe, rowsAnio, rowsPrev, mes, mesAnterior, anioMesAnterior, cogsEstimadoPorMes, cogsEstimadoPrev],
   );
   const anioPasado = useMemo(
-    () => totalesMes.calc(rowsPrev ?? [], mes, cogsEstimadoPrev, anio - 1),
-    [totalesMes, rowsPrev, mes, cogsEstimadoPrev, anio],
+    () => calcularTotalesMes(rowsPrev ?? [], grupoDe, mes, cogsEstimadoPrev, anio - 1),
+    [grupoDe, rowsPrev, mes, cogsEstimadoPrev, anio],
   );
   const hayAnioPasado = (rowsPrev ?? []).some((r) => r.mes === mes);
 
-  // Comparativo mensual: Enero hasta el mes de corte seleccionado — nunca
-  // meses posteriores (si el corte es agosto, no se muestra septiembre en
-  // adelante, aunque el año siga corriendo).
-  const comparativoMensual = useMemo(() => {
-    return Array.from({ length: mes }, (_, i) => {
-      const m = i + 1;
-      const { t, estimado } = totalesMes.calc(rowsAnio ?? [], m, cogsEstimadoPorMes, anio);
-      const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
-      return { mesLabel: MESES[m - 1], t, estimado, utilidad: t["Ingresos"] - gastos };
-    });
-  }, [totalesMes, rowsAnio, cogsEstimadoPorMes, anio, mes]);
+  const comparativoMensual = useMemo(
+    () => construirComparativoMensual(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes),
+    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+  );
 
-  // Serie mensual del año para el gráfico
-  // Nunca mostrar meses posteriores al de corte, aunque el año siga
-  // corriendo (si el corte es agosto, el gráfico llega hasta agosto).
-  const serie = useMemo(() => {
-    return Array.from({ length: mes }, (_, i) => {
-      const { t } = totalesMes.calc(rowsAnio ?? [], i + 1, cogsEstimadoPorMes, anio);
-      const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
-      return {
-        mesLabel: MESES[i],
-        ...Object.fromEntries(CATEGORIAS.map((c) => [c, Number((c === "Ingresos" ? t[c] : -t[c]).toFixed(2))])),
-        utilidad: Number((t["Ingresos"] - gastos).toFixed(2)),
-      } as any;
-    });
-  }, [totalesMes, rowsAnio, cogsEstimadoPorMes, anio, mes]);
+  const serie = useMemo(
+    () => construirSerieCategorias(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes),
+    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+  );
 
   const categoriasConDatos = CATEGORIAS.filter((c) => serie.some((s: any) => Math.abs(s[c]) > 0.009));
 
-  // Desglose G&P del mes por cuenta dentro de cada categoría
-  const desglose = useMemo(() => {
-    const porCuenta = new Map<string, number>();
-    (rowsAnio ?? []).filter((r) => r.mes === mes).forEach((r) => {
-      porCuenta.set(r.cuenta_codigo, (porCuenta.get(r.cuenta_codigo) ?? 0) + (Number(r.base_usd) || 0));
-    });
-    return CATEGORIAS.map((cat) => {
-      const items = (cuentas ?? [])
-        .filter((c) => c.grupo === cat && Math.abs(porCuenta.get(c.codigo) ?? 0) > 0.009)
-        .map((c) => ({ codigo: c.codigo, nombre: c.nombre, total: porCuenta.get(c.codigo) ?? 0 }));
-      if (cat === "COGS" && actual.estimado) {
-        const yaSumado = items.reduce((s, i) => s + i.total, 0);
-        const dif = actual.t["COGS"] - yaSumado;
-        if (Math.abs(dif) > 0.009) items.push({ codigo: "2.2*", nombre: "Ajuste estimado (mes abierto)", total: dif });
-      }
-      return { cat, items, subtotal: items.reduce((s, i) => s + i.total, 0) };
-    }).filter((g) => g.items.length > 0);
-  }, [rowsAnio, cuentas, mes, actual]);
+  const desglose = useMemo(
+    () => construirDesglose(rowsAnio ?? [], cuentas, mes, actual),
+    [rowsAnio, cuentas, mes, actual],
+  );
 
   const categoriasComparativo = CATEGORIAS.filter((cat) => comparativoMensual.some((c) => Math.abs(c.t[cat]) > 0.009));
   const valoresComparativoSeleccion = useMemo(() => [
@@ -254,36 +169,15 @@ function ResumenEjecutivoMensualPage() {
   const seleccionComparativo = useExcelCellSelection(valoresComparativoSeleccion);
   const seleccionGp = useExcelCellSelection(valoresGpSeleccion);
 
-  // CxP pendiente al cierre del mes vs mes anterior, y su evolución mes a
-  // mes (Enero al mes de corte) para el gráfico de tendencia.
-  const cxpSaldos = useMemo(() => {
-    const valor = (c: any) => {
-      const v = mode === "bcv" ? c.usd_bcv_factura : c.usd_paralelo_factura;
-      return Number(v ?? c.monto_usd) || 0;
-    };
-    const saldoAl = (y: number, m: number) => {
-      const corte = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1)).toISOString();
-      return (cxp ?? [])
-        .filter((c) => String(c.created_at) < corte && (!c.pagada_at || String(c.pagada_at) >= corte))
-        .reduce((s, c) => s + valor(c), 0);
-    };
-    const hoySaldo = saldoAl(anio, mes);
-    const prevSaldo = saldoAl(anioMesAnterior, mesAnterior);
-    return { hoySaldo, prevSaldo, cambio: hoySaldo - prevSaldo };
-  }, [cxp, anio, mes, mesAnterior, anioMesAnterior, mode]);
+  const cxpSaldos = useMemo(
+    () => calcularCxpSaldos(cxp, anio, mes, mesAnterior, anioMesAnterior, mode),
+    [cxp, anio, mes, mesAnterior, anioMesAnterior, mode],
+  );
 
-  // Márgenes operativos (%) mes a mes — vista de eficiencia del negocio,
-  // independiente del volumen de ventas. Nunca más allá del mes de corte.
-  const serieMargenes = useMemo(() => {
-    return Array.from({ length: mes }, (_, i) => {
-      const { t } = totalesMes.calc(rowsAnio ?? [], i + 1, cogsEstimadoPorMes, anio);
-      const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
-      const ing = t["Ingresos"] ?? 0;
-      const margenBrutoPct = ing > 0 ? +(((ing - t["COGS"]) / ing) * 100).toFixed(1) : null;
-      const utilidadNetaPct = ing > 0 ? +(((ing - gastos) / ing) * 100).toFixed(1) : null;
-      return { mesLabel: MESES[i], margenBrutoPct, utilidadNetaPct };
-    });
-  }, [totalesMes, rowsAnio, cogsEstimadoPorMes, anio, mes]);
+  const serieMargenes = useMemo(
+    () => construirSerieMargenes(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes),
+    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+  );
 
   const ingresos = actual.t["Ingresos"] ?? 0;
   const cogs = actual.t["COGS"] ?? 0;
@@ -291,16 +185,12 @@ function ResumenEjecutivoMensualPage() {
   const margenBruto = ingresos - cogs;
   const utilidadNeta = ingresos - gastosTotales;
 
-  // Pago de préstamos (capital + intereses juntos, sin desglosar) y
-  // dividendos repartidos en el mes — cuentas 5.2/5.3 y 5.4 específicamente.
-  const pagoPrestamos = (rowsAnio ?? [])
-    .filter((r) => r.mes === mes && (r.cuenta_codigo === "5.2" || r.cuenta_codigo === "5.3"))
-    .reduce((s, r) => s + (Number(r.base_usd) || 0), 0);
-  const dividendos = (rowsAnio ?? [])
-    .filter((r) => r.mes === mes && r.cuenta_codigo === "5.4")
-    .reduce((s, r) => s + (Number(r.base_usd) || 0), 0);
+  const { pagoPrestamos, dividendos } = useMemo(
+    () => calcularPrestamosYDividendos(rowsAnio ?? [], mes),
+    [rowsAnio, mes],
+  );
 
-  const autorizado = !!user?.email && PERMITIDOS.includes(user.email.toLowerCase());
+  const autorizado = !!user?.email && PERMITIDOS_RESUMEN_MENSUAL.includes(user.email.toLowerCase());
   if (!autorizado) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
@@ -315,14 +205,19 @@ function ResumenEjecutivoMensualPage() {
   const labelMesAnt = `${MESES[mesAnterior - 1]} ${anioMesAnterior}`;
   const labelAnioAnt = `${MESES[mes - 1]} ${anio - 1}`;
 
+  const abrirImpresion = () => {
+    const params = new URLSearchParams({ anio: String(anio), mes: String(mes), modo: mode });
+    window.open(`/reporte-mensual-imprimir?${params.toString()}`, "_blank");
+  };
+
   return (
-    <div className="space-y-6 print:space-y-1.5 print:text-[9px]">
+    <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight print:text-base print:font-bold">Resumen IPA Mensual</h1>
-          <p className="text-base text-muted-foreground mt-1 print:text-[9px] print:mt-0">Informe ejecutivo de <b>{labelMes}</b> · montos en {label}</p>
+          <h1 className="text-3xl font-bold tracking-tight">Resumen IPA Mensual</h1>
+          <p className="text-base text-muted-foreground mt-1">Informe ejecutivo de <b>{labelMes}</b> · montos en {label}</p>
         </div>
-        <div className="flex items-end gap-2 print:hidden">
+        <div className="flex items-end gap-2">
           <UsdViewToggle />
           <div>
             <Label className="text-xs">Mes</Label>
@@ -338,7 +233,7 @@ function ResumenEjecutivoMensualPage() {
               <SelectContent>{[2024, 2025, 2026, 2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <Button variant="outline" onClick={() => window.print()} className="self-end">
+          <Button variant="outline" onClick={abrirImpresion} className="self-end">
             <Printer className="h-4 w-4 mr-2" />
             Imprimir / PDF
           </Button>
@@ -346,29 +241,29 @@ function ResumenEjecutivoMensualPage() {
       </div>
 
       {actual.estimado && (
-        <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 print:text-[7px] print:px-1 print:py-0.5">
+        <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5">
           ⚠ El COGS de {labelMes} es <b>estimado</b> — el mes sigue abierto (sin cierre formal). Se calculó con el inventario y las compras ya cargados.
         </div>
       )}
 
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
-      <Card className="print:break-inside-avoid">
-        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[15.625px]">Análisis del mes</CardTitle></CardHeader>
-        <CardContent className="space-y-3 text-sm leading-relaxed print:p-1.5 print:space-y-1 print:text-[12.5px] print:leading-snug">
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Análisis del mes</CardTitle></CardHeader>
+        <CardContent className="space-y-3 text-sm leading-relaxed">
           <p className="text-muted-foreground">
             Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
           </p>
           <p>
-            <ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt)}</ConNegritas>
+            <ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
           <p>
-            <ConNegritas>{frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt)}</ConNegritas>
+            <ConNegritas>{frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
           <p>
-            <ConNegritas>{frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt)}</ConNegritas>
+            <ConNegritas>{frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
           <p>
-            <ConNegritas>{frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt)}</ConNegritas>
+            <ConNegritas>{frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
           <p className="text-muted-foreground">
             La utilidad neta del mes fue de <b>{fmtUsd(utilidadNeta)}</b>
@@ -386,7 +281,7 @@ function ResumenEjecutivoMensualPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 print:grid-cols-4 print:gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={labelMes} />
         <KpiCard icon={TrendingDown} label="COGS" value={fmtUsd(cogs)} sub={actual.estimado ? "Estimado (mes abierto)" : undefined} />
         <KpiCard icon={TrendingUp} label="Margen bruto" value={fmtUsd(margenBruto)} sub={ingresos > 0 ? `${((margenBruto / ingresos) * 100).toFixed(1)}% de ingresos` : undefined} />
@@ -400,10 +295,10 @@ function ResumenEjecutivoMensualPage() {
       </div>
 
       {/* Dos gráficos lado a lado: montos por categoría, y márgenes operativos (%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2 print:gap-2">
-        <Card className="print:break-inside-avoid">
-          <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
-          <CardContent className="h-[360px] print:h-[140px] print:p-1">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+          <CardContent className="h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={serie} stackOffset="sign">
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -421,9 +316,9 @@ function ResumenEjecutivoMensualPage() {
           </CardContent>
         </Card>
 
-        <Card className="print:break-inside-avoid">
-          <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
-          <CardContent className="h-[360px] print:h-[140px] print:p-1">
+        <Card>
+          <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+          <CardContent className="h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={serieMargenes}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -440,15 +335,15 @@ function ResumenEjecutivoMensualPage() {
       </div>
 
       {/* Comparativo mensual — Enero hasta el mes de corte */}
-      <Card className="print:break-inside-avoid">
-        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto print:p-1.5 select-none">
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+        <CardContent className="overflow-x-auto select-none">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-2 px-2 text-xs uppercase text-muted-foreground print:py-0 print:px-0.5 print:text-[6.5px]">Categoría</th>
+                <th className="text-left py-2 px-2 text-xs uppercase text-muted-foreground">Categoría</th>
                 {comparativoMensual.map((c) => (
-                  <th key={c.mesLabel} className="text-right py-2 px-2 text-xs uppercase text-muted-foreground whitespace-nowrap print:py-0 print:px-0.5 print:text-[6.5px]">
+                  <th key={c.mesLabel} className="text-right py-2 px-2 text-xs uppercase text-muted-foreground whitespace-nowrap">
                     {c.mesLabel}{c.estimado ? " *" : ""}
                   </th>
                 ))}
@@ -457,25 +352,25 @@ function ResumenEjecutivoMensualPage() {
             <tbody>
               {categoriasComparativo.map((cat, r) => (
                 <tr key={cat} className="border-b last:border-0">
-                  <td className="py-1.5 px-2 print:py-0 print:px-0.5">{cat}</td>
+                  <td className="py-1.5 px-2">{cat}</td>
                   {comparativoMensual.map((c, ci) => (
                     <td
                       key={c.mesLabel}
                       onMouseDown={seleccionComparativo.startSelection(r, ci)}
                       onMouseEnter={seleccionComparativo.overSelection(r, ci)}
-                      className={`py-1.5 px-2 text-right mono print:py-0 print:px-0.5 cursor-cell select-none ${seleccionComparativo.isSelected(r, ci) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                      className={`py-1.5 px-2 text-right mono cursor-cell select-none ${seleccionComparativo.isSelected(r, ci) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                     >{fmtUsd(c.t[cat])}</td>
                   ))}
                 </tr>
               ))}
               <tr className="border-t-2">
-                <td className="py-2 px-2 font-bold print:py-0.5 print:px-0.5">{comparativoMensual.some((c) => c.utilidad < 0) ? "Utilidad / pérdida neta" : "Utilidad neta"}</td>
+                <td className="py-2 px-2 font-bold">{comparativoMensual.some((c) => c.utilidad < 0) ? "Utilidad / pérdida neta" : "Utilidad neta"}</td>
                 {comparativoMensual.map((c, ci) => (
                   <td
                     key={c.mesLabel}
                     onMouseDown={seleccionComparativo.startSelection(categoriasComparativo.length, ci)}
                     onMouseEnter={seleccionComparativo.overSelection(categoriasComparativo.length, ci)}
-                    className={`py-2 px-2 text-right mono font-bold print:py-0.5 print:px-0.5 cursor-cell select-none ${c.utilidad < 0 ? "text-destructive" : "text-green-600"} ${seleccionComparativo.isSelected(categoriasComparativo.length, ci) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                    className={`py-2 px-2 text-right mono font-bold cursor-cell select-none ${c.utilidad < 0 ? "text-destructive" : "text-green-600"} ${seleccionComparativo.isSelected(categoriasComparativo.length, ci) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                   >
                     {fmtUsd(c.utilidad)}
                   </td>
@@ -484,7 +379,7 @@ function ResumenEjecutivoMensualPage() {
             </tbody>
           </table>
           {comparativoMensual.some((c) => c.estimado) && (
-            <p className="text-xs text-amber-700 mt-2 print:text-[6.5px] print:mt-1">* Mes abierto — COGS estimado con el inventario y las compras ya cargados.</p>
+            <p className="text-xs text-amber-700 mt-2">* Mes abierto — COGS estimado con el inventario y las compras ya cargados.</p>
           )}
         </CardContent>
       </Card>
@@ -498,31 +393,31 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
-      {/* b) Desglose mensual de G&P */}
-      <Card className="print:break-before-page print:break-inside-avoid">
-        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose G&P — {labelMes}</CardTitle></CardHeader>
-        <CardContent className="print:p-1.5 select-none">
-          <table className="w-full text-sm print:text-[7px]">
+      {/* Desglose G&P del mes */}
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelMes}</CardTitle></CardHeader>
+        <CardContent className="select-none">
+          <table className="w-full text-sm">
             <tbody>
               {desglose.map((g, gi) => {
                 const rowBase = desglose.slice(0, gi).reduce((n, x) => n + 1 + x.items.length, 0);
                 return (
                 <Fragment key={g.cat}>
                   <tr className="bg-muted/50">
-                    <td className="py-1.5 px-2 text-xs font-semibold uppercase tracking-wide print:py-0 print:px-1 print:text-[7px]">{g.cat}</td>
+                    <td className="py-1.5 px-2 text-xs font-semibold uppercase tracking-wide">{g.cat}</td>
                     <td
                       onMouseDown={seleccionGp.startSelection(rowBase, 0)}
                       onMouseEnter={seleccionGp.overSelection(rowBase, 0)}
-                      className={`py-1.5 px-2 text-right mono font-semibold print:py-0 print:px-1 cursor-cell select-none ${seleccionGp.isSelected(rowBase, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                      className={`py-1.5 px-2 text-right mono font-semibold cursor-cell select-none ${seleccionGp.isSelected(rowBase, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                     >{fmtUsd(g.subtotal)}</td>
                   </tr>
                   {g.items.map((i, ii) => (
                     <tr key={`${g.cat}-${i.codigo}`} className="border-b last:border-0">
-                      <td className="py-1 px-2 pl-6 text-muted-foreground print:py-0 print:px-1 print:pl-3">{i.codigo} · {i.nombre}</td>
+                      <td className="py-1 px-2 pl-6 text-muted-foreground">{i.codigo} · {i.nombre}</td>
                       <td
                         onMouseDown={seleccionGp.startSelection(rowBase + 1 + ii, 0)}
                         onMouseEnter={seleccionGp.overSelection(rowBase + 1 + ii, 0)}
-                        className={`py-1 px-2 text-right mono print:py-0 print:px-1 cursor-cell select-none ${seleccionGp.isSelected(rowBase + 1 + ii, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                        className={`py-1 px-2 text-right mono cursor-cell select-none ${seleccionGp.isSelected(rowBase + 1 + ii, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                       >{fmtUsd(i.total)}</td>
                     </tr>
                   ))}
@@ -530,12 +425,12 @@ function ResumenEjecutivoMensualPage() {
                 );
               })}
               <tr className="border-t-2">
-                <td className="py-2 px-2 font-semibold print:py-0.5 print:px-1">Margen bruto {ingresos > 0 ? `· ${((margenBruto / ingresos) * 100).toFixed(1)}%` : ""}</td>
-                <td className="py-2 px-2 text-right mono font-semibold print:py-0.5 print:px-1">{fmtUsd(margenBruto)}</td>
+                <td className="py-2 px-2 font-semibold">Margen bruto {ingresos > 0 ? `· ${((margenBruto / ingresos) * 100).toFixed(1)}%` : ""}</td>
+                <td className="py-2 px-2 text-right mono font-semibold">{fmtUsd(margenBruto)}</td>
               </tr>
               <tr className="border-t">
-                <td className="py-2 px-2 font-bold text-base print:py-0.5 print:px-1 print:text-[8px]">{utilidadNeta < 0 ? "Pérdida neta" : "Utilidad neta"} {ingresos > 0 ? `· ${((utilidadNeta / ingresos) * 100).toFixed(1)}%` : ""}</td>
-                <td className={`py-2 px-2 text-right mono font-bold text-base print:py-0.5 print:px-1 print:text-[8px] ${utilidadNeta < 0 ? "text-destructive" : "text-green-600"}`}>{fmtUsd(utilidadNeta)}</td>
+                <td className="py-2 px-2 font-bold text-base">{utilidadNeta < 0 ? "Pérdida neta" : "Utilidad neta"} {ingresos > 0 ? `· ${((utilidadNeta / ingresos) * 100).toFixed(1)}%` : ""}</td>
+                <td className={`py-2 px-2 text-right mono font-bold text-base ${utilidadNeta < 0 ? "text-destructive" : "text-green-600"}`}>{fmtUsd(utilidadNeta)}</td>
               </tr>
             </tbody>
           </table>
@@ -551,14 +446,14 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
-      <Card className="print:break-inside-avoid">
-        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
-        <CardContent className="print:p-1.5">
-          <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground print:text-[7px]">Cambio neto en la deuda con proveedores</p>
-          <p className={`text-3xl font-bold mono mt-1 print:text-xs print:mt-0 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">Cambio neto en la deuda con proveedores</p>
+          <p className={`text-3xl font-bold mono mt-1 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
             {cxpSaldos.cambio >= 0 ? "+" : "−"}{fmtUsd(Math.abs(cxpSaldos.cambio)).replace("$ ", "$")}
           </p>
-          <p className="text-sm text-muted-foreground mt-2 print:text-[7px] print:mt-0.5">
+          <p className="text-sm text-muted-foreground mt-2">
             La deuda con proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> respecto a {labelMesAnt}.
           </p>
         </CardContent>
