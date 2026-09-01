@@ -192,6 +192,54 @@ export function memoEsGastoDirectoForzado(memo: string | null | undefined): bool
   return false;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Alias: memo bancario de una persona → proveedor real a asignar
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Cuando el memo del movimiento bancario menciona a la persona de la
+ * izquierda (ej. quien físicamente entrega o cobra el pago), el proveedor
+ * que debe quedar asignado en la transacción es el de la derecha — la
+ * razón social real tal como está en `terceros` — y no la persona.
+ * Nombres de la izquierda normalizados (mayúsculas, sin tildes). Agregar
+ * aquí cualquier otro caso similar.
+ */
+export const ALIAS_PROVEEDOR_MEMO: Record<string, string> = {
+  "SALVATORE DELFINO": "Di-vino",
+};
+
+/** Normaliza un nombre para comparar sin importar guiones/espacios/tildes. */
+function normalizarNombreCompacto(s: unknown): string {
+  return normalizarTextoMemo(s).replace(/ /g, "");
+}
+
+/**
+ * Si el memo menciona a alguna de las personas en ALIAS_PROVEEDOR_MEMO,
+ * devuelve la razón social del proveedor real a asignar (tal como aparece
+ * en ALIAS_PROVEEDOR_MEMO, para buscarla luego en `terceros`). Igual que
+ * memoEsGastoDirectoForzado, exige que todas las palabras del nombre
+ * aparezcan en el memo.
+ */
+export function proveedorAliasDeMemo(memo: string | null | undefined): string | null {
+  const texto = normalizarTextoMemo(memo);
+  if (!texto) return null;
+  for (const [nombre, proveedorReal] of Object.entries(ALIAS_PROVEEDOR_MEMO)) {
+    const tokens = nombre.split(" ").filter(Boolean);
+    if (tokens.length && tokens.every((t) => texto.includes(t))) return proveedorReal;
+  }
+  return null;
+}
+
+/** Busca en una lista de terceros el que coincide (de forma laxa) con el nombre dado. */
+export function buscarTerceroPorNombre<T extends { nombre: string }>(
+  nombre: string,
+  terceros: T[],
+): T | null {
+  const clave = normalizarNombreCompacto(nombre);
+  if (!clave) return null;
+  return terceros.find((t) => normalizarNombreCompacto(t.nombre) === clave) ?? null;
+}
+
 /** ¿Esta cuenta nunca va a tener una factura comercial asociada? */
 export function cuentaSinFactura(codigo?: string | null): boolean {
   const c = String(codigo ?? "").trim();

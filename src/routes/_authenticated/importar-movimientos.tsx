@@ -26,6 +26,8 @@ import {
   cuentaServicio,
   esGastoDirectoAuto,
   memoEsGastoDirectoForzado,
+  proveedorAliasDeMemo,
+  buscarTerceroPorNombre,
   monedaBase,
   limpiarReferencia,
   marcarEstadoConciliacion,
@@ -836,7 +838,14 @@ function ImportarMovimientosInner() {
           // la fila no quede "en blanco" en la tabla de compras del mes.
           // La cuenta 98 (operaciones de cambio) nunca admite proveedor ni factura.
           const sinProveedor = noAplica || esCuentaNoConciliable(m.cuentaCodigo);
-          const provAdivinado = sinProveedor ? null : proveedorDeMemo(bankRow.concepto, tercerosRef);
+          // Alias de persona → proveedor real (ej. Salvatore Delfino → Di-vino):
+          // si el memo lo menciona, se usa ese proveedor en vez de intentar
+          // adivinarlo por el nombre de la persona.
+          const aliasProveedor = sinProveedor ? null : proveedorAliasDeMemo(bankRow.concepto);
+          const provAdivinado = sinProveedor
+            ? null
+            : (aliasProveedor && buscarTerceroPorNombre(aliasProveedor, tercerosRef)) ||
+              proveedorDeMemo(bankRow.concepto, tercerosRef);
           const factAdivinada = sinProveedor ? null : facturaDeMemo(bankRow.concepto);
 
           const { data: tx, error } = await supabase.from("transacciones").insert({
