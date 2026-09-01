@@ -36,7 +36,7 @@ function Layout() {
                 <ModeToggle />
               </div>
             </header>
-            <main className="flex-1 p-4 md:p-6 overflow-x-auto">
+            <main className="flex-1 p-4 md:p-6 overflow-x-auto print:p-0">
               <Outlet />
             </main>
           </div>

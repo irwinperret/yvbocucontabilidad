@@ -158,3 +158,26 @@
     color: var(--color-foreground);
   }
 }
+
+/* Impresión: horizontal y márgenes ajustados, para que los informes con
+   tablas anchas (ej. comparativos mensuales) aprovechen mejor la página. */
+@media print {
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  /* Sin esto, los navegadores omiten colores de fondo y de gráficos por
+     defecto al imprimir — se perdería todo el código de color (rojo para
+     egresos, verde/rojo para utilidad, etc.). */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Las sombras de las tarjetas no imprimen bien (se ven como manchas grises). */
+  .shadow {
+    box-shadow: none !important;
+  }
+}
