@@ -142,45 +142,87 @@
   .group.peer[data-side="left"], .group.peer[data-side="right"] { display: none !important; }
   .group\/sidebar-wrapper > main, main { width: 100% !important; max-width: none !important; margin: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
 
-  /* IPA print report: explicit order. */
+  /* Resumen IPA Mensual: use the real sibling structure, not generic Card selectors. */
   [class~="space-y-6"][class~="print:space-y-1.5"] {
     display: flex !important;
     flex-direction: column !important;
     gap: 3mm !important;
     width: 100% !important;
   }
-  [class~="space-y-6"][class~="print:space-y-1.5"] > *:first-child { order: 1 !important; }
-  [class~="space-y-6"][class~="print:space-y-1.5"] > .rounded-xl.border.bg-card { order: 2 !important; }
-  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="md:grid-cols-4"] { order: 3 !important; }
-  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] { order: 4 !important; }
-  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table thead) { order: 5 !important; }
-  [class~="space-y-6"][class~="print:space-y-1.5"] > .print\:break-before-page { order: 6 !important; }
-  [class~="space-y-6"][class~="print:space-y-1.5"] > .flex.justify-end { display: none !important; }
 
-  /* Keep charts above tables and make Recharts containers measurable in print. */
+  /* Header */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :first-child { order: 1 !important; }
+
+  /* Optional amber/open-month notice */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :not([class~="md:grid-cols-4"]):not([class~="lg:grid-cols-2"]):has(+ [class~="md:grid-cols-4"]) { order: 2 !important; }
+
+  /* The Analysis card is the element immediately before the KPI grid. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(+ [class~="md:grid-cols-4"]) {
+    order: 3 !important;
+  }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(+ [class~="md:grid-cols-4"]) .print\:text-\[15\.625px\] {
+    font-size: 15.625px !important;
+    line-height: 1.2 !important;
+  }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(+ [class~="md:grid-cols-4"]) .print\:text-\[12\.5px\] {
+    font-size: 12.5px !important;
+    line-height: 1.35 !important;
+  }
+
+  /* KPI cards */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="md:grid-cols-4"] { order: 4 !important; }
+
+  /* Charts MUST precede the monthly tables in print. */
   [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] {
+    order: 5 !important;
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     width: 100% !important;
     min-width: 0 !important;
     gap: 2mm !important;
-    order: 4 !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
-  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] > * { min-width: 0 !important; width: 100% !important; break-inside: avoid !important; page-break-inside: avoid !important; }
-  [class~="space-y-6"][class~="print:space-y-1.5"] .recharts-responsive-container { width: 100% !important; min-width: 1px !important; }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] > * {
+    min-width: 0 !important;
+    width: 100% !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
 
-  /* Analysis: 25% larger than the original 10px print text. */
-  [class~="space-y-6"][class~="print:space-y-1.5"] .print\:text-\[12\.5px\] { font-size: 12.5px !important; line-height: 1.35 !important; }
-  [class~="space-y-6"][class~="print:space-y-1.5"] .print\:text-\[15\.625px\] { font-size: 15.625px !important; line-height: 1.2 !important; }
+  /* Give Recharts a concrete print box so the charts remain visible for every selected month. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] .recharts-responsive-container {
+    width: 100% !important;
+    height: 140px !important;
+    min-width: 1px !important;
+    min-height: 140px !important;
+  }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] .recharts-wrapper {
+    width: 100% !important;
+    height: 140px !important;
+  }
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] .recharts-surface {
+    overflow: visible !important;
+  }
+
+  /* Monthly comparison table follows the charts. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table thead) { order: 6 !important; }
+
+  /* Selection summary is useful on screen, not in the printed report. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > .flex.justify-end { display: none !important; }
+
+  /* G&P starts on a fresh page. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > .print\:break-before-page {
+    order: 7 !important;
+    break-before: page !important;
+    page-break-before: always !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
 
   [class~="space-y-6"][class~="print:space-y-1.5"] table { width: 100% !important; border-collapse: collapse !important; }
   [class~="space-y-6"][class~="print:space-y-1.5"] thead { display: table-header-group; }
   [class~="space-y-6"][class~="print:space-y-1.5"] tr { break-inside: avoid; page-break-inside: avoid; }
   [class~="space-y-6"][class~="print:space-y-1.5"] th { border-bottom: 1px solid #888 !important; }
   [class~="space-y-6"][class~="print:space-y-1.5"] .overflow-x-auto { overflow: visible !important; }
-
-  /* G&P starts on a fresh page and stays together where possible. */
-  [class~="space-y-6"][class~="print:space-y-1.5"] > .print\:break-before-page { break-before: page !important; page-break-before: always !important; break-inside: avoid !important; page-break-inside: avoid !important; }
 }
