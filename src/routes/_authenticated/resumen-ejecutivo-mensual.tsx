@@ -426,39 +426,6 @@ function ResumenEjecutivoMensualPage() {
         </Card>
       </div>
 
-      {/* b) Desglose mensual de G&P */}
-      <Card className="print:break-inside-avoid">
-        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose G&P — {labelMes}</CardTitle></CardHeader>
-        <CardContent className="print:p-1.5">
-          <table className="w-full text-sm print:text-[7px]">
-            <tbody>
-              {desglose.map((g) => (
-                <Fragment key={g.cat}>
-                  <tr className="bg-muted/50">
-                    <td className="py-1.5 px-2 text-xs font-semibold uppercase tracking-wide print:py-0 print:px-1 print:text-[7px]">{g.cat}</td>
-                    <td className="py-1.5 px-2 text-right mono font-semibold print:py-0 print:px-1">{fmtUsd(g.subtotal)}</td>
-                  </tr>
-                  {g.items.map((i) => (
-                    <tr key={`${g.cat}-${i.codigo}`} className="border-b last:border-0">
-                      <td className="py-1 px-2 pl-6 text-muted-foreground print:py-0 print:px-1 print:pl-3">{i.codigo} · {i.nombre}</td>
-                      <td className="py-1 px-2 text-right mono print:py-0 print:px-1">{fmtUsd(i.total)}</td>
-                    </tr>
-                  ))}
-                </Fragment>
-              ))}
-              <tr className="border-t-2">
-                <td className="py-2 px-2 font-semibold print:py-0.5 print:px-1">Margen bruto {ingresos > 0 ? `· ${((margenBruto / ingresos) * 100).toFixed(1)}%` : ""}</td>
-                <td className="py-2 px-2 text-right mono font-semibold print:py-0.5 print:px-1">{fmtUsd(margenBruto)}</td>
-              </tr>
-              <tr className="border-t">
-                <td className="py-2 px-2 font-bold text-base print:py-0.5 print:px-1 print:text-[8px]">{utilidadNeta < 0 ? "Pérdida neta" : "Utilidad neta"} {ingresos > 0 ? `· ${((utilidadNeta / ingresos) * 100).toFixed(1)}%` : ""}</td>
-                <td className={`py-2 px-2 text-right mono font-bold text-base print:py-0.5 print:px-1 print:text-[8px] ${utilidadNeta < 0 ? "text-destructive" : "text-green-600"}`}>{fmtUsd(utilidadNeta)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
-
       {/* Comparativo mensual — Enero hasta el mes de corte */}
       <Card className="print:break-inside-avoid">
         <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
@@ -498,6 +465,39 @@ function ResumenEjecutivoMensualPage() {
           )}
         </CardContent>
       </Card>
+      {/* b) Desglose mensual de G&P */}
+      <Card className="print:break-inside-avoid">
+        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Desglose G&P — {labelMes}</CardTitle></CardHeader>
+        <CardContent className="print:p-1.5">
+          <table className="w-full text-sm print:text-[7px]">
+            <tbody>
+              {desglose.map((g) => (
+                <Fragment key={g.cat}>
+                  <tr className="bg-muted/50">
+                    <td className="py-1.5 px-2 text-xs font-semibold uppercase tracking-wide print:py-0 print:px-1 print:text-[7px]">{g.cat}</td>
+                    <td className="py-1.5 px-2 text-right mono font-semibold print:py-0 print:px-1">{fmtUsd(g.subtotal)}</td>
+                  </tr>
+                  {g.items.map((i) => (
+                    <tr key={`${g.cat}-${i.codigo}`} className="border-b last:border-0">
+                      <td className="py-1 px-2 pl-6 text-muted-foreground print:py-0 print:px-1 print:pl-3">{i.codigo} · {i.nombre}</td>
+                      <td className="py-1 px-2 text-right mono print:py-0 print:px-1">{fmtUsd(i.total)}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+              <tr className="border-t-2">
+                <td className="py-2 px-2 font-semibold print:py-0.5 print:px-1">Margen bruto {ingresos > 0 ? `· ${((margenBruto / ingresos) * 100).toFixed(1)}%` : ""}</td>
+                <td className="py-2 px-2 text-right mono font-semibold print:py-0.5 print:px-1">{fmtUsd(margenBruto)}</td>
+              </tr>
+              <tr className="border-t">
+                <td className="py-2 px-2 font-bold text-base print:py-0.5 print:px-1 print:text-[8px]">{utilidadNeta < 0 ? "Pérdida neta" : "Utilidad neta"} {ingresos > 0 ? `· ${((utilidadNeta / ingresos) * 100).toFixed(1)}%` : ""}</td>
+                <td className={`py-2 px-2 text-right mono font-bold text-base print:py-0.5 print:px-1 print:text-[8px] ${utilidadNeta < 0 ? "text-destructive" : "text-green-600"}`}>{fmtUsd(utilidadNeta)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
       <Card className="print:break-inside-avoid">
         <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[9px]">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
         <CardContent className="print:p-1.5">
