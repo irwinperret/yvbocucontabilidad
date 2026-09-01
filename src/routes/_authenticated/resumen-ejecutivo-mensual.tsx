@@ -432,7 +432,7 @@ function ResumenEjecutivoMensualPage() {
                 <Tooltip formatter={(v: number) => `${v}%`} />
                 <Legend />
                 <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#0066FF" strokeWidth={3} dot={{ r: 3, fill: "#0066FF", stroke: "#0066FF" }} connectNulls />
+                <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={4} dot={{ r: 4, fill: "#00BFFF", stroke: "#00BFFF", strokeWidth: 2 }} activeDot={{ r: 6, fill: "#00BFFF", stroke: "#00BFFF" }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
