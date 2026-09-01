@@ -27,7 +27,7 @@ import { EditDialog } from "@/components/transaccion-edit-dialog";
 const OPEX_GROUPS: { key: string; label: string; prefix: string; color: string }[] = [
   { key: "cogs",   label: "COGS (2.x)",             prefix: "2.", color: "#E74C3C" },
   { key: "fijos",  label: "Costos Fijos (3.x)",     prefix: "3.", color: "#534AB7" },
-  { key: "var",    label: "Costos Variables (4.x)", prefix: "4.", color: "#3498DB" },
+  { key: "var",    label: "Costos Variables (operativos, 4.x)", prefix: "4.", color: "#3498DB" },
   { key: "imp",    label: "Impuestos (7.x)",        prefix: "7.", color: "#D35400" },
 ];
 

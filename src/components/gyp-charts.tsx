@@ -13,13 +13,13 @@ ChartJS.register(BarElement, ArcElement, CategoryScale, LinearScale, Tooltip, Le
 type Row = { cuenta_codigo: string; mes: number; base_usd: number; [k: string]: any };
 type Cuenta = { codigo: string; nombre: string; grupo: string; [k: string]: any };
 
-const CATS = ["COGS", "Costos Fijos", "Costos Variables", "Financiamiento", "Impuestos", "Otros"] as const;
+const CATS = ["COGS", "Costos Fijos", "Costos Variables (operativos)", "Financiamiento", "Impuestos", "Otros"] as const;
 type Cat = (typeof CATS)[number];
 
 const CAT_COLORS: Record<Cat, string> = {
   COGS: "#0ea5e9",
   "Costos Fijos": "#f59e0b",
-  "Costos Variables": "#ec4899",
+  "Costos Variables (operativos)": "#ec4899",
   Financiamiento: "#8b5cf6",
   Impuestos: "#ef4444",
   Otros: "#64748b",
@@ -34,7 +34,7 @@ function catDeCuenta(c: Cuenta): Cat | null {
   if (c.codigo.startsWith("2.")) return "COGS";
   const g = (c.grupo || "").toLowerCase();
   if (g.startsWith("costos fijos")) return "Costos Fijos";
-  if (g.startsWith("costos variables")) return "Costos Variables";
+  if (g.startsWith("costos variables")) return "Costos Variables (operativos)";
   if (g.startsWith("financiamiento")) return "Financiamiento";
   if (g.startsWith("impuesto")) return "Impuestos";
   return "Otros";
