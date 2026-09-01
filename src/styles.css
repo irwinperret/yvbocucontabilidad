@@ -5,143 +5,42 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-ring-offset-background: var(--background);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px); --radius-2xl: calc(var(--radius) + 8px); --radius-3xl: calc(var(--radius) + 12px); --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background); --color-foreground: var(--foreground); --color-card: var(--card); --color-card-foreground: var(--card-foreground); --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground); --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground); --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground); --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground); --color-destructive: var(--destructive); --color-destructive-foreground: var(--destructive-foreground); --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring); --color-chart-1: var(--chart-1); --color-chart-2: var(--chart-2); --color-chart-3: var(--chart-3); --color-chart-4: var(--chart-4); --color-chart-5: var(--chart-5); --color-sidebar: var(--sidebar); --color-sidebar-foreground: var(--sidebar-foreground); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground); --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground); --color-sidebar-border: var(--sidebar-border); --color-sidebar-ring: var(--sidebar-ring);
 }
-
-:root {
-  --radius: 0.5rem;
-  --background: oklch(0.99 0.002 247);
-  --foreground: oklch(0.15 0.02 264);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.02 264);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.02 264);
-  --primary: oklch(0.45 0.17 285);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.96 0.005 250);
-  --secondary-foreground: oklch(0.25 0.03 265);
-  --muted: oklch(0.96 0.005 250);
-  --muted-foreground: oklch(0.5 0.02 257);
-  --accent: oklch(0.96 0.005 250);
-  --accent-foreground: oklch(0.25 0.03 265);
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.92 0.008 255);
-  --input: oklch(0.92 0.008 255);
-  --ring: oklch(0.45 0.17 285);
-  --chart-1: oklch(0.45 0.17 285);
-  --chart-2: oklch(0.45 0.14 165);
-  --chart-3: oklch(0.65 0.18 50);
-  --chart-4: oklch(0.55 0.22 27);
-  --chart-5: oklch(0.6 0.1 250);
-  --sidebar: oklch(0.985 0.003 247);
-  --sidebar-foreground: oklch(0.2 0.02 264);
-  --sidebar-primary: oklch(0.45 0.17 285);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.95 0.006 250);
-  --sidebar-accent-foreground: oklch(0.2 0.02 264);
-  --sidebar-border: oklch(0.92 0.008 255);
-  --sidebar-ring: oklch(0.45 0.17 285);
-  --positive: oklch(0.55 0.15 155);
-  --negative: oklch(0.58 0.22 27);
-  --warning: oklch(0.7 0.16 60);
-}
-
-.mode-analisis { --primary: oklch(0.42 0.1 165); --ring: oklch(0.42 0.1 165); --sidebar-primary: oklch(0.42 0.1 165); --sidebar-ring: oklch(0.42 0.1 165); }
-.mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.positive { color: var(--positive); }
-.negative { color: var(--negative); }
-
-.dark { --background: oklch(0.129 0.042 264.695); --foreground: oklch(0.984 0.003 247.858); --card: oklch(0.208 0.042 265.755); --card-foreground: oklch(0.984 0.003 247.858); --popover: oklch(0.208 0.042 265.755); --popover-foreground: oklch(0.984 0.003 247.858); --secondary: oklch(0.279 0.041 260.031); --secondary-foreground: oklch(0.984 0.003 247.858); --muted: oklch(0.279 0.041 260.031); --muted-foreground: oklch(0.704 0.04 256.788); --accent: oklch(0.279 0.041 260.031); --accent-foreground: oklch(0.984 0.003 247.858); --destructive: oklch(0.704 0.191 22.216); --destructive-foreground: oklch(0.984 0.003 247.858); --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(0.551 0.027 264.364); --chart-1: oklch(0.488 0.243 264.376); --chart-2: oklch(0.696 0.17 162.48); --chart-3: oklch(0.769 0.188 70.08); --chart-4: oklch(0.627 0.265 303.9); --chart-5: oklch(0.645 0.246 16.439); --sidebar: oklch(0.208 0.042 265.755); --sidebar-foreground: oklch(0.984 0.003 247.858); --sidebar-primary: oklch(0.488 0.243 264.376); --sidebar-primary-foreground: oklch(0.984 0.003 247.858); --sidebar-accent: oklch(0.279 0.041 260.031); --sidebar-accent-foreground: oklch(0.984 0.003 247.858); --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(0.551 0.027 264.364); }
-
-@layer base { * { border-color: var(--color-border); } body { background-color: var(--color-background); color: var(--color-foreground); } }
+:root { --radius: .5rem; --background: oklch(.99 .002 247); --foreground: oklch(.15 .02 264); --card: oklch(1 0 0); --card-foreground: oklch(.15 .02 264); --popover: oklch(1 0 0); --popover-foreground: oklch(.15 .02 264); --primary: oklch(.45 .17 285); --primary-foreground: oklch(.99 0 0); --secondary: oklch(.96 .005 250); --secondary-foreground: oklch(.25 .03 265); --muted: oklch(.96 .005 250); --muted-foreground: oklch(.5 .02 257); --accent: oklch(.96 .005 250); --accent-foreground: oklch(.25 .03 265); --destructive: oklch(.58 .22 27); --destructive-foreground: oklch(.99 0 0); --border: oklch(.92 .008 255); --input: oklch(.92 .008 255); --ring: oklch(.45 .17 285); --chart-1: oklch(.45 .17 285); --chart-2: oklch(.45 .14 165); --chart-3: oklch(.65 .18 50); --chart-4: oklch(.55 .22 27); --chart-5: oklch(.6 .1 250); --sidebar: oklch(.985 .003 247); --sidebar-foreground: oklch(.2 .02 264); --sidebar-primary: oklch(.45 .17 285); --sidebar-primary-foreground: oklch(.99 0 0); --sidebar-accent: oklch(.95 .006 250); --sidebar-accent-foreground: oklch(.2 .02 264); --sidebar-border: oklch(.92 .008 255); --sidebar-ring: oklch(.45 .17 285); --positive: oklch(.55 .15 155); --negative: oklch(.58 .22 27); --warning: oklch(.7 .16 60); }
+.mode-analisis { --primary: oklch(.42 .1 165); --ring: oklch(.42 .1 165); --sidebar-primary: oklch(.42 .1 165); --sidebar-ring: oklch(.42 .1 165); }
+.mono { font-variant-numeric: tabular-nums; font-family: ui-monospace,SFMono-Regular,Menlo,monospace; } .positive { color:var(--positive); } .negative { color:var(--negative); }
+.dark { --background: oklch(.129 .042 264.695); --foreground: oklch(.984 .003 247.858); --card: oklch(.208 .042 265.755); --card-foreground: oklch(.984 .003 247.858); --popover: oklch(.208 .042 265.755); --popover-foreground: oklch(.984 .003 247.858); --secondary: oklch(.279 .041 260.031); --secondary-foreground: oklch(.984 .003 247.858); --muted: oklch(.279 .041 260.031); --muted-foreground: oklch(.704 .04 256.788); --accent: oklch(.279 .041 260.031); --accent-foreground: oklch(.984 .003 247.858); --destructive: oklch(.704 .191 22.216); --destructive-foreground: oklch(.984 .003 247.858); --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(.551 .027 264.364); --chart-1: oklch(.488 .243 264.376); --chart-2: oklch(.696 .17 162.48); --chart-3: oklch(.769 .188 70.08); --chart-4: oklch(.627 .265 303.9); --chart-5: oklch(.645 .246 16.439); --sidebar: oklch(.208 .042 265.755); --sidebar-foreground: oklch(.984 .003 247.858); --sidebar-primary: oklch(.488 .243 264.376); --sidebar-primary-foreground: oklch(.984 .003 247.858); --sidebar-accent: oklch(.279 .041 260.031); --sidebar-accent-foreground: oklch(.984 .003 247.858); --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(.551 .027 264.364); }
+@layer base { * { border-color:var(--color-border); } body { background-color:var(--color-background); color:var(--color-foreground); } }
 
 @media print {
   @page { size: landscape; margin: 7mm; }
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-  html, body { width: 100% !important; margin: 0 !important; padding: 0 !important; }
-  .shadow { box-shadow: none !important; }
-  .group.peer[data-side="left"], .group.peer[data-side="right"], nav, aside { display: none !important; }
-  .group\/sidebar-wrapper, .group\/sidebar-wrapper > main, main { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; left: 0 !important; transform: none !important; }
-  main > div { width: 100% !important; max-width: none !important; margin: 0 !important; }
+  * { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+  html,body { width:100%!important; margin:0!important; padding:0!important; }
+  nav,aside,.group.peer[data-side="left"],.group.peer[data-side="right"] { display:none!important; }
+  .group\/sidebar-wrapper,.group\/sidebar-wrapper>main,main,main>div { width:100%!important; max-width:none!important; margin:0!important; padding:0!important; left:0!important; transform:none!important; }
 
-  /* Dedicated print hierarchy for Resumen IPA Mensual. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] {
-    display: flex !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    gap: 3mm !important;
-  }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > * { width: 100% !important; max-width: none !important; margin: 0 !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > :first-child { order: 1 !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="md:grid-cols-4"] { order: 3 !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] { order: 4 !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table thead) { order: 5 !important; }
+  /* Print-only report layout. */
+  main [class~="space-y-6"][class~="print:space-y-1.5"] { display:block!important; width:100%!important; }
+  main [class~="space-y-6"][class~="print:space-y-1.5"]> * { width:100%!important; max-width:none!important; margin:0 0 3mm 0!important; }
 
-  /* Analysis typography: 25% larger than the prior print version. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .print\:text-\[12\.5px\] { font-size: 12.5px !important; line-height: 1.35 !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .print\:text-\[15\.625px\] { font-size: 15.625px !important; line-height: 1.2 !important; }
+  /* Charts remain above the tables and are never collapsed by print sizing. */
+  main [class~="space-y-6"][class~="print:space-y-1.5"]> [class~="lg:grid-cols-2"] { display:grid!important; grid-template-columns:1fr 1fr!important; gap:4mm!important; break-inside:avoid!important; page-break-inside:avoid!important; }
+  main [class~="space-y-6"][class~="print:space-y-1.5"]> [class~="lg:grid-cols-2"] .recharts-responsive-container { width:100%!important; height:58mm!important; min-width:200px!important; min-height:1px!important; }
 
-  /* Charts before detail tables, with a concrete print height. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 4mm !important;
-    min-height: 70mm !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] > * { min-width: 0 !important; min-height: 65mm !important; break-inside: avoid !important; page-break-inside: avoid !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] .recharts-responsive-container { width: 100% !important; height: 60mm !important; min-width: 1px !important; min-height: 1px !important; }
+  /* Long tables are explicitly allowed to span pages. Headers repeat on each page and rows stay intact. */
+  main [class~="space-y-6"][class~="print:space-y-1.5"] table { width:100%!important; border-collapse:collapse!important; page-break-inside:auto!important; break-inside:auto!important; }
+  main [class~="space-y-6"][class~="print:space-y-1.5"] thead { display:table-header-group!important; }
+  main [class~="space-y-6"][class~="print:space-y-1.5"] tbody { display:table-row-group!important; }
+  main [class~="space-y-6"][class~="print:space-y-1.5"] tr { break-inside:avoid!important; page-break-inside:avoid!important; }
+  main [class~="space-y-6"][class~="print:space-y-1.5"] .overflow-x-auto { overflow:visible!important; }
+  main [class~="space-y-6"][class~="print:space-y-1.5"] .rounded-xl { box-shadow:none!important; border:1px solid #d7dbe0!important; background:#f7f8fa!important; }
 
-  /* Cards and tables. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .rounded-xl { border: 1px solid #d7dbe0 !important; background: #f7f8fa !important; box-shadow: none !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] table { width: 100% !important; border-collapse: collapse !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] thead { display: table-header-group !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] tr { break-inside: avoid !important; page-break-inside: avoid !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] th { border-bottom: 1px solid #888 !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .overflow-x-auto { overflow: visible !important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .flex.justify-end { display: none !important; }
+  /* Analysis text is 25% larger than the previous print version. */
+  main [class~="space-y-6"][class~="print:space-y-1.5"] .print\:text-\[12\.5px\] { font-size:12.5px!important; line-height:1.35!important; }
+  main [class~="space-y-6"][class~="print:space-y-1.5"] .print\:text-\[15\.625px\] { font-size:15.625px!important; line-height:1.2!important; }
 
-  /* G&P starts on a new printed page. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > .print\:break-before-page { order: 6 !important; break-before: page !important; page-break-before: always !important; break-inside: avoid !important; page-break-inside: avoid !important; }
+  /* G&P gets a clean new page, while preceding detail tables can flow across pages. */
+  main [class~="space-y-6"][class~="print:space-y-1.5"] > .print\:break-before-page { break-before:page!important; page-break-before:always!important; }
 }
