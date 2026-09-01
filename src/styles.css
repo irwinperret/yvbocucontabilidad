@@ -181,3 +181,86 @@
     box-shadow: none !important;
   }
 }
+
+
+/* IPA Mensual — diseño específico para impresión */
+@media print {
+  /* The report root has a distinctive combination of utility classes.
+     Keep the interactive screen layout untouched and only reorder/compact
+     the report when printing. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5mm !important;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="bg-amber-50"] {
+    order: 2;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table thead) {
+    order: 5;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table tbody):not(:has(table thead)) {
+    order: 6;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] {
+    order: 7;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="md:grid-cols-4"] {
+    order: 4;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] > *:first-child {
+    order: 1;
+  }
+
+  /* Analysis immediately follows the title. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > .rounded-xl.border.bg-card {
+    order: 3;
+  }
+
+  /* Selection summaries are useful on screen but should never appear in the PDF. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > .flex.justify-end {
+    display: none !important;
+  }
+
+  /* Give the printed tables a clean report appearance. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] thead {
+    display: table-header-group;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  [class~="space-y-6"][class~="print:space-y-1.5"] th {
+    border-bottom: 1px solid #888 !important;
+  }
+
+  /* Charts get a little more vertical room in the PDF while staying compact. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > [class~="lg:grid-cols-2"] > * {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Avoid horizontal scrolling containers clipping printed tables. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  /* Keep each major section together whenever the browser can do so. */
+  [class~="space-y-6"][class~="print:space-y-1.5"] > :has(table) {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+}
