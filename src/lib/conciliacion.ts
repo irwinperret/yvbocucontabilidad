@@ -151,6 +151,47 @@ export function esGastoDirectoAuto(codigo?: string | null): boolean {
   return CUENTAS_GASTO_DIRECTO_AUTO.has(String(codigo ?? "").trim());
 }
 
+// ─────────────────────────────────────────────────────────────
+// Proveedores/personas que siempre se marcan como gasto directo
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Personas o proveedores cuyos pagos SIEMPRE se marcan como "Gasto
+ * Stand-Alone (sin factura)" al importar movimientos bancarios, sin esperar
+ * verificación manual — sin importar la cuenta contable asignada ni si ya
+ * tienen facturas/CxP registradas. Nombres normalizados (mayúsculas, sin
+ * tildes). Agregar aquí cualquier otro caso similar.
+ */
+export const NOMBRES_GASTO_DIRECTO_FORZADO = new Set([
+  "YOFRAN SABINO",
+]);
+
+function normalizarTextoMemo(s: unknown): string {
+  return String(s ?? "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * ¿El memo (concepto) del movimiento bancario menciona a alguno de los
+ * NOMBRES_GASTO_DIRECTO_FORZADO? Exige que TODAS las palabras del nombre
+ * aparezcan en el memo (no una suelta), igual que el resto del matching de
+ * proveedores, para evitar falsos positivos.
+ */
+export function memoEsGastoDirectoForzado(memo: string | null | undefined): boolean {
+  const texto = normalizarTextoMemo(memo);
+  if (!texto) return false;
+  for (const nombre of NOMBRES_GASTO_DIRECTO_FORZADO) {
+    const tokens = nombre.split(" ").filter(Boolean);
+    if (tokens.length && tokens.every((t) => texto.includes(t))) return true;
+  }
+  return false;
+}
+
 /** ¿Esta cuenta nunca va a tener una factura comercial asociada? */
 export function cuentaSinFactura(codigo?: string | null): boolean {
   const c = String(codigo ?? "").trim();

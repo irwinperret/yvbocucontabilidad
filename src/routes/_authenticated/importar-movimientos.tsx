@@ -25,6 +25,7 @@ import {
   cuentaSinFactura,
   cuentaServicio,
   esGastoDirectoAuto,
+  memoEsGastoDirectoForzado,
   monedaBase,
   limpiarReferencia,
   marcarEstadoConciliacion,
@@ -876,7 +877,11 @@ function ImportarMovimientosInner() {
           // es más probable que esté esperando parear con una de esas facturas.
           const esBono = /\bBONOS?\b/i.test(bankRow.concepto ?? "");
           const proveedorTieneFacturas = !!provAdivinado && proveedoresConFactura.has(provAdivinado.id);
-          if (tx && !proveedorTieneFacturas && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)) {
+          // Nombres en NOMBRES_GASTO_DIRECTO_FORZADO (p. ej. Yofran Sabino)
+          // siempre se marcan como gasto directo, incluso si ya tienen
+          // facturas/CxP registradas o la cuenta no está en la lista automática.
+          const esGastoDirectoForzado = memoEsGastoDirectoForzado(bankRow.concepto);
+          if (tx && (esGastoDirectoForzado || (!proveedorTieneFacturas && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)))) {
             await marcarEstadoConciliacion({
               movimientoId: (tx as any).id,
               estado: esCuentaNoConciliable(m.cuentaCodigo) ? "no_contable" : "gasto_directo",
