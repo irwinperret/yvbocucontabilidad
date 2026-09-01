@@ -49,7 +49,14 @@ export function InventarioFinalQuickEntry() {
   const valorMostrado = tocado ? monto : (snap?.monto_usd != null ? String(snap.monto_usd) : "");
 
   const guardar = async () => {
-    const montoUsd = Number(monto || valorMostrado);
+    // Antes: si el campo estaba vacío (solo mostraba el placeholder "0.00"),
+    // Number("" || "") daba 0 y se guardaba un inventario final de $0 real,
+    // sin que nadie lo hubiera escrito. Eso rompía el COGS del mes (lo
+    // infla como si todo el inventario se hubiera vendido). Ahora se exige
+    // un valor realmente escrito antes de guardar.
+    const valorTexto = (monto || valorMostrado).trim();
+    if (!valorTexto) return toast.error("Ingresa el inventario final antes de guardar");
+    const montoUsd = Number(valorTexto);
     if (!Number.isFinite(montoUsd) || montoUsd < 0) return toast.error("Monto inválido");
     if (!user) return toast.error("Sin sesión");
     setGuardando(true);
