@@ -14,7 +14,8 @@ import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
 import {
   Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
 } from "recharts";
-import { Wrench, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { Wrench, TrendingUp, TrendingDown, Wallet, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/resumen-ejecutivo-mensual")({
   component: ResumenEjecutivoMensualPage,
@@ -299,7 +300,7 @@ function ResumenEjecutivoMensualPage() {
           <h1 className="text-3xl font-bold tracking-tight">Resumen IPA Mensual</h1>
           <p className="text-base text-muted-foreground mt-1">Informe ejecutivo de <b>{labelMes}</b> · montos en {label}</p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2 print:hidden">
           <UsdViewToggle />
           <div>
             <Label className="text-xs">Mes</Label>
@@ -315,6 +316,10 @@ function ResumenEjecutivoMensualPage() {
               <SelectContent>{[2024, 2025, 2026, 2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <Button variant="outline" onClick={() => window.print()} className="self-end">
+            <Printer className="h-4 w-4 mr-2" />
+            Imprimir / PDF
+          </Button>
         </div>
       </div>
 
@@ -325,7 +330,7 @@ function ResumenEjecutivoMensualPage() {
       )}
 
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
-      <Card>
+      <Card className="print:break-inside-avoid">
         <CardHeader><CardTitle className="text-lg">Análisis del mes</CardTitle></CardHeader>
         <CardContent className="space-y-3 text-sm leading-relaxed">
           <p className="text-muted-foreground">
@@ -365,7 +370,7 @@ function ResumenEjecutivoMensualPage() {
       </div>
 
       {/* a) Gráfico de utilidad mensual por categorías grandes */}
-      <Card>
+      <Card className="print:break-inside-avoid">
         <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
         <CardContent style={{ height: 360 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -386,7 +391,7 @@ function ResumenEjecutivoMensualPage() {
       </Card>
 
       {/* b) Desglose mensual de G&P */}
-      <Card>
+      <Card className="print:break-inside-avoid">
         <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelMes}</CardTitle></CardHeader>
         <CardContent>
           <table className="w-full text-sm">
@@ -419,7 +424,7 @@ function ResumenEjecutivoMensualPage() {
       </Card>
 
       {/* Comparativo mensual — Enero hasta el mes de corte */}
-      <Card>
+      <Card className="print:break-inside-avoid">
         <CardHeader><CardTitle className="text-lg">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -457,7 +462,7 @@ function ResumenEjecutivoMensualPage() {
           )}
         </CardContent>
       </Card>
-      <Card>
+      <Card className="print:break-inside-avoid">
         <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
         <CardContent>
           <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">Cambio neto en la deuda con proveedores</p>
@@ -471,7 +476,7 @@ function ResumenEjecutivoMensualPage() {
       </Card>
 
       {/* Segundo gráfico: márgenes operativos (%) — eficiencia del negocio en el tiempo */}
-      <Card>
+      <Card className="print:break-inside-avoid">
         <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
         <CardContent style={{ height: 260 }}>
           <ResponsiveContainer width="100%" height="100%">
