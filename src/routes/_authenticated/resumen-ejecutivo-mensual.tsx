@@ -278,6 +278,15 @@ function ResumenEjecutivoMensualPage() {
   const margenBruto = ingresos - cogs;
   const utilidadNeta = ingresos - gastosTotales;
 
+  // Pago de préstamos (capital + intereses juntos, sin desglosar) y
+  // dividendos repartidos en el mes — cuentas 5.2/5.3 y 5.4 específicamente.
+  const pagoPrestamos = (rowsAnio ?? [])
+    .filter((r) => r.mes === mes && (r.cuenta_codigo === "5.2" || r.cuenta_codigo === "5.3"))
+    .reduce((s, r) => s + (Number(r.base_usd) || 0), 0);
+  const dividendos = (rowsAnio ?? [])
+    .filter((r) => r.mes === mes && r.cuenta_codigo === "5.4")
+    .reduce((s, r) => s + (Number(r.base_usd) || 0), 0);
+
   const autorizado = !!user?.email && PERMITIDOS.includes(user.email.toLowerCase());
   if (!autorizado) {
     return (
@@ -353,6 +362,14 @@ function ResumenEjecutivoMensualPage() {
             {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""} y la deuda con
             proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> en {fmtUsd(Math.abs(cxpSaldos.cambio))}.
           </p>
+          {(pagoPrestamos > 0.01 || dividendos > 0.01) && (
+            <p className="text-muted-foreground">
+              Además, en {labelMes}
+              {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
+              {pagoPrestamos > 0.01 && dividendos > 0.01 && " y"}
+              {dividendos > 0.01 && <> se repartieron <b>{fmtUsd(dividendos)}</b> en dividendos</>}.
+            </p>
+          )}
         </CardContent>
       </Card>
 
