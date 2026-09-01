@@ -197,8 +197,15 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
   ]);
   const cerrados = new Set((cierres ?? []).map((c: any) => c.periodo));
 
-  const hoy = new Date();
-  const periodoActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+  // El "mes actual" para efectos de esta estimación es el ÚLTIMO mes ABIERTO
+  // que tiene inventario inicial cargado (el más reciente con datos reales),
+  // NO la fecha real del calendario — si el usuario no ha registrado nada
+  // todavía del mes calendario en curso, el "mes actual" del negocio sigue
+  // siendo el anterior, y es ESE el que debe asumir "sin cambio de
+  // inventario" en vez de tomar un inventario final de relleno sin cargar.
+  const abiertosConInicial = Array.from({ length: 12 }, (_, i) => `${anio}-${String(i + 1).padStart(2, "0")}`)
+    .filter((periodo) => !cerrados.has(periodo) && (snaps ?? []).some((s: any) => s.periodo === periodo && s.tipo === "inicial"));
+  const periodoActual = abiertosConInicial.length ? abiertosConInicial[abiertosConInicial.length - 1] : null;
 
   const resultado = new Map<string, CogsEstimado>();
   for (let mes = 1; mes <= 12; mes++) {
@@ -209,11 +216,12 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
 
     let finUsd: number;
     if (periodo === periodoActual) {
-      // Mes actual (el "último" mes, todavía en curso): no se sabe cuánto
-      // inventario queda de verdad, así que se ASUME que no hubo cambio
-      // (final = inicial) para no inflar el COGS con un valor de relleno
-      // (ej. "0.00") que nadie terminó de cargar todavía. Esto es solo para
-      // el cálculo en pantalla — nunca se guarda nada en inventario_snapshots.
+      // Mes actual (el más reciente con datos, todavía en curso): no se sabe
+      // cuánto inventario queda de verdad, así que se ASUME que no hubo
+      // cambio (final = inicial) para no inflar el COGS con un valor de
+      // relleno (ej. "0.00") que nadie terminó de cargar todavía. Esto es
+      // solo para el cálculo en pantalla — nunca se guarda nada en
+      // inventario_snapshots.
       finUsd = Number((ini as any).monto_usd) || 0;
     } else {
       const fin = (snaps ?? []).find((s: any) => s.periodo === periodo && s.tipo === "final");
