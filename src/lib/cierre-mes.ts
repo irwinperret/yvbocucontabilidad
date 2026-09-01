@@ -190,30 +190,66 @@ export type CogsEstimado = { cogsBs: number; cogsUsdBcv: number; cogsUsdParalelo
  * Los meses YA cerrados no aparecen en el resultado — para esos se debe
  * seguir usando el valor real (la transacción 2.2 que ya existe).
  */
+function mesAnteriorDe(periodo: string): string | null {
+  const [y, m] = periodo.split("-").map(Number);
+  if (!y || !m || y < 2000) return null; // corte de seguridad, no retroceder indefinidamente
+  const mm = m === 1 ? 12 : m - 1;
+  const yy = m === 1 ? y - 1 : y;
+  return `${yy}-${String(mm).padStart(2, "0")}`;
+}
+
 export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string, CogsEstimado>> {
+  // Sin límite inferior: para poder "arrastrar" el inventario desde el
+  // último mes con dato cargado, sin importar cuántos meses atrás quede
+  // (incluso cruzando de año), se necesita el historial completo de
+  // inventario_snapshots, no solo el del año consultado.
   const [{ data: cierres }, { data: snaps }] = await Promise.all([
     supabase.from("cierres_de_mes").select("periodo").gte("periodo", `${anio}-01`).lte("periodo", `${anio}-12`),
-    supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd").gte("periodo", `${anio}-01`).lte("periodo", `${anio}-12`),
+    supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd").lte("periodo", `${anio}-12`),
   ]);
   const cerrados = new Set((cierres ?? []).map((c: any) => c.periodo));
+
+  const porPeriodo = new Map<string, { inicial?: number; final?: number }>();
+  for (const s of (snaps ?? []) as any[]) {
+    const e = porPeriodo.get(s.periodo) ?? {};
+    if (s.tipo === "inicial") e.inicial = Number(s.monto_usd) || 0;
+    if (s.tipo === "final") e.final = Number(s.monto_usd) || 0;
+    porPeriodo.set(s.periodo, e);
+  }
+
+  /**
+   * Nivel de inventario "conocido" al cierre de un período (para usarlo
+   * como inicial del mes siguiente cuando ese mes no tiene su propio
+   * inventario inicial cargado): el final registrado de ese período si
+   * existe; si no, su inicial (asumiendo que no hubo cambio); si tampoco
+   * hay inicial, se sigue retrocediendo un mes más — así un mes recién
+   * abierto sin nada cargado hereda el último nivel de inventario conocido
+   * en vez de tratarse como si el inventario fuera cero.
+   */
+  function inventarioAlCierreDe(periodo: string | null): number | null {
+    if (!periodo) return null;
+    const e = porPeriodo.get(periodo);
+    if (e?.final != null) return e.final;
+    if (e?.inicial != null) return e.inicial;
+    return inventarioAlCierreDe(mesAnteriorDe(periodo));
+  }
 
   const resultado = new Map<string, CogsEstimado>();
   for (let mes = 1; mes <= 12; mes++) {
     const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
     if (cerrados.has(periodo)) continue; // cerrado: usar el valor real, no estimar
-    const ini = (snaps ?? []).find((s: any) => s.periodo === periodo && s.tipo === "inicial");
-    if (!ini) continue; // sin inventario inicial: no se puede estimar nada
 
-    // Cualquier mes abierto (no solo "el más reciente") se proyecta como si
-    // estuviera cerrado: si ya se cargó un inventario final real, se usa
-    // ese; si no, se ASUME que no hubo cambio de inventario respecto al mes
-    // anterior (final = inicial), en vez de tomar un valor de relleno (ej.
-    // "0.00") que nadie terminó de cargar todavía. Esto es solo para el
-    // cálculo en pantalla — nunca se guarda nada en inventario_snapshots.
-    const fin = (snaps ?? []).find((s: any) => s.periodo === periodo && s.tipo === "final");
-    const finUsd = fin ? Number((fin as any).monto_usd) || 0 : Number((ini as any).monto_usd) || 0;
+    const e = porPeriodo.get(periodo);
+    // Inicial: el registrado a mano si existe; si no, el último nivel de
+    // inventario conocido (mes anterior, o el que corresponda retrocediendo)
+    // — mismo criterio que ya se usaba para el FINAL cuando no se había
+    // cargado (asumir que no hubo cambio, no que el inventario es cero).
+    const iniUsd = e?.inicial ?? inventarioAlCierreDe(mesAnteriorDe(periodo));
+    if (iniUsd == null) continue; // ni este mes ni ninguno anterior tiene inventario cargado: no se puede estimar
 
-    const r = await calcularCierre(periodo, Number((ini as any).monto_usd) || 0, finUsd);
+    const finUsd = e?.final ?? iniUsd;
+
+    const r = await calcularCierre(periodo, iniUsd, finUsd);
     resultado.set(periodo, { cogsBs: r.cogsBs, cogsUsdBcv: r.cogsUsdBcv, cogsUsdParalelo: r.cogsUsdParalelo });
   }
   return resultado;

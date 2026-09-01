@@ -28,7 +28,7 @@ export function DashboardCharts() {
   const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState(anioActual);
   const [centro, setCentro] = useState<string>("Consolidado");
-  const [incluirOff, setIncluirOff] = useState(false);
+  const [incluirOff, setIncluirOff] = useState(true);
   const { mode } = useUsdView();
 
   const { data: cuentas } = useQuery({
