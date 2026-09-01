@@ -353,8 +353,8 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
       <Card className="print:break-inside-avoid">
-        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[10px]">Análisis del mes</CardTitle></CardHeader>
-        <CardContent className="space-y-3 text-sm leading-relaxed print:p-1.5 print:space-y-0.5 print:text-[8px] print:leading-snug">
+        <CardHeader className="print:p-1.5"><CardTitle className="text-lg print:text-[12.5px]">Análisis del mes</CardTitle></CardHeader>
+        <CardContent className="space-y-3 text-sm leading-relaxed print:p-1.5 print:space-y-1 print:text-[10px] print:leading-snug">
           <p className="text-muted-foreground">
             Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
           </p>
