@@ -18,6 +18,7 @@ import { Route as AuthenticatedTasaParalelaRouteImport } from './routes/_authent
 import { Route as AuthenticatedTasaRouteImport } from './routes/_authenticated/tasa'
 import { Route as AuthenticatedStandbyRouteImport } from './routes/_authenticated/standby'
 import { Route as AuthenticatedSaldosBancariosRouteImport } from './routes/_authenticated/saldos-bancarios'
+import { Route as AuthenticatedResumenEjecutivoMensualRouteImport } from './routes/_authenticated/resumen-ejecutivo-mensual'
 import { Route as AuthenticatedResumenEjecutivoRouteImport } from './routes/_authenticated/resumen-ejecutivo'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
 import { Route as AuthenticatedPropinasRouteImport } from './routes/_authenticated/propinas'
@@ -51,7 +52,9 @@ import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/
 import { Route as AuthenticatedAnalisisAiRouteImport } from './routes/_authenticated/analisis-ai'
 import { Route as AuthenticatedActivosTransitoriosRouteImport } from './routes/_authenticated/activos-transitorios'
 import { Route as AuthenticatedProveedoresIndexRouteImport } from './routes/_authenticated/proveedores/index'
+import { Route as AuthenticatedIrisIndexRouteImport } from './routes/_authenticated/iris/index'
 import { Route as AuthenticatedProveedoresIdRouteImport } from './routes/_authenticated/proveedores/$id'
+import { Route as AuthenticatedIrisMovimientosSinProveedorRouteImport } from './routes/_authenticated/iris/movimientos-sin-proveedor'
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
@@ -100,6 +103,12 @@ const AuthenticatedSaldosBancariosRoute =
   AuthenticatedSaldosBancariosRouteImport.update({
     id: '/saldos-bancarios',
     path: '/saldos-bancarios',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedResumenEjecutivoMensualRoute =
+  AuthenticatedResumenEjecutivoMensualRouteImport.update({
+    id: '/resumen-ejecutivo-mensual',
+    path: '/resumen-ejecutivo-mensual',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedResumenEjecutivoRoute =
@@ -285,10 +294,21 @@ const AuthenticatedProveedoresIndexRoute =
     path: '/proveedores/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedIrisIndexRoute = AuthenticatedIrisIndexRouteImport.update({
+  id: '/iris/',
+  path: '/iris/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedProveedoresIdRoute =
   AuthenticatedProveedoresIdRouteImport.update({
     id: '/proveedores/$id',
     path: '/proveedores/$id',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedIrisMovimientosSinProveedorRoute =
+  AuthenticatedIrisMovimientosSinProveedorRouteImport.update({
+    id: '/iris/movimientos-sin-proveedor',
+    path: '/iris/movimientos-sin-proveedor',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiPublicHooksSyncParalelaRoute =
@@ -338,13 +358,16 @@ export interface FileRoutesByFullPath {
   '/propinas': typeof AuthenticatedPropinasRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
+  '/resumen-ejecutivo-mensual': typeof AuthenticatedResumenEjecutivoMensualRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/standby': typeof AuthenticatedStandbyRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/iris/movimientos-sin-proveedor': typeof AuthenticatedIrisMovimientosSinProveedorRoute
   '/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
+  '/iris/': typeof AuthenticatedIrisIndexRoute
   '/proveedores/': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
@@ -384,13 +407,16 @@ export interface FileRoutesByTo {
   '/propinas': typeof AuthenticatedPropinasRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
+  '/resumen-ejecutivo-mensual': typeof AuthenticatedResumenEjecutivoMensualRoute
   '/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/standby': typeof AuthenticatedStandbyRoute
   '/tasa': typeof AuthenticatedTasaRoute
   '/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/iris/movimientos-sin-proveedor': typeof AuthenticatedIrisMovimientosSinProveedorRoute
   '/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
+  '/iris': typeof AuthenticatedIrisIndexRoute
   '/proveedores': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
@@ -432,13 +458,16 @@ export interface FileRoutesById {
   '/_authenticated/propinas': typeof AuthenticatedPropinasRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
+  '/_authenticated/resumen-ejecutivo-mensual': typeof AuthenticatedResumenEjecutivoMensualRoute
   '/_authenticated/saldos-bancarios': typeof AuthenticatedSaldosBancariosRoute
   '/_authenticated/standby': typeof AuthenticatedStandbyRoute
   '/_authenticated/tasa': typeof AuthenticatedTasaRoute
   '/_authenticated/tasa-paralela': typeof AuthenticatedTasaParalelaRoute
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
   '/_authenticated/transacciones': typeof AuthenticatedTransaccionesRoute
+  '/_authenticated/iris/movimientos-sin-proveedor': typeof AuthenticatedIrisMovimientosSinProveedorRoute
   '/_authenticated/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
+  '/_authenticated/iris/': typeof AuthenticatedIrisIndexRoute
   '/_authenticated/proveedores/': typeof AuthenticatedProveedoresIndexRoute
   '/api/public/hooks/sync-bcv': typeof ApiPublicHooksSyncBcvRoute
   '/api/public/hooks/sync-paralela': typeof ApiPublicHooksSyncParalelaRoute
@@ -480,13 +509,16 @@ export interface FileRouteTypes {
     | '/propinas'
     | '/registrar'
     | '/resumen-ejecutivo'
+    | '/resumen-ejecutivo-mensual'
     | '/saldos-bancarios'
     | '/standby'
     | '/tasa'
     | '/tasa-paralela'
     | '/terceros'
     | '/transacciones'
+    | '/iris/movimientos-sin-proveedor'
     | '/proveedores/$id'
+    | '/iris/'
     | '/proveedores/'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
@@ -526,13 +558,16 @@ export interface FileRouteTypes {
     | '/propinas'
     | '/registrar'
     | '/resumen-ejecutivo'
+    | '/resumen-ejecutivo-mensual'
     | '/saldos-bancarios'
     | '/standby'
     | '/tasa'
     | '/tasa-paralela'
     | '/terceros'
     | '/transacciones'
+    | '/iris/movimientos-sin-proveedor'
     | '/proveedores/$id'
+    | '/iris'
     | '/proveedores'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
@@ -573,13 +608,16 @@ export interface FileRouteTypes {
     | '/_authenticated/propinas'
     | '/_authenticated/registrar'
     | '/_authenticated/resumen-ejecutivo'
+    | '/_authenticated/resumen-ejecutivo-mensual'
     | '/_authenticated/saldos-bancarios'
     | '/_authenticated/standby'
     | '/_authenticated/tasa'
     | '/_authenticated/tasa-paralela'
     | '/_authenticated/terceros'
     | '/_authenticated/transacciones'
+    | '/_authenticated/iris/movimientos-sin-proveedor'
     | '/_authenticated/proveedores/$id'
+    | '/_authenticated/iris/'
     | '/_authenticated/proveedores/'
     | '/api/public/hooks/sync-bcv'
     | '/api/public/hooks/sync-paralela'
@@ -656,6 +694,13 @@ declare module '@tanstack/react-router' {
       path: '/saldos-bancarios'
       fullPath: '/saldos-bancarios'
       preLoaderRoute: typeof AuthenticatedSaldosBancariosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/resumen-ejecutivo-mensual': {
+      id: '/_authenticated/resumen-ejecutivo-mensual'
+      path: '/resumen-ejecutivo-mensual'
+      fullPath: '/resumen-ejecutivo-mensual'
+      preLoaderRoute: typeof AuthenticatedResumenEjecutivoMensualRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/resumen-ejecutivo': {
@@ -889,11 +934,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProveedoresIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/iris/': {
+      id: '/_authenticated/iris/'
+      path: '/iris'
+      fullPath: '/iris/'
+      preLoaderRoute: typeof AuthenticatedIrisIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/proveedores/$id': {
       id: '/_authenticated/proveedores/$id'
       path: '/proveedores/$id'
       fullPath: '/proveedores/$id'
       preLoaderRoute: typeof AuthenticatedProveedoresIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/iris/movimientos-sin-proveedor': {
+      id: '/_authenticated/iris/movimientos-sin-proveedor'
+      path: '/iris/movimientos-sin-proveedor'
+      fullPath: '/iris/movimientos-sin-proveedor'
+      preLoaderRoute: typeof AuthenticatedIrisMovimientosSinProveedorRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/public/hooks/sync-paralela': {
@@ -946,13 +1005,16 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPropinasRoute: typeof AuthenticatedPropinasRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
   AuthenticatedResumenEjecutivoRoute: typeof AuthenticatedResumenEjecutivoRoute
+  AuthenticatedResumenEjecutivoMensualRoute: typeof AuthenticatedResumenEjecutivoMensualRoute
   AuthenticatedSaldosBancariosRoute: typeof AuthenticatedSaldosBancariosRoute
   AuthenticatedStandbyRoute: typeof AuthenticatedStandbyRoute
   AuthenticatedTasaRoute: typeof AuthenticatedTasaRoute
   AuthenticatedTasaParalelaRoute: typeof AuthenticatedTasaParalelaRoute
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
   AuthenticatedTransaccionesRoute: typeof AuthenticatedTransaccionesRoute
+  AuthenticatedIrisMovimientosSinProveedorRoute: typeof AuthenticatedIrisMovimientosSinProveedorRoute
   AuthenticatedProveedoresIdRoute: typeof AuthenticatedProveedoresIdRoute
+  AuthenticatedIrisIndexRoute: typeof AuthenticatedIrisIndexRoute
   AuthenticatedProveedoresIndexRoute: typeof AuthenticatedProveedoresIndexRoute
 }
 
@@ -992,13 +1054,18 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPropinasRoute: AuthenticatedPropinasRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
   AuthenticatedResumenEjecutivoRoute: AuthenticatedResumenEjecutivoRoute,
+  AuthenticatedResumenEjecutivoMensualRoute:
+    AuthenticatedResumenEjecutivoMensualRoute,
   AuthenticatedSaldosBancariosRoute: AuthenticatedSaldosBancariosRoute,
   AuthenticatedStandbyRoute: AuthenticatedStandbyRoute,
   AuthenticatedTasaRoute: AuthenticatedTasaRoute,
   AuthenticatedTasaParalelaRoute: AuthenticatedTasaParalelaRoute,
   AuthenticatedTercerosRoute: AuthenticatedTercerosRoute,
   AuthenticatedTransaccionesRoute: AuthenticatedTransaccionesRoute,
+  AuthenticatedIrisMovimientosSinProveedorRoute:
+    AuthenticatedIrisMovimientosSinProveedorRoute,
   AuthenticatedProveedoresIdRoute: AuthenticatedProveedoresIdRoute,
+  AuthenticatedIrisIndexRoute: AuthenticatedIrisIndexRoute,
   AuthenticatedProveedoresIndexRoute: AuthenticatedProveedoresIndexRoute,
 }
 

@@ -1075,8 +1075,8 @@ function MovimientosBancariosPage() {
                     Página {page + 1} de {totalPages} · {filtradas.length} movimientos
                   </span>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
-                    <Button size="sm" variant="outline" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>Siguiente</Button>
+                    <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(Math.max(0, page - 1))}>Anterior</Button>
+                    <Button size="sm" variant="outline" disabled={page + 1 >= totalPages} onClick={() => setPage(Math.min(totalPages - 1, page + 1))}>Siguiente</Button>
                   </div>
                 </div>
               )}

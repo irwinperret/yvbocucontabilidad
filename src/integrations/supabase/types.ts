@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1114,39 +1114,45 @@ export type Database = {
           created_at: string
           direccion_fiscal: string | null
           email: string | null
+          estado_registro: string
           id: string
           nombre_comercial: string | null
+          origen_registro: string
           razon_social: string
-          rif: string
+          rif: string | null
           telefono: string | null
           tipo: Database["public"]["Enums"]["tipo_tercero"]
-          tipo_rif: Database["public"]["Enums"]["tipo_rif"]
+          tipo_rif: Database["public"]["Enums"]["tipo_rif"] | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           direccion_fiscal?: string | null
           email?: string | null
+          estado_registro?: string
           id?: string
           nombre_comercial?: string | null
+          origen_registro?: string
           razon_social: string
-          rif: string
+          rif?: string | null
           telefono?: string | null
           tipo?: Database["public"]["Enums"]["tipo_tercero"]
-          tipo_rif: Database["public"]["Enums"]["tipo_rif"]
+          tipo_rif?: Database["public"]["Enums"]["tipo_rif"] | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           direccion_fiscal?: string | null
           email?: string | null
+          estado_registro?: string
           id?: string
           nombre_comercial?: string | null
+          origen_registro?: string
           razon_social?: string
-          rif?: string
+          rif?: string | null
           telefono?: string | null
           tipo?: Database["public"]["Enums"]["tipo_tercero"]
-          tipo_rif?: Database["public"]["Enums"]["tipo_rif"]
+          tipo_rif?: Database["public"]["Enums"]["tipo_rif"] | null
           updated_at?: string
         }
         Relationships: []
@@ -1183,6 +1189,7 @@ export type Database = {
           numero_orden: string | null
           pareja_off_balance_id: string | null
           referencia: string | null
+          sin_proveedor_deducido: boolean
           standby: boolean
           standby_at: string | null
           tasa_bcv: number
@@ -1221,6 +1228,7 @@ export type Database = {
           numero_orden?: string | null
           pareja_off_balance_id?: string | null
           referencia?: string | null
+          sin_proveedor_deducido?: boolean
           standby?: boolean
           standby_at?: string | null
           tasa_bcv: number
@@ -1259,6 +1267,7 @@ export type Database = {
           numero_orden?: string | null
           pareja_off_balance_id?: string | null
           referencia?: string | null
+          sin_proveedor_deducido?: boolean
           standby?: boolean
           standby_at?: string | null
           tasa_bcv?: number

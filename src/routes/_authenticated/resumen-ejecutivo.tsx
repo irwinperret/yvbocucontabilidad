@@ -220,7 +220,7 @@ function ResumenEjecutivoPage() {
     qc.invalidateQueries({ queryKey: ["proyecciones-mensuales"] });
   };
 
-  const PERMITIDOS = ["irwinperret@hotmail.com", "irwinperret@gmail.com", "cristobalperret@gmail.com"];
+  const PERMITIDOS = ["irwinperret@hotmail.com", "irwinperret@gmail.com", "cristobalperret@gmail.com", "marianaperret@gmail.com"];
   const autorizado = !!user?.email && PERMITIDOS.includes(user.email.toLowerCase());
   if (!autorizado) {
     return (
