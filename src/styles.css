@@ -14,33 +14,11 @@
 .dark { --background: oklch(.129 .042 264.695); --foreground: oklch(.984 .003 247.858); --card: oklch(.208 .042 265.755); --card-foreground: oklch(.984 .003 247.858); --popover: oklch(.208 .042 265.755); --popover-foreground: oklch(.984 .003 247.858); --secondary: oklch(.279 .041 260.031); --secondary-foreground: oklch(.984 .003 247.858); --muted: oklch(.279 .041 260.031); --muted-foreground: oklch(.704 .04 256.788); --accent: oklch(.279 .041 260.031); --accent-foreground: oklch(.984 .003 247.858); --destructive: oklch(.704 .191 22.216); --destructive-foreground: oklch(.984 .003 247.858); --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(.551 .027 264.364); --chart-1: oklch(.488 .243 264.376); --chart-2: oklch(.696 .17 162.48); --chart-3: oklch(.769 .188 70.08); --chart-4: oklch(.627 .265 303.9); --chart-5: oklch(.645 .246 16.439); --sidebar: oklch(.208 .042 265.755); --sidebar-foreground: oklch(.984 .003 247.858); --sidebar-primary: oklch(.488 .243 264.376); --sidebar-primary-foreground: oklch(.984 .003 247.858); --sidebar-accent: oklch(.279 .041 260.031); --sidebar-accent-foreground: oklch(.984 .003 247.858); --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(.551 .027 264.364); }
 @layer base { * { border-color:var(--color-border); } body { background-color:var(--color-background); color:var(--color-foreground); } }
 
+/* Impresión: solo lo esencial. El reporte imprimible vive en su propia ruta
+   dedicada (/reporte-mensual-imprimir), que ya no depende de ningún
+   selector CSS frágil sobre la vista interactiva — construye su propio
+   layout de impresión desde cero. */
 @media print {
-  @page { size: landscape; margin: 7mm; }
-  * { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
-  html,body { width:100%!important; margin:0!important; padding:0!important; }
-  nav,aside,.group.peer[data-side="left"],.group.peer[data-side="right"] { display:none!important; }
-  .group\/sidebar-wrapper,.group\/sidebar-wrapper>main,main,main>div { width:100%!important; max-width:none!important; margin:0!important; padding:0!important; left:0!important; transform:none!important; }
-
-  /* Print-only report layout. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] { display:block!important; width:100%!important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"]> * { width:100%!important; max-width:none!important; margin:0 0 3mm 0!important; }
-
-  /* Charts remain above the tables and are never collapsed by print sizing. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"]> [class~="lg:grid-cols-2"] { display:grid!important; grid-template-columns:1fr 1fr!important; gap:4mm!important; break-inside:avoid!important; page-break-inside:avoid!important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"]> [class~="lg:grid-cols-2"] .recharts-responsive-container { width:100%!important; height:58mm!important; min-width:200px!important; min-height:1px!important; }
-
-  /* Long tables are explicitly allowed to span pages. Headers repeat on each page and rows stay intact. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] table { width:100%!important; border-collapse:collapse!important; page-break-inside:auto!important; break-inside:auto!important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] thead { display:table-header-group!important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] tbody { display:table-row-group!important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] tr { break-inside:avoid!important; page-break-inside:avoid!important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .overflow-x-auto { overflow:visible!important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .rounded-xl { box-shadow:none!important; border:1px solid #d7dbe0!important; background:#f7f8fa!important; }
-
-  /* Analysis text is 25% larger than the previous print version. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .print\:text-\[12\.5px\] { font-size:12.5px!important; line-height:1.35!important; }
-  main [class~="space-y-6"][class~="print:space-y-1.5"] .print\:text-\[15\.625px\] { font-size:15.625px!important; line-height:1.2!important; }
-
-  /* G&P gets a clean new page, while preceding detail tables can flow across pages. */
-  main [class~="space-y-6"][class~="print:space-y-1.5"] > .print\:break-before-page { break-before:page!important; page-break-before:always!important; }
+  @page { size: landscape; margin: 10mm; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
