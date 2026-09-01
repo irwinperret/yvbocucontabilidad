@@ -369,26 +369,45 @@ function ResumenEjecutivoMensualPage() {
         />
       </div>
 
-      {/* a) Gráfico de utilidad mensual por categorías grandes */}
-      <Card className="print:break-inside-avoid">
-        <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
-        <CardContent style={{ height: 360 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={serie} stackOffset="sign">
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="mesLabel" fontSize={11} />
-              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
-              <ReferenceLine y={0} stroke="#111827" strokeWidth={1} />
-              <Tooltip formatter={(v: number) => fmtUsd(v)} />
-              <Legend />
-              {categoriasConDatos.map((c) => (
-                <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} />
-              ))}
-              <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      {/* Dos gráficos lado a lado: montos por categoría, y márgenes operativos (%) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="print:break-inside-avoid">
+          <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+          <CardContent style={{ height: 360 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={serie} stackOffset="sign">
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="mesLabel" fontSize={11} />
+                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
+                <ReferenceLine y={0} stroke="#111827" strokeWidth={1} />
+                <Tooltip formatter={(v: number) => fmtUsd(v)} />
+                <Legend />
+                {categoriasConDatos.map((c) => (
+                  <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} />
+                ))}
+                <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="print:break-inside-avoid">
+          <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+          <CardContent style={{ height: 360 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={serieMargenes}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="mesLabel" fontSize={11} />
+                <YAxis tickFormatter={(v) => `${v}%`} fontSize={11} width={45} />
+                <Tooltip formatter={(v: number) => `${v}%`} />
+                <Legend />
+                <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* b) Desglose mensual de G&P */}
       <Card className="print:break-inside-avoid">
@@ -472,24 +491,6 @@ function ResumenEjecutivoMensualPage() {
           <p className="text-sm text-muted-foreground mt-2">
             La deuda con proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> respecto a {labelMesAnt}.
           </p>
-        </CardContent>
-      </Card>
-
-      {/* Segundo gráfico: márgenes operativos (%) — eficiencia del negocio en el tiempo */}
-      <Card className="print:break-inside-avoid">
-        <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
-        <CardContent style={{ height: 260 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={serieMargenes}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="mesLabel" fontSize={11} />
-              <YAxis tickFormatter={(v) => `${v}%`} fontSize={11} width={45} />
-              <Tooltip formatter={(v: number) => `${v}%`} />
-              <Legend />
-              <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-              <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-            </ComposedChart>
-          </ResponsiveContainer>
         </CardContent>
       </Card>
     </div>
