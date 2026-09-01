@@ -76,11 +76,21 @@ const pct = (actual: number, previo: number) =>
 function frase(nombre: string, actual: number, prevMes: number, labelPrevMes: string, prevAnio: number | null, labelPrevAnio: string) {
   const pm = pct(actual, prevMes);
   const pa = prevAnio != null ? pct(actual, prevAnio) : null;
-  let t = `${nombre} de ${fmtUsd(actual)}`;
-  if (pm != null) t += `, un ${Math.abs(pm).toFixed(1)}% ${pm >= 0 ? "más" : "menos"} que ${labelPrevMes} (${fmtUsd(prevMes)})`;
+  let t = `${nombre} de **${fmtUsd(actual)}**`;
+  if (pm != null) t += `, un **${Math.abs(pm).toFixed(1)}%** ${pm >= 0 ? "más" : "menos"} que ${labelPrevMes} (${fmtUsd(prevMes)})`;
   else t += `, sin cifra comparable en ${labelPrevMes}`;
-  if (pa != null) t += ` y un ${Math.abs(pa).toFixed(1)}% ${pa >= 0 ? "más" : "menos"} que ${labelPrevAnio} (${fmtUsd(prevAnio as number)})`;
+  if (pa != null) t += ` y un **${Math.abs(pa).toFixed(1)}%** ${pa >= 0 ? "más" : "menos"} que ${labelPrevAnio} (${fmtUsd(prevAnio as number)})`;
   return t + ".";
+}
+
+/** Convierte los **negrita** de frase() en <b> reales dentro de un <p>. */
+function ConNegritas({ children }: { children: string }) {
+  const partes = children.split(/\*\*(.+?)\*\*/g);
+  return (
+    <>
+      {partes.map((p, i) => (i % 2 === 1 ? <b key={i}>{p}</b> : <Fragment key={i}>{p}</Fragment>))}
+    </>
+  );
 }
 
 function ResumenEjecutivoMensualPage() {
@@ -228,7 +238,8 @@ function ResumenEjecutivoMensualPage() {
     }).filter((g) => g.items.length > 0);
   }, [rowsAnio, cuentas, mes, actual]);
 
-  // CxP pendiente al cierre del mes vs mes anterior
+  // CxP pendiente al cierre del mes vs mes anterior, y su evolución mes a
+  // mes (Enero al mes de corte) para el gráfico de tendencia.
   const cxpSaldos = useMemo(() => {
     const valor = (c: any) => {
       const v = mode === "bcv" ? c.usd_bcv_factura : c.usd_paralelo_factura;
@@ -242,7 +253,11 @@ function ResumenEjecutivoMensualPage() {
     };
     const hoySaldo = saldoAl(anio, mes);
     const prevSaldo = saldoAl(anioMesAnterior, mesAnterior);
-    return { hoySaldo, prevSaldo, cambio: hoySaldo - prevSaldo };
+    const serieMensual = Array.from({ length: mes }, (_, i) => ({
+      mesLabel: MESES[i],
+      saldo: Number(saldoAl(anio, i + 1).toFixed(2)),
+    }));
+    return { hoySaldo, prevSaldo, cambio: hoySaldo - prevSaldo, serieMensual };
   }, [cxp, anio, mes, mesAnterior, anioMesAnterior, mode]);
 
   const ingresos = actual.t["Ingresos"] ?? 0;
@@ -270,8 +285,8 @@ function ResumenEjecutivoMensualPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Resumen IPA Mensual</h1>
-          <p className="text-sm text-muted-foreground">Informe ejecutivo de {labelMes} · montos en {label}</p>
+          <h1 className="text-3xl font-bold tracking-tight">Resumen IPA Mensual</h1>
+          <p className="text-base text-muted-foreground mt-1">Informe ejecutivo de <b>{labelMes}</b> · montos en {label}</p>
         </div>
         <div className="flex items-end gap-2">
           <UsdViewToggle />
@@ -300,27 +315,27 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Análisis del mes</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Análisis del mes</CardTitle></CardHeader>
         <CardContent className="space-y-3 text-sm leading-relaxed">
           <p className="text-muted-foreground">
             Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
           </p>
           <p>
-            {frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt)}
+            <ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt)}</ConNegritas>
           </p>
           <p>
-            {frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt)}
+            <ConNegritas>{frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt)}</ConNegritas>
           </p>
           <p>
-            {frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt)}
+            <ConNegritas>{frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt)}</ConNegritas>
           </p>
           <p>
-            {frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt)}
+            <ConNegritas>{frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt)}</ConNegritas>
           </p>
           <p className="text-muted-foreground">
-            La utilidad neta del mes fue de {fmtUsd(utilidadNeta)}
+            La utilidad neta del mes fue de <b>{fmtUsd(utilidadNeta)}</b>
             {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""} y la deuda con
-            proveedores {cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"} en {fmtUsd(Math.abs(cxpSaldos.cambio))}.
+            proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> en {fmtUsd(Math.abs(cxpSaldos.cambio))}.
           </p>
         </CardContent>
       </Card>
@@ -340,7 +355,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* a) Gráfico de utilidad mensual por categorías grandes */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Utilidad mensual por categorías — {anio}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — {anio}</CardTitle></CardHeader>
         <CardContent style={{ height: 360 }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={serie} stackOffset="sign">
@@ -361,7 +376,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* b) Desglose mensual de G&P */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Desglose G&P — {labelMes}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelMes}</CardTitle></CardHeader>
         <CardContent>
           <table className="w-full text-sm">
             <tbody>
@@ -394,7 +409,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Comparativo mensual — Enero hasta el mes de corte */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -432,15 +447,30 @@ function ResumenEjecutivoMensualPage() {
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle className="text-base">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
         <CardContent>
-          <p className="text-xs uppercase text-muted-foreground">Cambio neto en la deuda con proveedores</p>
-          <p className={`text-3xl font-bold mono mt-1 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
-            {cxpSaldos.cambio >= 0 ? "+" : "−"}{fmtUsd(Math.abs(cxpSaldos.cambio)).replace("$ ", "$")}
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            La deuda con proveedores {cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"} respecto a {labelMesAnt}.
-          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div>
+              <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">Cambio neto en la deuda con proveedores</p>
+              <p className={`text-3xl font-bold mono mt-1 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
+                {cxpSaldos.cambio >= 0 ? "+" : "−"}{fmtUsd(Math.abs(cxpSaldos.cambio)).replace("$ ", "$")}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                La deuda con proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> respecto a {labelMesAnt}.
+              </p>
+            </div>
+            <div style={{ height: 180 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={cxpSaldos.serieMensual}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="mesLabel" fontSize={11} />
+                  <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} width={45} />
+                  <Tooltip formatter={(v: number) => fmtUsd(v)} />
+                  <Line type="monotone" dataKey="saldo" name="Saldo CxP" stroke="#B91C1C" strokeWidth={2} dot={{ r: 3 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
