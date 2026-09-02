@@ -172,6 +172,14 @@ function TableroProveedor() {
   const [focusResumen, setFocusResumen] = useState<null | "movs-sin-factura" | "facturas-sin-mov">(null);
   const [busy, setBusy] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Cierre manual de facturas (pagadas sin movimiento bancario).
+  const [selCierre, setSelCierre] = useState<string[]>([]);
+  const [cierreAbierto, setCierreAbierto] = useState<any[] | null>(null);
+  const [cierreForm, setCierreForm] = useState({
+    motivo: MOTIVOS_CIERRE_MANUAL[0] as string,
+    nota: "",
+    fecha: new Date().toISOString().slice(0, 10),
+  });
 
 
 
