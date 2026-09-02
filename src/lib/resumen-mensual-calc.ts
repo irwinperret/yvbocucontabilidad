@@ -38,8 +38,9 @@ export function calcularTotalesMes(
   rows: Row[],
   grupoDe: Map<string, string>,
   m: number,
-  estimados: Map<string, { cogsUsdBcv: number }> | undefined,
+  estimados: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }> | undefined,
   y: number,
+  moneda: "bcv" | "paralela" = "bcv",
 ) {
   const t: Record<string, number> = {};
   CATEGORIAS.forEach((c) => (t[c] = 0));
@@ -48,7 +49,7 @@ export function calcularTotalesMes(
     if (!g || !(g in t)) return;
     t[g] += Number(r.base_usd) || 0;
   });
-  const { ajuste, mesesEstimados } = ajusteCogsEstimado(rows, estimados, y, [m]);
+  const { ajuste, mesesEstimados } = ajusteCogsEstimado(rows, estimados, y, [m], moneda);
   t["COGS"] += ajuste;
   return { t, estimado: mesesEstimados.length > 0 };
 }
@@ -71,12 +72,12 @@ export function frase(nombre: string, actual: number, prevMes: number, labelPrev
   return t + ".";
 }
 
-type Estimados = Map<string, { cogsUsdBcv: number }> | undefined;
+type Estimados = Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }> | undefined;
 
 /** Serie mensual del año para el gráfico de categorías — nunca más allá del mes de corte. */
-export function construirSerieCategorias(rowsAnio: Row[], grupoDe: Map<string, string>, cogsEstimadoPorMes: Estimados, anio: number, mesCorte: number) {
+export function construirSerieCategorias(rowsAnio: Row[], grupoDe: Map<string, string>, cogsEstimadoPorMes: Estimados, anio: number, mesCorte: number, moneda: "bcv" | "paralela" = "bcv") {
   return Array.from({ length: mesCorte }, (_, i) => {
-    const { t } = calcularTotalesMes(rowsAnio, grupoDe, i + 1, cogsEstimadoPorMes, anio);
+    const { t } = calcularTotalesMes(rowsAnio, grupoDe, i + 1, cogsEstimadoPorMes, anio, moneda);
     const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
     return {
       mesLabel: MESES[i],
@@ -89,9 +90,9 @@ export function construirSerieCategorias(rowsAnio: Row[], grupoDe: Map<string, s
 /** Márgenes operativos (%) mes a mes. Meses sin ingresos quedan en null (no
  * se dibujan como una caída artificial a 0%; Recharts con connectNulls salta
  * el hueco en vez de conectarlo como si fuera un cero real). */
-export function construirSerieMargenes(rowsAnio: Row[], grupoDe: Map<string, string>, cogsEstimadoPorMes: Estimados, anio: number, mesCorte: number) {
+export function construirSerieMargenes(rowsAnio: Row[], grupoDe: Map<string, string>, cogsEstimadoPorMes: Estimados, anio: number, mesCorte: number, moneda: "bcv" | "paralela" = "bcv") {
   return Array.from({ length: mesCorte }, (_, i) => {
-    const { t } = calcularTotalesMes(rowsAnio, grupoDe, i + 1, cogsEstimadoPorMes, anio);
+    const { t } = calcularTotalesMes(rowsAnio, grupoDe, i + 1, cogsEstimadoPorMes, anio, moneda);
     const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
     const ing = t["Ingresos"] ?? 0;
     const margenBrutoPct = ing > 0 ? +(((ing - t["COGS"]) / ing) * 100).toFixed(1) : null;
@@ -101,10 +102,10 @@ export function construirSerieMargenes(rowsAnio: Row[], grupoDe: Map<string, str
 }
 
 /** Comparativo mensual: Enero hasta el mes de corte — nunca meses posteriores. */
-export function construirComparativoMensual(rowsAnio: Row[], grupoDe: Map<string, string>, cogsEstimadoPorMes: Estimados, anio: number, mesCorte: number) {
+export function construirComparativoMensual(rowsAnio: Row[], grupoDe: Map<string, string>, cogsEstimadoPorMes: Estimados, anio: number, mesCorte: number, moneda: "bcv" | "paralela" = "bcv") {
   return Array.from({ length: mesCorte }, (_, i) => {
     const m = i + 1;
-    const { t, estimado } = calcularTotalesMes(rowsAnio, grupoDe, m, cogsEstimadoPorMes, anio);
+    const { t, estimado } = calcularTotalesMes(rowsAnio, grupoDe, m, cogsEstimadoPorMes, anio, moneda);
     const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
     return { mesLabel: MESES[m - 1], t, estimado, utilidad: t["Ingresos"] - gastos, sinOperaciones: mesSinOperaciones(t) };
   });

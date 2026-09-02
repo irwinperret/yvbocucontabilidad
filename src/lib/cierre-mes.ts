@@ -264,9 +264,17 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
  */
 export function ajusteCogsEstimado(
   rows: { cuenta_codigo: string; mes: number; base_usd: number }[],
-  cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number }> | undefined,
+  cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }> | undefined,
   anio: number,
   meses: number[],
+  // Los `rows` que llegan aquí ya vienen en la moneda que se está mostrando
+  // (vista BCV o vista paralelo — ver usd-view-context.tsx). El estimado
+  // trae AMBAS monedas, así que hay que restar contra la misma moneda de
+  // `rows`; si no, se compara USD BCV contra USD paralelo (dos tasas de
+  // cambio distintas) y el "ajuste" resultante no significa nada — esto
+  // pasaba antes siempre que la pantalla estaba en modo "USD paralelo"
+  // (el modo por defecto).
+  moneda: "bcv" | "paralela" = "bcv",
 ): { ajuste: number; mesesEstimados: number[] } {
   if (!cogsEstimadoPorMes?.size) return { ajuste: 0, mesesEstimados: [] };
   let ajuste = 0;
@@ -275,8 +283,9 @@ export function ajusteCogsEstimado(
     const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
     const estimado = cogsEstimadoPorMes.get(periodo);
     if (!estimado) continue;
+    const cogsEstimadoUsd = moneda === "paralela" ? estimado.cogsUsdParalelo : estimado.cogsUsdBcv;
     const cogsYaSumado = rows.filter((r) => r.cuenta_codigo.startsWith("2.") && r.mes === mes).reduce((s, r) => s + Number(r.base_usd || 0), 0);
-    ajuste += estimado.cogsUsdBcv - cogsYaSumado;
+    ajuste += cogsEstimadoUsd - cogsYaSumado;
     mesesEstimados.push(mes);
   }
   return { ajuste, mesesEstimados };

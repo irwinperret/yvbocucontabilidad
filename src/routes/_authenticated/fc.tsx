@@ -134,6 +134,7 @@ function FCPage() {
       anio,
       usdDe,
       cogsEstimadoPorMes,
+      moneda: mode,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, capexRows, inventario, cxpCreadas, anio, mode, cogsEstimadoPorMes]);

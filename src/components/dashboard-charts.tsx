@@ -77,6 +77,7 @@ export function DashboardCharts() {
         anio,
         usdDe,
         cogsEstimadoPorMes,
+        moneda: mode,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, insumosFC, anio, mode, cogsEstimadoPorMes],
@@ -112,7 +113,10 @@ export function DashboardCharts() {
       // sin el ajuste de inventario que normalmente crea el cierre formal).
       const estimado = cogsEstimadoPorMes?.get(periodo);
       const cogsEsEstimado = !!estimado;
-      if (estimado) cogs = estimado.cogsUsdBcv;
+      // El estimado trae ambas monedas — hay que tomar la que coincide con
+      // `mode` (la vista que ya se usó para traer `rows`), si no el ajuste
+      // termina mezclando USD BCV con USD paralelo.
+      if (estimado) cogs = mode === "paralela" ? estimado.cogsUsdParalelo : estimado.cogsUsdBcv;
       const utilidad = ingresos - cogs - gastos;
       // Flujo de caja: mismo cálculo (método indirecto) que la pantalla de
       // Flujo de Caja, para que ambas SIEMPRE coincidan — nunca dos fórmulas

@@ -61,9 +61,11 @@ export function calcularLineasFC(opts: {
   anio: number;
   usdDe: (t: any) => number;
   /** Meses abiertos con COGS estimado (de estimarCogsMesesAbiertos en cierre-mes.ts). */
-  cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number }>;
+  cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }>;
+  /** Moneda en la que ya vienen `rows` (vista BCV o paralelo) — para tomar el campo correcto del estimado. */
+  moneda?: "bcv" | "paralela";
 }): LineasFCMes[] {
-  const { rows: r, capexRows, inventario, cxpCreadas, anio, usdDe, cogsEstimadoPorMes } = opts;
+  const { rows: r, capexRows, inventario, cxpCreadas, anio, usdDe, cogsEstimadoPorMes, moneda = "bcv" } = opts;
   const sum = (codigos: string[], mes: number) =>
     r.filter((x) => codigos.includes(x.cuenta_codigo) && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
   const sumTotal = (codigo: string, mes: number) =>
@@ -75,7 +77,7 @@ export function calcularLineasFC(opts: {
 
     const ingresos = sum(CUENTAS_INGRESO_GYP, mes);
     const estimado = cogsEstimadoPorMes?.get(periodo);
-    const cogs = estimado ? estimado.cogsUsdBcv : sum(CUENTAS_COGS, mes);
+    const cogs = estimado ? (moneda === "paralela" ? estimado.cogsUsdParalelo : estimado.cogsUsdBcv) : sum(CUENTAS_COGS, mes);
     const costosFijos = r.filter((x) => x.cuenta_codigo.startsWith("3.") && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
     const costosVariables = r.filter((x) => (x.cuenta_codigo.startsWith("4.") || x.cuenta_codigo === "99") && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
     const ebitda = ingresos - cogs - costosFijos - costosVariables;

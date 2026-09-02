@@ -32,8 +32,9 @@ type ExpandCtx = {
   isExpanded: (k: string) => boolean;
   centro: string;
   rows: Row[];
-  cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number }> | undefined;
+  cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }> | undefined;
   anio: number;
+  mode: "bcv" | "paralela";
 };
 
 function GyPPage() {
@@ -94,7 +95,7 @@ function GyPPage() {
   const expandAll = () => setExpanded(new Set(allGroupKeys));
   const collapseAll = () => setExpanded(new Set());
 
-  const ctx: ExpandCtx = { expanded, toggle, isExpanded, centro, rows: rows ?? [], cogsEstimadoPorMes, anio };
+  const ctx: ExpandCtx = { expanded, toggle, isExpanded, centro, rows: rows ?? [], cogsEstimadoPorMes, anio, mode };
 
   const ExpandControls = () => (
     <div className="flex gap-2">
@@ -214,7 +215,7 @@ function conAjusteCogs(cogs: GrupoData[], ajuste: number): GrupoData[] {
 function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[]; mes: number; ctx: ExpandCtx }) {
   const sumFn = (r: Row) => r.mes === mes;
   const ing = buildGrupos(cuentas, (c) => c.startsWith("1."), rows, sumFn);
-  const { ajuste: ajusteCogs, mesesEstimados } = ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, [mes]);
+  const { ajuste: ajusteCogs, mesesEstimados } = ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, [mes], ctx.mode);
   const cogs = conAjusteCogs(buildGrupos(cuentas, (c) => c.startsWith("2."), rows, sumFn), ajusteCogs);
   const op = buildGrupos(cuentas, (c) => /^[3-6]\./.test(c) || c === "99", rows, sumFn);
   const imp = buildGrupos(cuentas, (c) => c.startsWith("7."), rows, sumFn);
@@ -251,7 +252,7 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
         <Total label={`UTILIDAD / PÉRDIDA NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
-    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`${MESES[mes - 1]}`} meses={[mes]} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} />
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`${MESES[mes - 1]}`} meses={[mes]} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} moneda={ctx.mode} />
     </>
   );
 }
@@ -260,7 +261,7 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
   const sumFn = (r: Row) => r.mes <= hastaMes;
   const ing = buildGrupos(cuentas, (c) => c.startsWith("1."), rows, sumFn);
   const mesesYtd = Array.from({ length: hastaMes }, (_, i) => i + 1);
-  const { ajuste: ajusteCogs, mesesEstimados } = ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, mesesYtd);
+  const { ajuste: ajusteCogs, mesesEstimados } = ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, mesesYtd, ctx.mode);
   const cogs = conAjusteCogs(buildGrupos(cuentas, (c) => c.startsWith("2."), rows, sumFn), ajusteCogs);
   const op = buildGrupos(cuentas, (c) => /^[3-6]\./.test(c) || c === "99", rows, sumFn);
   const imp = buildGrupos(cuentas, (c) => c.startsWith("7."), rows, sumFn);
@@ -293,7 +294,7 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
         <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
       </CardContent>
     </Card>
-    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} meses={mesesYtd} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} />
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} meses={mesesYtd} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} moneda={ctx.mode} />
     </>
   );
 }
@@ -426,7 +427,7 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
     });
     // Ajuste de COGS estimado por mes abierto (misma lógica que Mes/YTD).
     if (ctx.cogsEstimadoPorMes?.size) {
-      const ajustesPorMes = MESES.map((_, i) => ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, [i + 1]).ajuste);
+      const ajustesPorMes = MESES.map((_, i) => ajusteCogsEstimado(rows, ctx.cogsEstimadoPorMes, ctx.anio, [i + 1], ctx.mode).ajuste);
       if (ajustesPorMes.some((a) => Math.abs(a) > 0.01)) {
         const cuentaFicticia: Cuenta = { codigo: "2.2*", nombre: "Ajuste estimado (mes abierto)", grupo: "COGS" };
         const totalAjuste = ajustesPorMes.reduce((s, a) => s + a, 0);
@@ -437,7 +438,7 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
       }
     }
     return Object.values(map);
-  }, [cuentas, rows, ctx.cogsEstimadoPorMes, ctx.anio]);
+  }, [cuentas, rows, ctx.cogsEstimadoPorMes, ctx.anio, ctx.mode]);
 
   const cellCls = (i: number, v: number) => {
     const futuro = anioRows >= anioActual && i + 1 > mesActual;
@@ -589,7 +590,7 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
         </div>
       </div>
     )}
-    <GyPCharts rows={rows} cuentas={cuentas} sumFn={() => true} titulo={`Año ${anioRows}`} meses={Array.from({ length: 12 }, (_, i) => i + 1)} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} />
+    <GyPCharts rows={rows} cuentas={cuentas} sumFn={() => true} titulo={`Año ${anioRows}`} meses={Array.from({ length: 12 }, (_, i) => i + 1)} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} moneda={ctx.mode} />
     </>
   );
 }

@@ -40,12 +40,14 @@ function catDeCuenta(c: Cuenta): Cat | null {
   return "Otros";
 }
 
-export function GyPCharts({ rows, cuentas, sumFn, titulo, meses, cogsEstimadoPorMes, anio }: {
+export function GyPCharts({ rows, cuentas, sumFn, titulo, meses, cogsEstimadoPorMes, anio, moneda = "bcv" }: {
   rows: Row[]; cuentas: Cuenta[]; sumFn: (r: any) => boolean; titulo: string;
   /** Meses (1-12) que representa este reporte — para el ajuste de COGS estimado. */
   meses?: number[];
-  cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number }>;
+  cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }>;
   anio?: number;
+  /** Moneda en la que ya vienen `rows` — para tomar el campo correcto del estimado de COGS. */
+  moneda?: "bcv" | "paralela";
 }) {
   const { ingresos, cats, utilidad, hayEstimado } = useMemo(() => {
     const mapC = new Map<string, Cuenta>();
@@ -65,7 +67,7 @@ export function GyPCharts({ rows, cuentas, sumFn, titulo, meses, cogsEstimadoPor
     // refleje el estimado (Inicial + Compras − Final), igual que en la tabla.
     let hayEst = false;
     if (meses?.length && cogsEstimadoPorMes?.size && anio) {
-      const { ajuste, mesesEstimados } = ajusteCogsEstimado(rows, cogsEstimadoPorMes, anio, meses);
+      const { ajuste, mesesEstimados } = ajusteCogsEstimado(rows, cogsEstimadoPorMes, anio, meses, moneda);
       if (mesesEstimados.length) {
         acc.set("COGS", (acc.get("COGS") ?? 0) + ajuste);
         hayEst = true;
@@ -74,7 +76,7 @@ export function GyPCharts({ rows, cuentas, sumFn, titulo, meses, cogsEstimadoPor
     const list = CATS.map((k) => ({ cat: k, value: acc.get(k) ?? 0 })).filter((d) => d.value > 0);
     const total = list.reduce((s, d) => s + d.value, 0);
     return { ingresos: ing, cats: list, utilidad: ing - total, hayEstimado: hayEst };
-  }, [rows, cuentas, sumFn, meses, cogsEstimadoPorMes, anio]);
+  }, [rows, cuentas, sumFn, meses, cogsEstimadoPorMes, anio, moneda]);
 
   const pct = (v: number) => (ingresos ? `${((v / ingresos) * 100).toFixed(1)}%` : "—");
 

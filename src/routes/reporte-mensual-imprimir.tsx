@@ -100,7 +100,7 @@ function ReporteMensualImprimirPage() {
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
   const actual = useMemo(
-    () => calcularTotalesMes(rowsAnio ?? [], grupoDe, mes, cogsEstimadoPorMes, anio),
+    () => calcularTotalesMes(rowsAnio ?? [], grupoDe, mes, cogsEstimadoPorMes, anio, mode),
     [grupoDe, rowsAnio, mes, cogsEstimadoPorMes, anio],
   );
   const mesAnterior = mes === 1 ? 12 : mes - 1;
@@ -112,21 +112,22 @@ function ReporteMensualImprimirPage() {
       mesAnterior,
       mes === 1 ? cogsEstimadoPrev : cogsEstimadoPorMes,
       anioMesAnterior,
+      mode,
     ),
     [grupoDe, rowsAnio, rowsPrev, mes, mesAnterior, anioMesAnterior, cogsEstimadoPorMes, cogsEstimadoPrev],
   );
   const anioPasado = useMemo(
-    () => calcularTotalesMes(rowsPrev ?? [], grupoDe, mes, cogsEstimadoPrev, anio - 1),
+    () => calcularTotalesMes(rowsPrev ?? [], grupoDe, mes, cogsEstimadoPrev, anio - 1, mode),
     [grupoDe, rowsPrev, mes, cogsEstimadoPrev, anio],
   );
   const hayAnioPasado = (rowsPrev ?? []).some((r) => r.mes === mes);
 
   const comparativoMensual = useMemo(
-    () => construirComparativoMensual(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes),
+    () => construirComparativoMensual(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
     [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
   const serie = useMemo(
-    () => construirSerieCategorias(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes),
+    () => construirSerieCategorias(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
     [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
   const categoriasConDatos = CATEGORIAS.filter((c) => serie.some((s: any) => Math.abs(s[c]) > 0.009));
@@ -140,7 +141,7 @@ function ReporteMensualImprimirPage() {
     [cxp, anio, mes, mesAnterior, anioMesAnterior, mode],
   );
   const serieMargenes = useMemo(
-    () => construirSerieMargenes(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes),
+    () => construirSerieMargenes(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
     [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
 
