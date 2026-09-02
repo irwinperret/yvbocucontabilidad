@@ -284,7 +284,17 @@ export function ajusteCogsEstimado(
     const estimado = cogsEstimadoPorMes.get(periodo);
     if (!estimado) continue;
     const cogsEstimadoUsd = moneda === "paralela" ? estimado.cogsUsdParalelo : estimado.cogsUsdBcv;
-    const cogsYaSumado = rows.filter((r) => r.cuenta_codigo.startsWith("2.") && r.mes === mes).reduce((s, r) => s + Number(r.base_usd || 0), 0);
+    // OJO: aquí NO se debe sumar cuenta "2.1" (Compras) — esa cuenta tiene
+    // afecta_gyp = false (las compras no impactan G&P directamente, son
+    // inventario) y por eso nunca aparece en las pantallas de G&P/Resumen.
+    // Lo único que SÍ llega a esas pantallas es la cuenta "2.2" (el ajuste
+    // de COGS que crea un cierre formal). Filtrar por "startsWith('2.')"
+    // en vez de "=== '2.2'" hacía que este cálculo restara las compras del
+    // mes (que no están sumadas en ningún lado visible), dejando el
+    // "ajuste estimado" en ~$0 para meses abiertos — el bug que reportaste
+    // en G&P "Comparativo mensual" (agosto mostrando -$0.02 en vez del
+    // COGS estimado real).
+    const cogsYaSumado = rows.filter((r) => r.cuenta_codigo === "2.2" && r.mes === mes).reduce((s, r) => s + Number(r.base_usd || 0), 0);
     ajuste += cogsEstimadoUsd - cogsYaSumado;
     mesesEstimados.push(mes);
   }
