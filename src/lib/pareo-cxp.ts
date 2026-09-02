@@ -494,24 +494,19 @@ export async function reasignarPagoDirecto(args: {
 // No crea ninguna transacción: solo cierra la cuenta por pagar.
 // ─────────────────────────────────────────────────────────────
 
-export const MOTIVOS_CIERRE_MANUAL = [
-  "Pago en efectivo",
-  "Pago desde cuenta no conciliada",
-  "Compensación / nota de crédito",
-  "Factura anulada o duplicada",
-  "Otro",
-] as const;
-
-export type MotivoCierreManual = (typeof MOTIVOS_CIERRE_MANUAL)[number];
-
+/**
+ * Ya no se pide un motivo de la lista fija al cerrar una factura sin
+ * movimiento — al usuario no le importa esa clasificación, solo la fecha y,
+ * si quiere, una nota libre. La columna cierre_manual_motivo se deja en la
+ * base (por si algún cierre viejo la tiene) pero no se vuelve a escribir.
+ */
 export async function cerrarCxpSinMovimiento(args: {
   cxp: any;
-  motivo: string;
   nota?: string | null;
   fecha: string;
   userId: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { cxp, motivo, nota, fecha, userId } = args;
+  const { cxp, nota, fecha, userId } = args;
   const antes = {
     estado: cxp.estado,
     monto_pendiente_bs: cxp.monto_pendiente_bs,
@@ -524,7 +519,6 @@ export async function cerrarCxpSinMovimiento(args: {
     monto_pendiente_bs: 0,
     monto_pendiente_usd_bcv: 0,
     cierre_manual: true,
-    cierre_manual_motivo: motivo,
     cierre_manual_nota: nota ?? null,
     cierre_manual_fecha: fecha,
     cierre_manual_por: userId,
@@ -539,7 +533,7 @@ export async function cerrarCxpSinMovimiento(args: {
 export async function reabrirCxpCerradaManual(cxp: any): Promise<{ ok: boolean; error?: string }> {
   const totalUsd = Number(cxp?.usd_bcv_factura ?? cxp?.monto_usd ?? 0) || 0;
   const tasaF = tasaBcvFactura(cxp) || 0;
-  const antes = { estado: cxp.estado, cierre_manual: true, cierre_manual_motivo: cxp.cierre_manual_motivo };
+  const antes = { estado: cxp.estado, cierre_manual: true };
   const despues = {
     estado: "pendiente",
     pagada_at: null,

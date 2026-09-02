@@ -32,7 +32,6 @@ import {
   reasignarPagoDirecto,
   cerrarCxpSinMovimiento,
   reabrirCxpCerradaManual,
-  MOTIVOS_CIERRE_MANUAL,
 } from "@/lib/pareo-cxp";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -135,7 +134,7 @@ function FacturaChip({
           <Badge
             variant="outline"
             className="text-emerald-600 border-emerald-600/40"
-            title={`${cxp.cierre_manual_motivo ?? "Cierre manual"}${cxp.cierre_manual_nota ? ` — ${cxp.cierre_manual_nota}` : ""}`}
+            title={cxp.cierre_manual_nota ? cxp.cierre_manual_nota : "Pagada sin movimiento"}
           >
             Pagada sin movimiento
           </Badge>
@@ -184,7 +183,6 @@ function TableroProveedor() {
   const [selCierre, setSelCierre] = useState<string[]>([]);
   const [cierreAbierto, setCierreAbierto] = useState<any[] | null>(null);
   const [cierreForm, setCierreForm] = useState({
-    motivo: MOTIVOS_CIERRE_MANUAL[0] as string,
     nota: "",
     fecha: new Date().toISOString().slice(0, 10),
   });
@@ -484,13 +482,13 @@ function TableroProveedor() {
     return (Date.now() - new Date(`${String(em).slice(0, 10)}T12:00:00`).getTime()) / 86400000 > 90;
   };
 
-  /** "Motivo · usuario · fecha" de un cierre manual — usado en la tarjeta y en el Excel. */
+  /** "Usuario · fecha" de un cierre manual — usado en la tarjeta y en el Excel. */
   const cierreManualInfo = (c: any) => {
     if (!c?.cierre_manual) return "";
     const quien = c.cierre_manual_por ? emailById[c.cierre_manual_por] ?? c.cierre_manual_por : "—";
     const cuando = c.cierre_manual_fecha ? fmtDate(c.cierre_manual_fecha) : "—";
-    const motivo = c.cierre_manual_motivo ?? "Otro";
-    return `${motivo} / ${quien} / ${cuando}`;
+    const base = `${quien} / ${cuando}`;
+    return c.cierre_manual_nota ? `${base} — ${c.cierre_manual_nota}` : base;
   };
 
   /** Bs de la factura valorados a la tasa BCV del día del pago. */
@@ -558,7 +556,7 @@ function TableroProveedor() {
 
   const abrirCierre = (lista: any[]) => {
     if (!lista.length) return;
-    setCierreForm({ motivo: MOTIVOS_CIERRE_MANUAL[0], nota: "", fecha: new Date().toISOString().slice(0, 10) });
+    setCierreForm({ nota: "", fecha: new Date().toISOString().slice(0, 10) });
     setCierreAbierto(lista);
   };
 
@@ -569,7 +567,6 @@ function TableroProveedor() {
       for (const c of cierreAbierto) {
         const r = await cerrarCxpSinMovimiento({
           cxp: c,
-          motivo: cierreForm.motivo,
           nota: cierreForm.nota.trim() || null,
           fecha: cierreForm.fecha,
           userId: user?.id ?? null,
@@ -866,7 +863,7 @@ function TableroProveedor() {
         { header: "Aplicado Bs", key: "aplicado", width: 16, fmt: "bs" },
         { header: "Sin aplicar / Pendiente Bs", key: "remanente", width: 22, fmt: "bs" },
         { header: "Facturas asignadas", key: "facturas", width: 60 },
-        { header: "Cierre manual (motivo / usuario / fecha)", key: "cierreManual", width: 40 },
+        { header: "Cierre manual (usuario / fecha)", key: "cierreManual", width: 36 },
       ],
       rows: [...filas.map((f) => ({ ...f, cierreManual: "" })), ...sinMov, ...cerradasManual],
     });
@@ -1326,17 +1323,6 @@ function TableroProveedor() {
                 ))}
               </div>
             )}
-            <div>
-              <Label className="text-xs">Motivo</Label>
-              <Select value={cierreForm.motivo} onValueChange={(v) => setCierreForm({ ...cierreForm, motivo: v })}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MOTIVOS_CIERRE_MANUAL.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div>
               <Label className="text-xs">Fecha del pago</Label>
               <Input
