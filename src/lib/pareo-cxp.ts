@@ -86,12 +86,23 @@ export async function sincronizarCxpDesdeVinculos(facturaId: string): Promise<vo
     .from("cuentas_por_pagar")
     .update(
       saldada
-        ? { estado: "pagada", pagada_at: new Date().toISOString(), monto_pendiente_bs: 0, monto_pendiente_usd_bcv: 0 }
+        ? {
+            estado: "pagada",
+            pagada_at: new Date().toISOString(),
+            monto_pendiente_bs: 0,
+            monto_pendiente_usd_bcv: 0,
+            en_espera_movimiento: false,
+            en_espera_por: null,
+            en_espera_en: null,
+          }
         : {
             estado: aplicadoUsdBcv > 0.01 ? "parcial" : "pendiente",
             pagada_at: null,
             monto_pendiente_usd_bcv: pendienteUsd,
             monto_pendiente_bs: +(pendienteUsd * (tasaFactura || 0)).toFixed(2),
+            // Si ya se vinculó un movimiento real (aunque sea parcial), la
+            // marca de "en espera" queda obsoleta.
+            ...(aplicadoUsdBcv > 0.01 ? { en_espera_movimiento: false, en_espera_por: null, en_espera_en: null } : {}),
           },
     )
     .eq("id", facturaId);
@@ -208,11 +219,19 @@ export async function aplicarPareoCxp(args: {
               pagada_at: new Date().toISOString(),
               monto_pendiente_bs: 0,
               monto_pendiente_usd_bcv: 0,
+              // Ya apareció un movimiento real — cualquier marca de "en espera
+              // de movimiento" queda obsoleta.
+              en_espera_movimiento: false,
+              en_espera_por: null,
+              en_espera_en: null,
             }
           : {
               estado: "parcial",
               monto_pendiente_usd_bcv: usdRestante,
               monto_pendiente_bs: +(usdRestante * (tasaBcvFactura(c) || tasaBcv)).toFixed(2),
+              en_espera_movimiento: false,
+              en_espera_por: null,
+              en_espera_en: null,
             },
       )
       .eq("id", c.id);
@@ -374,6 +393,9 @@ async function aplicarUsdACxp(c: any, usdAplicar: number, tasaPago: number) {
       pagada_at: nuevo <= 0.01 ? new Date().toISOString() : null,
       monto_pendiente_usd_bcv: nuevo,
       monto_pendiente_bs: +(nuevo * tasaF).toFixed(2),
+      en_espera_movimiento: false,
+      en_espera_por: null,
+      en_espera_en: null,
     } as any)
     .eq("id", c.id);
 }
@@ -523,6 +545,10 @@ export async function cerrarCxpSinMovimiento(args: {
     cierre_manual_fecha: fecha,
     cierre_manual_por: userId,
     cierre_manual_at: new Date().toISOString(),
+    // Una factura cerrada sin movimiento no puede seguir "en espera" de uno.
+    en_espera_movimiento: false,
+    en_espera_por: null,
+    en_espera_en: null,
   };
   const { error } = await supabase.from("cuentas_por_pagar").update(despues as any).eq("id", cxp.id);
   if (error) return { ok: false, error: error.message };
@@ -551,5 +577,38 @@ export async function reabrirCxpCerradaManual(cxp: any): Promise<{ ok: boolean; 
   await logAudit("cuentas_por_pagar", "UPDATE", cxp.id, antes, despues);
   // Si tenía vínculos activos, que el saldo se recalcule desde ellos.
   await sincronizarCxpDesdeVinculos(cxp.id);
+  return { ok: true };
+}
+
+// ─────────────────────────────────────────────────────────────
+// "En espera de movimiento": marca temporal y reversible sobre una factura
+// sin movimiento — no cambia su estado ni su saldo, no la saca de la
+// bandeja de pendientes, y se limpia sola en cuanto se le asigna un
+// movimiento real (ver los `en_espera_movimiento: false` en aplicarPareoCxp,
+// sincronizarCxpDesdeVinculos y aplicarUsdACxp). A diferencia del cierre
+// manual, esto NO dice "ya se pagó" — solo "todavía no hay movimiento, pero
+// puede aparecer".
+// ─────────────────────────────────────────────────────────────
+
+export async function marcarEnEsperaMovimiento(args: {
+  cxpId: string;
+  userId: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const despues = {
+    en_espera_movimiento: true,
+    en_espera_por: args.userId,
+    en_espera_en: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("cuentas_por_pagar").update(despues as any).eq("id", args.cxpId);
+  if (error) return { ok: false, error: error.message };
+  await logAudit("cuentas_por_pagar", "UPDATE", args.cxpId, null, despues);
+  return { ok: true };
+}
+
+export async function quitarEnEsperaMovimiento(cxpId: string): Promise<{ ok: boolean; error?: string }> {
+  const despues = { en_espera_movimiento: false, en_espera_por: null, en_espera_en: null };
+  const { error } = await supabase.from("cuentas_por_pagar").update(despues as any).eq("id", cxpId);
+  if (error) return { ok: false, error: error.message };
+  await logAudit("cuentas_por_pagar", "UPDATE", cxpId, null, despues);
   return { ok: true };
 }

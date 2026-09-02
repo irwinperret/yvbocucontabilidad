@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
-import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle } from "lucide-react";
+import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle, Clock } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { FacturaDetalleDialog } from "@/components/factura-detalle-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
@@ -32,6 +32,8 @@ import {
   reasignarPagoDirecto,
   cerrarCxpSinMovimiento,
   reabrirCxpCerradaManual,
+  marcarEnEsperaMovimiento,
+  quitarEnEsperaMovimiento,
 } from "@/lib/pareo-cxp";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -148,6 +150,11 @@ function FacturaChip({
             Dividida entre {movimientosCount} movimientos
           </Badge>
         )}
+        {cxp.en_espera_movimiento && (
+          <Badge variant="outline" className="text-amber-600 border-amber-600/40">
+            En espera de movimiento
+          </Badge>
+        )}
       </span>
       {onQuitar && (
         <Button variant="ghost" size="sm" onClick={onQuitar} disabled={disabled} title="Quitar del movimiento">
@@ -187,7 +194,7 @@ function TableroProveedor() {
     fecha: new Date().toISOString().slice(0, 10),
   });
   /** "Pendientes" | "cerradas" | "todas" — qué mostrar en la bandeja de facturas sin movimiento. */
-  const [filtroFacturas, setFiltroFacturas] = useState<"pendientes" | "cerradas" | "todas">("pendientes");
+  const [filtroFacturas, setFiltroFacturas] = useState<"pendientes" | "espera" | "cerradas" | "todas">("pendientes");
 
   // El cierre manual de facturas es una escritura sensible (cierra una CxP sin
   // que exista un movimiento bancario real detrás) — igual que el resto de
@@ -475,6 +482,12 @@ function TableroProveedor() {
   );
   const totalUsdBcvCierreManual = facturasCerradasManual.reduce((s, c) => s + usdBcvFactura(c), 0);
 
+  /** Facturas pendientes marcadas "en espera de movimiento" (subconjunto de facturasSinMov). */
+  const facturasEnEspera = useMemo(
+    () => facturasSinMov.filter((c) => c.en_espera_movimiento),
+    [facturasSinMov],
+  );
+
   /** ¿La factura lleva más de 90 días sin movimiento asignado? */
   const esAntigua = (c: any) => {
     const em = emisionDeCxp(c) ?? c.fecha_vencimiento;
@@ -597,6 +610,27 @@ function TableroProveedor() {
       await refrescar();
     } catch (e: any) {
       toast.error(e?.message ?? "No se pudo deshacer el cierre");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Prende/apaga "En espera de movimiento" — marca temporal y reversible,
+   * no cambia el estado ni el saldo de la factura, y se limpia sola en
+   * cuanto se le asigna un movimiento real.
+   */
+  const toggleEnEspera = async (c: any) => {
+    setBusy(true);
+    try {
+      const r = c.en_espera_movimiento
+        ? await quitarEnEsperaMovimiento(c.id)
+        : await marcarEnEsperaMovimiento({ cxpId: c.id, userId: user?.id ?? null });
+      if (!r.ok) throw new Error(r.error);
+      toast.success(c.en_espera_movimiento ? "Ya no está en espera de movimiento" : "Factura marcada en espera de movimiento");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo actualizar");
     } finally {
       setBusy(false);
     }
@@ -832,6 +866,7 @@ function TableroProveedor() {
       remanente: pendienteBsHistorico(c),
       facturas: "",
       cierreManual: "",
+      enEspera: c.en_espera_movimiento ? "Sí" : "",
     }));
     const cerradasManual = facturasCerradasManual.map((c) => ({
       tipo: "Pagada sin movimiento",
@@ -846,6 +881,7 @@ function TableroProveedor() {
       remanente: 0,
       facturas: "",
       cierreManual: cierreManualInfo(c),
+      enEspera: "",
     }));
 
     await exportTableToExcel({
@@ -864,8 +900,9 @@ function TableroProveedor() {
         { header: "Sin aplicar / Pendiente Bs", key: "remanente", width: 22, fmt: "bs" },
         { header: "Facturas asignadas", key: "facturas", width: 60 },
         { header: "Cierre manual (usuario / fecha)", key: "cierreManual", width: 36 },
+        { header: "En espera de movimiento", key: "enEspera", width: 20 },
       ],
-      rows: [...filas.map((f) => ({ ...f, cierreManual: "" })), ...sinMov, ...cerradasManual],
+      rows: [...filas.map((f) => ({ ...f, cierreManual: "", enEspera: "" })), ...sinMov, ...cerradasManual],
     });
     toast.success("Excel generado");
   };
@@ -1160,6 +1197,7 @@ function TableroProveedor() {
                   <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pendientes">Pendientes ({facturasSinMov.length})</SelectItem>
+                    <SelectItem value="espera">En espera de movimiento ({facturasEnEspera.length})</SelectItem>
                     <SelectItem value="cerradas">Pagadas sin movimiento ({facturasCerradasManual.length})</SelectItem>
                     <SelectItem value="todas">Todas</SelectItem>
                   </SelectContent>
@@ -1183,12 +1221,16 @@ function TableroProveedor() {
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              {(filtroFacturas === "pendientes" || filtroFacturas === "todas") && (
+              {(filtroFacturas === "pendientes" || filtroFacturas === "espera" || filtroFacturas === "todas") && (
                 <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-md p-2">
-                  {facturasSinMov.length === 0 && (
-                    <p className="text-xs text-muted-foreground">Todas las facturas tienen movimiento asignado.</p>
+                  {(filtroFacturas === "espera" ? facturasEnEspera : facturasSinMov).length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {filtroFacturas === "espera"
+                        ? "No hay facturas marcadas en espera de movimiento."
+                        : "Todas las facturas tienen movimiento asignado."}
+                    </p>
                   )}
-                  {facturasSinMov.map((c) => {
+                  {(filtroFacturas === "espera" ? facturasEnEspera : facturasSinMov).map((c) => {
                     const antigua = esAntigua(c);
                     return (
                       <div
@@ -1248,6 +1290,18 @@ function TableroProveedor() {
                               onClick={() => abrirCierre([c])}
                             >
                               <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como pagada (sin movimiento)
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant={c.en_espera_movimiento ? "secondary" : "outline"}
+                              className="h-8 text-xs"
+                              disabled={busy}
+                              onClick={() => toggleEnEspera(c)}
+                            >
+                              <Clock className="h-3.5 w-3.5 mr-1" />
+                              {c.en_espera_movimiento ? "Quitar espera de movimiento" : "En espera de movimiento"}
                             </Button>
                           )}
                         </div>
