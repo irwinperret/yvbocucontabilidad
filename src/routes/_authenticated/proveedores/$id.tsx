@@ -1065,7 +1065,7 @@ function TableroProveedor() {
       </p>
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="grid gap-4 lg:grid-cols-[2fr_1fr] items-start">
+        <div className="grid gap-4 lg:grid-cols-[2fr_1fr_1fr] items-start">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
@@ -1339,48 +1339,52 @@ function TableroProveedor() {
                     );
                   })}
                 </Zona>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2 pt-2 border-t">
-                <div className="text-xs font-medium text-muted-foreground">
-                  Pagadas sin movimiento ({facturasCerradasManual.length})
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Arrastra una factura de aquí hacia "Facturas sin movimiento" o hacia un movimiento para actualizar su estado.
-                </p>
-                {facturasCerradasManual.length === 0 && (
-                  <p className="text-xs text-muted-foreground">No hay facturas cerradas a mano.</p>
-                )}
-                {facturasCerradasManual.map((c) => (
-                  <div key={c.id} className="space-y-1">
-                    <FacturaChip
-                      cxp={c}
-                      emision={emisionDeCxp(c)}
-                      disabled={busy || !isAdmin}
-                      onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
-                    />
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{cierreManualInfo(c)}</span>
-                      {isAdmin && (
-                        <>
-                          <Select onValueChange={(v) => moverFacturaCerradaAMovimiento(c, v)}>
-                            <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Asignar a movimiento…" /></SelectTrigger>
-                            <SelectContent>
-                              {movsDelProveedor.map((mv) => (
-                                <SelectItem key={mv.id} value={mv.id}>
-                                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button size="sm" variant="ghost" className="h-7" disabled={busy} onClick={() => deshacerCierre(c)}>
-                            <RotateCcw className="h-3.5 w-3.5 mr-1" />Deshacer cierre manual
-                          </Button>
-                        </>
-                      )}
-                    </div>
+          <Card id="pagadas-sin-movimiento">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                Pagadas sin movimiento <Badge variant="secondary">{facturasCerradasManual.length}</Badge>
+              </CardTitle>
+              <p className="text-[11px] text-muted-foreground">
+                Arrastra una factura de aquí hacia "Facturas sin movimiento" o hacia un movimiento para actualizar su estado.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {facturasCerradasManual.length === 0 && (
+                <p className="text-xs text-muted-foreground">No hay facturas cerradas a mano.</p>
+              )}
+              {facturasCerradasManual.map((c) => (
+                <div key={c.id} className="space-y-1">
+                  <FacturaChip
+                    cxp={c}
+                    emision={emisionDeCxp(c)}
+                    disabled={busy || !isAdmin}
+                    onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{cierreManualInfo(c)}</span>
+                    {isAdmin && (
+                      <>
+                        <Select onValueChange={(v) => moverFacturaCerradaAMovimiento(c, v)}>
+                          <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Asignar a movimiento…" /></SelectTrigger>
+                          <SelectContent>
+                            {movsDelProveedor.map((mv) => (
+                              <SelectItem key={mv.id} value={mv.id}>
+                                {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" variant="ghost" className="h-7" disabled={busy} onClick={() => deshacerCierre(c)}>
+                          <RotateCcw className="h-3.5 w-3.5 mr-1" />Deshacer cierre manual
+                        </Button>
+                      </>
+                    )}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
         </div>
