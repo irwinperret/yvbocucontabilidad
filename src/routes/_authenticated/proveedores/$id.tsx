@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
-import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil } from "lucide-react";
+import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { FacturaDetalleDialog } from "@/components/factura-detalle-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
@@ -30,7 +30,20 @@ import {
   esPagoDirecto,
   liberarPagoDirecto,
   reasignarPagoDirecto,
+  cerrarCxpSinMovimiento,
+  reabrirCxpCerradaManual,
+  MOTIVOS_CIERRE_MANUAL,
 } from "@/lib/pareo-cxp";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib/cxp-saldo";
 import { bancoDeReferencia } from "@/lib/conciliacion-matching";
 import { CUENTA_CAMBIO } from "@/lib/operaciones-cambio";
@@ -115,9 +128,19 @@ function FacturaChip({
         {typeof aplicadoUsd === "number" && (
           <span className="mono text-muted-foreground">aplicado {fmtUsd(aplicadoUsd)} USD BCV</span>
         )}
-        <Badge variant={cxp.estado === "pagada" ? "secondary" : cxp.estado === "parcial" ? "default" : "outline"}>
-          {cxp.estado === "pagada" ? "Pagada" : cxp.estado === "parcial" ? "Parcial" : "Pendiente"}
-        </Badge>
+        {cxp.cierre_manual ? (
+          <Badge
+            variant="outline"
+            className="text-emerald-600 border-emerald-600/40"
+            title={`${cxp.cierre_manual_motivo ?? "Cierre manual"}${cxp.cierre_manual_nota ? ` — ${cxp.cierre_manual_nota}` : ""}`}
+          >
+            Pagada sin movimiento
+          </Badge>
+        ) : (
+          <Badge variant={cxp.estado === "pagada" ? "secondary" : cxp.estado === "parcial" ? "default" : "outline"}>
+            {cxp.estado === "pagada" ? "Pagada" : cxp.estado === "parcial" ? "Parcial" : "Pendiente"}
+          </Badge>
+        )}
       </span>
       {onQuitar && (
         <Button variant="ghost" size="sm" onClick={onQuitar} disabled={disabled} title="Quitar del movimiento">
@@ -149,6 +172,14 @@ function TableroProveedor() {
   const [focusResumen, setFocusResumen] = useState<null | "movs-sin-factura" | "facturas-sin-mov">(null);
   const [busy, setBusy] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Cierre manual de facturas (pagadas sin movimiento bancario).
+  const [selCierre, setSelCierre] = useState<string[]>([]);
+  const [cierreAbierto, setCierreAbierto] = useState<any[] | null>(null);
+  const [cierreForm, setCierreForm] = useState({
+    motivo: MOTIVOS_CIERRE_MANUAL[0] as string,
+    nota: "",
+    fecha: new Date().toISOString().slice(0, 10),
+  });
 
 
 
@@ -376,13 +407,31 @@ function TableroProveedor() {
   const cxpsDeMov = (movId: string) => cxpsPorMov.get(movId) ?? [];
 
   /** Facturas que no están asignadas a ningún movimiento del proveedor. */
-  const facturasSinMov = useMemo(() => {
+  const facturasSinMovTodas = useMemo(() => {
     const asignadas = new Set<string>();
     for (const lista of cxpsPorMov.values()) for (const c of lista) asignadas.add(c.id);
     return (cxps ?? [])
       .filter((c) => !asignadas.has(c.id))
       .sort((a, b) => String(emisionDeCxp(b) ?? "").localeCompare(String(emisionDeCxp(a) ?? "")));
   }, [cxps, cxpsPorMov, fechaEmisionPorFactura]);
+
+  /** Facturas cerradas a mano (pagadas, sin movimiento bancario que las respalde). */
+  const facturasCerradasManual = useMemo(
+    () => facturasSinMovTodas.filter((c) => c.cierre_manual),
+    [facturasSinMovTodas],
+  );
+  const facturasSinMov = useMemo(
+    () => facturasSinMovTodas.filter((c) => !c.cierre_manual),
+    [facturasSinMovTodas],
+  );
+  const totalUsdBcvCierreManual = facturasCerradasManual.reduce((s, c) => s + usdBcvFactura(c), 0);
+
+  /** ¿La factura lleva más de 90 días sin movimiento asignado? */
+  const esAntigua = (c: any) => {
+    const em = emisionDeCxp(c) ?? c.fecha_vencimiento;
+    if (!em) return false;
+    return (Date.now() - new Date(`${String(em).slice(0, 10)}T12:00:00`).getTime()) / 86400000 > 90;
+  };
 
   /** Bs de la factura valorados a la tasa BCV del día del pago. */
   const facturaBsAlPago = (c: any, mov: any) => {
@@ -447,6 +496,55 @@ function TableroProveedor() {
     await qc.invalidateQueries({ queryKey: ["mov-bancarios"] });
   };
 
+  const abrirCierre = (lista: any[]) => {
+    if (!lista.length) return;
+    setCierreForm({ motivo: MOTIVOS_CIERRE_MANUAL[0], nota: "", fecha: new Date().toISOString().slice(0, 10) });
+    setCierreAbierto(lista);
+  };
+
+  const confirmarCierre = async () => {
+    if (!cierreAbierto?.length) return;
+    setBusy(true);
+    try {
+      for (const c of cierreAbierto) {
+        const r = await cerrarCxpSinMovimiento({
+          cxp: c,
+          motivo: cierreForm.motivo,
+          nota: cierreForm.nota.trim() || null,
+          fecha: cierreForm.fecha,
+          userId: user?.id ?? null,
+        });
+        if (!r.ok) throw new Error(r.error);
+      }
+      toast.success(
+        cierreAbierto.length === 1
+          ? "Factura marcada como pagada sin movimiento"
+          : `${cierreAbierto.length} facturas marcadas como pagadas sin movimiento`,
+      );
+      setCierreAbierto(null);
+      setSelCierre([]);
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo cerrar la factura");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deshacerCierre = async (c: any) => {
+    setBusy(true);
+    try {
+      const r = await reabrirCxpCerradaManual(c);
+      if (!r.ok) throw new Error(r.error);
+      toast.success("Cierre manual deshecho — la factura vuelve a estar pendiente");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo deshacer el cierre");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /** Estado manual actual de un movimiento (vínculo sin factura, si existe). */
   const estadoManualDeMov = (movId: string): EstadoManual | null => {
     const v = (vinculos ?? []).find((x: any) => x.transaccion_bancaria_id === movId && !x.transaccion_factura_id);
@@ -495,6 +593,8 @@ function TableroProveedor() {
     const cxp = (cxps ?? []).find((c) => c.id === cxpId);
     if (!cxp) return;
     if (!cxp.transaccion_id) return toast.error("La factura no tiene transacción asociada.");
+    if (cxp.cierre_manual && destinoMovId)
+      return toast.error("Esta factura está cerrada a mano. Deshaz el cierre manual antes de parearla con un movimiento.");
     const origen = movsDelProveedor.find((mv) => cxpsDeMov(mv.id).some((c) => c.id === cxpId)) ?? null;
     if (origen && origen.id === destinoMovId) return;
     const destino = destinoMovId ? movsDelProveedor.find((mv) => mv.id === destinoMovId) ?? null : null;

@@ -53,6 +53,8 @@ export type ResultadoPareo = {
 export async function sincronizarCxpDesdeVinculos(facturaId: string): Promise<void> {
   const { data: cxp } = await supabase.from("cuentas_por_pagar").select("*").eq("id", facturaId).maybeSingle();
   if (!cxp) return;
+  // Una factura cerrada a mano (pagada sin movimiento bancario) no se recalcula.
+  if ((cxp as any).cierre_manual) return;
 
   const montoOriginalUsdBcv = Number((cxp as any).usd_bcv_factura ?? (cxp as any).monto_usd) || 0;
   if (montoOriginalUsdBcv <= 0) return; // sin base para comparar, no se toca
@@ -485,3 +487,75 @@ export async function reasignarPagoDirecto(args: {
 }
 
 
+
+// ─────────────────────────────────────────────────────────────
+// Cierre manual: la factura está pagada pero su movimiento bancario nunca
+// va a aparecer (efectivo, cuenta no conciliada, nota de crédito, anulada).
+// No crea ninguna transacción: solo cierra la cuenta por pagar.
+// ─────────────────────────────────────────────────────────────
+
+export const MOTIVOS_CIERRE_MANUAL = [
+  "Pago en efectivo",
+  "Pago desde cuenta no conciliada",
+  "Compensación / nota de crédito",
+  "Factura anulada o duplicada",
+  "Otro",
+] as const;
+
+export type MotivoCierreManual = (typeof MOTIVOS_CIERRE_MANUAL)[number];
+
+export async function cerrarCxpSinMovimiento(args: {
+  cxp: any;
+  motivo: string;
+  nota?: string | null;
+  fecha: string;
+  userId: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { cxp, motivo, nota, fecha, userId } = args;
+  const antes = {
+    estado: cxp.estado,
+    monto_pendiente_bs: cxp.monto_pendiente_bs,
+    monto_pendiente_usd_bcv: cxp.monto_pendiente_usd_bcv,
+    pagada_at: cxp.pagada_at,
+  };
+  const despues = {
+    estado: "pagada",
+    pagada_at: new Date(`${fecha}T12:00:00`).toISOString(),
+    monto_pendiente_bs: 0,
+    monto_pendiente_usd_bcv: 0,
+    cierre_manual: true,
+    cierre_manual_motivo: motivo,
+    cierre_manual_nota: nota ?? null,
+    cierre_manual_fecha: fecha,
+    cierre_manual_por: userId,
+    cierre_manual_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("cuentas_por_pagar").update(despues as any).eq("id", cxp.id);
+  if (error) return { ok: false, error: error.message };
+  await logAudit("cuentas_por_pagar", "UPDATE", cxp.id, antes, despues);
+  return { ok: true };
+}
+
+export async function reabrirCxpCerradaManual(cxp: any): Promise<{ ok: boolean; error?: string }> {
+  const totalUsd = Number(cxp?.usd_bcv_factura ?? cxp?.monto_usd ?? 0) || 0;
+  const tasaF = tasaBcvFactura(cxp) || 0;
+  const antes = { estado: cxp.estado, cierre_manual: true, cierre_manual_motivo: cxp.cierre_manual_motivo };
+  const despues = {
+    estado: "pendiente",
+    pagada_at: null,
+    monto_pendiente_usd_bcv: totalUsd,
+    monto_pendiente_bs: +(totalUsd * (tasaF || 0)).toFixed(2),
+    cierre_manual: false,
+    cierre_manual_motivo: null,
+    cierre_manual_nota: null,
+    cierre_manual_fecha: null,
+    cierre_manual_por: null,
+    cierre_manual_at: null,
+  };
+  const { error } = await supabase.from("cuentas_por_pagar").update(despues as any).eq("id", cxp.id);
+  if (error) return { ok: false, error: error.message };
+  await logAudit("cuentas_por_pagar", "UPDATE", cxp.id, antes, despues);
+  // Si tenía vínculos activos, que el saldo se recalcule desde ellos.
+  await sincronizarCxpDesdeVinculos(cxp.id);
+  return { ok: true };
+}
