@@ -399,13 +399,31 @@ function TableroProveedor() {
   const cxpsDeMov = (movId: string) => cxpsPorMov.get(movId) ?? [];
 
   /** Facturas que no están asignadas a ningún movimiento del proveedor. */
-  const facturasSinMov = useMemo(() => {
+  const facturasSinMovTodas = useMemo(() => {
     const asignadas = new Set<string>();
     for (const lista of cxpsPorMov.values()) for (const c of lista) asignadas.add(c.id);
     return (cxps ?? [])
       .filter((c) => !asignadas.has(c.id))
       .sort((a, b) => String(emisionDeCxp(b) ?? "").localeCompare(String(emisionDeCxp(a) ?? "")));
   }, [cxps, cxpsPorMov, fechaEmisionPorFactura]);
+
+  /** Facturas cerradas a mano (pagadas, sin movimiento bancario que las respalde). */
+  const facturasCerradasManual = useMemo(
+    () => facturasSinMovTodas.filter((c) => c.cierre_manual),
+    [facturasSinMovTodas],
+  );
+  const facturasSinMov = useMemo(
+    () => facturasSinMovTodas.filter((c) => !c.cierre_manual),
+    [facturasSinMovTodas],
+  );
+  const totalUsdBcvCierreManual = facturasCerradasManual.reduce((s, c) => s + usdBcvFactura(c), 0);
+
+  /** ¿La factura lleva más de 90 días sin movimiento asignado? */
+  const esAntigua = (c: any) => {
+    const em = emisionDeCxp(c) ?? c.fecha_vencimiento;
+    if (!em) return false;
+    return (Date.now() - new Date(`${String(em).slice(0, 10)}T12:00:00`).getTime()) / 86400000 > 90;
+  };
 
   /** Bs de la factura valorados a la tasa BCV del día del pago. */
   const facturaBsAlPago = (c: any, mov: any) => {
