@@ -536,6 +536,8 @@ function TableroProveedor() {
     const cxp = (cxps ?? []).find((c) => c.id === cxpId);
     if (!cxp) return;
     if (!cxp.transaccion_id) return toast.error("La factura no tiene transacción asociada.");
+    if (cxp.cierre_manual && destinoMovId)
+      return toast.error("Esta factura está cerrada a mano. Deshaz el cierre manual antes de parearla con un movimiento.");
     const origen = movsDelProveedor.find((mv) => cxpsDeMov(mv.id).some((c) => c.id === cxpId)) ?? null;
     if (origen && origen.id === destinoMovId) return;
     const destino = destinoMovId ? movsDelProveedor.find((mv) => mv.id === destinoMovId) ?? null : null;
