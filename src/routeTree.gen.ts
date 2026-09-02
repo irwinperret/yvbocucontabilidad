@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReporteMensualImprimirRouteImport } from './routes/reporte-mensual-imprimir'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
@@ -58,6 +59,11 @@ import { Route as AuthenticatedIrisMovimientosSinProveedorRouteImport } from './
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
 
+const ReporteMensualImprimirRoute = ReporteMensualImprimirRouteImport.update({
+  id: '/reporte-mensual-imprimir',
+  path: '/reporte-mensual-imprimir',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -326,6 +332,7 @@ const ApiPublicHooksSyncBcvRoute = ApiPublicHooksSyncBcvRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/reporte-mensual-imprimir': typeof ReporteMensualImprimirRoute
   '/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
@@ -375,6 +382,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/reporte-mensual-imprimir': typeof ReporteMensualImprimirRoute
   '/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
@@ -426,6 +434,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/reporte-mensual-imprimir': typeof ReporteMensualImprimirRoute
   '/_authenticated/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
   '/_authenticated/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/_authenticated/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
@@ -477,6 +486,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/reporte-mensual-imprimir'
     | '/activos-transitorios'
     | '/analisis-ai'
     | '/anticipos-proveedores'
@@ -526,6 +536,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/reporte-mensual-imprimir'
     | '/activos-transitorios'
     | '/analisis-ai'
     | '/anticipos-proveedores'
@@ -576,6 +587,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/reporte-mensual-imprimir'
     | '/_authenticated/activos-transitorios'
     | '/_authenticated/analisis-ai'
     | '/_authenticated/anticipos-proveedores'
@@ -627,12 +639,20 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ReporteMensualImprimirRoute: typeof ReporteMensualImprimirRoute
   ApiPublicHooksSyncBcvRoute: typeof ApiPublicHooksSyncBcvRoute
   ApiPublicHooksSyncParalelaRoute: typeof ApiPublicHooksSyncParalelaRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reporte-mensual-imprimir': {
+      id: '/reporte-mensual-imprimir'
+      path: '/reporte-mensual-imprimir'
+      fullPath: '/reporte-mensual-imprimir'
+      preLoaderRoute: typeof ReporteMensualImprimirRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -1077,6 +1097,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ReporteMensualImprimirRoute: ReporteMensualImprimirRoute,
   ApiPublicHooksSyncBcvRoute: ApiPublicHooksSyncBcvRoute,
   ApiPublicHooksSyncParalelaRoute: ApiPublicHooksSyncParalelaRoute,
 }
