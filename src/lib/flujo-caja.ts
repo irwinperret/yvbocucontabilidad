@@ -71,7 +71,7 @@ export function calcularLineasFC(opts: {
   anio: number;
   usdDe: (t: any) => number;
   /** Meses abiertos con COGS estimado (de estimarCogsMesesAbiertos en cierre-mes.ts). */
-  cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }>;
+  cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number; iniUsd?: number; finUsd?: number }>;
   /** Moneda en la que ya vienen `rows` (vista BCV o paralelo) — para tomar el campo correcto del estimado. */
   moneda?: "bcv" | "paralela";
 }): LineasFCMes[] {
@@ -98,7 +98,18 @@ export function calcularLineasFC(opts: {
 
     const invIni = inventario.find((s) => s.periodo === periodo && s.tipo === "inicial");
     const invFin = inventario.find((s) => s.periodo === periodo && s.tipo === "final");
-    const cambioInventario = invIni && invFin ? Number(invIni.monto_usd || 0) - Number(invFin.monto_usd || 0) : 0;
+    // Mes cerrado: usa el snapshot real (siempre existen ambos, los guarda
+    // calcularYGuardarCierre). Mes abierto: usa el ini/fin que ya calculó
+    // estimarCogsMesesAbiertos() para el COGS estimado -- que ya arrastra
+    // el inventario del mes anterior cuando no hay inicial propio, y asume
+    // "sin cambio" (fin = ini) cuando falta el final -- para que esta fila
+    // nunca se desincronice del COGS que se está mostrando arriba.
+    const cambioInventario =
+      invIni && invFin
+        ? Number(invIni.monto_usd || 0) - Number(invFin.monto_usd || 0)
+        : estimado && estimado.iniUsd != null && estimado.finUsd != null
+          ? estimado.iniUsd - estimado.finUsd
+          : 0;
 
     const nuevasCxp = cxpCreadas
       .filter((c) => { const d = new Date(c.created_at); return d.getFullYear() === anio && d.getMonth() + 1 === mes; })

@@ -179,7 +179,7 @@ export async function reabrirMes(periodo: string) {
   await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
 }
 
-export type CogsEstimado = { cogsBs: number; cogsUsdBcv: number; cogsUsdParalelo: number };
+export type CogsEstimado = { cogsBs: number; cogsUsdBcv: number; cogsUsdParalelo: number; iniUsd: number; finUsd: number };
 
 /**
  * Para meses ABIERTOS (sin cierre formal) donde ya se cargó el inventario
@@ -250,7 +250,7 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
     const finUsd = e?.final ?? iniUsd;
 
     const r = await calcularCierre(periodo, iniUsd, finUsd);
-    resultado.set(periodo, { cogsBs: r.cogsBs, cogsUsdBcv: r.cogsUsdBcv, cogsUsdParalelo: r.cogsUsdParalelo });
+    resultado.set(periodo, { cogsBs: r.cogsBs, cogsUsdBcv: r.cogsUsdBcv, cogsUsdParalelo: r.cogsUsdParalelo, iniUsd, finUsd });
   }
   return resultado;
 }
