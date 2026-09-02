@@ -3932,11 +3932,29 @@ function CierreForm() {
   // Prefill inventario final con el valor ya registrado en Inventarios.
   // Se usa siempre currFinalUsd (ya está filtrado por el período correcto), tanto si el
   // mes está abierto como cerrado, para evitar que quede un valor de otro período visitado antes.
+  // Si el mes está ABIERTO y todavía no se ha registrado el final (currFinalUsd
+  // es null), NO se deja vacío — vacío se trata como $0 en el cálculo de abajo,
+  // lo que dispararía un COGS inflado como si se hubiera vendido todo el
+  // inventario. En vez de eso, se asume que el inventario no cambió respecto
+  // al inicial (mismo criterio que Dashboard/G&P/Flujo de Caja), hasta que se
+  // registre el conteo real.
   useEffect(() => {
     if (invFinTocado) return;
-    setInvFinUsd(currFinalUsd != null ? String(currFinalUsd) : "");
+    if (currFinalUsd != null) {
+      setInvFinUsd(String(currFinalUsd));
+      return;
+    }
+    if (!cierreActual) {
+      const inicialEfectivo = currInicialUsd != null ? currInicialUsd : prevFinalUsd;
+      setInvFinUsd(inicialEfectivo != null ? String(inicialEfectivo) : "");
+      return;
+    }
+    setInvFinUsd("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo, currFinalUsd, cierreActual]);
+  }, [periodo, currFinalUsd, cierreActual, currInicialUsd, prevFinalUsd]);
+  // true mientras el inventario final mostrado es un supuesto (mes abierto,
+  // sin conteo real todavía) — para avisar en la UI que no es un valor registrado.
+  const finEsAsumido = currFinalUsd == null && !cierreActual && !invFinTocado;
   // Reset "tocado" al cambiar de período
   useEffect(() => {
     setInvIniTocado(false);
@@ -5139,6 +5157,11 @@ function CierreForm() {
               className="mono"
               placeholder="0.00"
             />
+            {finEsAsumido && (
+              <p className="text-[10px] text-amber-600 mt-1">
+                Sin conteo registrado todavía — se asume igual al inicial (sin cambio de inventario) mientras el mes esté abierto.
+              </p>
+            )}
             {tasaBcvFinN > 0 && finUsd > 0 && (
               <p className="text-[10px] text-muted-foreground mt-1">
                 ≈ <span className="mono">{fmtBs(finUsd * tasaBcvFinN)}</span> @ {tasaBcvFinN.toFixed(4)}
