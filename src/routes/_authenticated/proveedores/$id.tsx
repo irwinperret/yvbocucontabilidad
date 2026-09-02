@@ -193,8 +193,8 @@ function TableroProveedor() {
     nota: "",
     fecha: new Date().toISOString().slice(0, 10),
   });
-  /** "Pendientes" | "cerradas" | "todas" — qué mostrar en la bandeja de facturas sin movimiento. */
-  const [filtroFacturas, setFiltroFacturas] = useState<"pendientes" | "espera" | "cerradas" | "todas">("pendientes");
+  /** "Pendientes" | "espera" — qué mostrar en la bandeja de facturas sin movimiento. "Pagadas sin movimiento" tiene su propia zona, siempre visible, más abajo. */
+  const [filtroFacturas, setFiltroFacturas] = useState<"pendientes" | "espera">("pendientes");
 
   // El cierre manual de facturas es una escritura sensible (cierra una CxP sin
   // que exista un movimiento bancario real detrás) — igual que el resto de
@@ -712,6 +712,29 @@ function TableroProveedor() {
   };
 
   /**
+   * Deshace el cierre manual de una factura y, en el mismo paso, la parea
+   * con el movimiento indicado — se usa al soltarla sobre un movimiento
+   * viniendo de la zona "Pagadas sin movimiento", o desde el selector
+   * "Asignar a movimiento…" de esa misma zona.
+   */
+  const moverFacturaCerradaAMovimiento = async (cxp: any, destinoMovId: string) => {
+    const destino = movsDelProveedor.find((mv) => mv.id === destinoMovId) ?? null;
+    if (!destino) return;
+    setBusy(true);
+    try {
+      const r = await reabrirCxpCerradaManual(cxp);
+      if (!r.ok) throw new Error(r.error);
+      await aplicarConjunto(destino, [...cxpsDeMov(destino.id), cxp]);
+      toast.success("Cierre manual deshecho y factura asignada al movimiento");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo actualizar la factura");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
    * Igual que moverFactura, pero NO quita el vínculo que la factura ya tenga
    * con otro movimiento — se usa para dividir el pago de una factura entre
    * 2 o 3 movimientos distintos (una factura grande pagada en varias partes).
@@ -813,6 +836,13 @@ function TableroProveedor() {
     const cxpId = active.slice(4);
     const over = e.over ? String(e.over.id) : null;
     if (!over) return;
+    const cxp = (cxps ?? []).find((c) => c.id === cxpId);
+    if (cxp?.cierre_manual) {
+      if (!isAdmin) return void toast.error("Solo un administrador puede deshacer un cierre manual.");
+      if (over === BANDEJA) return void deshacerCierre(cxp);
+      if (over.startsWith("mov:")) return void moverFacturaCerradaAMovimiento(cxp, over.slice(4));
+      return;
+    }
     if (over === BANDEJA) return void moverFactura(cxpId, null);
     if (over.startsWith("mov:")) return void moverFactura(cxpId, over.slice(4));
   };
@@ -1198,8 +1228,6 @@ function TableroProveedor() {
                   <SelectContent>
                     <SelectItem value="pendientes">Pendientes ({facturasSinMov.length})</SelectItem>
                     <SelectItem value="espera">En espera de movimiento ({facturasEnEspera.length})</SelectItem>
-                    <SelectItem value="cerradas">Pagadas sin movimiento ({facturasCerradasManual.length})</SelectItem>
-                    <SelectItem value="todas">Todas</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1221,8 +1249,7 @@ function TableroProveedor() {
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              {(filtroFacturas === "pendientes" || filtroFacturas === "espera" || filtroFacturas === "todas") && (
-                <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-md p-2">
+              <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-md p-2">
                   {(filtroFacturas === "espera" ? facturasEnEspera : facturasSinMov).length === 0 && (
                     <p className="text-xs text-muted-foreground">
                       {filtroFacturas === "espera"
@@ -1312,31 +1339,48 @@ function TableroProveedor() {
                     );
                   })}
                 </Zona>
-              )}
 
-              {(filtroFacturas === "cerradas" || filtroFacturas === "todas") && (
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground">
-                    Pagadas sin movimiento ({facturasCerradasManual.length})
-                  </div>
-                  {facturasCerradasManual.length === 0 && (
-                    <p className="text-xs text-muted-foreground">No hay facturas cerradas a mano.</p>
-                  )}
-                  {facturasCerradasManual.map((c) => (
-                    <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs">
-                      <Badge variant="outline" className="text-emerald-600 border-emerald-600/40">Pagada sin movimiento</Badge>
-                      <span className="font-medium">Fact. {c.numero_factura ?? "s/n"}</span>
-                      <span className="mono text-muted-foreground">{fmtUsd(usdBcvFactura(c))} BCV</span>
-                      <span className="text-muted-foreground flex-1 min-w-0 truncate">{cierreManualInfo(c)}</span>
+              <div className="space-y-2 pt-2 border-t">
+                <div className="text-xs font-medium text-muted-foreground">
+                  Pagadas sin movimiento ({facturasCerradasManual.length})
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Arrastra una factura de aquí hacia "Facturas sin movimiento" o hacia un movimiento para actualizar su estado.
+                </p>
+                {facturasCerradasManual.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No hay facturas cerradas a mano.</p>
+                )}
+                {facturasCerradasManual.map((c) => (
+                  <div key={c.id} className="space-y-1">
+                    <FacturaChip
+                      cxp={c}
+                      emision={emisionDeCxp(c)}
+                      disabled={busy || !isAdmin}
+                      onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{cierreManualInfo(c)}</span>
                       {isAdmin && (
-                        <Button size="sm" variant="ghost" className="h-7" disabled={busy} onClick={() => deshacerCierre(c)}>
-                          <RotateCcw className="h-3.5 w-3.5 mr-1" />Deshacer cierre manual
-                        </Button>
+                        <>
+                          <Select onValueChange={(v) => moverFacturaCerradaAMovimiento(c, v)}>
+                            <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Asignar a movimiento…" /></SelectTrigger>
+                            <SelectContent>
+                              {movsDelProveedor.map((mv) => (
+                                <SelectItem key={mv.id} value={mv.id}>
+                                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button size="sm" variant="ghost" className="h-7" disabled={busy} onClick={() => deshacerCierre(c)}>
+                            <RotateCcw className="h-3.5 w-3.5 mr-1" />Deshacer cierre manual
+                          </Button>
+                        </>
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
