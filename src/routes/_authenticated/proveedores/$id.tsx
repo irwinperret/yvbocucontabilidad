@@ -128,9 +128,19 @@ function FacturaChip({
         {typeof aplicadoUsd === "number" && (
           <span className="mono text-muted-foreground">aplicado {fmtUsd(aplicadoUsd)} USD BCV</span>
         )}
-        <Badge variant={cxp.estado === "pagada" ? "secondary" : cxp.estado === "parcial" ? "default" : "outline"}>
-          {cxp.estado === "pagada" ? "Pagada" : cxp.estado === "parcial" ? "Parcial" : "Pendiente"}
-        </Badge>
+        {cxp.cierre_manual ? (
+          <Badge
+            variant="outline"
+            className="text-emerald-600 border-emerald-600/40"
+            title={`${cxp.cierre_manual_motivo ?? "Cierre manual"}${cxp.cierre_manual_nota ? ` — ${cxp.cierre_manual_nota}` : ""}`}
+          >
+            Pagada sin movimiento
+          </Badge>
+        ) : (
+          <Badge variant={cxp.estado === "pagada" ? "secondary" : cxp.estado === "parcial" ? "default" : "outline"}>
+            {cxp.estado === "pagada" ? "Pagada" : cxp.estado === "parcial" ? "Parcial" : "Pendiente"}
+          </Badge>
+        )}
       </span>
       {onQuitar && (
         <Button variant="ghost" size="sm" onClick={onQuitar} disabled={disabled} title="Quitar del movimiento">
