@@ -1,14 +1,31 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, StickyNote, Plus, Check, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, StickyNote, Plus, Check, Pencil, Trash2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
+
+/** Reordena moviendo el elemento en `from` a la posición `to`, sin mutar el arreglo original. */
+function arrayMove<T>(arr: T[], from: number, to: number): T[] {
+  const copia = arr.slice();
+  const [item] = copia.splice(from, 1);
+  copia.splice(to, 0, item);
+  return copia;
+}
 
 export const Route = createFileRoute("/_authenticated/iris/notas")({
   component: NotasPage,
@@ -41,11 +58,36 @@ type Pendiente = {
   created_at: string;
   created_by: string | null;
   resuelta_at: string | null;
+  orden: number | null;
 };
+
+/** Fila arrastrable de una nota abierta — soltarla sobre otra reordena la lista (prioridad). */
+function NotaDraggable({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id: `nota:${id}` });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `nota:${id}` });
+  return (
+    <div
+      ref={setDropRef}
+      className={`flex items-start gap-1.5 py-2 ${isDragging ? "opacity-50" : ""} ${isOver ? "bg-muted/50 rounded-md" : ""}`}
+    >
+      <span
+        ref={setDragRef}
+        {...listeners}
+        {...attributes}
+        className="cursor-grab active:cursor-grabbing pt-1 shrink-0 text-muted-foreground"
+        title="Arrastrar para cambiar la prioridad"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </span>
+      <div className="flex-1 min-w-0 flex items-start justify-between gap-3">{children}</div>
+    </div>
+  );
+}
 
 function PendientesCard() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [resolviendoId, setResolviendoId] = useState<string | null>(null);
@@ -59,7 +101,8 @@ function PendientesCard() {
     queryKey: ["iris-pendientes"],
     queryFn: async () => {
       const { data, error } = await (supabase.from as any)("iris_pendientes")
-        .select("id, texto, estado, created_at, created_by, resuelta_at")
+        .select("id, texto, estado, created_at, created_by, resuelta_at, orden")
+        .order("orden", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []) as Pendiente[];
@@ -69,14 +112,41 @@ function PendientesCard() {
   const abiertas = (pendientes ?? []).filter((p) => p.estado === "pendiente");
   const resueltas = (pendientes ?? []).filter((p) => p.estado === "resuelta");
 
+  /** Arrastrar una nota abierta sobre otra la reordena — el nuevo orden se guarda de una vez. */
+  const onDragEndNota = async (e: DragEndEvent) => {
+    const active = String(e.active.id);
+    const over = e.over ? String(e.over.id) : null;
+    if (!over || active === over) return;
+    if (!active.startsWith("nota:") || !over.startsWith("nota:")) return;
+    const fromIndex = abiertas.findIndex((p) => `nota:${p.id}` === active);
+    const toIndex = abiertas.findIndex((p) => `nota:${p.id}` === over);
+    if (fromIndex === -1 || toIndex === -1) return;
+    const reordenadas = arrayMove(abiertas, fromIndex, toIndex);
+    qc.setQueryData(["iris-pendientes"], (old: Pendiente[] | undefined) =>
+      old ? [...reordenadas, ...old.filter((p) => p.estado !== "pendiente")] : old,
+    );
+    try {
+      await Promise.all(
+        reordenadas.map((p, i) => (supabase.from as any)("iris_pendientes").update({ orden: i }).eq("id", p.id)),
+      );
+    } catch {
+      toast.error("No se pudo guardar el nuevo orden");
+    } finally {
+      qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
+    }
+  };
+
   const agregar = async () => {
     const t = texto.trim();
     if (!t || !user) return;
     setGuardando(true);
+    const ordenes = abiertas.map((p) => p.orden ?? 0);
+    const nuevoOrden = ordenes.length ? Math.min(...ordenes) - 1 : 0;
     const { error } = await (supabase.from as any)("iris_pendientes").insert({
       texto: t,
       estado: "pendiente",
       created_by: user.id,
+      orden: nuevoOrden,
     });
     setGuardando(false);
     if (error) return toast.error(error.message || "No se pudo guardar la nota");
@@ -164,64 +234,66 @@ function PendientesCard() {
         ) : abiertas.length === 0 ? (
           <p className="text-sm text-muted-foreground">No hay pendientes abiertos.</p>
         ) : (
-          <div className="divide-y">
-            {abiertas.map((p) => {
-              const esAutor = !!user && p.created_by === user.id;
-              const enEdicion = editandoId === p.id;
-              return (
-                <div key={p.id} className="flex items-start justify-between gap-3 py-2">
-                  {enEdicion ? (
-                    <div className="flex-1 space-y-1.5">
-                      <Textarea
-                        value={editTexto}
-                        onChange={(e) => setEditTexto(e.target.value)}
-                        className="min-h-[50px] text-sm"
-                        autoFocus
-                      />
-                      <div className="flex gap-1.5">
-                        <Button size="sm" onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit || !editTexto.trim()}>
-                          {guardandoEdit ? "…" : "Guardar"}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardandoEdit}>
-                          Cancelar
+          <DndContext sensors={sensors} onDragEnd={onDragEndNota}>
+            <div className="divide-y">
+              {abiertas.map((p) => {
+                const esAutor = !!user && p.created_by === user.id;
+                const enEdicion = editandoId === p.id;
+                return (
+                  <NotaDraggable key={p.id} id={p.id}>
+                    {enEdicion ? (
+                      <div className="flex-1 space-y-1.5">
+                        <Textarea
+                          value={editTexto}
+                          onChange={(e) => setEditTexto(e.target.value)}
+                          className="min-h-[50px] text-sm"
+                          autoFocus
+                        />
+                        <div className="flex gap-1.5">
+                          <Button size="sm" onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit || !editTexto.trim()}>
+                            {guardandoEdit ? "…" : "Guardar"}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardandoEdit}>
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm">{p.texto}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(p.created_at)}</p>
+                      </div>
+                    )}
+                    {!enEdicion && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {esAutor && (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => borrar(p.id)}
+                              disabled={borrandoId === p.id}
+                              title="Borrar"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => resolver(p.id)} disabled={resolviendoId === p.id}>
+                          <Check className="h-3.5 w-3.5 mr-1" />
+                          {resolviendoId === p.id ? "…" : "Resuelta"}
                         </Button>
                       </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-sm">{p.texto}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(p.created_at)}</p>
-                    </div>
-                  )}
-                  {!enEdicion && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {esAutor && (
-                        <>
-                          <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => borrar(p.id)}
-                            disabled={borrandoId === p.id}
-                            title="Borrar"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => resolver(p.id)} disabled={resolviendoId === p.id}>
-                        <Check className="h-3.5 w-3.5 mr-1" />
-                        {resolviendoId === p.id ? "…" : "Resuelta"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    )}
+                  </NotaDraggable>
+                );
+              })}
+            </div>
+          </DndContext>
         )}
 
         {resueltas.length > 0 && (
