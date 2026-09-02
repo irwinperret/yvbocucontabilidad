@@ -67,7 +67,7 @@ export function calcularLineasFC(opts: {
   rows: Row[];
   capexRows: any[];
   inventario: { periodo: string; tipo: string; monto_usd: number }[];
-  cxpCreadas: { created_at: string; monto_usd: number }[];
+  cxpCreadas: { anio: number; mes: number; montoUsdBcv: number; montoUsdParalelo: number }[];
   anio: number;
   usdDe: (t: any) => number;
   /** Meses abiertos con COGS estimado (de estimarCogsMesesAbiertos en cierre-mes.ts). */
@@ -111,13 +111,26 @@ export function calcularLineasFC(opts: {
           ? estimado.iniUsd - estimado.finUsd
           : 0;
 
+    // OJO: se agrupa por la fecha REAL de la factura (la de la transacción
+    // vinculada), no por "created_at" de la fila de cuentas_por_pagar --
+    // las facturas importadas en bloque quedan todas con el mismo
+    // created_at (el día de la importación) sin importar de qué mes sea
+    // cada factura, lo que amontonaba TODAS las CxP del año en un solo mes
+    // ("Cambios en Cuentas por pagar" incoherente en Flujo de Caja). El
+    // monto también se toma en la misma moneda que `rows` (usd_bcv_factura
+    // vs usd_paralelo_factura), igual que el resto de esta función.
     const nuevasCxp = cxpCreadas
-      .filter((c) => { const d = new Date(c.created_at); return d.getFullYear() === anio && d.getMonth() + 1 === mes; })
-      .reduce((s, c) => s + Number(c.monto_usd || 0), 0);
+      .filter((c) => c.anio === anio && c.mes === mes)
+      .reduce((s, c) => s + Number((moneda === "paralela" ? c.montoUsdParalelo : c.montoUsdBcv) || 0), 0);
     const pagosCxp = sumTotal(CUENTA_PAGO_CXP, mes);
     const cambioCxP = nuevasCxp - Math.abs(pagosCxp);
 
-    const capexMes = capexRows.filter((c) => new Date(c.fecha).getMonth() + 1 === mes);
+    // Se compara el string "YYYY-MM" directo (no new Date().getMonth()) para
+    // no depender de la zona horaria del navegador -- fecha es un DATE sin
+    // hora, y parsearlo con Date() lo interpreta a medianoche UTC, lo que
+    // en un huso horario detrás de UTC (como Venezuela) corre el día 1 de
+    // cada mes al mes anterior.
+    const capexMes = capexRows.filter((c) => typeof c.fecha === "string" && c.fecha.slice(0, 7) === periodo);
     const compraInmuebles = capexMes.filter((c) => c.capex_categoria === CATEGORIA_INMUEBLES).reduce((s, c) => s + usdDe(c), 0);
     const compraEquipos = capexMes.filter((c) => c.capex_categoria !== CATEGORIA_INMUEBLES).reduce((s, c) => s + usdDe(c), 0);
 
@@ -149,10 +162,48 @@ export async function fetchInsumosFC(opts: { anio: number; centro: string; modoF
   const { data: inventario } = await supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd")
     .gte("periodo", `${anio}-01`).lte("periodo", `${anio}-12`);
 
-  let cxpQ = supabase.from("cuentas_por_pagar").select("created_at, monto_usd, centro_costo")
-    .gte("created_at", `${anio}-01-01`).lt("created_at", `${anio + 1}-01-01`);
-  if (centro !== "Consolidado") cxpQ = cxpQ.eq("centro_costo", centro as any);
-  const { data: cxpCreadas } = await cxpQ;
+  // "Cambios en Cuentas por pagar" tiene que agruparse por la fecha REAL de
+  // la factura (la de la transacción que originó la CxP), no por
+  // created_at de la fila de cuentas_por_pagar: una importación en bloque
+  // deja el mismo created_at (el día de la importación) en cientos de
+  // filas sin importar de qué mes sea cada factura. Se trae transaccion_id
+  // + los montos ya congelados en ambas monedas (usd_bcv_factura /
+  // usd_paralelo_factura) y se resuelve la fecha real con una consulta
+  // aparte a transacciones (evita depender de que PostgREST reconozca el
+  // embed automático por la FK).
+  const cxpRaw = await fetchAllRows<any>(async (from, to) => {
+    let q = supabase
+      .from("cuentas_por_pagar")
+      .select("transaccion_id, monto_usd, usd_bcv_factura, usd_paralelo_factura, centro_costo, created_at");
+    if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
+    return await q.range(from, to);
+  });
 
-  return { capexRows, inventario: inventario ?? [], cxpCreadas: cxpCreadas ?? [] };
+  const idsTransacciones = Array.from(
+    new Set((cxpRaw ?? []).map((c: any) => c.transaccion_id).filter((id: any): id is string => !!id)),
+  );
+  const fechaPorTransaccion = new Map<string, string>();
+  const CHUNK = 200;
+  for (let i = 0; i < idsTransacciones.length; i += CHUNK) {
+    const lote = idsTransacciones.slice(i, i + CHUNK);
+    const { data } = await supabase.from("transacciones").select("id, fecha").in("id", lote);
+    (data ?? []).forEach((t: any) => fechaPorTransaccion.set(t.id, t.fecha));
+  }
+
+  const cxpCreadas = (cxpRaw ?? [])
+    .map((c: any) => {
+      // Si por algún motivo no hay transacción vinculada (dato manual muy
+      // viejo, o borrada), se cae de vuelta a created_at antes que perder
+      // la fila por completo.
+      const fecha: string | undefined = (c.transaccion_id && fechaPorTransaccion.get(c.transaccion_id)) || c.created_at;
+      if (!fecha || typeof fecha !== "string" || fecha.length < 7) return null;
+      const anioFactura = Number(fecha.slice(0, 4));
+      const mesFactura = Number(fecha.slice(5, 7));
+      const montoUsdBcv = Number(c.usd_bcv_factura ?? c.monto_usd) || 0;
+      const montoUsdParalelo = Number(c.usd_paralelo_factura ?? c.monto_usd) || 0;
+      return { anio: anioFactura, mes: mesFactura, montoUsdBcv, montoUsdParalelo };
+    })
+    .filter((c): c is { anio: number; mes: number; montoUsdBcv: number; montoUsdParalelo: number } => c != null);
+
+  return { capexRows, inventario: inventario ?? [], cxpCreadas };
 }

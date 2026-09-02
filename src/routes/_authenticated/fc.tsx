@@ -15,7 +15,7 @@ import { Download } from "lucide-react";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { exportFCIndirecto } from "@/lib/excel-export";
-import { calcularLineasFC, fetchInsumosFC, type LineasFCMes, CUENTA_CAPEX } from "@/lib/flujo-caja";
+import { calcularLineasFC, fetchInsumosFC, type LineasFCMes } from "@/lib/flujo-caja";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
@@ -71,44 +71,18 @@ function FCPage() {
     },
   });
 
-  // CapEx individual (para separar Inmuebles vs Equipos por categoría)
-  const { data: capexRows } = useQuery({
-    queryKey: ["fc-capex", anio, centro, modoFiltro, mode, cuentaBancariaId],
-    queryFn: async () => {
-      const { fetchAllRows } = await import("@/lib/fetch-all");
-      return await fetchAllRows<any>(async (from, to) => {
-        let q = supabase.from("transacciones").select("fecha, monto_bs, monto_usd, tasa_bcv, capex_categoria, centro_costo, modo")
-          .eq("cuenta_codigo", CUENTA_CAPEX).neq("standby", true)
-          .gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`);
-        if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
-        if (modoFiltro) q = q.eq("modo", modoFiltro as any);
-        if (cuentaBancariaId !== "todas") q = q.eq("cuenta_bancaria_id" as any, cuentaBancariaId);
-        return await q.range(from, to);
-      });
-    },
+  // CapEx, inventario y CxP creadas: los mismos 3 insumos que usa el
+  // Dashboard (fetchInsumosFC), para que nunca queden dos versiones que se
+  // puedan desincronizar -- esta pantalla tenía su propia copia de estas 3
+  // consultas, cada una con su propio bug (CxP agrupadas por created_at en
+  // vez de la fecha real de la factura, y en una sola moneda fija).
+  const { data: insumosFC } = useQuery({
+    queryKey: ["fc-insumos", anio, centro, modoFiltro, cuentaBancariaId],
+    queryFn: () => fetchInsumosFC({ anio, centro, modoFiltro, cuentaBancariaId }),
   });
-
-  // Inventario (inicial/final por mes) para "Cambios Inventario"
-  const { data: inventario } = useQuery({
-    queryKey: ["fc-inventario", anio],
-    queryFn: async () => {
-      const { data } = await supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd")
-        .gte("periodo", `${anio}-01`).lte("periodo", `${anio}-12`);
-      return data ?? [];
-    },
-  });
-
-  // Cuentas por pagar creadas en el año (para "Cambios en Cuentas por pagar")
-  const { data: cxpCreadas } = useQuery({
-    queryKey: ["fc-cxp-creadas", anio, centro],
-    queryFn: async () => {
-      let q = supabase.from("cuentas_por_pagar").select("created_at, monto_usd, centro_costo")
-        .gte("created_at", `${anio}-01-01`).lt("created_at", `${anio + 1}-01-01`);
-      if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
-      const { data } = await q;
-      return data ?? [];
-    },
-  });
+  const capexRows = insumosFC?.capexRows;
+  const inventario = insumosFC?.inventario;
+  const cxpCreadas = insumosFC?.cxpCreadas;
 
   // COGS estimado para meses abiertos (sin cierre formal, pero con inventario
   // inicial/final ya cargado) — misma fórmula que un cierre real.
