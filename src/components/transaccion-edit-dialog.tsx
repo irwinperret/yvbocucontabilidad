@@ -17,7 +17,23 @@ import { SearchCombobox, type ComboOption } from "@/components/search-combobox";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { esCuentaNoConciliable } from "@/lib/operaciones-cambio";
 
-export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => void; onSaved: () => void }) {
+export function EditDialog({
+  tx,
+  onClose,
+  onSaved,
+  fechaFmt,
+}: {
+  tx: any;
+  onClose: () => void;
+  onSaved: () => void;
+  /** Formato para las fechas de SOLO LECTURA que se muestran en el diálogo
+   * (p. ej. la lista de transacciones hermanas) -- el campo de fecha
+   * editable sigue siendo el selector nativo del navegador, que no se
+   * puede reformatear. Por defecto usa fmtDate (dd/mm/yyyy); Transacciones
+   * y Movimientos bancarios pasan fmtDateMDY (mmm/dd/yyyy). */
+  fechaFmt?: (d: string | Date) => string;
+}) {
+  const fmtDateHermanos = fechaFmt ?? fmtDate;
   const [fecha, setFecha] = useState<string>(tx.fecha);
   const [centro, setCentro] = useState<Centro>(tx.centro_costo);
   const [montoUsd, setMontoUsd] = useState<string>(String(tx.monto_usd ?? ""));
@@ -228,7 +244,7 @@ export function EditDialog({ tx, onClose, onSaved }: { tx: any; onClose: () => v
               {hermanos.map((h) => (
                 <li key={h.id} className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[10px]">{h.cuenta_codigo}</Badge>
-                  <span className="text-muted-foreground">{fmtDate(h.fecha)}</span>
+                  <span className="text-muted-foreground">{fmtDateHermanos(h.fecha)}</span>
                   <span className="mono">{fmtUsd(Number(h.monto_usd) || 0)}</span>
                 </li>
               ))}

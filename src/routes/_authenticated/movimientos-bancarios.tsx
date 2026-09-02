@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
+import { fmtBs, fmtUsd, fmtDateMDY } from "@/lib/format";
 import { toast } from "sonner";
 import { Download, Check, X, RefreshCw, Pencil, Link2, Users2 } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
@@ -849,8 +849,8 @@ function MovimientosBancariosPage() {
 
           {(desde || hasta || provSel.length > 0 || cuentasSel.length > 0 || centrosSel.length > 0 || conciliacionF.length > 0) && (
             <div className="flex flex-wrap gap-2">
-              {desde && <Badge variant="outline">Desde {fmtDate(desde)}</Badge>}
-              {hasta && <Badge variant="outline">Hasta {fmtDate(hasta)}</Badge>}
+              {desde && <Badge variant="outline">Desde {fmtDateMDY(desde)}</Badge>}
+              {hasta && <Badge variant="outline">Hasta {fmtDateMDY(hasta)}</Badge>}
               {provSel.length > 0 && <Badge variant="outline">{provSel.length} proveedor(es)</Badge>}
               {cuentasSel.length > 0 && <Badge variant="outline">{cuentasSel.length} cuenta(s)</Badge>}
               {centrosSel.length > 0 && <Badge variant="outline">{centrosSel.length} centro(s)</Badge>}
@@ -942,7 +942,7 @@ function MovimientosBancariosPage() {
                 <tbody>
                   {pagina.map((f) => (
                     <tr key={f.mov.id} className="border-b last:border-0 align-top">
-                      <td className="py-2 px-2 mono whitespace-nowrap">{fmtDate(f.mov.fecha)}</td>
+                      <td className="py-2 px-2 mono whitespace-nowrap">{fmtDateMDY(f.mov.fecha)}</td>
                       <td className="py-2 px-2">{bancoDeReferencia(f.mov.referencia)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtBs(f.mov.monto_bs)}</td>
                       <td className="py-2 px-2 text-right mono">{fmtUsd(usdBcvDe(f.mov))}</td>
@@ -979,7 +979,7 @@ function MovimientosBancariosPage() {
                           <span className="text-[11px] text-muted-foreground">{f.motivo}</span>
                           {(f.facturas ?? []).map((fa) => (
                             <span key={fa.id} className="text-[11px] mono">
-                              Fact {fa.numero_factura} · {fa.proveedor ?? "—"} · {fmtDate(fa.fecha)} · {fmtUsd(Number(fa.usd_bcv) || 0)} USD BCV · {fmtBs(Number(fa.usd_bcv) > 0 ? Number(fa.usd_bcv) * Number(f.mov.tasa_bcv) : fa.monto_bs)} al {fmtDate(f.mov.fecha)}
+                              Fact {fa.numero_factura} · {fa.proveedor ?? "—"} · {fmtDateMDY(fa.fecha)} · {fmtUsd(Number(fa.usd_bcv) || 0)} USD BCV · {fmtBs(Number(fa.usd_bcv) > 0 ? Number(fa.usd_bcv) * Number(f.mov.tasa_bcv) : fa.monto_bs)} al {fmtDateMDY(f.mov.fecha)}
                             </span>
                           ))}
                           {f.facturas.length > 1 && (
@@ -1110,7 +1110,7 @@ function MovimientosBancariosPage() {
                     <p className="text-xs text-muted-foreground">{lista.length} movimiento(s)</p>
                     {lista.slice(0, 3).map((p) => (
                       <p key={p.movId} className="truncate text-xs text-muted-foreground">
-                        · {fmtDate(p.fila.mov.fecha)} — {fmtBs(Math.abs(Number(p.fila.mov.monto_bs)))} — {p.motivo}
+                        · {fmtDateMDY(p.fila.mov.fecha)} — {fmtBs(Math.abs(Number(p.fila.mov.monto_bs)))} — {p.motivo}
                       </p>
                     ))}
                   </div>
@@ -1133,6 +1133,7 @@ function MovimientosBancariosPage() {
 
       {editando && (
         <EditDialog
+          fechaFmt={fmtDateMDY}
           tx={editando}
           onClose={() => setEditando(null)}
           onSaved={async () => { setEditando(null); await recargarDatos(); }}
