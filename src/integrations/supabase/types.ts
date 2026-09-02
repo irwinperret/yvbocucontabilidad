@@ -792,6 +792,36 @@ export type Database = {
         }
         Relationships: []
       }
+      iris_pendientes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          estado: string
+          id: string
+          resuelta_at: string | null
+          resuelta_by: string | null
+          texto: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          id?: string
+          resuelta_at?: string | null
+          resuelta_by?: string | null
+          texto: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          estado?: string
+          id?: string
+          resuelta_at?: string | null
+          resuelta_by?: string | null
+          texto?: string
+        }
+        Relationships: []
+      }
       plan_de_cuentas: {
         Row: {
           activa: boolean
