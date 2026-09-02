@@ -20,7 +20,17 @@ export type LineasFCMes = {
 export const CUENTA_INGRESO_CREDITO = "1.4";
 export const CUENTA_COBRO_CREDITO = "1.5";
 export const CUENTAS_INGRESO_GYP = ["1.1", "1.2", "1.3", "1.4", "1.6", "1.7", "1.8"];
-export const CUENTAS_COGS = ["2.1", "2.2"];
+// OJO: solo "2.2" (el ajuste de COGS que crea un cierre formal, o el
+// estimado equivalente para meses abiertos) -- NO "2.1" (Compras).
+// Antes se sumaban ambas cuentas para meses ya cerrados, lo que contaba
+// las compras del mes DOS veces: una como "2.1" crudo y otra ya neteada
+// dentro de "2.2" (Inicial + Compras - Final). Eso inflaba el COGS usado
+// en el EBITDA a casi el doble, y además hacia que la fila "Cambios en
+// Inventario" (que ya reconcilia esa misma diferencia entre compras y
+// COGS real) se sumara una segunda vez sobre un EBITDA que ya la traía
+// implícita -- el bug reportado como "el EBITDA sale negativo en casi
+// todos los meses y no hay coherencia" en Flujo de Caja > Comparativo mensual.
+export const CUENTAS_COGS = ["2.2"];
 export const CUENTA_PAGO_CXP = "8.2";
 export const CUENTA_CAPEX = "5.6";
 export const CUENTA_CAPITAL = "5.5";
