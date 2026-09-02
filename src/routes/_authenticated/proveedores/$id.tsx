@@ -496,6 +496,55 @@ function TableroProveedor() {
     await qc.invalidateQueries({ queryKey: ["mov-bancarios"] });
   };
 
+  const abrirCierre = (lista: any[]) => {
+    if (!lista.length) return;
+    setCierreForm({ motivo: MOTIVOS_CIERRE_MANUAL[0], nota: "", fecha: new Date().toISOString().slice(0, 10) });
+    setCierreAbierto(lista);
+  };
+
+  const confirmarCierre = async () => {
+    if (!cierreAbierto?.length) return;
+    setBusy(true);
+    try {
+      for (const c of cierreAbierto) {
+        const r = await cerrarCxpSinMovimiento({
+          cxp: c,
+          motivo: cierreForm.motivo,
+          nota: cierreForm.nota.trim() || null,
+          fecha: cierreForm.fecha,
+          userId: user?.id ?? null,
+        });
+        if (!r.ok) throw new Error(r.error);
+      }
+      toast.success(
+        cierreAbierto.length === 1
+          ? "Factura marcada como pagada sin movimiento"
+          : `${cierreAbierto.length} facturas marcadas como pagadas sin movimiento`,
+      );
+      setCierreAbierto(null);
+      setSelCierre([]);
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo cerrar la factura");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deshacerCierre = async (c: any) => {
+    setBusy(true);
+    try {
+      const r = await reabrirCxpCerradaManual(c);
+      if (!r.ok) throw new Error(r.error);
+      toast.success("Cierre manual deshecho — la factura vuelve a estar pendiente");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo deshacer el cierre");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /** Estado manual actual de un movimiento (vínculo sin factura, si existe). */
   const estadoManualDeMov = (movId: string): EstadoManual | null => {
     const v = (vinculos ?? []).find((x: any) => x.transaccion_bancaria_id === movId && !x.transaccion_factura_id);
