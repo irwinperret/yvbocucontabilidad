@@ -180,6 +180,33 @@ function TableroProveedor() {
     nota: "",
     fecha: new Date().toISOString().slice(0, 10),
   });
+  /** "Pendientes" | "cerradas" | "todas" — qué mostrar en la bandeja de facturas sin movimiento. */
+  const [filtroFacturas, setFiltroFacturas] = useState<"pendientes" | "cerradas" | "todas">("pendientes");
+
+  // El cierre manual de facturas es una escritura sensible (cierra una CxP sin
+  // que exista un movimiento bancario real detrás) — igual que el resto de
+  // escrituras "administrativas" del sistema (reapertura de mes, purgas de
+  // importación), se restringe a usuarios con el rol admin.
+  const { data: isAdmin = false } = useQuery({
+    queryKey: ["is-admin", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await supabase.rpc("has_role", { _user_id: user!.id, _role: "admin" });
+      return !!data;
+    },
+  });
+  const { data: profiles } = useQuery({
+    queryKey: ["profiles-emails"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("id,email");
+      return data ?? [];
+    },
+  });
+  const emailById = useMemo(() => {
+    const m: Record<string, string> = {};
+    (profiles ?? []).forEach((p: any) => { m[p.id] = p.email; });
+    return m;
+  }, [profiles]);
 
 
 
@@ -431,6 +458,15 @@ function TableroProveedor() {
     const em = emisionDeCxp(c) ?? c.fecha_vencimiento;
     if (!em) return false;
     return (Date.now() - new Date(`${String(em).slice(0, 10)}T12:00:00`).getTime()) / 86400000 > 90;
+  };
+
+  /** "Motivo · usuario · fecha" de un cierre manual — usado en la tarjeta y en el Excel. */
+  const cierreManualInfo = (c: any) => {
+    if (!c?.cierre_manual) return "";
+    const quien = c.cierre_manual_por ? emailById[c.cierre_manual_por] ?? c.cierre_manual_por : "—";
+    const cuando = c.cierre_manual_fecha ? fmtDate(c.cierre_manual_fecha) : "—";
+    const motivo = c.cierre_manual_motivo ?? "Otro";
+    return `${motivo} / ${quien} / ${cuando}`;
   };
 
   /** Bs de la factura valorados a la tasa BCV del día del pago. */
@@ -774,6 +810,21 @@ function TableroProveedor() {
       aplicado: 0,
       remanente: pendienteBsHistorico(c),
       facturas: "",
+      cierreManual: "",
+    }));
+    const cerradasManual = facturasCerradasManual.map((c) => ({
+      tipo: "Pagada sin movimiento",
+      fecha: emisionDeCxp(c) ? fmtDate(emisionDeCxp(c) as string) : "—",
+      banco: "—",
+      referencia: c.numero_factura ?? "s/n",
+      concepto: c.proveedor ?? "",
+      bs: Number(c.monto_bs) || 0,
+      usd: usdBcvFactura(c),
+      estado: "pagada",
+      aplicado: 0,
+      remanente: 0,
+      facturas: "",
+      cierreManual: cierreManualInfo(c),
     }));
 
     await exportTableToExcel({
@@ -791,8 +842,9 @@ function TableroProveedor() {
         { header: "Aplicado Bs", key: "aplicado", width: 16, fmt: "bs" },
         { header: "Sin aplicar / Pendiente Bs", key: "remanente", width: 22, fmt: "bs" },
         { header: "Facturas asignadas", key: "facturas", width: 60 },
+        { header: "Cierre manual (motivo / usuario / fecha)", key: "cierreManual", width: 40 },
       ],
-      rows: [...filas, ...sinMov],
+      rows: [...filas.map((f) => ({ ...f, cierreManual: "" })), ...sinMov, ...cerradasManual],
     });
     toast.success("Excel generado");
   };
@@ -906,6 +958,13 @@ function TableroProveedor() {
           <CardContent className="p-3">
             <div className="text-xs text-muted-foreground">Facturas sin movimiento (USD BCV)</div>
             <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvFacturasSinMov)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">Cerradas a mano — sin movimiento (USD BCV)</div>
+            <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvCierreManual)}</div>
+            <div className="text-[10px] text-muted-foreground">{facturasCerradasManual.length} factura(s)</div>
           </CardContent>
         </Card>
 
@@ -1070,51 +1129,138 @@ function TableroProveedor() {
           </Card>
 
           <Card id="bandeja-facturas">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                Facturas sin movimiento <Badge variant="destructive">{facturasSinMov.length}</Badge>
-              </CardTitle>
+            <CardHeader className="pb-2 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">
+                  Facturas sin movimiento <Badge variant="destructive">{facturasSinMov.length}</Badge>
+                </CardTitle>
+                <Select value={filtroFacturas} onValueChange={(v) => setFiltroFacturas(v as typeof filtroFacturas)}>
+                  <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendientes">Pendientes ({facturasSinMov.length})</SelectItem>
+                    <SelectItem value="cerradas">Pagadas sin movimiento ({facturasCerradasManual.length})</SelectItem>
+                    <SelectItem value="todas">Todas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {isAdmin && selCierre.length > 0 && (
+                <div className="flex items-center gap-2 text-xs bg-muted/50 rounded-md px-2 py-1.5">
+                  <span>{selCierre.length} factura(s) seleccionada(s)</span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7"
+                    onClick={() => abrirCierre(facturasSinMov.filter((c) => selCierre.includes(c.id)))}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar seleccionadas como pagadas (sin movimiento)
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setSelCierre([])}>
+                    Cancelar selección
+                  </Button>
+                </div>
+              )}
             </CardHeader>
-            <CardContent>
-              <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-md p-2">
-                {facturasSinMov.length === 0 && (
-                  <p className="text-xs text-muted-foreground">Todas las facturas tienen movimiento asignado.</p>
-                )}
-                {facturasSinMov.map((c) => (
-                  <div key={c.id} className="space-y-1">
-                    <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined} />
-                    <div className="flex gap-2">
-                      <Select onValueChange={(v) => moverFactura(c.id, v)}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Asignar a movimiento…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {movsDelProveedor.map((mv) => (
-                            <SelectItem key={mv.id} value={mv.id}>
-                              {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={c.tercero_id ?? "none"}
-                        onValueChange={(v) => cambiarProveedorFactura(c, v === "none" ? null : v)}
+            <CardContent className="space-y-4">
+              {(filtroFacturas === "pendientes" || filtroFacturas === "todas") && (
+                <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-md p-2">
+                  {facturasSinMov.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Todas las facturas tienen movimiento asignado.</p>
+                  )}
+                  {facturasSinMov.map((c) => {
+                    const antigua = esAntigua(c);
+                    return (
+                      <div
+                        key={c.id}
+                        className={`space-y-1 ${antigua ? "border border-amber-500/50 bg-amber-500/5 rounded-md p-1.5" : ""}`}
                       >
-                        <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Proveedor" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sin proveedor</SelectItem>
-                          {(terceros ?? []).map((t) => (
-                            <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV
-                    </div>
+                        <div className="flex items-start gap-1.5">
+                          {isAdmin && (
+                            <Checkbox
+                              className="mt-1.5"
+                              checked={selCierre.includes(c.id)}
+                              onCheckedChange={(v) =>
+                                setSelCierre((s) => (v ? [...s, c.id] : s.filter((x) => x !== c.id)))
+                              }
+                            />
+                          )}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined} />
+                            {antigua && (
+                              <div className="flex items-center gap-1 text-[10px] text-amber-600">
+                                <AlertTriangle className="h-3 w-3" />Más de 90 días sin movimiento — candidata a cierre manual
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Select onValueChange={(v) => moverFactura(c.id, v)}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Asignar a movimiento…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {movsDelProveedor.map((mv) => (
+                                <SelectItem key={mv.id} value={mv.id}>
+                                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={c.tercero_id ?? "none"}
+                            onValueChange={(v) => cambiarProveedorFactura(c, v === "none" ? null : v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Proveedor" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sin proveedor</SelectItem>
+                              {(terceros ?? []).map((t) => (
+                                <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              disabled={busy}
+                              onClick={() => abrirCierre([c])}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como pagada (sin movimiento)
+                            </Button>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV
+                        </div>
+                      </div>
+                    );
+                  })}
+                </Zona>
+              )}
+
+              {(filtroFacturas === "cerradas" || filtroFacturas === "todas") && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Pagadas sin movimiento ({facturasCerradasManual.length})
                   </div>
-                ))}
-              </Zona>
+                  {facturasCerradasManual.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No hay facturas cerradas a mano.</p>
+                  )}
+                  {facturasCerradasManual.map((c) => (
+                    <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs">
+                      <Badge variant="outline" className="text-emerald-600 border-emerald-600/40">Pagada sin movimiento</Badge>
+                      <span className="font-medium">Fact. {c.numero_factura ?? "s/n"}</span>
+                      <span className="mono text-muted-foreground">{fmtUsd(usdBcvFactura(c))} BCV</span>
+                      <span className="text-muted-foreground flex-1 min-w-0 truncate">{cierreManualInfo(c)}</span>
+                      {isAdmin && (
+                        <Button size="sm" variant="ghost" className="h-7" disabled={busy} onClick={() => deshacerCierre(c)}>
+                          <RotateCcw className="h-3.5 w-3.5 mr-1" />Deshacer cierre manual
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -1133,6 +1279,63 @@ function TableroProveedor() {
           onSaved={async () => { setEditandoMov(null); await refrescar(); }}
         />
       )}
+      <Dialog open={!!cierreAbierto} onOpenChange={(v) => { if (!v) setCierreAbierto(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {cierreAbierto && cierreAbierto.length > 1
+                ? `Marcar ${cierreAbierto.length} facturas como pagadas (sin movimiento)`
+                : "Marcar como pagada (sin movimiento)"}
+            </DialogTitle>
+            <DialogDescription>
+              La factura queda en estado Pagada con saldo cero, sin crear ninguna transacción de pago — no afecta G&amp;P ni
+              flujo de caja. Úsalo cuando el pago ya ocurrió pero su movimiento bancario nunca va a aparecer (efectivo,
+              compensación, cuenta no conciliada, factura anulada).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {cierreAbierto && cierreAbierto.length > 1 && (
+              <div className="text-xs text-muted-foreground border rounded-md p-2 max-h-28 overflow-y-auto">
+                {cierreAbierto.map((c) => (
+                  <div key={c.id}>Fact. {c.numero_factura ?? "s/n"} · {fmtUsd(usdBcvFactura(c))} BCV</div>
+                ))}
+              </div>
+            )}
+            <div>
+              <Label className="text-xs">Motivo</Label>
+              <Select value={cierreForm.motivo} onValueChange={(v) => setCierreForm({ ...cierreForm, motivo: v })}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MOTIVOS_CIERRE_MANUAL.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Fecha del pago</Label>
+              <Input
+                type="date"
+                value={cierreForm.fecha}
+                onChange={(e) => setCierreForm({ ...cierreForm, fecha: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Nota (opcional)</Label>
+              <Textarea
+                value={cierreForm.nota}
+                onChange={(e) => setCierreForm({ ...cierreForm, nota: e.target.value })}
+                placeholder="Detalle adicional…"
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCierreAbierto(null)} disabled={busy}>Cancelar</Button>
+            <Button onClick={confirmarCierre} disabled={busy}>Confirmar cierre</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
