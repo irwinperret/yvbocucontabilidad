@@ -531,6 +531,12 @@ export type Database = {
       cuentas_por_pagar: {
         Row: {
           centro_costo: Database["public"]["Enums"]["centro_costo"] | null
+          cierre_manual: boolean
+          cierre_manual_at: string | null
+          cierre_manual_fecha: string | null
+          cierre_manual_motivo: string | null
+          cierre_manual_nota: string | null
+          cierre_manual_por: string | null
           created_at: string
           estado: string
           fecha_vencimiento: string | null
@@ -558,6 +564,12 @@ export type Database = {
         }
         Insert: {
           centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
+          cierre_manual?: boolean
+          cierre_manual_at?: string | null
+          cierre_manual_fecha?: string | null
+          cierre_manual_motivo?: string | null
+          cierre_manual_nota?: string | null
+          cierre_manual_por?: string | null
           created_at?: string
           estado?: string
           fecha_vencimiento?: string | null
@@ -585,6 +597,12 @@ export type Database = {
         }
         Update: {
           centro_costo?: Database["public"]["Enums"]["centro_costo"] | null
+          cierre_manual?: boolean
+          cierre_manual_at?: string | null
+          cierre_manual_fecha?: string | null
+          cierre_manual_motivo?: string | null
+          cierre_manual_nota?: string | null
+          cierre_manual_por?: string | null
           created_at?: string
           estado?: string
           fecha_vencimiento?: string | null
