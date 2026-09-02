@@ -50,6 +50,21 @@ function ProveedoresPage() {
     setEditandoNombreId(null);
     qc.invalidateQueries({ queryKey: ["proveedores"] });
   };
+  // Proveedores sin RIF — se resaltan en el listado y se pueden completar
+  // ahí mismo, sin abrir un formulario aparte.
+  const [editandoRifId, setEditandoRifId] = useState<string | null>(null);
+  const [rifEdit, setRifEdit] = useState({ tipo_rif: "J", rif: "" });
+  const guardarRifInline = async (id: string) => {
+    if (!rifEdit.rif.trim()) return toast.error("Ingresa el RIF");
+    const { error } = await supabase
+      .from("terceros")
+      .update({ tipo_rif: rifEdit.tipo_rif, rif: rifEdit.rif.trim() } as any)
+      .eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("RIF actualizado");
+    setEditandoRifId(null);
+    qc.invalidateQueries({ queryKey: ["proveedores"] });
+  };
   const blank = {
     razon_social: "", nombre_comercial: "", tipo_rif: "J", rif: "",
     tipo: "proveedor", email: "", telefono: "", direccion_fiscal: "",
@@ -98,11 +113,14 @@ function ProveedoresPage() {
     qc.invalidateQueries({ queryKey: ["proveedores"] });
   };
 
-  const filtrados = (data ?? []).filter((t: any) =>
-    !busca ||
-    t.razon_social?.toLowerCase().includes(busca.toLowerCase()) ||
-    t.rif?.includes(busca)
-  );
+  const filtrados = (data ?? [])
+    .filter((t: any) =>
+      !busca ||
+      t.razon_social?.toLowerCase().includes(busca.toLowerCase()) ||
+      t.rif?.includes(busca)
+    )
+    .sort((a: any, b: any) => Number(!a.rif) - Number(!b.rif) || String(a.razon_social).localeCompare(String(b.razon_social)));
+  const sinRifCount = (data ?? []).filter((t: any) => !t.rif).length;
 
   return (
     <div className="space-y-6">
@@ -147,7 +165,14 @@ function ProveedoresPage() {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center gap-4">
-            <CardTitle className="text-base">Listado</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              Listado
+              {sinRifCount > 0 && (
+                <Badge variant="outline" className="text-amber-600 border-amber-600/40 font-normal">
+                  {sinRifCount} sin RIF
+                </Badge>
+              )}
+            </CardTitle>
             <Button asChild variant="outline" size="sm">
               <Link to="/proveedores/$id" params={{ id: "sin-proveedor" }}>
                 <Inbox className="h-4 w-4 mr-1" />Sin proveedor
@@ -216,7 +241,39 @@ function ProveedoresPage() {
                         )}
                       </td>
                       <td className="py-2 px-2 mono text-xs">
-                        {t.estado_registro === "candidato" ? <span className="text-muted-foreground">— sin RIF —</span> : `${t.tipo_rif}-${t.rif}`}
+                        {editandoRifId === t.id ? (
+                          <div className="flex items-center gap-1">
+                            <Select value={rifEdit.tipo_rif} onValueChange={(v) => setRifEdit((s) => ({ ...s, tipo_rif: v }))}>
+                              <SelectTrigger className="h-7 w-14"><SelectValue /></SelectTrigger>
+                              <SelectContent>{["J","V","E","G"].map((tv) => <SelectItem key={tv} value={tv}>{tv}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <Input
+                              autoFocus
+                              value={rifEdit.rif}
+                              onChange={(e) => setRifEdit((s) => ({ ...s, rif: e.target.value }))}
+                              onKeyDown={(e) => { if (e.key === "Enter") guardarRifInline(t.id); if (e.key === "Escape") setEditandoRifId(null); }}
+                              placeholder="RIF"
+                              className="h-7 w-24"
+                            />
+                            <Button size="sm" className="h-7 px-2" onClick={() => guardarRifInline(t.id)}>Guardar</Button>
+                            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditandoRifId(null)}>Cancelar</Button>
+                          </div>
+                        ) : !t.rif ? (
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="text-amber-600 border-amber-600/40">Sin RIF</Badge>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6"
+                              title="Agregar RIF"
+                              onClick={() => { setEditandoRifId(t.id); setRifEdit({ tipo_rif: t.tipo_rif || "J", rif: "" }); }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          `${t.tipo_rif}-${t.rif}`
+                        )}
                       </td>
                       <td className="py-2 px-2">{t.tipo}</td>
                       <td className="py-2 px-2 text-xs text-muted-foreground">{ORIGEN_LABEL[t.origen_registro] ?? "—"}</td>
