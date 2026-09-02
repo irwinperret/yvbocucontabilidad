@@ -30,7 +30,20 @@ import {
   esPagoDirecto,
   liberarPagoDirecto,
   reasignarPagoDirecto,
+  cerrarCxpSinMovimiento,
+  reabrirCxpCerradaManual,
+  MOTIVOS_CIERRE_MANUAL,
 } from "@/lib/pareo-cxp";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib/cxp-saldo";
 import { bancoDeReferencia } from "@/lib/conciliacion-matching";
 import { CUENTA_CAMBIO } from "@/lib/operaciones-cambio";
