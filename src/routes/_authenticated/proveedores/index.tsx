@@ -113,13 +113,11 @@ function ProveedoresPage() {
     qc.invalidateQueries({ queryKey: ["proveedores"] });
   };
 
-  const filtrados = (data ?? [])
-    .filter((t: any) =>
-      !busca ||
-      t.razon_social?.toLowerCase().includes(busca.toLowerCase()) ||
-      t.rif?.includes(busca)
-    )
-    .sort((a: any, b: any) => Number(!a.rif) - Number(!b.rif) || String(a.razon_social).localeCompare(String(b.razon_social)));
+  const filtrados = (data ?? []).filter((t: any) =>
+    !busca ||
+    t.razon_social?.toLowerCase().includes(busca.toLowerCase()) ||
+    t.rif?.includes(busca)
+  );
   const sinRifCount = (data ?? []).filter((t: any) => !t.rif).length;
 
   return (
@@ -198,7 +196,7 @@ function ProveedoresPage() {
                 </thead>
                 <tbody>
                   {filtrados.map((t: any) => (
-                    <tr key={t.id} className={`border-b last:border-0 ${!t.rif ? "bg-amber-500/10" : ""}`}>
+                    <tr key={t.id} className="border-b last:border-0">
                       <td className="py-2 px-2">
                         {editandoNombreId === t.id ? (
                           <div className="flex items-center gap-1">
