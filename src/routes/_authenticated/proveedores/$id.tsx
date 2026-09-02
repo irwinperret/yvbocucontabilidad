@@ -93,6 +93,7 @@ function FacturaChip({
   onQuitar,
   disabled,
   onEditar,
+  movimientosCount,
 }: {
   cxp: any;
   emision?: string;
@@ -100,6 +101,8 @@ function FacturaChip({
   onQuitar?: () => void;
   disabled?: boolean;
   onEditar?: () => void;
+  /** Cantidad de movimientos distintos a los que está vinculada esta factura (pago dividido). */
+  movimientosCount?: number;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `cxp:${cxp.id}`, disabled });
   // "Aplicado" se guarda internamente en Bs; se muestra en USD BCV usando la
@@ -139,6 +142,11 @@ function FacturaChip({
         ) : (
           <Badge variant={cxp.estado === "pagada" ? "secondary" : cxp.estado === "parcial" ? "default" : "outline"}>
             {cxp.estado === "pagada" ? "Pagada" : cxp.estado === "parcial" ? "Parcial" : "Pendiente"}
+          </Badge>
+        )}
+        {typeof movimientosCount === "number" && movimientosCount > 1 && (
+          <Badge variant="outline" className="text-indigo-600 border-indigo-600/40">
+            Dividida entre {movimientosCount} movimientos
           </Badge>
         )}
       </span>
@@ -432,6 +440,22 @@ function TableroProveedor() {
   }, [movsDelProveedor, movAFacturas, cxps, fechaEmisionPorFactura]);
 
   const cxpsDeMov = (movId: string) => cxpsPorMov.get(movId) ?? [];
+
+  /**
+   * cxpId -> cantidad de movimientos distintos a los que está vinculada.
+   * Una factura grande se puede dividir entre varios pagos (ver
+   * agregarFacturaAOtroMovimiento) — cuando el conteo es mayor a 1 se
+   * muestra el badge "Dividida entre N movimientos" en su tarjeta.
+   */
+  const movimientosPorFactura = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const mv of movsDelProveedor) {
+      for (const c of cxpsDeMov(mv.id)) {
+        m.set(c.id, (m.get(c.id) ?? 0) + 1);
+      }
+    }
+    return m;
+  }, [movsDelProveedor, cxpsPorMov]);
 
   /** Facturas que no están asignadas a ningún movimiento del proveedor. */
   const facturasSinMovTodas = useMemo(() => {
@@ -1086,6 +1110,7 @@ function TableroProveedor() {
                             disabled={busy}
                             onQuitar={() => moverFactura(c.id, null)}
                             onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
+                            movimientosCount={movimientosPorFactura.get(c.id)}
                           />
                         ))
                       )}
