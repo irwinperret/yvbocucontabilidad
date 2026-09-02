@@ -1068,7 +1068,7 @@ function TableroProveedor() {
         <div className="grid gap-4 lg:grid-cols-[2fr_1fr_1fr] items-start">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">
+              <CardTitle className="text-lg">
                 Movimientos bancarios <Badge variant="secondary">{movsFiltrados.length}</Badge>
               </CardTitle>
             </CardHeader>
@@ -1220,7 +1220,7 @@ function TableroProveedor() {
           <Card id="bandeja-facturas">
             <CardHeader className="pb-2 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">
+                <CardTitle className="text-lg">
                   Facturas sin movimiento <Badge variant="destructive">{facturasSinMov.length}</Badge>
                 </CardTitle>
                 <Select value={filtroFacturas} onValueChange={(v) => setFiltroFacturas(v as typeof filtroFacturas)}>
@@ -1344,7 +1344,7 @@ function TableroProveedor() {
 
           <Card id="pagadas-sin-movimiento">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">
+              <CardTitle className="text-lg">
                 Pagadas sin movimiento <Badge variant="secondary">{facturasCerradasManual.length}</Badge>
               </CardTitle>
               <p className="text-[11px] text-muted-foreground">
