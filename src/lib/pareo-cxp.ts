@@ -53,6 +53,8 @@ export type ResultadoPareo = {
 export async function sincronizarCxpDesdeVinculos(facturaId: string): Promise<void> {
   const { data: cxp } = await supabase.from("cuentas_por_pagar").select("*").eq("id", facturaId).maybeSingle();
   if (!cxp) return;
+  // Una factura cerrada a mano (pagada sin movimiento bancario) no se recalcula.
+  if ((cxp as any).cierre_manual) return;
 
   const montoOriginalUsdBcv = Number((cxp as any).usd_bcv_factura ?? (cxp as any).monto_usd) || 0;
   if (montoOriginalUsdBcv <= 0) return; // sin base para comparar, no se toca
