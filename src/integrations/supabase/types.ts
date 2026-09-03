@@ -1184,6 +1184,7 @@ export type Database = {
           direccion_fiscal: string | null
           email: string | null
           estado_registro: string
+          factura_en_usd_paralelo: boolean
           id: string
           nombre_comercial: string | null
           origen_registro: string
@@ -1199,6 +1200,7 @@ export type Database = {
           direccion_fiscal?: string | null
           email?: string | null
           estado_registro?: string
+          factura_en_usd_paralelo?: boolean
           id?: string
           nombre_comercial?: string | null
           origen_registro?: string
@@ -1214,6 +1216,7 @@ export type Database = {
           direccion_fiscal?: string | null
           email?: string | null
           estado_registro?: string
+          factura_en_usd_paralelo?: boolean
           id?: string
           nombre_comercial?: string | null
           origen_registro?: string
