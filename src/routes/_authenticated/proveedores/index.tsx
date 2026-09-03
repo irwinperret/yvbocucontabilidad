@@ -219,6 +219,11 @@ function ProveedoresPage() {
                             >
                               {t.razon_social}
                             </Link>
+                            {t.factura_en_usd_paralelo && (
+                              <Badge variant="outline" className="ml-2 text-[10px] text-red-600 border-red-600/40">
+                                Facturas Xetux en USD paralelo (no BCV)
+                              </Badge>
+                            )}
                             {t.estado_registro === "candidato" && (
                               <>
                                 <Badge variant="outline" className="ml-2 text-[10px] text-amber-600 border-amber-600/40">
@@ -235,6 +240,7 @@ function ProveedoresPage() {
                                 </Button>
                               </>
                             )}
+
                           </>
                         )}
                       </td>
