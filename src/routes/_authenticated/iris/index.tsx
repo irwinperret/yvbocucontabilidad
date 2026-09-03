@@ -66,7 +66,21 @@ function IrisPage() {
         prev.total += pendienteUsdBcv(c);
         porTercero.set(c.tercero_id, prev);
       }
-      return Array.from(porTercero, ([tercero_id, v]) => ({ tercero_id, ...v }))
+      const terceroIds = Array.from(porTercero.keys());
+      let paraleloIds = new Set<string>();
+      if (terceroIds.length) {
+        const { data: terceros } = await (supabase.from as any)("terceros")
+          .select("id, factura_en_usd_paralelo")
+          .in("id", terceroIds);
+        paraleloIds = new Set(
+          (terceros ?? []).filter((t: any) => t.factura_en_usd_paralelo).map((t: any) => t.id),
+        );
+      }
+      return Array.from(porTercero, ([tercero_id, v]) => ({
+        tercero_id,
+        ...v,
+        facturaEnUsdParalelo: paraleloIds.has(tercero_id),
+      }))
         .filter((p) => p.total > 0.01)
         .sort((a, b) => b.total - a.total);
     },
@@ -144,9 +158,16 @@ function IrisPage() {
                 key={p.tercero_id}
                 to="/proveedores/$id"
                 params={{ id: p.tercero_id }}
-                className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
+                className={`flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors ${p.facturaEnUsdParalelo ? "bg-red-500/10" : ""}`}
               >
-                <span className="font-medium">{p.nombre}</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium">{p.nombre}</span>
+                  {p.facturaEnUsdParalelo && (
+                    <Badge variant="outline" className="text-[10px] text-red-600 border-red-600/40">
+                      Facturas Xetux en USD paralelo (no BCV)
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="mono text-sm font-semibold">{fmtUsd(p.total)}</span>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
