@@ -59,6 +59,9 @@ type Pendiente = {
   created_by: string | null;
   resuelta_at: string | null;
   orden: number | null;
+  seguimiento: string | null;
+  seguimiento_updated_at: string | null;
+  seguimiento_by: string | null;
 };
 
 /** Fila arrastrable de una nota abierta — soltarla sobre otra reordena la lista (prioridad). */
@@ -79,7 +82,77 @@ function NotaDraggable({ id, children }: { id: string; children: React.ReactNode
       >
         <GripVertical className="h-3.5 w-3.5" />
       </span>
-      <div className="flex-1 min-w-0 flex items-start justify-between gap-3">{children}</div>
+      <div className="flex-1 min-w-0 space-y-2">{children}</div>
+    </div>
+  );
+}
+
+/** Bloque de "Seguimiento" de una nota — cualquiera del equipo puede leerlo y editarlo. */
+function SeguimientoBlock({
+  p,
+  editandoId,
+  valor,
+  guardando,
+  onIniciar,
+  onCambiar,
+  onGuardar,
+  onCancelar,
+}: {
+  p: Pendiente;
+  editandoId: string | null;
+  valor: string;
+  guardando: boolean;
+  onIniciar: (p: Pendiente) => void;
+  onCambiar: (v: string) => void;
+  onGuardar: (id: string) => void;
+  onCancelar: () => void;
+}) {
+  const enEdicion = editandoId === p.id;
+
+  if (enEdicion) {
+    return (
+      <div className="pl-2.5 border-l-2 border-muted space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">Seguimiento</p>
+        <Textarea
+          value={valor}
+          onChange={(e) => onCambiar(e.target.value)}
+          placeholder="Avance, contexto o cómo se resolvió…"
+          className="min-h-[50px] text-sm resize-y"
+          autoFocus
+        />
+        <div className="flex gap-1.5">
+          <Button size="sm" onClick={() => onGuardar(p.id)} disabled={guardando}>
+            {guardando ? "…" : "Guardar"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onCancelar} disabled={guardando}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pl-2.5 border-l-2 border-muted">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-muted-foreground">Seguimiento</p>
+          {p.seguimiento ? (
+            <p className="text-sm whitespace-pre-wrap">{p.seguimiento}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">Sin seguimiento aún</p>
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => onIniciar(p)}
+          title="Editar seguimiento"
+          className="shrink-0"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -96,12 +169,15 @@ function PendientesCard() {
   const [editTexto, setEditTexto] = useState("");
   const [guardandoEdit, setGuardandoEdit] = useState(false);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
+  const [editandoSeguimientoId, setEditandoSeguimientoId] = useState<string | null>(null);
+  const [seguimientoTexto, setSeguimientoTexto] = useState("");
+  const [guardandoSeguimiento, setGuardandoSeguimiento] = useState(false);
 
   const { data: pendientes, isLoading } = useQuery({
     queryKey: ["iris-pendientes"],
     queryFn: async () => {
       const { data, error } = await (supabase.from as any)("iris_pendientes")
-        .select("id, texto, estado, created_at, created_by, resuelta_at, orden")
+        .select("id, texto, estado, created_at, created_by, resuelta_at, orden, seguimiento, seguimiento_updated_at, seguimiento_by")
         .order("orden", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
@@ -168,9 +244,11 @@ function PendientesCard() {
     qc.invalidateQueries({ queryKey: ["iris-pendientes-abiertas-count"] });
   };
 
-  // Editar y borrar están limitados (por RLS en la base) al autor de la
-  // nota — cada quien solo puede tocar lo que escribió. Marcar como
-  // resuelta sigue abierto a cualquiera del equipo, como ya era.
+  // Editar y borrar la nota están limitados (por RLS en la base) al autor
+  // de la nota — cada quien solo puede tocar lo que escribió. Marcar como
+  // resuelta sigue abierto a cualquiera del equipo, como ya era. El
+  // "Seguimiento" es distinto: cualquiera del equipo puede escribirlo o
+  // editarlo, porque su propósito es que varias personas vayan aportando ahí.
   const iniciarEdicion = (p: Pendiente) => {
     setEditandoId(p.id);
     setEditTexto(p.texto);
@@ -204,6 +282,32 @@ function PendientesCard() {
     qc.invalidateQueries({ queryKey: ["iris-pendientes-abiertas-count"] });
   };
 
+  const iniciarSeguimiento = (p: Pendiente) => {
+    setEditandoSeguimientoId(p.id);
+    setSeguimientoTexto(p.seguimiento ?? "");
+  };
+
+  const cancelarSeguimiento = () => {
+    setEditandoSeguimientoId(null);
+    setSeguimientoTexto("");
+  };
+
+  const guardarSeguimiento = async (id: string) => {
+    setGuardandoSeguimiento(true);
+    const { error } = await (supabase.from as any)("iris_pendientes")
+      .update({
+        seguimiento: seguimientoTexto.trim() || null,
+        seguimiento_updated_at: new Date().toISOString(),
+        seguimiento_by: user?.id ?? null,
+      })
+      .eq("id", id);
+    setGuardandoSeguimiento(false);
+    if (error) return toast.error(error.message || "No se pudo guardar el seguimiento");
+    toast.success("Seguimiento guardado");
+    cancelarSeguimiento();
+    qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -218,7 +322,7 @@ function PendientesCard() {
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             placeholder="Anotar algo para dar seguimiento…"
-            className="min-h-[60px]"
+            className="min-h-[60px] resize-y"
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) agregar();
             }}
@@ -241,54 +345,68 @@ function PendientesCard() {
                 const enEdicion = editandoId === p.id;
                 return (
                   <NotaDraggable key={p.id} id={p.id}>
-                    {enEdicion ? (
-                      <div className="flex-1 space-y-1.5">
-                        <Textarea
-                          value={editTexto}
-                          onChange={(e) => setEditTexto(e.target.value)}
-                          className="min-h-[50px] text-sm"
-                          autoFocus
-                        />
-                        <div className="flex gap-1.5">
-                          <Button size="sm" onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit || !editTexto.trim()}>
-                            {guardandoEdit ? "…" : "Guardar"}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardandoEdit}>
-                            Cancelar
+                    <div className="flex items-start justify-between gap-3">
+                      {enEdicion ? (
+                        <div className="flex-1 space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">Nota</p>
+                          <Textarea
+                            value={editTexto}
+                            onChange={(e) => setEditTexto(e.target.value)}
+                            className="min-h-[50px] text-sm resize-y"
+                            autoFocus
+                          />
+                          <div className="flex gap-1.5">
+                            <Button size="sm" onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit || !editTexto.trim()}>
+                              {guardandoEdit ? "…" : "Guardar"}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardandoEdit}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Nota</p>
+                          <p className="text-sm">{p.texto}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(p.created_at)}</p>
+                        </div>
+                      )}
+                      {!enEdicion && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {esAutor && (
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => borrar(p.id)}
+                                disabled={borrandoId === p.id}
+                                title="Borrar"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => resolver(p.id)} disabled={resolviendoId === p.id}>
+                            <Check className="h-3.5 w-3.5 mr-1" />
+                            {resolviendoId === p.id ? "…" : "Resuelta"}
                           </Button>
                         </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-sm">{p.texto}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(p.created_at)}</p>
-                      </div>
-                    )}
-                    {!enEdicion && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {esAutor && (
-                          <>
-                            <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => borrar(p.id)}
-                              disabled={borrandoId === p.id}
-                              title="Borrar"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
-                        )}
-                        <Button size="sm" variant="outline" onClick={() => resolver(p.id)} disabled={resolviendoId === p.id}>
-                          <Check className="h-3.5 w-3.5 mr-1" />
-                          {resolviendoId === p.id ? "…" : "Resuelta"}
-                        </Button>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                    <SeguimientoBlock
+                      p={p}
+                      editandoId={editandoSeguimientoId}
+                      valor={seguimientoTexto}
+                      guardando={guardandoSeguimiento}
+                      onIniciar={iniciarSeguimiento}
+                      onCambiar={setSeguimientoTexto}
+                      onGuardar={guardarSeguimiento}
+                      onCancelar={cancelarSeguimiento}
+                    />
                   </NotaDraggable>
                 );
               })}
@@ -311,51 +429,63 @@ function PendientesCard() {
                   const esAutor = !!user && p.created_by === user.id;
                   const enEdicion = editandoId === p.id;
                   return (
-                    <div key={p.id} className="py-2">
-                      {enEdicion ? (
-                        <div className="space-y-1.5">
-                          <Textarea
-                            value={editTexto}
-                            onChange={(e) => setEditTexto(e.target.value)}
-                            className="min-h-[50px] text-sm"
-                            autoFocus
-                          />
-                          <div className="flex gap-1.5">
-                            <Button size="sm" onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit || !editTexto.trim()}>
-                              {guardandoEdit ? "…" : "Guardar"}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardandoEdit}>
-                              Cancelar
-                            </Button>
+                    <div key={p.id} className="py-2 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        {enEdicion ? (
+                          <div className="flex-1 space-y-1.5">
+                            <p className="text-xs font-medium text-muted-foreground">Nota</p>
+                            <Textarea
+                              value={editTexto}
+                              onChange={(e) => setEditTexto(e.target.value)}
+                              className="min-h-[50px] text-sm resize-y"
+                              autoFocus
+                            />
+                            <div className="flex gap-1.5">
+                              <Button size="sm" onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit || !editTexto.trim()}>
+                                {guardandoEdit ? "…" : "Guardar"}
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardandoEdit}>
+                                Cancelar
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start justify-between gap-3">
+                        ) : (
                           <div>
+                            <p className="text-xs font-medium text-muted-foreground">Nota</p>
                             <p className="text-sm text-muted-foreground line-through">{p.texto}</p>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               Resuelta {p.resuelta_at ? fmtDate(p.resuelta_at) : ""}
                             </p>
                           </div>
-                          {esAutor && (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => borrar(p.id)}
-                                disabled={borrandoId === p.id}
-                                title="Borrar"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        {!enEdicion && esAutor && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => borrar(p.id)}
+                              disabled={borrandoId === p.id}
+                              title="Borrar"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <SeguimientoBlock
+                        p={p}
+                        editandoId={editandoSeguimientoId}
+                        valor={seguimientoTexto}
+                        guardando={guardandoSeguimiento}
+                        onIniciar={iniciarSeguimiento}
+                        onCambiar={setSeguimientoTexto}
+                        onGuardar={guardarSeguimiento}
+                        onCancelar={cancelarSeguimiento}
+                      />
                     </div>
                   );
                 })}
