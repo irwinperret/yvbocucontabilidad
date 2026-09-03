@@ -138,7 +138,7 @@ function SeguimientoBlock({
         <div className="min-w-0">
           <p className="text-xs font-medium text-muted-foreground">Seguimiento</p>
           {p.seguimiento ? (
-            <p className="text-sm whitespace-pre-wrap">{p.seguimiento}</p>
+            <p className="text-sm whitespace-pre-wrap text-[#534AB7]">{p.seguimiento}</p>
           ) : (
             <p className="text-xs text-muted-foreground italic">Sin seguimiento aún</p>
           )}
