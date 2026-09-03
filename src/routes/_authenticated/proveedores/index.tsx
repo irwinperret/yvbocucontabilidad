@@ -65,7 +65,19 @@ function ProveedoresPage() {
     setEditandoRifId(null);
     qc.invalidateQueries({ queryKey: ["proveedores"] });
   };
+  // Proveedores cuyas facturas de Xetux vienen en USD paralelo (no BCV).
+  const toggleParalelo = async (t: any) => {
+    const nuevo = !t.factura_en_usd_paralelo;
+    const { error } = await supabase
+      .from("terceros")
+      .update({ factura_en_usd_paralelo: nuevo } as any)
+      .eq("id", t.id);
+    if (error) return toast.error(error.message);
+    toast.success(nuevo ? "Sus facturas Xetux se registrarán en USD paralelo" : "Sus facturas Xetux se registrarán en USD BCV");
+    qc.invalidateQueries({ queryKey: ["proveedores"] });
+  };
   const blank = {
+
     razon_social: "", nombre_comercial: "", tipo_rif: "J", rif: "",
     tipo: "proveedor", email: "", telefono: "", direccion_fiscal: "",
   };
