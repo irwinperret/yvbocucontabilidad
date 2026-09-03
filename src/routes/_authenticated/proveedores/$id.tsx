@@ -1340,8 +1340,8 @@ function TableroProveedor() {
                   </div>
 
                   <div className="space-y-2 pt-2 border-t">
-                    <p className="text-[10px] font-medium text-amber-600 uppercase tracking-wide flex items-center gap-1">
-                      <Clock className="h-3 w-3" />En espera de movimiento ({facturasEnEspera.length})
+                    <p className="text-sm font-bold text-amber-600 uppercase tracking-wide flex items-center gap-1.5">
+                      <Clock className="h-4 w-4" />En espera de movimiento ({facturasEnEspera.length})
                     </p>
                     {facturasEnEspera.length === 0 && (
                       <p className="text-xs text-muted-foreground">No hay facturas marcadas en espera de movimiento.</p>
