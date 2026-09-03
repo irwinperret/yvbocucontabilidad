@@ -59,6 +59,8 @@ export function ConciliacionPendienteCard() {
         </div>
         <Link
           to="/movimientos-bancarios"
+          search={{} as any}
+
           className="text-sm font-semibold px-3 py-1.5 rounded bg-amber-600 text-white hover:bg-amber-700 whitespace-nowrap"
         >
           Revisar →
