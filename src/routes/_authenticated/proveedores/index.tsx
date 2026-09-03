@@ -283,12 +283,22 @@ function ProveedoresPage() {
                       <td className="py-2 px-2 text-xs text-muted-foreground">{ORIGEN_LABEL[t.origen_registro] ?? "—"}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.email ?? "—"}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.telefono ?? "—"}</td>
-                      <td className="py-2 px-2 text-right">
+                      <td className="py-2 px-2 text-right whitespace-nowrap">
+                        <Button
+                          size="sm"
+                          variant={t.factura_en_usd_paralelo ? "destructive" : "outline"}
+                          className="h-7 px-2 mr-1 text-xs"
+                          title="Marca si las facturas Xetux de este proveedor vienen en dólares paralelo en lugar de BCV"
+                          onClick={() => toggleParalelo(t)}
+                        >
+                          {t.factura_en_usd_paralelo ? "USD paralelo" : "USD BCV"}
+                        </Button>
                         <DeleteButton
                           detail={`${t.razon_social} · ${t.tipo_rif}-${t.rif}`}
                           onConfirm={() => eliminar(t)}
                         />
                       </td>
+
                     </tr>
                   ))}
                 </tbody>
