@@ -101,7 +101,7 @@ function IrisPage() {
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <StickyNote className="h-5 w-5 text-muted-foreground" />
-              <div className="font-medium">Notas</div>
+              <div className="text-lg font-bold text-[#534AB7]">Notas</div>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant={pendientesAbiertosCount ? "destructive" : "secondary"}>
@@ -119,7 +119,7 @@ function IrisPage() {
             <div className="flex items-center gap-3">
               <ArrowLeftRight className="h-5 w-5 text-muted-foreground" />
               <div>
-                <div className="font-medium">Movimientos bancarios sin proveedor</div>
+                <div className="text-lg font-bold text-[#534AB7]">Movimientos bancarios sin proveedor</div>
                 <p className="text-xs text-muted-foreground">Confirmar que son efectivamente Gasto Stand-Alone</p>
               </div>
             </div>
@@ -135,7 +135,7 @@ function IrisPage() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Proveedores — de mayor a menor CxP pendiente</CardTitle>
+          <CardTitle className="text-lg text-[#534AB7]">Proveedores — de mayor a menor CxP pendiente</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
