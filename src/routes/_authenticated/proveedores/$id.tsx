@@ -1044,6 +1044,12 @@ function TableroProveedor() {
           <Button size="sm" variant="outline" onClick={abrirRegistro}>Registrar oficialmente</Button>
         )}
       </div>
+      {proveedorActual?.factura_en_usd_paralelo && (
+        <div className="flex items-center gap-2 rounded-md border border-red-600/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-600">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Las facturas de Xetux de este proveedor se registran en USD paralelo, no BCV.
+        </div>
+      )}
       {proveedorActual?.estado_registro === "candidato" && registrando && (
         <Card>
           <CardContent className="pt-4 flex flex-wrap items-end gap-3">
