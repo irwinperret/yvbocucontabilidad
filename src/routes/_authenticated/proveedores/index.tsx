@@ -196,7 +196,7 @@ function ProveedoresPage() {
                 </thead>
                 <tbody>
                   {filtrados.map((t: any) => (
-                    <tr key={t.id} className="border-b last:border-0">
+                    <tr key={t.id} className={`border-b last:border-0 ${t.factura_en_usd_paralelo ? "bg-red-500/10" : ""}`}>
                       <td className="py-2 px-2">
                         {editandoNombreId === t.id ? (
                           <div className="flex items-center gap-1">
