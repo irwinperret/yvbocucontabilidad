@@ -65,7 +65,19 @@ function ProveedoresPage() {
     setEditandoRifId(null);
     qc.invalidateQueries({ queryKey: ["proveedores"] });
   };
+  // Proveedores cuyas facturas de Xetux vienen en USD paralelo (no BCV).
+  const toggleParalelo = async (t: any) => {
+    const nuevo = !t.factura_en_usd_paralelo;
+    const { error } = await supabase
+      .from("terceros")
+      .update({ factura_en_usd_paralelo: nuevo } as any)
+      .eq("id", t.id);
+    if (error) return toast.error(error.message);
+    toast.success(nuevo ? "Sus facturas Xetux se registrarán en USD paralelo" : "Sus facturas Xetux se registrarán en USD BCV");
+    qc.invalidateQueries({ queryKey: ["proveedores"] });
+  };
   const blank = {
+
     razon_social: "", nombre_comercial: "", tipo_rif: "J", rif: "",
     tipo: "proveedor", email: "", telefono: "", direccion_fiscal: "",
   };
@@ -196,7 +208,7 @@ function ProveedoresPage() {
                 </thead>
                 <tbody>
                   {filtrados.map((t: any) => (
-                    <tr key={t.id} className="border-b last:border-0">
+                    <tr key={t.id} className={`border-b last:border-0 ${t.factura_en_usd_paralelo ? "bg-red-500/10" : ""}`}>
                       <td className="py-2 px-2">
                         {editandoNombreId === t.id ? (
                           <div className="flex items-center gap-1">
@@ -219,6 +231,11 @@ function ProveedoresPage() {
                             >
                               {t.razon_social}
                             </Link>
+                            {t.factura_en_usd_paralelo && (
+                              <Badge variant="outline" className="ml-2 text-[10px] text-red-600 border-red-600/40">
+                                Facturas Xetux en USD paralelo (no BCV)
+                              </Badge>
+                            )}
                             {t.estado_registro === "candidato" && (
                               <>
                                 <Badge variant="outline" className="ml-2 text-[10px] text-amber-600 border-amber-600/40">
@@ -235,6 +252,7 @@ function ProveedoresPage() {
                                 </Button>
                               </>
                             )}
+
                           </>
                         )}
                       </td>
@@ -277,12 +295,22 @@ function ProveedoresPage() {
                       <td className="py-2 px-2 text-xs text-muted-foreground">{ORIGEN_LABEL[t.origen_registro] ?? "—"}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.email ?? "—"}</td>
                       <td className="py-2 px-2 text-muted-foreground">{t.telefono ?? "—"}</td>
-                      <td className="py-2 px-2 text-right">
+                      <td className="py-2 px-2 text-right whitespace-nowrap">
+                        <Button
+                          size="sm"
+                          variant={t.factura_en_usd_paralelo ? "destructive" : "outline"}
+                          className="h-7 px-2 mr-1 text-xs"
+                          title="Marca si las facturas Xetux de este proveedor vienen en dólares paralelo en lugar de BCV"
+                          onClick={() => toggleParalelo(t)}
+                        >
+                          {t.factura_en_usd_paralelo ? "USD paralelo" : "USD BCV"}
+                        </Button>
                         <DeleteButton
                           detail={`${t.razon_social} · ${t.tipo_rif}-${t.rif}`}
                           onConfirm={() => eliminar(t)}
                         />
                       </td>
+
                     </tr>
                   ))}
                 </tbody>

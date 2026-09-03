@@ -66,7 +66,7 @@ type Row = { anio: number; mes: number; cuenta_codigo: string; centro_costo: str
 export function calcularLineasFC(opts: {
   rows: Row[];
   capexRows: any[];
-  inventario: { periodo: string; tipo: string; monto_usd: number }[];
+  inventario: { periodo: string; tipo: string; monto_usd: number | null }[];
   cxpCreadas: { anio: number; mes: number; montoUsdBcv: number; montoUsdParalelo: number }[];
   anio: number;
   usdDe: (t: any) => number;

@@ -1,0 +1,1 @@
+ALTER TABLE public.terceros ADD COLUMN IF NOT EXISTS factura_en_usd_paralelo boolean NOT NULL DEFAULT false;

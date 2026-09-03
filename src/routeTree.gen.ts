@@ -55,6 +55,7 @@ import { Route as AuthenticatedActivosTransitoriosRouteImport } from './routes/_
 import { Route as AuthenticatedProveedoresIndexRouteImport } from './routes/_authenticated/proveedores/index'
 import { Route as AuthenticatedIrisIndexRouteImport } from './routes/_authenticated/iris/index'
 import { Route as AuthenticatedProveedoresIdRouteImport } from './routes/_authenticated/proveedores/$id'
+import { Route as AuthenticatedIrisNotasRouteImport } from './routes/_authenticated/iris/notas'
 import { Route as AuthenticatedIrisMovimientosSinProveedorRouteImport } from './routes/_authenticated/iris/movimientos-sin-proveedor'
 import { Route as ApiPublicHooksSyncParalelaRouteImport } from './routes/api/public/hooks/sync-paralela'
 import { Route as ApiPublicHooksSyncBcvRouteImport } from './routes/api/public/hooks/sync-bcv'
@@ -311,6 +312,11 @@ const AuthenticatedProveedoresIdRoute =
     path: '/proveedores/$id',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedIrisNotasRoute = AuthenticatedIrisNotasRouteImport.update({
+  id: '/iris/notas',
+  path: '/iris/notas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedIrisMovimientosSinProveedorRoute =
   AuthenticatedIrisMovimientosSinProveedorRouteImport.update({
     id: '/iris/movimientos-sin-proveedor',
@@ -373,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
   '/iris/movimientos-sin-proveedor': typeof AuthenticatedIrisMovimientosSinProveedorRoute
+  '/iris/notas': typeof AuthenticatedIrisNotasRoute
   '/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
   '/iris/': typeof AuthenticatedIrisIndexRoute
   '/proveedores/': typeof AuthenticatedProveedoresIndexRoute
@@ -423,6 +430,7 @@ export interface FileRoutesByTo {
   '/terceros': typeof AuthenticatedTercerosRoute
   '/transacciones': typeof AuthenticatedTransaccionesRoute
   '/iris/movimientos-sin-proveedor': typeof AuthenticatedIrisMovimientosSinProveedorRoute
+  '/iris/notas': typeof AuthenticatedIrisNotasRoute
   '/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
   '/iris': typeof AuthenticatedIrisIndexRoute
   '/proveedores': typeof AuthenticatedProveedoresIndexRoute
@@ -475,6 +483,7 @@ export interface FileRoutesById {
   '/_authenticated/terceros': typeof AuthenticatedTercerosRoute
   '/_authenticated/transacciones': typeof AuthenticatedTransaccionesRoute
   '/_authenticated/iris/movimientos-sin-proveedor': typeof AuthenticatedIrisMovimientosSinProveedorRoute
+  '/_authenticated/iris/notas': typeof AuthenticatedIrisNotasRoute
   '/_authenticated/proveedores/$id': typeof AuthenticatedProveedoresIdRoute
   '/_authenticated/iris/': typeof AuthenticatedIrisIndexRoute
   '/_authenticated/proveedores/': typeof AuthenticatedProveedoresIndexRoute
@@ -527,6 +536,7 @@ export interface FileRouteTypes {
     | '/terceros'
     | '/transacciones'
     | '/iris/movimientos-sin-proveedor'
+    | '/iris/notas'
     | '/proveedores/$id'
     | '/iris/'
     | '/proveedores/'
@@ -577,6 +587,7 @@ export interface FileRouteTypes {
     | '/terceros'
     | '/transacciones'
     | '/iris/movimientos-sin-proveedor'
+    | '/iris/notas'
     | '/proveedores/$id'
     | '/iris'
     | '/proveedores'
@@ -628,6 +639,7 @@ export interface FileRouteTypes {
     | '/_authenticated/terceros'
     | '/_authenticated/transacciones'
     | '/_authenticated/iris/movimientos-sin-proveedor'
+    | '/_authenticated/iris/notas'
     | '/_authenticated/proveedores/$id'
     | '/_authenticated/iris/'
     | '/_authenticated/proveedores/'
@@ -968,6 +980,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProveedoresIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/iris/notas': {
+      id: '/_authenticated/iris/notas'
+      path: '/iris/notas'
+      fullPath: '/iris/notas'
+      preLoaderRoute: typeof AuthenticatedIrisNotasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/iris/movimientos-sin-proveedor': {
       id: '/_authenticated/iris/movimientos-sin-proveedor'
       path: '/iris/movimientos-sin-proveedor'
@@ -1033,6 +1052,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTercerosRoute: typeof AuthenticatedTercerosRoute
   AuthenticatedTransaccionesRoute: typeof AuthenticatedTransaccionesRoute
   AuthenticatedIrisMovimientosSinProveedorRoute: typeof AuthenticatedIrisMovimientosSinProveedorRoute
+  AuthenticatedIrisNotasRoute: typeof AuthenticatedIrisNotasRoute
   AuthenticatedProveedoresIdRoute: typeof AuthenticatedProveedoresIdRoute
   AuthenticatedIrisIndexRoute: typeof AuthenticatedIrisIndexRoute
   AuthenticatedProveedoresIndexRoute: typeof AuthenticatedProveedoresIndexRoute
@@ -1084,6 +1104,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTransaccionesRoute: AuthenticatedTransaccionesRoute,
   AuthenticatedIrisMovimientosSinProveedorRoute:
     AuthenticatedIrisMovimientosSinProveedorRoute,
+  AuthenticatedIrisNotasRoute: AuthenticatedIrisNotasRoute,
   AuthenticatedProveedoresIdRoute: AuthenticatedProveedoresIdRoute,
   AuthenticatedIrisIndexRoute: AuthenticatedIrisIndexRoute,
   AuthenticatedProveedoresIndexRoute: AuthenticatedProveedoresIndexRoute,
