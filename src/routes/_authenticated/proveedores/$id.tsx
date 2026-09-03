@@ -193,8 +193,6 @@ function TableroProveedor() {
     nota: "",
     fecha: new Date().toISOString().slice(0, 10),
   });
-  /** "Pendientes" | "espera" — qué mostrar en la bandeja de facturas sin movimiento. "Pagadas sin movimiento" tiene su propia zona, siempre visible, más abajo. */
-  const [filtroFacturas, setFiltroFacturas] = useState<"pendientes" | "espera">("pendientes");
 
   // El cierre manual de facturas es una escritura sensible (cierra una CxP sin
   // que exista un movimiento bancario real detrás) — igual que el resto de
@@ -485,6 +483,11 @@ function TableroProveedor() {
   /** Facturas pendientes marcadas "en espera de movimiento" (subconjunto de facturasSinMov). */
   const facturasEnEspera = useMemo(
     () => facturasSinMov.filter((c) => c.en_espera_movimiento),
+    [facturasSinMov],
+  );
+  /** Facturas pendientes "normales" (sin la marca de en espera) — sección separada dentro de la misma tarjeta. */
+  const facturasPendientesNormales = useMemo(
+    () => facturasSinMov.filter((c) => !c.en_espera_movimiento),
     [facturasSinMov],
   );
 
@@ -937,6 +940,89 @@ function TableroProveedor() {
     toast.success("Excel generado");
   };
 
+  /** Fila de una factura dentro de "Facturas sin movimiento" — usada tanto en la sección "Pendientes" como en "En espera de movimiento". */
+  const renderFacturaFila = (c: any) => {
+    const antigua = esAntigua(c);
+    return (
+      <div
+        key={c.id}
+        className={`space-y-1 ${antigua ? "border border-amber-500/50 bg-amber-500/5 rounded-md p-1.5" : ""}`}
+      >
+        <div className="flex items-start gap-1.5">
+          {isAdmin && (
+            <Checkbox
+              className="mt-1.5"
+              checked={selCierre.includes(c.id)}
+              onCheckedChange={(v) =>
+                setSelCierre((s) => (v ? [...s, c.id] : s.filter((x) => x !== c.id)))
+              }
+            />
+          )}
+          <div className="flex-1 min-w-0 space-y-1">
+            <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined} />
+            {antigua && (
+              <div className="flex items-center gap-1 text-[10px] text-amber-600">
+                <AlertTriangle className="h-3 w-3" />Más de 90 días sin movimiento — candidata a cierre manual
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Select onValueChange={(v) => moverFactura(c.id, v)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Asignar a movimiento…" />
+            </SelectTrigger>
+            <SelectContent>
+              {movsDelProveedor.map((mv) => (
+                <SelectItem key={mv.id} value={mv.id}>
+                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={c.tercero_id ?? "none"}
+            onValueChange={(v) => cambiarProveedorFactura(c, v === "none" ? null : v)}
+          >
+            <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Proveedor" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Sin proveedor</SelectItem>
+              {(terceros ?? []).map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={busy}
+              onClick={() => abrirCierre([c])}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como pagada (sin movimiento)
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant={c.en_espera_movimiento ? "secondary" : "outline"}
+              className="h-8 text-xs"
+              disabled={busy}
+              onClick={() => toggleEnEspera(c)}
+            >
+              <Clock className="h-3.5 w-3.5 mr-1" />
+              {c.en_espera_movimiento ? "Quitar espera de movimiento" : "En espera de movimiento"}
+            </Button>
+          )}
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1223,13 +1309,6 @@ function TableroProveedor() {
                 <CardTitle className="text-lg">
                   Facturas sin movimiento <Badge variant="destructive">{facturasSinMov.length}</Badge>
                 </CardTitle>
-                <Select value={filtroFacturas} onValueChange={(v) => setFiltroFacturas(v as typeof filtroFacturas)}>
-                  <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendientes">Pendientes ({facturasSinMov.length})</SelectItem>
-                    <SelectItem value="espera">En espera de movimiento ({facturasEnEspera.length})</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               {isAdmin && selCierre.length > 0 && (
                 <div className="flex items-center gap-2 text-xs bg-muted/50 rounded-md px-2 py-1.5">
@@ -1249,95 +1328,26 @@ function TableroProveedor() {
               )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-md p-2">
-                  {(filtroFacturas === "espera" ? facturasEnEspera : facturasSinMov).length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {filtroFacturas === "espera"
-                        ? "No hay facturas marcadas en espera de movimiento."
-                        : "Todas las facturas tienen movimiento asignado."}
+              <Zona id={BANDEJA} className="space-y-3 min-h-24 border border-dashed rounded-md p-2">
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                      Pendientes ({facturasPendientesNormales.length})
                     </p>
-                  )}
-                  {(filtroFacturas === "espera" ? facturasEnEspera : facturasSinMov).map((c) => {
-                    const antigua = esAntigua(c);
-                    return (
-                      <div
-                        key={c.id}
-                        className={`space-y-1 ${antigua ? "border border-amber-500/50 bg-amber-500/5 rounded-md p-1.5" : ""}`}
-                      >
-                        <div className="flex items-start gap-1.5">
-                          {isAdmin && (
-                            <Checkbox
-                              className="mt-1.5"
-                              checked={selCierre.includes(c.id)}
-                              onCheckedChange={(v) =>
-                                setSelCierre((s) => (v ? [...s, c.id] : s.filter((x) => x !== c.id)))
-                              }
-                            />
-                          )}
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined} />
-                            {antigua && (
-                              <div className="flex items-center gap-1 text-[10px] text-amber-600">
-                                <AlertTriangle className="h-3 w-3" />Más de 90 días sin movimiento — candidata a cierre manual
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Select onValueChange={(v) => moverFactura(c.id, v)}>
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Asignar a movimiento…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {movsDelProveedor.map((mv) => (
-                                <SelectItem key={mv.id} value={mv.id}>
-                                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Select
-                            value={c.tercero_id ?? "none"}
-                            onValueChange={(v) => cambiarProveedorFactura(c, v === "none" ? null : v)}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Proveedor" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Sin proveedor</SelectItem>
-                              {(terceros ?? []).map((t) => (
-                                <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {isAdmin && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs"
-                              disabled={busy}
-                              onClick={() => abrirCierre([c])}
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como pagada (sin movimiento)
-                            </Button>
-                          )}
-                          {isAdmin && (
-                            <Button
-                              size="sm"
-                              variant={c.en_espera_movimiento ? "secondary" : "outline"}
-                              className="h-8 text-xs"
-                              disabled={busy}
-                              onClick={() => toggleEnEspera(c)}
-                            >
-                              <Clock className="h-3.5 w-3.5 mr-1" />
-                              {c.en_espera_movimiento ? "Quitar espera de movimiento" : "En espera de movimiento"}
-                            </Button>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV
-                        </div>
-                      </div>
-                    );
-                  })}
+                    {facturasPendientesNormales.length === 0 && (
+                      <p className="text-xs text-muted-foreground">Todas las facturas tienen movimiento asignado.</p>
+                    )}
+                    {facturasPendientesNormales.map((c) => renderFacturaFila(c))}
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t">
+                    <p className="text-[10px] font-medium text-amber-600 uppercase tracking-wide flex items-center gap-1">
+                      <Clock className="h-3 w-3" />En espera de movimiento ({facturasEnEspera.length})
+                    </p>
+                    {facturasEnEspera.length === 0 && (
+                      <p className="text-xs text-muted-foreground">No hay facturas marcadas en espera de movimiento.</p>
+                    )}
+                    {facturasEnEspera.map((c) => renderFacturaFila(c))}
+                  </div>
                 </Zona>
             </CardContent>
           </Card>
