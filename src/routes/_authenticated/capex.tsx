@@ -102,24 +102,24 @@ function CapExPage() {
     filtered.forEach((t: any) => {
       const d = new Date(t.fecha);
       const i = d.getUTCMonth();
-      const usd = Number(t.monto_usd) || 0;
+      const usd = usdVisual(t, mode) ?? 0;
       const cat = (t.capex_categoria as string) ?? "Otros";
       if (buckets[i][cat] !== undefined) buckets[i][cat] += usd;
       else buckets[i]["Otros"] += usd;
       buckets[i].total += usd;
     });
     return buckets;
-  }, [filtered]);
+  }, [filtered, mode]);
 
   const porCategoria = useMemo(() => {
     const map: Record<string, number> = {};
     CAPEX_CATEGORIAS.forEach((c) => { map[c] = 0; });
     filtered.forEach((t: any) => {
       const cat = (t.capex_categoria as string) ?? "Otros";
-      map[cat] = (map[cat] ?? 0) + (Number(t.monto_usd) || 0);
+      map[cat] = (map[cat] ?? 0) + (usdVisual(t, mode) ?? 0);
     });
     return map;
-  }, [filtered]);
+  }, [filtered, mode]);
 
   const totalUsd = filtered.reduce((s: number, t: any) => s + (usdVisual(t, mode) ?? 0), 0);
   const totalBs = filtered.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0);
