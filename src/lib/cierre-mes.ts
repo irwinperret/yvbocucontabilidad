@@ -107,6 +107,76 @@ export async function calcularCierre(periodo: string, invIniUsd: number, invFinU
   };
 }
 
+/**
+ * Al cerrar un mes, cierra también en bloque los bonos 10% de servicio de
+ * ese período que sigan "pendientes de distribuir" (bonos_10 sin
+ * transaccion_salida_id): crea la transacción de salida en cuenta 8.3 (igual
+ * que el botón manual "Distribuir" de la pantalla Bono 10%) y actualiza la
+ * fila de bonos_10, para que el usuario no tenga que marcarlos uno por uno.
+ *
+ * OJO: esta transacción de cierre NO se ata a ninguna cuenta bancaria — el
+ * pago real del bono ya salió mezclado dentro de la transferencia general de
+ * nómina (que ya se contabilizó aparte contra su propia cuenta bancaria al
+ * importar ese movimiento). Ponerle banco aquí restaría esa plata dos veces
+ * del saldo de esa cuenta. Esta transacción es solo para cerrar el pasivo en
+ * los libros y en el seguimiento de bonos_10.
+ *
+ * Se etiqueta con referencia = CIERRE-BONO10-<periodo> para que reabrirMes
+ * pueda encontrarlas y deshacerlas igual que hace con el COGS del cierre.
+ */
+async function distribuirBonos10DelPeriodo(periodo: string, userId: string) {
+  const { primerDia, ultimoDia } = primerYUltimoDia(periodo);
+  const { tasaBcvPromedio, paralelaPromedio } = await tasasDelPeriodo(periodo);
+
+  const { data: pendientes } = await supabase
+    .from("bonos_10")
+    .select("id, fecha, monto_usd, monto_bs, tasa_paralela, centro_costo")
+    .is("transaccion_salida_id", null)
+    .gte("fecha", primerDia)
+    .lte("fecha", ultimoDia);
+
+  for (const bono of (pendientes ?? []) as any[]) {
+    const montoUsd = Number(bono.monto_usd) || 0;
+    const montoBs = Number(bono.monto_bs) || 0;
+    if (!montoUsd && !montoBs) continue;
+    const tasaPar = Number(bono.tasa_paralela) || paralelaPromedio || tasaBcvPromedio || null;
+
+    const { data: txSalida, error } = await supabase
+      .from("transacciones")
+      .insert({
+        fecha: ultimoDia,
+        cuenta_codigo: "8.3",
+        centro_costo: (bono.centro_costo ?? "Compartido") as any,
+        monto_bs: -montoBs,
+        monto_base_bs: -montoBs,
+        iva_bs: 0,
+        iva_aplica: false,
+        tipo_iva: null,
+        tasa_bcv: tasaBcvPromedio || tasaPar,
+        tasa_paralela: tasaPar,
+        monto_usd: -montoUsd,
+        metodo_pago: "transferencia" as any,
+        referencia: `CIERRE-BONO10-${periodo}`,
+        notas: `Bono 10% distribuido automáticamente al cierre de ${periodo} — pago ya incluido en la nómina general del mes`,
+        modo: "on_balance" as any,
+        created_by: userId,
+      } as any)
+      .select()
+      .single();
+    if (error || !txSalida) continue;
+
+    await supabase
+      .from("bonos_10")
+      .update({
+        transaccion_salida_id: txSalida.id,
+        fecha_distribucion: ultimoDia,
+        monto_distribuido_usd: montoUsd,
+        notas_distribucion: "Distribución automática al cierre de mes",
+      } as any)
+      .eq("id", bono.id);
+  }
+}
+
 /** Calcula y guarda (crea o reemplaza) el cierre de un período. */
 export async function calcularYGuardarCierre(
   periodo: string,
@@ -167,16 +237,34 @@ export async function calcularYGuardarCierre(
     } as any);
   }
 
+  await distribuirBonos10DelPeriodo(periodo, userId);
+
   return r;
 }
 
-/** Reabre un mes: elimina el cierre y la transacción COGS que generó. */
+/** Reabre un mes: elimina el cierre, la transacción COGS que generó, y
+ * deshace el cierre automático de bonos 10% (los vuelve a dejar "pendientes
+ * de distribuir" en bonos_10), igual que hace con el COGS. */
 export async function reabrirMes(periodo: string) {
   const { data: cierre } = await supabase.from("cierres_de_mes").select("id").eq("periodo", periodo).maybeSingle();
   if (!cierre) return;
   const { error } = await supabase.from("cierres_de_mes").delete().eq("id", (cierre as any).id);
   if (error) throw error;
   await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
+
+  const referenciaBono = `CIERRE-BONO10-${periodo}`;
+  const { data: txBonoCierre } = await supabase
+    .from("transacciones")
+    .select("id")
+    .eq("referencia", referenciaBono);
+  const idsBonoCierre = (txBonoCierre ?? []).map((t: any) => t.id);
+  if (idsBonoCierre.length > 0) {
+    await supabase
+      .from("bonos_10")
+      .update({ transaccion_salida_id: null, fecha_distribucion: null, monto_distribuido_usd: null, notas_distribucion: null } as any)
+      .in("transaccion_salida_id", idsBonoCierre);
+    await supabase.from("transacciones").delete().eq("referencia", referenciaBono);
+  }
 }
 
 export type CogsEstimado = { cogsBs: number; cogsUsdBcv: number; cogsUsdParalelo: number; iniUsd: number; finUsd: number };
