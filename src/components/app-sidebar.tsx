@@ -29,6 +29,7 @@ import {
   Sparkles,
   PauseCircle,
   ShieldCheck,
+  Wrench,
 
 } from "lucide-react";
 import { History as HistoryIcon } from "lucide-react";
@@ -66,10 +67,13 @@ const registroGestion = [
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
-  { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
   { title: "Proveedores", url: "/proveedores", icon: Users },
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
+];
+
+const registroGestionEnConstruccion = [
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
+  { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
 ];
 
 const analisisPrincipales = [
@@ -89,17 +93,20 @@ const analisisEnConstruccion = [
 const analisisDetalles = [
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
-  { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
-  { title: "Anticipos a proveedores", url: "/anticipos-proveedores", icon: Users },
+  { title: "En construcción", url: "/anticipos-proveedores", icon: Users },
   { title: "Inventarios", url: "/inventarios", icon: BookOpen },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Operaciones de Cambio", url: "/operaciones-cambio", icon: ArrowLeftRight },
-  { title: "Propinas", url: "/propinas", icon: DollarSign },
-  { title: "Bonos 10%", url: "/bonos10", icon: DollarSign },
   { title: "Resumen IPA", url: "/resumen-ejecutivo", icon: BarChart3 },
   { title: "Resumen IPA Mensual", url: "/resumen-ejecutivo-mensual", icon: BarChart3 },
+];
+
+const analisisHerramientasSecundarias = [
+  { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
+  { title: "Propinas", url: "/propinas", icon: DollarSign },
+  { title: "Bonos 10%", url: "/bonos10", icon: DollarSign },
 ];
 
 export function AppSidebar() {
@@ -110,7 +117,9 @@ export function AppSidebar() {
   const path = useRouterState({ select: (r) => r.location.pathname });
   const [importarOpen, setImportarOpen] = useState(true);
   const [gestionOpen, setGestionOpen] = useState(false);
+  const [gestionEnConstruccionOpen, setGestionEnConstruccionOpen] = useState(false);
   const [detallesOpen, setDetallesOpen] = useState(false);
+  const [herramientasSecundariasOpen, setHerramientasSecundariasOpen] = useState(false);
   const [enConstruccionOpen, setEnConstruccionOpen] = useState(false);
 
   const isActive = (url: string) => path === url;
@@ -229,6 +238,38 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     ))}
+                  {gestionOpen && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        onClick={() => setGestionEnConstruccionOpen((v) => !v)}
+                        className={`flex items-center gap-2 ${collapsed ? "" : "pl-7"}`}
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {!collapsed && (
+                          <>
+                            <span className="flex-1 text-left text-sm">En Construcción</span>
+                            {gestionEnConstruccionOpen ? (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            )}
+                          </>
+                        )}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {gestionOpen &&
+                    gestionEnConstruccionOpen &&
+                    registroGestionEnConstruccion.map((item: any) => (
+                      <SidebarMenuItem key={item.url}>
+                        <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-11"}>
+                          <Link to={item.url} className="flex items-center gap-2">
+                            <item.icon className="h-3.5 w-3.5" />
+                            {!collapsed && <span className="text-sm">{item.title}</span>}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -281,6 +322,33 @@ export function AppSidebar() {
                 </SidebarMenuItem>
                 {detallesOpen &&
                   analisisDetalles.map((item) => (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
+                        <Link to={item.url} className="flex items-center gap-2">
+                          <item.icon className="h-3.5 w-3.5" />
+                          {!collapsed && <span className="text-sm">{item.title}</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton onClick={() => setHerramientasSecundariasOpen((v) => !v)} className="flex items-center gap-2">
+                    <Wrench className="h-4 w-4" />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left">Herramientas Secundarias</span>
+                        {herramientasSecundariasOpen ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                      </>
+                    )}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {herramientasSecundariasOpen &&
+                  analisisHerramientasSecundarias.map((item) => (
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
                         <Link to={item.url} className="flex items-center gap-2">
