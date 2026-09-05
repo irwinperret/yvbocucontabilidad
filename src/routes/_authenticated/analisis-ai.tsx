@@ -187,4 +187,212 @@ function AnalisisAIPage() {
             <Sparkles className="h-10 w-10 text-muted-foreground/40" />
             <div>
               <p className="font-medium">Aún no se ha generado el análisis de {mesNombre}</p>
-              
+              <p className="text-sm text-muted-foreground mt-1">Esto hace una llamada a Claude (Anthropic), así que se genera solo cuando lo despliegas.</p>
+            </div>
+            <Button size="lg" onClick={() => setConfirmando(true)}>
+              <Rocket className="h-4 w-4 mr-2" /> Desplegar análisis
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Coins className="h-4 w-4 text-amber-600" /> Esto va a hacer una llamada a Claude (Anthropic)
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Generar este análisis llama a la API de Anthropic para {mesNombre} ({label}) en modo{" "}
+              <strong>{modelo === "rapido" ? "Rápido (Haiku)" : "Profundo (Sonnet)"}</strong>, lo cual consume el saldo
+              de tu cuenta de Anthropic. ¿Quieres continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={desplegar}>Sí, desplegar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {m.isPending && (
+        <Card>
+          <CardContent className="py-12 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Analizando datos financieros...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!m.isPending && sinCreditos && (
+        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+          <CardContent className="py-6 space-y-2 text-sm">
+            <p className="font-medium flex items-center gap-2">
+              <Coins className="h-4 w-4 text-amber-600" /> No hay saldo disponible en la cuenta de Anthropic
+            </p>
+            <p className="text-muted-foreground">
+              La API de Anthropic rechazó la solicitud por saldo insuficiente. Recarga créditos desde
+              console.anthropic.com → Billing. No se hacen reintentos automáticos para no gastar de más.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!m.isPending && m.isError && !sinCreditos && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-destructive">
+            Error al conectar con el servicio de análisis. Intenta de nuevo.
+          </CardContent>
+        </Card>
+      )}
+
+      {!m.isPending && result?.empty && (
+        <>
+          <KpiRow snapshot={result.snapshot} empty />
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              No hay suficientes datos para este período.
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {!m.isPending && result && !result.empty && parsed && (
+        <>
+          <KpiRow snapshot={result.snapshot} />
+
+          <Card className="border-primary/30 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-base">Diagnóstico general</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm whitespace-pre-wrap leading-relaxed">
+              {parsed.diagnostico || <span className="text-muted-foreground">—</span>}
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4">
+            {parsed.recomendaciones.map((r, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <CardTitle className="text-base">{r.titulo}</CardTitle>
+                    {r.prioridad && <Badge className={prioridadColor(r.prioridad)}>{r.prioridad}</Badge>}
+                  </div>
+                </CardHeader>
+                <CardContent className="text-sm whitespace-pre-wrap leading-relaxed">{r.cuerpo}</CardContent>
+              </Card>
+            ))}
+            {parsed.recomendaciones.length === 0 && (
+              <Card>
+                <CardContent className="py-6 text-sm whitespace-pre-wrap">{result.texto}</CardContent>
+              </Card>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Análisis generado el {new Date(result.generadoEn).toLocaleString("es-VE")}</span>
+            <Button variant="outline" size="sm" onClick={copiar}>
+              <Copy className="h-3.5 w-3.5 mr-2" /> Copiar análisis
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+type Snapshot = {
+  ingresos_usd: number; cogs_usd: number; nomina_usd: number;
+  gastos_admin_usd: number; gastos_operativos_usd: number;
+  gastos_mercadeo_usd: number; gastos_generales_usd: number;
+  otros_gastos_gyp_usd?: number;
+  utilidad_neta_usd: number;
+  ingresos_mes_anterior: number; gastos_mes_anterior: number;
+};
+
+function Trend({ curr, prev, higherIsBetter = true }: { curr: number; prev: number; higherIsBetter?: boolean }) {
+  if (!prev) return null;
+  const diff = curr - prev;
+  if (Math.abs(diff) < 0.01) return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
+  const up = diff > 0;
+  const better = higherIsBetter ? up : !up;
+  const cls = better ? "text-green-600" : "text-red-600";
+  return up
+    ? <TrendingUp className={`h-3.5 w-3.5 ${cls}`} />
+    : <TrendingDown className={`h-3.5 w-3.5 ${cls}`} />;
+}
+
+function KpiCard({
+  label, value, valueClass, trend, badge, empty,
+}: {
+  label: string; value: string; valueClass?: string;
+  trend?: React.ReactNode; badge?: React.ReactNode; empty?: boolean;
+}) {
+  return (
+    <Card className="min-w-[150px] flex-1">
+      <CardContent className="py-3 px-4">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+          {label}
+          {trend}
+        </div>
+        <div className={`text-lg font-bold mt-1 flex items-center gap-2 ${valueClass ?? ""}`}>
+          {empty ? <span className="text-sm font-normal text-muted-foreground">Sin datos</span> : value}
+          {!empty && badge}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
+  const ingresos = snapshot.ingresos_usd;
+  const cogs = snapshot.cogs_usd;
+  const nomina = snapshot.nomina_usd;
+  const gastosTotales = cogs + nomina + snapshot.gastos_admin_usd + snapshot.gastos_operativos_usd + snapshot.gastos_mercadeo_usd + snapshot.gastos_generales_usd;
+  const utilidad = ingresos - gastosTotales;
+  const margenBruto = ingresos > 0 ? ((ingresos - cogs) / ingresos) * 100 : 0;
+
+  const margenColor =
+    margenBruto > 50 ? "text-green-600" : margenBruto >= 20 ? "text-yellow-600" : "text-red-600";
+  const utilidadColor = utilidad >= 0 ? "text-green-600" : "text-red-600";
+
+  const prevIngresos = snapshot.ingresos_mes_anterior;
+  const prevUtilidad = snapshot.ingresos_mes_anterior - snapshot.gastos_mes_anterior;
+
+  return (
+    <div className="flex flex-wrap gap-3">
+      <KpiCard
+        label="Ingresos"
+        value={fmtUsd(ingresos)}
+        valueClass="text-green-600"
+        trend={<Trend curr={ingresos} prev={prevIngresos} />}
+        empty={empty}
+      />
+      <KpiCard
+        label="COGS"
+        value={fmtUsd(cogs)}
+        valueClass="text-red-600"
+        empty={empty}
+      />
+      <KpiCard
+        label="Margen bruto"
+        value={`${margenBruto.toFixed(1)}%`}
+        valueClass={margenColor}
+        empty={empty}
+      />
+      <KpiCard
+        label="Utilidad neta"
+        value={fmtUsd(utilidad)}
+        valueClass={utilidadColor}
+        trend={<Trend curr={utilidad} prev={prevUtilidad} />}
+        empty={empty}
+      />
+      <KpiCard
+        label="Nómina"
+        value={fmtUsd(nomina)}
+        empty={empty}
+      />
+
+    </div>
+  );
+}
