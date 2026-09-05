@@ -20,6 +20,7 @@ import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/antici
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { dentroDeTolerancia, pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv as saldoUsdBcv } from "@/lib/cxp-saldo";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const CUENTA_PAGO_CXP = "8.2";
 
@@ -78,6 +79,33 @@ function PagarCxPPage() {
     const t = (terceros ?? []).find((x: any) => x.id === c.tercero_id);
     return t ? `${t.tipo_rif}-${t.rif}` : "";
   };
+
+  // Fecha de EMISIÓN real de cada factura (la fecha de la transacción de
+  // compra vinculada), no la fecha de vencimiento — para el gráfico por mes.
+  const { data: fechasEmision } = useQuery({
+    queryKey: ["cxp-fechas-emision", (data ?? []).map((c: any) => c.transaccion_id).join(",")],
+    enabled: !!data?.length,
+    queryFn: async () => {
+      const ids = (data ?? []).map((c: any) => c.transaccion_id).filter(Boolean) as string[];
+      if (!ids.length) return new Map<string, string>();
+      const { data: txs } = await supabase.from("transacciones").select("id, fecha").in("id", ids);
+      const m = new Map<string, string>();
+      for (const t of txs ?? []) if (t.fecha) m.set(t.id, t.fecha);
+      return m;
+    },
+  });
+  const emisionDeCxp = (c: any) => (c?.transaccion_id ? fechasEmision?.get(c.transaccion_id) : undefined) ?? c.created_at?.slice(0, 10);
+
+  const cxpPorMes = useMemo(() => {
+    const porMes = new Map<string, number>();
+    for (const c of data ?? []) {
+      const em = emisionDeCxp(c);
+      if (!em) continue;
+      const mes = String(em).slice(0, 7); // YYYY-MM
+      porMes.set(mes, (porMes.get(mes) ?? 0) + saldoUsdBcv(c));
+    }
+    return Array.from(porMes, ([mes, total]) => ({ mes, total: +total.toFixed(2) })).sort((a, b) => a.mes.localeCompare(b.mes));
+  }, [data, fechasEmision]);
 
   const exportarExcel = async () => {
     const { exportTableToExcel } = await import("@/lib/excel-table");
@@ -175,6 +203,23 @@ function PagarCxPPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {cxpPorMes.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Cuentas por pagar por mes de emisión</CardTitle></CardHeader>
+          <CardContent className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={cxpPorMes}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="mes" fontSize={11} />
+                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} width={45} />
+                <Tooltip formatter={(v: number) => fmtUsd(v)} />
+                <Bar dataKey="total" name="CxP pendiente" fill="#B91C1C" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
 
       <Card>
