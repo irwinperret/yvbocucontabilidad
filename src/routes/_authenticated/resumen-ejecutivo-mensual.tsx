@@ -351,7 +351,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Comparativo mensual — Enero hasta el mes de corte */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Desglose mensual — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto select-none">
           <table className="w-full text-sm">
             <thead>
