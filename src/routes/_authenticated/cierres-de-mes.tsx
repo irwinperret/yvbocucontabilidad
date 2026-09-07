@@ -147,6 +147,22 @@ function CierresDeMesPage() {
     }).reverse(); // más reciente primero
   }, [cierres, snapshots, primeraFecha, comprasPorPeriodo]);
 
+  // Antes se llamaba a qc.invalidateQueries() sin argumentos: eso invalidaba
+  // TODAS las consultas de la app (incluidas las que traen decenas de miles de
+  // filas de otras pantallas) y las refrescaba de golpe, dejando la página
+  // congelada varios minutos. Ahora solo se refrescan los datos de esta
+  // pantalla, y las demás se marcan como obsoletas sin refetch inmediato.
+  const refrescar = () => {
+    for (const key of [
+      ["cierres-de-mes-lista"],
+      ["inventario-snapshots-lista"],
+      ["cierres-compras-2-1"],
+    ]) {
+      qc.invalidateQueries({ queryKey: key });
+    }
+    qc.invalidateQueries({ refetchType: "none" });
+  };
+
   const abrirCerrar = (fila: FilaMes) => {
     // Si ya hay un inventario final cargado para este mes (p. ej. desde el
     // checklist de Inicio), se precarga ESE valor. Si no, se usa el inicial
