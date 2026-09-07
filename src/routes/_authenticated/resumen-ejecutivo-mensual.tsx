@@ -332,7 +332,7 @@ function ResumenEjecutivoMensualPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
           <CardContent className="h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={serieMargenes}>
