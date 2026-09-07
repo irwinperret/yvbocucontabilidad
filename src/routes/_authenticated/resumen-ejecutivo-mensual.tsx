@@ -462,7 +462,7 @@ function ResumenEjecutivoMensualPage() {
       )}
 
       <Card>
-        <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt} · {label}</CardTitle></CardHeader>
         <CardContent>
           <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">Cambio neto en la deuda con proveedores</p>
           <p className={`text-3xl font-bold mono mt-1 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
