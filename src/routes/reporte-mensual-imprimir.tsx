@@ -236,9 +236,9 @@ function ReporteMensualImprimirPage() {
             <Tooltip formatter={(v: number) => fmtUsd(v)} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
             {categoriasConDatos.map((c) => (
-              <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} />
+              <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} isAnimationActive={false} />
             ))}
-            <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} />
+            <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} isAnimationActive={false} />
           </ComposedChart>
         </div>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
@@ -249,8 +249,8 @@ function ReporteMensualImprimirPage() {
             <YAxis tickFormatter={(v) => `${v}%`} fontSize={10} width={40} />
             <Tooltip formatter={(v: number) => `${v}%`} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-            <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} connectNulls />
+            <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} connectNulls isAnimationActive={false} />
           </ComposedChart>
         </div>
       </section>
