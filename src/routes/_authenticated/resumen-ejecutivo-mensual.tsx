@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
   pct, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
-  construirDesglose, calcularCxpSaldos, calcularPrestamosYDividendos,
+  construirDesglose, calcularPrestamosYDividendos,
 } from "@/lib/resumen-mensual-calc";
 
 export const Route = createFileRoute("/_authenticated/resumen-ejecutivo-mensual")({
@@ -103,19 +103,6 @@ function ResumenEjecutivoMensualPage() {
     queryFn: () => estimarCogsMesesAbiertos(anio - 1),
   });
 
-  // Saldo de CxP pendiente al cierre de un mes (según el modo USD)
-  const { data: cxp } = useQuery({
-    queryKey: ["rie-mensual-cxp", mode],
-    queryFn: async () => {
-      const { fetchAllRows } = await import("@/lib/fetch-all");
-      return await fetchAllRows<any>(async (from, to) =>
-        await supabase.from("cuentas_por_pagar")
-          .select("created_at, pagada_at, estado, monto_usd, usd_bcv_factura, usd_paralelo_factura")
-          .range(from, to),
-      );
-    },
-  });
-
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
   const actual = useMemo(
@@ -169,11 +156,6 @@ function ResumenEjecutivoMensualPage() {
   );
   const seleccionComparativo = useExcelCellSelection(valoresComparativoSeleccion);
   const seleccionGp = useExcelCellSelection(valoresGpSeleccion);
-
-  const cxpSaldos = useMemo(
-    () => calcularCxpSaldos(cxp, anio, mes, mesAnterior, anioMesAnterior, mode),
-    [cxp, anio, mes, mesAnterior, anioMesAnterior, mode],
-  );
 
   const serieMargenes = useMemo(
     () => construirSerieMargenes(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
@@ -281,8 +263,7 @@ function ResumenEjecutivoMensualPage() {
           </p>
           <p className="text-muted-foreground">
             La utilidad neta del mes fue de <b>{fmtUsd(utilidadNeta)}</b>
-            {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""} y la deuda con
-            proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> en {fmtUsd(Math.abs(cxpSaldos.cambio))}.
+            {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
           </p>
           {(pagoPrestamos > 0.01 || dividendos > 0.01) && (
             <p className="text-muted-foreground">
@@ -460,18 +441,6 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt} · {label}</CardTitle></CardHeader>
-        <CardContent>
-          <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">Cambio neto en la deuda con proveedores</p>
-          <p className={`text-3xl font-bold mono mt-1 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
-            {cxpSaldos.cambio >= 0 ? "+" : "−"}{fmtUsd(Math.abs(cxpSaldos.cambio)).replace("$ ", "$")}
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            La deuda con proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> respecto a {labelMesAnt}.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 }
