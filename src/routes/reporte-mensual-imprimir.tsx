@@ -155,6 +155,14 @@ function ReporteMensualImprimirPage() {
 
   const autorizado = !!user?.email && PERMITIDOS_RESUMEN_MENSUAL.includes(user.email.toLowerCase());
 
+  // El navegador usa document.title como nombre sugerido al "Guardar como PDF",
+  // así que lo fijamos con el mes y el modo de USD (BCV/paralelo) del reporte.
+  useEffect(() => {
+    if (cargando || !autorizado) return;
+    const modoArchivo = mode === "bcv" ? "USD BCV" : "USD paralelo";
+    document.title = `Resumen IPA Mensual - ${MESES[mes - 1]} ${anio} - ${modoArchivo}`;
+  }, [cargando, autorizado, mes, anio, mode]);
+
   // Auto-imprimir una vez que los datos ya cargaron y los gráficos (tamaño
   // fijo, sin ResponsiveContainer) ya tuvieron tiempo de pintarse.
   useEffect(() => {
