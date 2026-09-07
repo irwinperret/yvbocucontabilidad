@@ -157,11 +157,6 @@ function ResumenEjecutivoMensualPage() {
   const seleccionComparativo = useExcelCellSelection(valoresComparativoSeleccion);
   const seleccionGp = useExcelCellSelection(valoresGpSeleccion);
 
-  const cxpSaldos = useMemo(
-    () => calcularCxpSaldos(cxp, anio, mes, mesAnterior, anioMesAnterior, mode),
-    [cxp, anio, mes, mesAnterior, anioMesAnterior, mode],
-  );
-
   const serieMargenes = useMemo(
     () => construirSerieMargenes(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
     [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
