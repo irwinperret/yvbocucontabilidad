@@ -176,6 +176,12 @@ function ReporteMensualImprimirPage() {
   const labelMesAnt = `${MESES[mesAnterior - 1]} ${anioMesAnterior}`;
   const labelAnioAnt = `${MESES[mes - 1]} ${anio - 1}`;
   const modoLabel = mode === "bcv" ? "USD BCV" : "USD paralelo";
+  // Mismo criterio de color que el banner de BCV/paralelo en la vista en pantalla
+  // (resumen-ejecutivo-mensual.tsx): azul para BCV, verde para paralelo.
+  const modoBadgeClass = mode === "bcv"
+    ? "bg-blue-50 text-blue-700 border-blue-200"
+    : "bg-emerald-50 text-emerald-700 border-emerald-200";
+  const modoDotClass = mode === "bcv" ? "bg-blue-500" : "bg-emerald-500";
 
   return (
     <div className="reporte-print bg-white text-[#1a1a2e]" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
@@ -183,7 +189,11 @@ function ReporteMensualImprimirPage() {
       <header className="flex items-baseline justify-between border-b-2 pb-2 mb-3" style={{ borderColor: "#1e3a5f" }}>
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#1e3a5f" }}>Resumen IPA Mensual</h1>
-          <p className="text-sm text-gray-600 mt-0.5">Informe ejecutivo de <b>{labelMes}</b> · montos en {modoLabel}</p>
+          <p className="text-sm text-gray-600 mt-0.5">Informe ejecutivo de <b>{labelMes}</b></p>
+          <div className={`mt-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold ${modoBadgeClass}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${modoDotClass}`} />
+            Montos en <span className="uppercase tracking-wide">{modoLabel}</span>
+          </div>
         </div>
         {actual.estimado && (
           <div className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 rounded px-2 py-1 max-w-[260px]">
