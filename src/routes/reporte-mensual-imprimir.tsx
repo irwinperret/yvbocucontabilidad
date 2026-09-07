@@ -12,7 +12,7 @@ import { Wrench } from "lucide-react";
 import {
   CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
   mesSinOperaciones, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
-  construirDesglose, calcularCxpSaldos, calcularPrestamosYDividendos, fmtUsdContable,
+  construirDesglose, calcularPrestamosYDividendos, fmtUsdContable,
 } from "@/lib/resumen-mensual-calc";
 import { PERMITIDOS_RESUMEN_MENSUAL } from "@/routes/_authenticated/resumen-ejecutivo-mensual";
 
@@ -83,19 +83,7 @@ function ReporteMensualImprimirPage() {
     queryFn: () => estimarCogsMesesAbiertos(anio - 1),
   });
 
-  const { data: cxp } = useQuery({
-    queryKey: ["rie-print-cxp", mode],
-    queryFn: async () => {
-      const { fetchAllRows } = await import("@/lib/fetch-all");
-      return await fetchAllRows<any>(async (from, to) =>
-        await supabase.from("cuentas_por_pagar")
-          .select("created_at, pagada_at, estado, monto_usd, usd_bcv_factura, usd_paralelo_factura")
-          .range(from, to),
-      );
-    },
-  });
-
-  const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !cxp;
+  const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev;
 
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
@@ -136,10 +124,6 @@ function ReporteMensualImprimirPage() {
     [rowsAnio, cuentas, mes, actual],
   );
   const categoriasComparativo = CATEGORIAS.filter((cat) => comparativoMensual.some((c) => Math.abs(c.t[cat]) > 0.009));
-  const cxpSaldos = useMemo(
-    () => calcularCxpSaldos(cxp, anio, mes, mesAnterior, anioMesAnterior, mode),
-    [cxp, anio, mes, mesAnterior, anioMesAnterior, mode],
-  );
   const serieMargenes = useMemo(
     () => construirSerieMargenes(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
     [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
@@ -272,8 +256,7 @@ function ReporteMensualImprimirPage() {
               <p><ConNegritas>{frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
               <p className="text-gray-600">
                 La utilidad neta del mes fue de <b>{fmtUsdContable(fmtUsd, utilidadNeta)}</b>
-                {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""} y la deuda con
-                proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> en {fmtUsd(Math.abs(cxpSaldos.cambio))}.
+                {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
               </p>
               {(pagoPrestamos > 0.01 || dividendos > 0.01) && (
                 <p className="text-gray-600">
