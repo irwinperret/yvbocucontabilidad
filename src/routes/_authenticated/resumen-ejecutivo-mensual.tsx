@@ -103,19 +103,6 @@ function ResumenEjecutivoMensualPage() {
     queryFn: () => estimarCogsMesesAbiertos(anio - 1),
   });
 
-  // Saldo de CxP pendiente al cierre de un mes (según el modo USD)
-  const { data: cxp } = useQuery({
-    queryKey: ["rie-mensual-cxp", mode],
-    queryFn: async () => {
-      const { fetchAllRows } = await import("@/lib/fetch-all");
-      return await fetchAllRows<any>(async (from, to) =>
-        await supabase.from("cuentas_por_pagar")
-          .select("created_at, pagada_at, estado, monto_usd, usd_bcv_factura, usd_paralelo_factura")
-          .range(from, to),
-      );
-    },
-  });
-
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
   const actual = useMemo(
