@@ -69,6 +69,7 @@ const registroGestion = [
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
   { title: "Proveedores", url: "/proveedores", icon: Users },
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
+  { title: "Inventarios", url: "/inventarios", icon: BookOpen },
 ];
 
 const registroGestionEnConstruccion = [
@@ -94,7 +95,6 @@ const analisisDetalles = [
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
   { title: "En construcción", url: "/anticipos-proveedores", icon: Users },
-  { title: "Inventarios", url: "/inventarios", icon: BookOpen },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
