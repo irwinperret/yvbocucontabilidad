@@ -211,12 +211,20 @@ function ResumenEjecutivoMensualPage() {
     window.open(`/reporte-mensual-imprimir?${params.toString()}`, "_blank");
   };
 
+  const currencyBannerClass = mode === "bcv"
+    ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800"
+    : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800";
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Resumen IPA Mensual</h1>
-          <p className="text-base text-muted-foreground mt-1">Informe ejecutivo de <b>{labelMes}</b> · montos en {label}</p>
+          <p className="text-base text-muted-foreground mt-1">Informe ejecutivo de <b>{labelMes}</b></p>
+          <div className={`mt-2 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold ${currencyBannerClass}`}>
+            <span className={`h-2 w-2 rounded-full ${mode === "bcv" ? "bg-blue-500" : "bg-emerald-500"}`} />
+            Todos los montos de este informe están en <span className="uppercase tracking-wide">{label}</span>
+          </div>
         </div>
         <div className="flex items-end gap-2">
           <UsdViewToggle />
@@ -249,10 +257,15 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Análisis del mes</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            Análisis del mes
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${currencyBannerClass}`}>{label}</span>
+          </CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3 text-sm leading-relaxed">
           <p className="text-muted-foreground">
-            Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
+            Así se comportó el negocio en {labelMes} <b>(en {label})</b>, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
           </p>
           <p>
             <ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
@@ -283,22 +296,22 @@ function ResumenEjecutivoMensualPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={labelMes} />
-        <KpiCard icon={TrendingDown} label="COGS" value={fmtUsd(cogs)} sub={actual.estimado ? "Estimado (mes abierto)" : undefined} />
-        <KpiCard icon={TrendingUp} label="Margen bruto" value={fmtUsd(margenBruto)} sub={ingresos > 0 ? `${((margenBruto / ingresos) * 100).toFixed(1)}% de ingresos` : undefined} />
+        <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={`${labelMes} · ${label}`} />
+        <KpiCard icon={TrendingDown} label="COGS" value={fmtUsd(cogs)} sub={actual.estimado ? `Estimado (mes abierto) · ${label}` : label} />
+        <KpiCard icon={TrendingUp} label="Margen bruto" value={fmtUsd(margenBruto)} sub={ingresos > 0 ? `${((margenBruto / ingresos) * 100).toFixed(1)}% de ingresos · ${label}` : label} />
         <KpiCard
           icon={Wallet}
           label="Utilidad neta"
           value={fmtUsd(utilidadNeta)}
           tone={utilidadNeta >= 0 ? "pos" : "neg"}
-          sub={ingresos > 0 ? `${((utilidadNeta / ingresos) * 100).toFixed(1)}% de ingresos` : undefined}
+          sub={ingresos > 0 ? `${((utilidadNeta / ingresos) * 100).toFixed(1)}% de ingresos · ${label}` : label}
         />
       </div>
 
       {/* Dos gráficos lado a lado: montos por categoría, y márgenes operativos (%) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
           <CardContent className="h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={serie} stackOffset="sign">
@@ -318,7 +331,7 @@ function ResumenEjecutivoMensualPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
           <CardContent className="h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={serieMargenes}>
@@ -337,7 +350,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Comparativo mensual — Enero hasta el mes de corte */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Desglose mensual — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Desglose mensual — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto select-none">
           <table className="w-full text-sm">
             <thead>
@@ -396,7 +409,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Desglose G&P del mes */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelMes}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelMes} · {label}</CardTitle></CardHeader>
         <CardContent className="select-none">
           <table className="w-full text-sm">
             <tbody>
@@ -448,7 +461,7 @@ function ResumenEjecutivoMensualPage() {
       )}
 
       <Card>
-        <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Cuentas por pagar — cambio vs. {labelMesAnt} · {label}</CardTitle></CardHeader>
         <CardContent>
           <p className="text-xs uppercase font-semibold tracking-wide text-muted-foreground">Cambio neto en la deuda con proveedores</p>
           <p className={`text-3xl font-bold mono mt-1 ${cxpSaldos.cambio > 0 ? "text-destructive" : "text-green-600"}`}>
