@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
   pct, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
-  construirDesglose, calcularCxpSaldos, calcularPrestamosYDividendos,
+  construirDesglose, calcularPrestamosYDividendos,
 } from "@/lib/resumen-mensual-calc";
 
 export const Route = createFileRoute("/_authenticated/resumen-ejecutivo-mensual")({
