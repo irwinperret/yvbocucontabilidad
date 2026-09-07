@@ -281,8 +281,7 @@ function ResumenEjecutivoMensualPage() {
           </p>
           <p className="text-muted-foreground">
             La utilidad neta del mes fue de <b>{fmtUsd(utilidadNeta)}</b>
-            {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""} y la deuda con
-            proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> en {fmtUsd(Math.abs(cxpSaldos.cambio))}.
+            {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
           </p>
           {(pagoPrestamos > 0.01 || dividendos > 0.01) && (
             <p className="text-muted-foreground">
