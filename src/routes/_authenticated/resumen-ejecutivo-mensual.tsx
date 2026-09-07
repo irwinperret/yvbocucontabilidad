@@ -297,22 +297,22 @@ function ResumenEjecutivoMensualPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={labelMes} />
-        <KpiCard icon={TrendingDown} label="COGS" value={fmtUsd(cogs)} sub={actual.estimado ? "Estimado (mes abierto)" : undefined} />
-        <KpiCard icon={TrendingUp} label="Margen bruto" value={fmtUsd(margenBruto)} sub={ingresos > 0 ? `${((margenBruto / ingresos) * 100).toFixed(1)}% de ingresos` : undefined} />
+        <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={`${labelMes} · ${label}`} />
+        <KpiCard icon={TrendingDown} label="COGS" value={fmtUsd(cogs)} sub={actual.estimado ? `Estimado (mes abierto) · ${label}` : label} />
+        <KpiCard icon={TrendingUp} label="Margen bruto" value={fmtUsd(margenBruto)} sub={ingresos > 0 ? `${((margenBruto / ingresos) * 100).toFixed(1)}% de ingresos · ${label}` : label} />
         <KpiCard
           icon={Wallet}
           label="Utilidad neta"
           value={fmtUsd(utilidadNeta)}
           tone={utilidadNeta >= 0 ? "pos" : "neg"}
-          sub={ingresos > 0 ? `${((utilidadNeta / ingresos) * 100).toFixed(1)}% de ingresos` : undefined}
+          sub={ingresos > 0 ? `${((utilidadNeta / ingresos) * 100).toFixed(1)}% de ingresos · ${label}` : label}
         />
       </div>
 
       {/* Dos gráficos lado a lado: montos por categoría, y márgenes operativos (%) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
           <CardContent className="h-[360px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={serie} stackOffset="sign">
