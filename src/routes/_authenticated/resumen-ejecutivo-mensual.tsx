@@ -211,12 +211,21 @@ function ResumenEjecutivoMensualPage() {
     window.open(`/reporte-mensual-imprimir?${params.toString()}`, "_blank");
   };
 
+  const currencyBannerTone = mode === "bcv" ? "blue" : "emerald";
+  const currencyBannerClass = mode === "bcv"
+    ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800"
+    : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800";
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Resumen IPA Mensual</h1>
-          <p className="text-base text-muted-foreground mt-1">Informe ejecutivo de <b>{labelMes}</b> · montos en {label}</p>
+          <p className="text-base text-muted-foreground mt-1">Informe ejecutivo de <b>{labelMes}</b></p>
+          <div className={`mt-2 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold ${currencyBannerClass}`}>
+            <span className={`h-2 w-2 rounded-full ${mode === "bcv" ? "bg-blue-500" : "bg-emerald-500"}`} />
+            Todos los montos de este informe están en <span className="uppercase tracking-wide">{label}</span>
+          </div>
         </div>
         <div className="flex items-end gap-2">
           <UsdViewToggle />
