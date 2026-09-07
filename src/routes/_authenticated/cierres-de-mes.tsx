@@ -183,7 +183,7 @@ function CierresDeMesPage() {
       const r = await calcularYGuardarCierre(cerrando.periodo, invIniUsd, invFinUsd, user.id);
       toast.success(`${periodoLabel(cerrando.periodo)} cerrado. COGS (BCV): ${fmtUsd(r.cogsUsdBcv)}`);
       setCerrando(null);
-      qc.invalidateQueries();
+      refrescar();
     } catch (err: any) {
       toast.error(err?.message ?? String(err));
     } finally {
@@ -197,7 +197,7 @@ function CierresDeMesPage() {
     try {
       await reabrirMes(periodo);
       toast.success(`${periodoLabel(periodo)} reabierto`);
-      qc.invalidateQueries();
+      refrescar();
     } catch (err: any) {
       toast.error(err?.message ?? String(err));
     } finally {
@@ -245,7 +245,7 @@ function CierresDeMesPage() {
       }
       toast.success("Inventario final actualizado");
       setEditando(null);
-      qc.invalidateQueries();
+      refrescar();
     } catch (err: any) {
       toast.error(err?.message ?? String(err));
     } finally {
