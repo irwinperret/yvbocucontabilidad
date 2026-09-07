@@ -258,10 +258,15 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Análisis del mes</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            Análisis del mes
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${currencyBannerClass}`}>{label}</span>
+          </CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3 text-sm leading-relaxed">
           <p className="text-muted-foreground">
-            Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
+            Así se comportó el negocio en {labelMes} <b>(en {label})</b>, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
           </p>
           <p>
             <ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
