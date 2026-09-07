@@ -25,7 +25,7 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
   }),
 });
 
-const ANCHO_GRAFICO = 560;
+const ANCHO_GRAFICO = 460; // los 2 gráficos van lado a lado (flex) dentro del ancho impreso en landscape (~980px); a 560c/u se salían de la página y el de la derecha quedaba cortado
 const ALTO_GRAFICO = 250;
 
 /** Convierte los **negrita** de frase() en <b> reales dentro de un <p>. */
