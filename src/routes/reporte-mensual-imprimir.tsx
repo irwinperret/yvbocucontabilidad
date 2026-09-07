@@ -358,18 +358,6 @@ function ReporteMensualImprimirPage() {
           <p className="text-[9px] text-amber-700 mt-1">* Mes abierto — COGS estimado con el inventario y las compras ya cargados.</p>
         )}
       </section>
-
-      {/* 7. Cuentas por pagar */}
-      <section className="rounded-md border p-3" style={{ backgroundColor: "#F7F8FA", borderColor: "#E2E5EA", breakInside: "avoid" }}>
-        <p className="text-[13px] font-bold mb-1" style={{ color: "#1e3a5f" }}>Cuentas por pagar — cambio vs. {labelMesAnt}</p>
-        <p className="text-[9px] uppercase tracking-wide text-gray-500 font-semibold">Cambio neto en la deuda con proveedores</p>
-        <p className={`text-xl font-bold mono ${cxpSaldos.cambio > 0 ? "text-red-700" : "text-green-700"}`}>
-          {cxpSaldos.cambio >= 0 ? "+" : "−"}{fmtUsd(Math.abs(cxpSaldos.cambio)).replace("$ ", "$")}
-        </p>
-        <p className="text-[11px] text-gray-600 mt-1">
-          La deuda con proveedores <b>{cxpSaldos.cambio > 0 ? "aumentó" : cxpSaldos.cambio < 0 ? "disminuyó" : "no cambió"}</b> respecto a {labelMesAnt}.
-        </p>
-      </section>
     </div>
   );
 }
