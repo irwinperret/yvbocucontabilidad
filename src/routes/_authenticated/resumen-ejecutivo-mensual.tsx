@@ -410,7 +410,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Desglose G&P del mes */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelMes}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelMes} · {label}</CardTitle></CardHeader>
         <CardContent className="select-none">
           <table className="w-full text-sm">
             <tbody>
