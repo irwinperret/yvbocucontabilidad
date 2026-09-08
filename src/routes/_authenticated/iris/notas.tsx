@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -18,6 +18,7 @@ import { ArrowLeft, StickyNote, Plus, Check, Pencil, Trash2, GripVertical } from
 import { toast } from "sonner";
 import { fmtDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
+import { FormattedText, RichTextToolbar } from "@/components/rich-text";
 
 /** Reordena moviendo el elemento en `from` a la posición `to`, sin mutar el arreglo original. */
 function arrayMove<T>(arr: T[], from: number, to: number): T[] {
@@ -108,12 +109,15 @@ function SeguimientoBlock({
   onCancelar: () => void;
 }) {
   const enEdicion = editandoId === p.id;
+  const seguimientoRef = useRef<HTMLTextAreaElement>(null);
 
   if (enEdicion) {
     return (
       <div className="pl-2.5 border-l-2 border-muted space-y-1.5">
         <p className="text-xs font-medium text-muted-foreground">Seguimiento</p>
+        <RichTextToolbar textareaRef={seguimientoRef} value={valor} onChange={onCambiar} />
         <Textarea
+          ref={seguimientoRef}
           value={valor}
           onChange={(e) => onCambiar(e.target.value)}
           placeholder="Avance, contexto o cómo se resolvió…"
@@ -138,7 +142,7 @@ function SeguimientoBlock({
         <div className="min-w-0">
           <p className="text-xs font-medium text-muted-foreground">Seguimiento</p>
           {p.seguimiento ? (
-            <p className="text-sm whitespace-pre-wrap text-[#534AB7]">{p.seguimiento}</p>
+            <p className="text-sm whitespace-pre-wrap text-[#534AB7]"><FormattedText>{p.seguimiento}</FormattedText></p>
           ) : (
             <p className="text-xs text-muted-foreground italic">Sin seguimiento aún</p>
           )}
@@ -172,6 +176,8 @@ function PendientesCard() {
   const [editandoSeguimientoId, setEditandoSeguimientoId] = useState<string | null>(null);
   const [seguimientoTexto, setSeguimientoTexto] = useState("");
   const [guardandoSeguimiento, setGuardandoSeguimiento] = useState(false);
+  const nuevaNotaRef = useRef<HTMLTextAreaElement>(null);
+  const editNotaRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: pendientes, isLoading } = useQuery({
     queryKey: ["iris-pendientes"],
@@ -317,20 +323,24 @@ function PendientesCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2">
-          <Textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            placeholder="Anotar algo para dar seguimiento…"
-            className="min-h-[60px] resize-y"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) agregar();
-            }}
-          />
-          <Button onClick={agregar} disabled={guardando || !texto.trim()} className="self-end">
-            <Plus className="h-4 w-4 mr-1" />
-            Agregar
-          </Button>
+        <div className="space-y-1.5">
+          <RichTextToolbar textareaRef={nuevaNotaRef} value={texto} onChange={setTexto} />
+          <div className="flex gap-2">
+            <Textarea
+              ref={nuevaNotaRef}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              placeholder="Anotar algo para dar seguimiento…"
+              className="min-h-[60px] resize-y"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) agregar();
+              }}
+            />
+            <Button onClick={agregar} disabled={guardando || !texto.trim()} className="self-end">
+              <Plus className="h-4 w-4 mr-1" />
+              Agregar
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -349,7 +359,9 @@ function PendientesCard() {
                       {enEdicion ? (
                         <div className="flex-1 space-y-1.5">
                           <p className="text-xs font-medium text-muted-foreground">Nota</p>
+                          <RichTextToolbar textareaRef={editNotaRef} value={editTexto} onChange={setEditTexto} />
                           <Textarea
+                            ref={editNotaRef}
                             value={editTexto}
                             onChange={(e) => setEditTexto(e.target.value)}
                             className="min-h-[50px] text-sm resize-y"
@@ -367,7 +379,7 @@ function PendientesCard() {
                       ) : (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground">Nota</p>
-                          <p className="text-sm">{p.texto}</p>
+                          <p className="text-sm whitespace-pre-wrap"><FormattedText>{p.texto}</FormattedText></p>
                           <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(p.created_at)}</p>
                         </div>
                       )}
@@ -434,7 +446,9 @@ function PendientesCard() {
                         {enEdicion ? (
                           <div className="flex-1 space-y-1.5">
                             <p className="text-xs font-medium text-muted-foreground">Nota</p>
+                            <RichTextToolbar textareaRef={editNotaRef} value={editTexto} onChange={setEditTexto} />
                             <Textarea
+                              ref={editNotaRef}
                               value={editTexto}
                               onChange={(e) => setEditTexto(e.target.value)}
                               className="min-h-[50px] text-sm resize-y"
@@ -452,7 +466,7 @@ function PendientesCard() {
                         ) : (
                           <div>
                             <p className="text-xs font-medium text-muted-foreground">Nota</p>
-                            <p className="text-sm text-muted-foreground line-through">{p.texto}</p>
+                            <p className="text-sm text-muted-foreground line-through whitespace-pre-wrap"><FormattedText>{p.texto}</FormattedText></p>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               Resuelta {p.resuelta_at ? fmtDate(p.resuelta_at) : ""}
                             </p>
