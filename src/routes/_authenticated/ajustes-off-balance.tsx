@@ -24,47 +24,66 @@ import {
 
 export const Route = createFileRoute("/_authenticated/ajustes-off-balance")({ component: AjustesOffBalancePage });
 
-// Los "ajustes off-balance" son el par de movimientos que genera el formulario
-// "Ajuste off-balance" en Registrar (venta + bono 10%), ligados a una factura
-// ya existente. Se identifican por el texto fijo que ese formulario escribe en
-// notas -- eso funciona igual estén todavía en off_balance o ya migrados a
-// on_balance con el botón "Migrar" de la pantalla "Off balance", así el
-// historial mes a mes no se pierde cuando se migra un ajuste.
-const NOTAS_VENTA = "Ajuste off-balance";
-const NOTAS_BONO = "(off-balance) por factura";
+// Los "ajustes off-balance" salen de DOS flujos distintos en la app, y ambos
+// se traen aquí:
+//  1) "Importar ajustes ventas" (referencia = "ajuste" en la transacción) --
+//     en la práctica es el que genera prácticamente todo el volumen real: un
+//     renglón de Excel por fecha se reparte en 2-3 movimientos (venta 20% YV
+//     / 80% Bocú a cuentas 1.1 / 1.2, más el servicio de lista a la cuenta
+//     3.1) que comparten un mismo grupo_transaccion_id.
+//  2) El formulario "Ajuste off-balance" de Registrar (venta ligada a una
+//     factura + su bono 10%) -- se identifica por el texto fijo que ese
+//     formulario deja en notas, porque no usa el campo referencia.
+// En ambos casos, "venta" = cuenta 1.x (ingreso) y "bono" = todo lo que no
+// es 1.x (8.3 bono 10%, o 3.1 servicio/sueldos del import). Se muestran como
+// movimientos sueltos (no forzamos un par 1-a-1) porque el import reparte
+// una misma fecha en varias filas con centros distintos.
+const REF_IMPORT = "ajuste";
+const NOTAS_VENTA_MANUAL = "Ajuste off-balance";
+const NOTAS_BONO_MANUAL = "(off-balance) por factura";
 
 type Estado = "todos" | "pendiente" | "migrado";
+type Tipo = "venta" | "bono";
 
-type Grupo = {
-  key: string;
-  venta: any | null;
-  bono: any | null;
+type Fila = {
+  tx: any;
+  grupoKey: string;
   fecha: string;
   anioF: number;
   mesF: number;
   centro: string;
+  tipo: Tipo;
+  etiqueta: string; // texto para el badge de "Tipo" en el detalle
   factura: string;
   esFiar: boolean;
   estado: "pendiente" | "migrado";
 };
 
-function resumenPorCentro(grupos: (Grupo & { ajusteUsd: number; bonoUsd: number })[]) {
-  const filas = CENTROS.map((c) => {
-    const gs = grupos.filter((g) => g.centro === c);
+function etiquetaDeFila(t: any, tipo: Tipo): string {
+  const notas = String(t.notas ?? "");
+  if (notas.startsWith(NOTAS_VENTA_MANUAL)) return "Ajuste";
+  if (notas.includes(NOTAS_BONO_MANUAL)) return "Bono 10%";
+  if (tipo === "venta") return "Ajuste ventas";
+  return "Ajuste servicio";
+}
+
+function resumenPorCentro(filas: (Fila & { usd: number })[]) {
+  const base = CENTROS.map((c) => {
+    const fs = filas.filter((f) => f.centro === c);
     return {
       centro: c as string,
-      ajuste: gs.reduce((s, g) => s + g.ajusteUsd, 0),
-      bono: gs.reduce((s, g) => s + g.bonoUsd, 0),
-      cantidad: gs.length,
+      ajuste: fs.filter((f) => f.tipo === "venta").reduce((s, f) => s + f.usd, 0),
+      bono: fs.filter((f) => f.tipo === "bono").reduce((s, f) => s + f.usd, 0),
+      cantidad: fs.length,
     };
   });
   const total = {
     centro: "Total",
-    ajuste: filas.reduce((s, f) => s + f.ajuste, 0),
-    bono: filas.reduce((s, f) => s + f.bono, 0),
-    cantidad: filas.reduce((s, f) => s + f.cantidad, 0),
+    ajuste: base.reduce((s, f) => s + f.ajuste, 0),
+    bono: base.reduce((s, f) => s + f.bono, 0),
+    cantidad: base.reduce((s, f) => s + f.cantidad, 0),
   };
-  return [...filas, total];
+  return [...base, total];
 }
 
 function TablaResumenCentro({ filas }: { filas: ReturnType<typeof resumenPorCentro> }) {
@@ -75,7 +94,7 @@ function TablaResumenCentro({ filas }: { filas: ReturnType<typeof resumenPorCent
           <tr>
             <th className="text-left py-2 px-2">Centro</th>
             <th className="text-right py-2 px-2">Ajuste</th>
-            <th className="text-right py-2 px-2">Bono 10%</th>
+            <th className="text-right py-2 px-2">Bono / servicio</th>
             <th className="text-right py-2 px-2">Total</th>
             <th className="text-right py-2 px-2">Cant.</th>
           </tr>
@@ -110,163 +129,140 @@ function AjustesOffBalancePage() {
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   const invalidar = () => {
-    qc.invalidateQueries({ queryKey: ["ajustes-off-venta"] });
-    qc.invalidateQueries({ queryKey: ["ajustes-off-bono"] });
+    qc.invalidateQueries({ queryKey: ["ajustes-off-import"] });
+    qc.invalidateQueries({ queryKey: ["ajustes-off-venta-manual"] });
+    qc.invalidateQueries({ queryKey: ["ajustes-off-bono-manual"] });
   };
 
-  const { data: ventas } = useQuery({
-    queryKey: ["ajustes-off-venta"],
+  const { data: importTxs } = useQuery({
+    queryKey: ["ajustes-off-import"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transacciones").select("*").neq("standby", true)
-        .ilike("notas", `${NOTAS_VENTA}%`)
+        .eq("referencia", REF_IMPORT)
         .order("fecha", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  const { data: bonos } = useQuery({
-    queryKey: ["ajustes-off-bono"],
+  const { data: ventaManualTxs } = useQuery({
+    queryKey: ["ajustes-off-venta-manual"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transacciones").select("*").neq("standby", true)
+        .ilike("notas", `${NOTAS_VENTA_MANUAL}%`)
+        .order("fecha", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: bonoManualTxs } = useQuery({
+    queryKey: ["ajustes-off-bono-manual"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transacciones").select("*").neq("standby", true)
         .eq("cuenta_codigo", "8.3")
-        .ilike("notas", `%${NOTAS_BONO}%`)
+        .ilike("notas", `%${NOTAS_BONO_MANUAL}%`)
         .order("fecha", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  // Empareja cada venta con su bono 10% (mismo grupo_transaccion_id, o
-  // pareja_off_balance_id como respaldo). Un ajuste sin bono asociado (monto
-  // de bono en $0 al registrarlo) queda con bono = null.
-  const grupos = useMemo<Grupo[]>(() => {
-    const bonoByGrupo = new Map<string, any>();
-    const bonoById = new Map<string, any>();
-    (bonos ?? []).forEach((b: any) => {
-      if (b.grupo_transaccion_id) bonoByGrupo.set(b.grupo_transaccion_id, b);
-      bonoById.set(b.id, b);
-    });
-    const usados = new Set<string>();
-    const out: Grupo[] = (ventas ?? []).map((v: any) => {
-      let bono = v.grupo_transaccion_id ? bonoByGrupo.get(v.grupo_transaccion_id) : undefined;
-      if (!bono && v.pareja_off_balance_id) bono = bonoById.get(v.pareja_off_balance_id);
-      if (bono) usados.add(bono.id);
-      const fechaD = new Date(v.fecha);
-      const estado: "pendiente" | "migrado" =
-        v.modo === "on_balance" && (!bono || bono.modo === "on_balance") ? "migrado" : "pendiente";
+  // Cada transacción se muestra como su propia fila (no forzamos pares
+  // venta+bono 1-a-1) porque el import masivo reparte una misma fecha en
+  // varias filas con centros distintos (YV / Bocú / Compartido).
+  const filasBase = useMemo<Fila[]>(() => {
+    const armar = (t: any): Fila => {
+      const cc = String(t.cuenta_codigo ?? "");
+      const tipo: Tipo = cc.startsWith("1.") ? "venta" : "bono";
+      const fechaD = new Date(t.fecha);
       return {
-        key: v.grupo_transaccion_id || v.id,
-        venta: v,
-        bono: bono ?? null,
-        fecha: v.fecha,
+        tx: t,
+        grupoKey: t.grupo_transaccion_id || t.id,
+        fecha: t.fecha,
         anioF: fechaD.getUTCFullYear(),
         mesF: fechaD.getUTCMonth(),
-        centro: v.centro_costo,
-        factura: v.numero_factura || v.numero_orden || "",
-        esFiar: (v.notas ?? "").includes("A CRÉDITO"),
-        estado,
+        centro: t.centro_costo,
+        tipo,
+        etiqueta: etiquetaDeFila(t, tipo),
+        factura: t.numero_factura || t.numero_orden || "",
+        esFiar: (t.notas ?? "").includes("A CRÉDITO"),
+        estado: t.modo === "on_balance" ? "migrado" : "pendiente",
       };
-    });
-    // Bonos sin la venta que los originó (caso raro, p. ej. si la venta se
-    // borró aparte) -- se muestran igual para no perder el monto.
-    (bonos ?? []).forEach((b: any) => {
-      if (usados.has(b.id)) return;
-      const fechaD = new Date(b.fecha);
-      out.push({
-        key: b.grupo_transaccion_id || b.id,
-        venta: null,
-        bono: b,
-        fecha: b.fecha,
-        anioF: fechaD.getUTCFullYear(),
-        mesF: fechaD.getUTCMonth(),
-        centro: b.centro_costo,
-        factura: b.numero_factura || b.numero_orden || "",
-        esFiar: false,
-        estado: b.modo === "on_balance" ? "migrado" : "pendiente",
-      });
-    });
-    return out;
-  }, [ventas, bonos]);
+    };
+    const vistos = new Set<string>();
+    const todas = [...(importTxs ?? []), ...(ventaManualTxs ?? []), ...(bonoManualTxs ?? [])];
+    const sinDuplicados = todas.filter((t: any) => (vistos.has(t.id) ? false : (vistos.add(t.id), true)));
+    return sinDuplicados.map(armar);
+  }, [importTxs, ventaManualTxs, bonoManualTxs]);
 
-  const gruposConMonto = useMemo(
-    () =>
-      grupos.map((g) => {
-        const ajusteUsd = g.venta ? usdVisual(g.venta, mode) ?? 0 : 0;
-        const bonoUsd = g.bono ? usdVisual(g.bono, mode) ?? 0 : 0;
-        return { ...g, ajusteUsd, bonoUsd };
-      }),
-    [grupos, mode],
+  const filasConMonto = useMemo(
+    () => filasBase.map((f) => ({ ...f, usd: usdVisual(f.tx, mode) ?? 0 })),
+    [filasBase, mode],
   );
 
   const anios = useMemo(() => {
     const s = new Set<number>([anioActual]);
-    gruposConMonto.forEach((g) => s.add(g.anioF));
+    filasConMonto.forEach((f) => s.add(f.anioF));
     return Array.from(s).sort((a, b) => b - a);
-  }, [gruposConMonto, anioActual]);
+  }, [filasConMonto, anioActual]);
 
-  const coincideBusqueda = (g: (typeof gruposConMonto)[number]) => {
+  const coincideBusqueda = (f: (typeof filasConMonto)[number]) => {
     if (!busqueda.trim()) return true;
     const q = busqueda.trim().toLowerCase();
-    return (
-      (g.factura || "").toLowerCase().includes(q) ||
-      (g.venta?.notas || "").toLowerCase().includes(q) ||
-      (g.bono?.notas || "").toLowerCase().includes(q)
-    );
+    return (f.factura || "").toLowerCase().includes(q) || (f.tx.notas || "").toLowerCase().includes(q);
   };
 
-  const gruposFiltrados = useMemo(
+  const filtradas = useMemo(
     () =>
-      gruposConMonto.filter(
-        (g) =>
-          g.anioF === anio &&
-          (centro === "Todos" || g.centro === centro) &&
-          (estadoFiltro === "todos" || g.estado === estadoFiltro) &&
-          coincideBusqueda(g),
+      filasConMonto.filter(
+        (f) =>
+          f.anioF === anio &&
+          (centro === "Todos" || f.centro === centro) &&
+          (estadoFiltro === "todos" || f.estado === estadoFiltro) &&
+          coincideBusqueda(f),
       ),
-    [gruposConMonto, anio, centro, estadoFiltro, busqueda],
+    [filasConMonto, anio, centro, estadoFiltro, busqueda],
   );
 
-  const totalAjusteUsd = gruposFiltrados.reduce((s, g) => s + g.ajusteUsd, 0);
-  const totalBonoUsd = gruposFiltrados.reduce((s, g) => s + g.bonoUsd, 0);
-  const cantidad = gruposFiltrados.length;
-  const pendientes = gruposFiltrados.filter((g) => g.estado === "pendiente").length;
+  const totalAjusteUsd = filtradas.filter((f) => f.tipo === "venta").reduce((s, f) => s + f.usd, 0);
+  const totalBonoUsd = filtradas.filter((f) => f.tipo === "bono").reduce((s, f) => s + f.usd, 0);
+  const gruposUnicos = new Set(filtradas.map((f) => f.grupoKey));
+  const cantidad = gruposUnicos.size;
+  const pendientes = new Set(filtradas.filter((f) => f.estado === "pendiente").map((f) => f.grupoKey)).size;
 
   const comparativoMensual = useMemo(
     () =>
       MESES.map((m, i) => {
-        const gs = gruposFiltrados.filter((g) => g.mesF === i);
+        const fs = filtradas.filter((f) => f.mesF === i);
         return {
           mes: m,
-          ajuste: gs.reduce((s, g) => s + g.ajusteUsd, 0),
-          bono: gs.reduce((s, g) => s + g.bonoUsd, 0),
-          cantidad: gs.length,
+          ajuste: fs.filter((f) => f.tipo === "venta").reduce((s, f) => s + f.usd, 0),
+          bono: fs.filter((f) => f.tipo === "bono").reduce((s, f) => s + f.usd, 0),
+          cantidad: new Set(fs.map((f) => f.grupoKey)).size,
         };
       }),
-    [gruposFiltrados],
+    [filtradas],
   );
 
   const chartData = useMemo(
-    () => comparativoMensual.map((c) => ({ mes: c.mes, "Ajuste": c.ajuste, "Bono 10%": c.bono })),
+    () => comparativoMensual.map((c) => ({ mes: c.mes, "Ajuste": c.ajuste, "Bono / servicio": c.bono })),
     [comparativoMensual],
   );
 
-  const gruposMes = useMemo(() => gruposFiltrados.filter((g) => g.mesF === mesSel - 1), [gruposFiltrados, mesSel]);
-  const resumenMes = useMemo(() => resumenPorCentro(gruposMes), [gruposMes]);
+  const filasMes = useMemo(() => filtradas.filter((f) => f.mesF === mesSel - 1), [filtradas, mesSel]);
+  const resumenMes = useMemo(() => resumenPorCentro(filasMes), [filasMes]);
 
-  const gruposYtd = useMemo(() => gruposFiltrados.filter((g) => g.mesF <= hastaMes - 1), [gruposFiltrados, hastaMes]);
-  const resumenYtd = useMemo(() => resumenPorCentro(gruposYtd), [gruposYtd]);
+  const filasYtd = useMemo(() => filtradas.filter((f) => f.mesF <= hastaMes - 1), [filtradas, hastaMes]);
+  const resumenYtd = useMemo(() => resumenPorCentro(filasYtd), [filasYtd]);
 
-  const filasDetalle = useMemo(() => {
-    const out: { tx: any; tipo: "Ajuste" | "Bono 10%"; estadoTx: "pendiente" | "migrado"; esFiar: boolean; usd: number }[] = [];
-    gruposFiltrados.forEach((g) => {
-      if (g.venta) out.push({ tx: g.venta, tipo: "Ajuste", estadoTx: g.venta.modo === "on_balance" ? "migrado" : "pendiente", esFiar: g.esFiar, usd: g.ajusteUsd });
-      if (g.bono) out.push({ tx: g.bono, tipo: "Bono 10%", estadoTx: g.bono.modo === "on_balance" ? "migrado" : "pendiente", esFiar: false, usd: g.bonoUsd });
-    });
-    return out.sort((a, b) => (a.tx.fecha < b.tx.fecha ? 1 : a.tx.fecha > b.tx.fecha ? -1 : 0));
-  }, [gruposFiltrados]);
+  const filasDetalle = useMemo(
+    () => filtradas.slice().sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0)),
+    [filtradas],
+  );
 
   const migrar = async (t: any) => {
     const { error } = await supabase.from("transacciones").update({ modo: "on_balance" }).eq("id", t.id);
@@ -281,7 +277,7 @@ function AjustesOffBalancePage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Ajustes off-balance</h1>
-          <p className="text-sm text-muted-foreground">Ventas de ajuste ligadas a factura + su bono 10% · {label}</p>
+          <p className="text-sm text-muted-foreground">Ajustes de ventas/servicio importados + ajustes ligados a factura · {label}</p>
         </div>
         <UsdViewToggle />
       </div>
@@ -318,7 +314,7 @@ function AjustesOffBalancePage() {
           </div>
           <div className="flex-1 min-w-[200px]">
             <Label className="text-xs">Buscar (factura / notas)</Label>
-            <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="N° de factura, cliente…" />
+            <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="N° de factura, texto de la nota…" />
           </div>
         </CardContent>
       </Card>
@@ -326,7 +322,7 @@ function AjustesOffBalancePage() {
       <div className="grid gap-4 md:grid-cols-5">
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total ajustes</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold mono">{fmtUsd(totalAjusteUsd)}</div></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total bono 10%</CardTitle></CardHeader>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total bono / servicio</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold mono">{fmtUsd(totalBonoUsd)}</div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total combinado</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold mono">{fmtUsd(totalAjusteUsd + totalBonoUsd)}</div></CardContent></Card>
@@ -384,7 +380,7 @@ function AjustesOffBalancePage() {
                     <td className="py-2 px-2 text-right mono">{fmtUsd(totalAjusteUsd)}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 px-2">Bono 10%</td>
+                    <td className="py-2 px-2">Bono / servicio</td>
                     {comparativoMensual.map((c) => <td key={c.mes} className="py-2 px-2 text-right mono">{fmtUsd(c.bono)}</td>)}
                     <td className="py-2 px-2 text-right mono">{fmtUsd(totalBonoUsd)}</td>
                   </tr>
@@ -417,7 +413,7 @@ function AjustesOffBalancePage() {
                 <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
                 <Legend />
                 <Bar dataKey="Ajuste" stackId="a" fill="#534AB7" />
-                <Bar dataKey="Bono 10%" stackId="a" fill="#E8A87C" />
+                <Bar dataKey="Bono / servicio" stackId="a" fill="#E8A87C" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -446,34 +442,34 @@ function AjustesOffBalancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filasDetalle.map(({ tx, tipo, estadoTx, esFiar, usd }) => (
-                    <tr key={tx.id} className="border-b last:border-0">
-                      <td className="py-2 px-2 mono">{fmtDate(tx.fecha)}</td>
+                  {filasDetalle.map((f) => (
+                    <tr key={f.tx.id} className="border-b last:border-0">
+                      <td className="py-2 px-2 mono">{fmtDate(f.tx.fecha)}</td>
                       <td className="py-2 px-2">
-                        <Badge variant="outline" style={tipo === "Ajuste" ? { borderColor: "#534AB7", color: "#534AB7" } : { borderColor: "#E8A87C", color: "#B4763C" }}>
-                          {tipo}
+                        <Badge variant="outline" style={f.tipo === "venta" ? { borderColor: "#534AB7", color: "#534AB7" } : { borderColor: "#E8A87C", color: "#B4763C" }}>
+                          {f.etiqueta}
                         </Badge>
-                        {esFiar && <Badge variant="outline" className="ml-1 text-xs">fiar</Badge>}
+                        {f.esFiar && <Badge variant="outline" className="ml-1 text-xs">fiar</Badge>}
                       </td>
-                      <td className="py-2 px-2 mono text-xs">{tx.numero_factura || tx.numero_orden || "—"}</td>
-                      <td className="py-2 px-2">{tx.centro_costo}</td>
-                      <td className="py-2 px-2 text-xs">{tx.notas || "—"}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtBs(tx.monto_bs)}</td>
-                      <td className="py-2 px-2 text-right mono">{fmtUsd(usd)}</td>
+                      <td className="py-2 px-2 mono text-xs">{f.factura || "—"}</td>
+                      <td className="py-2 px-2">{f.tx.centro_costo}</td>
+                      <td className="py-2 px-2 text-xs">{f.tx.notas || "—"}</td>
+                      <td className="py-2 px-2 text-right mono">{fmtBs(f.tx.monto_bs)}</td>
+                      <td className="py-2 px-2 text-right mono">{fmtUsd(f.usd)}</td>
                       <td className="py-2 px-2">
-                        {estadoTx === "pendiente"
+                        {f.estado === "pendiente"
                           ? <Badge variant="outline" className="text-orange-600 border-orange-300">pendiente</Badge>
                           : <Badge variant="outline" className="text-green-700 border-green-300">migrado</Badge>}
                       </td>
                       <td className="py-2 px-2">
                         <div className="flex justify-end gap-1">
-                          {estadoTx === "pendiente" && (
-                            <Button size="sm" variant="outline" onClick={() => migrar(tx)}>Migrar</Button>
+                          {f.estado === "pendiente" && (
+                            <Button size="sm" variant="outline" onClick={() => migrar(f.tx)}>Migrar</Button>
                           )}
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar movimiento" onClick={() => setEditing(tx)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar movimiento" onClick={() => setEditing(f.tx)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Eliminar" onClick={() => setDeleteTarget(tx)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Eliminar" onClick={() => setDeleteTarget(f.tx)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
