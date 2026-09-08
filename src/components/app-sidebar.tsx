@@ -89,13 +89,13 @@ const analisisEnConstruccion = [
   { title: "CxC pendientes", url: "/cxc", icon: FileInput },
   { title: "CxP pendientes", url: "/cxp", icon: FileOutput },
   { title: "Activos transitorios", url: "/activos-transitorios", icon: Wallet },
+  { title: "Anticipo a proveedores", url: "/anticipos-proveedores", icon: Users },
 ];
 
 const analisisDetalles = [
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Ajustes off-balance", url: "/ajustes-off-balance", icon: Layers },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
-  { title: "En construcción", url: "/anticipos-proveedores", icon: Users },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
   { title: "Tasa BCV", url: "/tasa", icon: DollarSign },
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
