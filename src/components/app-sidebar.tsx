@@ -93,6 +93,7 @@ const analisisEnConstruccion = [
 
 const analisisDetalles = [
   { title: "CapEx", url: "/capex", icon: Building2 },
+  { title: "Ajustes off-balance", url: "/ajustes-off-balance", icon: Layers },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
   { title: "En construcción", url: "/anticipos-proveedores", icon: Users },
   { title: "Plan de cuentas", url: "/plan-cuentas", icon: BookOpen },
