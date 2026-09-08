@@ -20,7 +20,7 @@ import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/antici
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { dentroDeTolerancia, pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv as saldoUsdBcv } from "@/lib/cxp-saldo";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const CUENTA_PAGO_CXP = "8.2";
 
@@ -106,6 +106,16 @@ function PagarCxPPage() {
     }
     return Array.from(porMes, ([mes, total]) => ({ mes, total: +total.toFixed(2) })).sort((a, b) => a.mes.localeCompare(b.mes));
   }, [data, fechasEmision]);
+
+  // Mismo dato que el gráfico "por mes de emisión", pero como suma corrida:
+  // cuánto de lo que sigue pendiente hoy se había originado hasta cada mes.
+  const cxpAcumuladoPorMes = useMemo(() => {
+    let acumulado = 0;
+    return cxpPorMes.map((m) => {
+      acumulado += m.total;
+      return { mes: m.mes, acumulado: +acumulado.toFixed(2) };
+    });
+  }, [cxpPorMes]);
 
   const exportarExcel = async () => {
     const { exportTableToExcel } = await import("@/lib/excel-table");
@@ -205,21 +215,47 @@ function PagarCxPPage() {
         </div>
       )}
 
-      {cxpPorMes.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Cuentas por pagar por mes de emisión</CardTitle></CardHeader>
-          <CardContent className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cxpPorMes}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="mes" fontSize={11} />
-                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} width={45} />
-                <Tooltip formatter={(v: number) => fmtUsd(v)} />
-                <Bar dataKey="total" name="CxP pendiente" fill="#B91C1C" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {(cxpPorMes.length > 0 || cxpAcumuladoPorMes.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {cxpPorMes.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Cuentas por pagar por mes de emisión</CardTitle></CardHeader>
+              <CardContent className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cxpPorMes}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis dataKey="mes" fontSize={11} />
+                    <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} width={45} />
+                    <Tooltip formatter={(v: number) => fmtUsd(v)} />
+                    <Bar dataKey="total" name="CxP pendiente" fill="#B91C1C" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {cxpAcumuladoPorMes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Cuentas por pagar acumuladas al mes</CardTitle>
+                <p className="text-xs text-muted-foreground font-normal">
+                  Suma corrida de lo que sigue pendiente hoy, según su mes de emisión.
+                </p>
+              </CardHeader>
+              <CardContent className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={cxpAcumuladoPorMes}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis dataKey="mes" fontSize={11} />
+                    <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} width={45} />
+                    <Tooltip formatter={(v: number) => fmtUsd(v)} />
+                    <Area type="monotone" dataKey="acumulado" name="CxP acumulada" stroke="#B91C1C" fill="#B91C1C" fillOpacity={0.25} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       <Card>
