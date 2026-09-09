@@ -65,8 +65,11 @@ function ResumenEjecutivoMensualPage() {
   const { user } = useAuth();
   const { mode, label } = useUsdView();
   const hoy = new Date();
-  const [anio, setAnio] = useState(hoy.getFullYear());
-  const [mes, setMes] = useState(hoy.getMonth() + 1);
+  // Por defecto se abre en el mes anterior al actual (el mes en curso casi
+  // nunca tiene el cierre listo todavía), no en el mes de hoy.
+  const mesAnteriorD = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const [anio, setAnio] = useState(mesAnteriorD.getFullYear());
+  const [mes, setMes] = useState(mesAnteriorD.getMonth() + 1);
 
   const { data: cuentas } = useQuery({
     queryKey: ["rie-mensual-cuentas"],
