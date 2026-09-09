@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
-import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle, Clock } from "lucide-react";
+import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle, Clock, ListChecks, Scissors } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { FacturaDetalleDialog } from "@/components/factura-detalle-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
@@ -91,21 +91,28 @@ function FacturaChip({
   cxp,
   emision,
   aplicadoBs,
+  remanenteUsd,
   onQuitar,
   disabled,
   onEditar,
   movimientosCount,
+  dragIdPrefix = "cxp",
 }: {
   cxp: any;
   emision?: string;
   aplicadoBs?: number;
+  /** Si viene, muestra un badge "Remanente" con lo que le falta a esta factura por cubrir (USD BCV). */
+  remanenteUsd?: number;
   onQuitar?: () => void;
   disabled?: boolean;
   onEditar?: () => void;
   /** Cantidad de movimientos distintos a los que está vinculada esta factura (pago dividido). */
   movimientosCount?: number;
+  /** Prefijo del id arrastrable — "cxp-remanente" para que soltarla sobre otro
+   * movimiento AGREGUE el vínculo (pago dividido) en vez de mover/reemplazar. */
+  dragIdPrefix?: string;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `cxp:${cxp.id}`, disabled });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${dragIdPrefix}:${cxp.id}`, disabled });
   // "Aplicado" se guarda internamente en Bs; se muestra en USD BCV usando la
   // misma proporción sobre el monto total de la factura (misma tasa implícita).
   const montoBsFactura = Number(cxp.monto_bs) || 0;
@@ -148,6 +155,11 @@ function FacturaChip({
         {typeof movimientosCount === "number" && movimientosCount > 1 && (
           <Badge variant="outline" className="text-indigo-600 border-indigo-600/40">
             Dividida entre {movimientosCount} movimientos
+          </Badge>
+        )}
+        {typeof remanenteUsd === "number" && (
+          <Badge variant="outline" className="text-amber-700 border-amber-700/40 bg-amber-500/10">
+            Remanente {fmtUsd(remanenteUsd)} USD BCV
           </Badge>
         )}
         {cxp.en_espera_movimiento && (
@@ -533,8 +545,51 @@ function TableroProveedor() {
     const usdBcvMov = usdBcvDeMov(mov);
     const aplicadoUsd = montoMov > 0 ? +((aplicado / montoMov) * usdBcvMov).toFixed(2) : 0;
     const sinAplicarUsd = montoMov > 0 ? +((sinAplicar / montoMov) * usdBcvMov).toFixed(2) : 0;
-    return { lista, montoMov, aplicado, sinAplicar, aplicadoUsd, sinAplicarUsd, aplicadoPorCxp };
+    // Lo mismo que aplicadoPorCxp pero por factura y en USD BCV, para poder
+    // sumar cuánto de una misma factura quedó cubierto entre varios
+    // movimientos distintos (pago dividido) y así calcular su remanente.
+    const aplicadoPorCxpUsd = new Map<string, number>();
+    for (const [cxpId, bs] of aplicadoPorCxp) {
+      aplicadoPorCxpUsd.set(cxpId, montoMov > 0 ? +((bs / montoMov) * usdBcvMov).toFixed(2) : 0);
+    }
+    return { lista, montoMov, aplicado, sinAplicar, aplicadoUsd, sinAplicarUsd, aplicadoPorCxp, aplicadoPorCxpUsd };
   };
+
+  /**
+   * Facturas que ya están asignadas a uno o más movimientos pero cuya suma
+   * de lo aplicado no cubre el 100% de la factura (pago parcial dentro de
+   * esta pantalla de conciliación). Se muestran también en "Facturas sin
+   * movimiento" como remanente, para poder terminarlas de cuadrar contra
+   * otro movimiento.
+   */
+  const remanentesPorFactura = useMemo(() => {
+    const cubiertoUsd = new Map<string, number>();
+    for (const mv of movsDelProveedor) {
+      const { aplicadoPorCxpUsd } = resumenMov(mv);
+      for (const [cxpId, usd] of aplicadoPorCxpUsd) {
+        cubiertoUsd.set(cxpId, +((cubiertoUsd.get(cxpId) ?? 0) + usd).toFixed(2));
+      }
+    }
+    const m = new Map<string, { cxp: any; remanenteUsd: number; totalUsd: number }>();
+    for (const lista of cxpsPorMov.values()) {
+      for (const c of lista) {
+        if (m.has(c.id)) continue;
+        const totalUsd = usdBcvFactura(c);
+        const cubierto = cubiertoUsd.get(c.id) ?? 0;
+        const remanenteUsd = +(totalUsd - cubierto).toFixed(2);
+        if (remanenteUsd > 0.01) m.set(c.id, { cxp: c, remanenteUsd, totalUsd });
+      }
+    }
+    return m;
+  }, [movsDelProveedor, cxpsPorMov]);
+
+  const facturasConRemanente = useMemo(
+    () =>
+      Array.from(remanentesPorFactura.values()).sort((a, b) =>
+        String(emisionDeCxp(b.cxp) ?? "").localeCompare(String(emisionDeCxp(a.cxp) ?? "")),
+      ),
+    [remanentesPorFactura, fechaEmisionPorFactura],
+  );
 
   const movsFiltrados = useMemo(() => {
     const txt = busca.trim().toLowerCase();
@@ -835,9 +890,18 @@ function TableroProveedor() {
 
   const onDragEnd = (e: DragEndEvent) => {
     const active = String(e.active.id);
+    const over = e.over ? String(e.over.id) : null;
+    if (active.startsWith("cxp-remanente:")) {
+      const cxpId = active.slice("cxp-remanente:".length);
+      // El remanente ya está, por definición, en la bandeja de "sin
+      // movimiento" — soltarlo ahí de nuevo no hace nada. Solo tiene sentido
+      // soltarlo sobre otro movimiento, y ahí se AGREGA el vínculo (pago
+      // dividido) en vez de reemplazar el que ya tiene.
+      if (over && over.startsWith("mov:")) void agregarFacturaAOtroMovimiento(cxpId, over.slice(4));
+      return;
+    }
     if (!active.startsWith("cxp:")) return;
     const cxpId = active.slice(4);
-    const over = e.over ? String(e.over.id) : null;
     if (!over) return;
     const cxp = (cxps ?? []).find((c) => c.id === cxpId);
     if (cxp?.cierre_manual) {
@@ -1019,6 +1083,44 @@ function TableroProveedor() {
         <div className="text-[11px] text-muted-foreground">
           Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV
         </div>
+      </div>
+    );
+  };
+
+  /**
+   * Fila de una factura que ya está pareada con uno o más movimientos pero
+   * a la que le falta cubrir un remanente (pago parcial). Se muestra también
+   * en "Facturas sin movimiento" para poder terminarla de cuadrar contra otro
+   * movimiento — arrastrarla o usar el selector AGREGA el vínculo (no
+   * reemplaza el que ya tiene, es "dividir pago").
+   */
+  const renderFacturaRemanente = (c: any, remanenteUsd: number) => {
+    const movsDisponibles = movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).some((x) => x.id === c.id));
+    return (
+      <div key={c.id} className="space-y-1">
+        <FacturaChip
+          cxp={c}
+          emision={emisionDeCxp(c)}
+          remanenteUsd={remanenteUsd}
+          movimientosCount={movimientosPorFactura.get(c.id)}
+          disabled={busy}
+          dragIdPrefix="cxp-remanente"
+          onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
+        />
+        {movsDisponibles.length > 0 && (
+          <Select onValueChange={(v) => agregarFacturaAOtroMovimiento(c.id, v)}>
+            <SelectTrigger className="h-8 text-xs w-64">
+              <SelectValue placeholder="Agregar el remanente a otro movimiento…" />
+            </SelectTrigger>
+            <SelectContent>
+              {movsDisponibles.map((mv) => (
+                <SelectItem key={mv.id} value={mv.id}>
+                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     );
   };
@@ -1335,6 +1437,15 @@ function TableroProveedor() {
             </CardHeader>
             <CardContent className="space-y-4">
               <Zona id={BANDEJA} className="space-y-3 min-h-24 border border-dashed rounded-md p-2">
+                  {facturasConRemanente.length > 0 && (
+                    <div className="space-y-2 pb-2 border-b">
+                      <p className="text-sm font-bold text-orange-600 uppercase tracking-wide flex items-center gap-1.5">
+                        <Scissors className="h-4 w-4" />Remanente de pago parcial ({facturasConRemanente.length})
+                      </p>
+                      {facturasConRemanente.map(({ cxp: c, remanenteUsd }) => renderFacturaRemanente(c, remanenteUsd))}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <p className="text-sm font-bold text-amber-600 uppercase tracking-wide flex items-center gap-1.5">
                       <Clock className="h-4 w-4" />En espera de movimiento ({facturasEnEspera.length})
@@ -1346,8 +1457,8 @@ function TableroProveedor() {
                   </div>
 
                   <div className="space-y-2 pt-2 border-t">
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                      Pendientes ({facturasPendientesNormales.length})
+                    <p className="text-sm font-bold text-sky-600 uppercase tracking-wide flex items-center gap-1.5">
+                      <ListChecks className="h-4 w-4" />Por asignar ({facturasPendientesNormales.length})
                     </p>
                     {facturasPendientesNormales.length === 0 && (
                       <p className="text-xs text-muted-foreground">Todas las facturas tienen movimiento asignado.</p>
