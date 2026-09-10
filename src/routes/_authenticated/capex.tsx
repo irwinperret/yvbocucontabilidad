@@ -70,6 +70,7 @@ function CapExPage() {
       const hasta = `${anio}-12-31`;
       // Un año completo de gastos operativos fácilmente pasa de 1.000 filas
       // (el límite por defecto de Supabase/PostgREST) — sin paginar, meses
+      // enteros se pierden en silencio. Se pagina con fetchAllRows, igual
       // que en cxp.tsx y otras pantallas de la app.
       const { fetchAllRows } = await import("@/lib/fetch-all");
       return await fetchAllRows(async (from, to) =>
