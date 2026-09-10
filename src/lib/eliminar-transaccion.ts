@@ -138,7 +138,7 @@ export async function analizarBorradoTransaccion(t: any): Promise<DeletePlan> {
   const ids = plan.transacciones.map((x) => x.id);
   if (ids.length) {
     const { count } = await supabase
-      .from("propinas")
+      .from("bono10_propina")
       .select("id", { count: "exact", head: true })
       .or(
         ids
@@ -192,7 +192,7 @@ export async function ejecutarBorradoTransaccion(plan: DeletePlan): Promise<{ ok
     const orExpr = txIds
       .map((id) => `transaccion_entrada_id.eq.${id},transaccion_salida_id.eq.${id}`)
       .join(",");
-    const { error } = await supabase.from("propinas").delete().or(orExpr);
+    const { error } = await supabase.from("bono10_propina").delete().or(orExpr);
     if (error) return { ok: false, error: `Error eliminando propinas: ${error.message}` };
   }
 

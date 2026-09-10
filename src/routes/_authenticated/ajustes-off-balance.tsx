@@ -169,7 +169,7 @@ function AjustesOffBalancePage() {
       return await fetchAllRows(async (from, to) =>
         await supabase
           .from("transacciones").select("*").neq("standby", true)
-          .eq("cuenta_codigo", "8.3")
+          .eq("cuenta_codigo", "8.1")
           .ilike("notas", `%${NOTAS_BONO_MANUAL}%`)
           .order("fecha", { ascending: false })
           .range(from, to),

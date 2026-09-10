@@ -46,7 +46,7 @@ export function cuentaNomina(tipo: string, centro: Centro): string {
     parafiscales: "3.2",   // Pasivos laborales
     // Bono 10%: ya no es gasto de nómina (3.5/3.10 retiradas). Es un pasivo
     // (13.4, estilo Propinas), igual para los tres centros.
-    bono:         "8.3",
+    bono:         "8.1",
   };
   return map[tipo] ?? "3.1";
 }
