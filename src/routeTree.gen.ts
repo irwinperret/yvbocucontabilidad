@@ -22,7 +22,6 @@ import { Route as AuthenticatedSaldosBancariosRouteImport } from './routes/_auth
 import { Route as AuthenticatedResumenEjecutivoMensualRouteImport } from './routes/_authenticated/resumen-ejecutivo-mensual'
 import { Route as AuthenticatedResumenEjecutivoRouteImport } from './routes/_authenticated/resumen-ejecutivo'
 import { Route as AuthenticatedRegistrarRouteImport } from './routes/_authenticated/registrar'
-import { Route as AuthenticatedPropinasRouteImport } from './routes/_authenticated/propinas'
 import { Route as AuthenticatedPlanCuentasRouteImport } from './routes/_authenticated/plan-cuentas'
 import { Route as AuthenticatedPagarCxpRouteImport } from './routes/_authenticated/pagar-cxp'
 import { Route as AuthenticatedOperacionesCambioRouteImport } from './routes/_authenticated/operaciones-cambio'
@@ -46,11 +45,12 @@ import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cx
 import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
 import { Route as AuthenticatedCierresDeMesRouteImport } from './routes/_authenticated/cierres-de-mes'
 import { Route as AuthenticatedCapexRouteImport } from './routes/_authenticated/capex'
-import { Route as AuthenticatedBonos10RouteImport } from './routes/_authenticated/bonos10'
+import { Route as AuthenticatedBonoPropinaRouteImport } from './routes/_authenticated/bono-propina'
 import { Route as AuthenticatedAyudaRouteImport } from './routes/_authenticated/ayuda'
 import { Route as AuthenticatedAumentoCapitalRouteImport } from './routes/_authenticated/aumento-capital'
 import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/_authenticated/anticipos-proveedores'
 import { Route as AuthenticatedAnalisisAiRouteImport } from './routes/_authenticated/analisis-ai'
+import { Route as AuthenticatedAjustesOffBalanceRouteImport } from './routes/_authenticated/ajustes-off-balance'
 import { Route as AuthenticatedActivosTransitoriosRouteImport } from './routes/_authenticated/activos-transitorios'
 import { Route as AuthenticatedProveedoresIndexRouteImport } from './routes/_authenticated/proveedores/index'
 import { Route as AuthenticatedIrisIndexRouteImport } from './routes/_authenticated/iris/index'
@@ -127,11 +127,6 @@ const AuthenticatedResumenEjecutivoRoute =
 const AuthenticatedRegistrarRoute = AuthenticatedRegistrarRouteImport.update({
   id: '/registrar',
   path: '/registrar',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedPropinasRoute = AuthenticatedPropinasRouteImport.update({
-  id: '/propinas',
-  path: '/propinas',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedPlanCuentasRoute =
@@ -262,11 +257,12 @@ const AuthenticatedCapexRoute = AuthenticatedCapexRouteImport.update({
   path: '/capex',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBonos10Route = AuthenticatedBonos10RouteImport.update({
-  id: '/bonos10',
-  path: '/bonos10',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedBonoPropinaRoute =
+  AuthenticatedBonoPropinaRouteImport.update({
+    id: '/bono-propina',
+    path: '/bono-propina',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAyudaRoute = AuthenticatedAyudaRouteImport.update({
   id: '/ayuda',
   path: '/ayuda',
@@ -289,6 +285,12 @@ const AuthenticatedAnalisisAiRoute = AuthenticatedAnalisisAiRouteImport.update({
   path: '/analisis-ai',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAjustesOffBalanceRoute =
+  AuthenticatedAjustesOffBalanceRouteImport.update({
+    id: '/ajustes-off-balance',
+    path: '/ajustes-off-balance',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedActivosTransitoriosRoute =
   AuthenticatedActivosTransitoriosRouteImport.update({
     id: '/activos-transitorios',
@@ -340,11 +342,12 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reporte-mensual-imprimir': typeof ReporteMensualImprimirRoute
   '/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/ajustes-off-balance': typeof AuthenticatedAjustesOffBalanceRoute
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/ayuda': typeof AuthenticatedAyudaRoute
-  '/bonos10': typeof AuthenticatedBonos10Route
+  '/bono-propina': typeof AuthenticatedBonoPropinaRoute
   '/capex': typeof AuthenticatedCapexRoute
   '/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
@@ -368,7 +371,6 @@ export interface FileRoutesByFullPath {
   '/operaciones-cambio': typeof AuthenticatedOperacionesCambioRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
-  '/propinas': typeof AuthenticatedPropinasRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
   '/resumen-ejecutivo-mensual': typeof AuthenticatedResumenEjecutivoMensualRoute
@@ -391,11 +393,12 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reporte-mensual-imprimir': typeof ReporteMensualImprimirRoute
   '/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/ajustes-off-balance': typeof AuthenticatedAjustesOffBalanceRoute
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/ayuda': typeof AuthenticatedAyudaRoute
-  '/bonos10': typeof AuthenticatedBonos10Route
+  '/bono-propina': typeof AuthenticatedBonoPropinaRoute
   '/capex': typeof AuthenticatedCapexRoute
   '/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
@@ -419,7 +422,6 @@ export interface FileRoutesByTo {
   '/operaciones-cambio': typeof AuthenticatedOperacionesCambioRoute
   '/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
-  '/propinas': typeof AuthenticatedPropinasRoute
   '/registrar': typeof AuthenticatedRegistrarRoute
   '/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
   '/resumen-ejecutivo-mensual': typeof AuthenticatedResumenEjecutivoMensualRoute
@@ -444,11 +446,12 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reporte-mensual-imprimir': typeof ReporteMensualImprimirRoute
   '/_authenticated/activos-transitorios': typeof AuthenticatedActivosTransitoriosRoute
+  '/_authenticated/ajustes-off-balance': typeof AuthenticatedAjustesOffBalanceRoute
   '/_authenticated/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/_authenticated/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
   '/_authenticated/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/_authenticated/ayuda': typeof AuthenticatedAyudaRoute
-  '/_authenticated/bonos10': typeof AuthenticatedBonos10Route
+  '/_authenticated/bono-propina': typeof AuthenticatedBonoPropinaRoute
   '/_authenticated/capex': typeof AuthenticatedCapexRoute
   '/_authenticated/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
   '/_authenticated/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
@@ -472,7 +475,6 @@ export interface FileRoutesById {
   '/_authenticated/operaciones-cambio': typeof AuthenticatedOperacionesCambioRoute
   '/_authenticated/pagar-cxp': typeof AuthenticatedPagarCxpRoute
   '/_authenticated/plan-cuentas': typeof AuthenticatedPlanCuentasRoute
-  '/_authenticated/propinas': typeof AuthenticatedPropinasRoute
   '/_authenticated/registrar': typeof AuthenticatedRegistrarRoute
   '/_authenticated/resumen-ejecutivo': typeof AuthenticatedResumenEjecutivoRoute
   '/_authenticated/resumen-ejecutivo-mensual': typeof AuthenticatedResumenEjecutivoMensualRoute
@@ -497,11 +499,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/reporte-mensual-imprimir'
     | '/activos-transitorios'
+    | '/ajustes-off-balance'
     | '/analisis-ai'
     | '/anticipos-proveedores'
     | '/aumento-capital'
     | '/ayuda'
-    | '/bonos10'
+    | '/bono-propina'
     | '/capex'
     | '/cierres-de-mes'
     | '/cuentas-bancarias'
@@ -525,7 +528,6 @@ export interface FileRouteTypes {
     | '/operaciones-cambio'
     | '/pagar-cxp'
     | '/plan-cuentas'
-    | '/propinas'
     | '/registrar'
     | '/resumen-ejecutivo'
     | '/resumen-ejecutivo-mensual'
@@ -548,11 +550,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/reporte-mensual-imprimir'
     | '/activos-transitorios'
+    | '/ajustes-off-balance'
     | '/analisis-ai'
     | '/anticipos-proveedores'
     | '/aumento-capital'
     | '/ayuda'
-    | '/bonos10'
+    | '/bono-propina'
     | '/capex'
     | '/cierres-de-mes'
     | '/cuentas-bancarias'
@@ -576,7 +579,6 @@ export interface FileRouteTypes {
     | '/operaciones-cambio'
     | '/pagar-cxp'
     | '/plan-cuentas'
-    | '/propinas'
     | '/registrar'
     | '/resumen-ejecutivo'
     | '/resumen-ejecutivo-mensual'
@@ -600,11 +602,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/reporte-mensual-imprimir'
     | '/_authenticated/activos-transitorios'
+    | '/_authenticated/ajustes-off-balance'
     | '/_authenticated/analisis-ai'
     | '/_authenticated/anticipos-proveedores'
     | '/_authenticated/aumento-capital'
     | '/_authenticated/ayuda'
-    | '/_authenticated/bonos10'
+    | '/_authenticated/bono-propina'
     | '/_authenticated/capex'
     | '/_authenticated/cierres-de-mes'
     | '/_authenticated/cuentas-bancarias'
@@ -628,7 +631,6 @@ export interface FileRouteTypes {
     | '/_authenticated/operaciones-cambio'
     | '/_authenticated/pagar-cxp'
     | '/_authenticated/plan-cuentas'
-    | '/_authenticated/propinas'
     | '/_authenticated/registrar'
     | '/_authenticated/resumen-ejecutivo'
     | '/_authenticated/resumen-ejecutivo-mensual'
@@ -747,13 +749,6 @@ declare module '@tanstack/react-router' {
       path: '/registrar'
       fullPath: '/registrar'
       preLoaderRoute: typeof AuthenticatedRegistrarRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/propinas': {
-      id: '/_authenticated/propinas'
-      path: '/propinas'
-      fullPath: '/propinas'
-      preLoaderRoute: typeof AuthenticatedPropinasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/plan-cuentas': {
@@ -917,11 +912,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCapexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/bonos10': {
-      id: '/_authenticated/bonos10'
-      path: '/bonos10'
-      fullPath: '/bonos10'
-      preLoaderRoute: typeof AuthenticatedBonos10RouteImport
+    '/_authenticated/bono-propina': {
+      id: '/_authenticated/bono-propina'
+      path: '/bono-propina'
+      fullPath: '/bono-propina'
+      preLoaderRoute: typeof AuthenticatedBonoPropinaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/ayuda': {
@@ -950,6 +945,13 @@ declare module '@tanstack/react-router' {
       path: '/analisis-ai'
       fullPath: '/analisis-ai'
       preLoaderRoute: typeof AuthenticatedAnalisisAiRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/ajustes-off-balance': {
+      id: '/_authenticated/ajustes-off-balance'
+      path: '/ajustes-off-balance'
+      fullPath: '/ajustes-off-balance'
+      preLoaderRoute: typeof AuthenticatedAjustesOffBalanceRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/activos-transitorios': {
@@ -1013,11 +1015,12 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedActivosTransitoriosRoute: typeof AuthenticatedActivosTransitoriosRoute
+  AuthenticatedAjustesOffBalanceRoute: typeof AuthenticatedAjustesOffBalanceRoute
   AuthenticatedAnalisisAiRoute: typeof AuthenticatedAnalisisAiRoute
   AuthenticatedAnticiposProveedoresRoute: typeof AuthenticatedAnticiposProveedoresRoute
   AuthenticatedAumentoCapitalRoute: typeof AuthenticatedAumentoCapitalRoute
   AuthenticatedAyudaRoute: typeof AuthenticatedAyudaRoute
-  AuthenticatedBonos10Route: typeof AuthenticatedBonos10Route
+  AuthenticatedBonoPropinaRoute: typeof AuthenticatedBonoPropinaRoute
   AuthenticatedCapexRoute: typeof AuthenticatedCapexRoute
   AuthenticatedCierresDeMesRoute: typeof AuthenticatedCierresDeMesRoute
   AuthenticatedCuentasBancariasRoute: typeof AuthenticatedCuentasBancariasRoute
@@ -1041,7 +1044,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOperacionesCambioRoute: typeof AuthenticatedOperacionesCambioRoute
   AuthenticatedPagarCxpRoute: typeof AuthenticatedPagarCxpRoute
   AuthenticatedPlanCuentasRoute: typeof AuthenticatedPlanCuentasRoute
-  AuthenticatedPropinasRoute: typeof AuthenticatedPropinasRoute
   AuthenticatedRegistrarRoute: typeof AuthenticatedRegistrarRoute
   AuthenticatedResumenEjecutivoRoute: typeof AuthenticatedResumenEjecutivoRoute
   AuthenticatedResumenEjecutivoMensualRoute: typeof AuthenticatedResumenEjecutivoMensualRoute
@@ -1060,12 +1062,13 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedActivosTransitoriosRoute: AuthenticatedActivosTransitoriosRoute,
+  AuthenticatedAjustesOffBalanceRoute: AuthenticatedAjustesOffBalanceRoute,
   AuthenticatedAnalisisAiRoute: AuthenticatedAnalisisAiRoute,
   AuthenticatedAnticiposProveedoresRoute:
     AuthenticatedAnticiposProveedoresRoute,
   AuthenticatedAumentoCapitalRoute: AuthenticatedAumentoCapitalRoute,
   AuthenticatedAyudaRoute: AuthenticatedAyudaRoute,
-  AuthenticatedBonos10Route: AuthenticatedBonos10Route,
+  AuthenticatedBonoPropinaRoute: AuthenticatedBonoPropinaRoute,
   AuthenticatedCapexRoute: AuthenticatedCapexRoute,
   AuthenticatedCierresDeMesRoute: AuthenticatedCierresDeMesRoute,
   AuthenticatedCuentasBancariasRoute: AuthenticatedCuentasBancariasRoute,
@@ -1091,7 +1094,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOperacionesCambioRoute: AuthenticatedOperacionesCambioRoute,
   AuthenticatedPagarCxpRoute: AuthenticatedPagarCxpRoute,
   AuthenticatedPlanCuentasRoute: AuthenticatedPlanCuentasRoute,
-  AuthenticatedPropinasRoute: AuthenticatedPropinasRoute,
   AuthenticatedRegistrarRoute: AuthenticatedRegistrarRoute,
   AuthenticatedResumenEjecutivoRoute: AuthenticatedResumenEjecutivoRoute,
   AuthenticatedResumenEjecutivoMensualRoute:
