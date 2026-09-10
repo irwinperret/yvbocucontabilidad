@@ -48,14 +48,17 @@ export function useAnticiposProveedor(desde: string, hasta: string) {
   return useQuery({
     queryKey: ["anticipos-proveedor", desde, hasta],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones")
-        .select(SELECT_FIELDS + ", grupo_transaccion_id").neq("standby", true)
-        .eq("cuenta_codigo", "9.2")
-        .gte("fecha", desde)
-        .lte("fecha", hasta)
-        .order("fecha", { ascending: false });
-      return (data ?? []) as any[];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select(SELECT_FIELDS + ", grupo_transaccion_id").neq("standby", true)
+          .eq("cuenta_codigo", "9.2")
+          .gte("fecha", desde)
+          .lte("fecha", hasta)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
 }

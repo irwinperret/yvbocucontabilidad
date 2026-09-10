@@ -80,14 +80,17 @@ function TabBody({ tabKey }: { tabKey: TabKey }) {
   const { data: rows } = useQuery({
     queryKey: ["act-trans-rows", cfg.cuenta, desde, hasta],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones")
-        .select("id, fecha, centro_costo, cuenta_codigo, monto_bs, monto_usd, tasa_paralela, tasa_bcv, detalle, notas, cuenta_bancaria_id, metodo_pago").neq("standby", true)
-        .eq("cuenta_codigo", cfg.cuenta)
-        .gte("fecha", desde)
-        .lte("fecha", hasta)
-        .order("fecha", { ascending: false });
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("id, fecha, centro_costo, cuenta_codigo, monto_bs, monto_usd, tasa_paralela, tasa_bcv, detalle, notas, cuenta_bancaria_id, metodo_pago").neq("standby", true)
+          .eq("cuenta_codigo", cfg.cuenta)
+          .gte("fecha", desde)
+          .lte("fecha", hasta)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
   const { data: bancos } = useCuentasBancarias();
@@ -378,15 +381,18 @@ function ProveedoresTabBody() {
   const { data: rows } = useQuery({
     queryKey: ["anticipos-proveedor", desde, hasta],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones")
-        .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd, grupo_transaccion_id").neq("standby", true)
-        .eq("cuenta_codigo", "9.2")
-        .gte("fecha", desde)
-        .lte("fecha", hasta)
-        .gt("monto_usd", 0) // sólo registros de anticipo (excluye reversos)
-        .order("fecha", { ascending: false });
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("id, fecha, tercero_id, monto_bs, monto_usd, tasa_paralela, tasa_bcv, cuenta_bancaria_id, notas, anticipo_estado, anticipo_aplicado_usd, grupo_transaccion_id").neq("standby", true)
+          .eq("cuenta_codigo", "9.2")
+          .gte("fecha", desde)
+          .lte("fecha", hasta)
+          .gt("monto_usd", 0) // sólo registros de anticipo (excluye reversos)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
 

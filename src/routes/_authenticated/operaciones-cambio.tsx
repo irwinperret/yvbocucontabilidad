@@ -49,15 +49,18 @@ function OperacionesCambioPage() {
   const { data: txs } = useQuery({
     queryKey: ["ops-cambio", anio],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones")
-        .select("id, fecha, monto_bs, monto_usd, tasa_paralela, detalle, notas, cuenta_bancaria_id, grupo_transaccion_id")
-        .eq("cuenta_codigo", CUENTA_CAMBIO)
-        .neq("standby", true)
-        .gte("fecha", `${anio}-01-01`)
-        .lte("fecha", `${anio}-12-31`)
-        .order("fecha", { ascending: false });
-      return (data ?? []) as Tx[];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows<Tx>(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("id, fecha, monto_bs, monto_usd, tasa_paralela, detalle, notas, cuenta_bancaria_id, grupo_transaccion_id")
+          .eq("cuenta_codigo", CUENTA_CAMBIO)
+          .neq("standby", true)
+          .gte("fecha", `${anio}-01-01`)
+          .lte("fecha", `${anio}-12-31`)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
 

@@ -308,11 +308,12 @@ function TableroProveedor() {
   const { data: cxps } = useQuery({
     queryKey: ["tablero-cxp", id],
     queryFn: async () => {
-      let q = supabase.from("cuentas_por_pagar").select("*").order("fecha_vencimiento", { ascending: true });
-      q = esSin ? q.is("tercero_id", null) : q.eq("tercero_id", id);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as any[];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) => {
+        let q = supabase.from("cuentas_por_pagar").select("*").order("fecha_vencimiento", { ascending: true });
+        q = esSin ? q.is("tercero_id", null) : q.eq("tercero_id", id);
+        return await q.range(from, to);
+      });
     },
   });
 

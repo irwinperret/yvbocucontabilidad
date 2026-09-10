@@ -33,9 +33,15 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const margen_neto_pct = snap.ingresos_usd > 0 ? utilidad_neta_usd / snap.ingresos_usd : null;
 
     // CxC / CxP
-    const [{ data: cxcData }, { data: cxpData }] = await Promise.all([
+    const { fetchAllRows } = await import("@/lib/fetch-all");
+    const [{ data: cxcData }, cxpData] = await Promise.all([
       supabase.from("cuentas_por_cobrar").select("estado, monto_pendiente_usd"),
-      supabase.from("cuentas_por_pagar").select("estado, monto_pendiente_usd_bcv, monto_pendiente_bs"),
+      fetchAllRows(async (from, to) =>
+        await supabase
+          .from("cuentas_por_pagar")
+          .select("estado, monto_pendiente_usd_bcv, monto_pendiente_bs")
+          .range(from, to),
+      ),
     ]);
     const cxc_vencidas_usd = (cxcData ?? [])
       .filter((r: any) => r.estado === "vencida")

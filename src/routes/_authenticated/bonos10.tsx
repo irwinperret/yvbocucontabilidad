@@ -67,13 +67,16 @@ function Bonos10Page() {
     queryFn: async () => {
       const ini = `${anio}-01-01`;
       const fin = `${anio}-12-31`;
-      const { data } = await supabase
-        .from("bonos_10")
-        .select("id,fecha,monto_usd,monto_bs,tasa_paralela,centro_costo,concepto,notas,transaccion_entrada_id,transaccion_salida_id,fecha_distribucion,monto_distribuido_usd,notas_distribucion")
-        .gte("fecha", ini)
-        .lte("fecha", fin)
-        .order("fecha", { ascending: false });
-      return (data ?? []) as Bono10[];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows<Bono10>(async (from, to) =>
+        await supabase
+          .from("bonos_10")
+          .select("id,fecha,monto_usd,monto_bs,tasa_paralela,centro_costo,concepto,notas,transaccion_entrada_id,transaccion_salida_id,fecha_distribucion,monto_distribuido_usd,notas_distribucion")
+          .gte("fecha", ini)
+          .lte("fecha", fin)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
 
@@ -105,13 +108,17 @@ function Bonos10Page() {
   const { data: saldo134 } = useQuery({
     queryKey: ["saldo-13-4", anio],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones")
-        .select("monto_usd")
-        .eq("cuenta_codigo", "8.3")
-        .eq("standby", false)
-        .gte("fecha", `${anio}-01-01`)
-        .lte("fecha", `${anio}-12-31`);
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      const data = await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("monto_usd")
+          .eq("cuenta_codigo", "8.3")
+          .eq("standby", false)
+          .gte("fecha", `${anio}-01-01`)
+          .lte("fecha", `${anio}-12-31`)
+          .range(from, to),
+      );
       return (data ?? []).reduce((s: number, r: any) => s + (Number(r.monto_usd) || 0), 0);
     },
   });

@@ -3068,10 +3068,14 @@ function ActivosTransitoriosForm({ tipo, setTipo }: { tipo: ActTipo; setTipo: (v
     queryKey: ["act-trans-abiertos", cfg.cuenta],
     enabled: cfg.hasEntrada,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones")
-        .select("detalle, monto_usd")
-        .eq("cuenta_codigo", cfg.cuenta);
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      const data = await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("detalle, monto_usd")
+          .eq("cuenta_codigo", cfg.cuenta)
+          .range(from, to),
+      );
       const m = new Map<string, number>();
       (data ?? []).forEach((r: any) => {
         const emp = (String(r.detalle || "").split("·")[1] || "").trim();
@@ -3977,18 +3981,27 @@ function CierreForm() {
   const exportarCogsExcel = async () => {
     setExportandoCogs(true);
     try {
-      const [{ data: cierres }, { data: snapshots }, { data: comprasTodas }, { data: terceros }, { data: cxpsTodas }] =
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      const [{ data: cierres }, { data: snapshots }, comprasTodas, { data: terceros }, cxpsTodas] =
         await Promise.all([
           supabase.from("cierres_de_mes").select("*").order("periodo"),
           supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd"),
-          supabase
-            .from("transacciones")
-            .select("fecha, referencia, tercero_id, numero_factura, monto_base_bs, tasa_bcv, tasa_paralela")
-            .eq("cuenta_codigo", "2.1")
-            .neq("standby", true)
-            .order("fecha"),
+          fetchAllRows(async (from, to) =>
+            await supabase
+              .from("transacciones")
+              .select("fecha, referencia, tercero_id, numero_factura, monto_base_bs, tasa_bcv, tasa_paralela")
+              .eq("cuenta_codigo", "2.1")
+              .neq("standby", true)
+              .order("fecha")
+              .range(from, to),
+          ),
           supabase.from("terceros").select("id, razon_social"),
-          supabase.from("cuentas_por_pagar").select("tercero_id, numero_factura, estado, monto_pendiente_bs"),
+          fetchAllRows(async (from, to) =>
+            await supabase
+              .from("cuentas_por_pagar")
+              .select("tercero_id, numero_factura, estado, monto_pendiente_bs")
+              .range(from, to),
+          ),
         ]);
 
       const inicialPorPeriodo: Record<string, number | null> = {};

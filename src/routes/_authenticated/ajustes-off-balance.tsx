@@ -137,37 +137,43 @@ function AjustesOffBalancePage() {
   const { data: importTxs } = useQuery({
     queryKey: ["ajustes-off-import"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transacciones").select("*").neq("standby", true)
-        .eq("referencia", REF_IMPORT)
-        .order("fecha", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones").select("*").neq("standby", true)
+          .eq("referencia", REF_IMPORT)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
 
   const { data: ventaManualTxs } = useQuery({
     queryKey: ["ajustes-off-venta-manual"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transacciones").select("*").neq("standby", true)
-        .ilike("notas", `${NOTAS_VENTA_MANUAL}%`)
-        .order("fecha", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones").select("*").neq("standby", true)
+          .ilike("notas", `${NOTAS_VENTA_MANUAL}%`)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
 
   const { data: bonoManualTxs } = useQuery({
     queryKey: ["ajustes-off-bono-manual"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transacciones").select("*").neq("standby", true)
-        .eq("cuenta_codigo", "8.3")
-        .ilike("notas", `%${NOTAS_BONO_MANUAL}%`)
-        .order("fecha", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones").select("*").neq("standby", true)
+          .eq("cuenta_codigo", "8.3")
+          .ilike("notas", `%${NOTAS_BONO_MANUAL}%`)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
 

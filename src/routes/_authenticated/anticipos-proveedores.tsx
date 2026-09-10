@@ -63,15 +63,18 @@ function AnticiposProveedoresPage() {
   const { data: anticipos, isLoading } = useQuery({
     queryKey: ["anticipos-proveedores-all", desde, hasta],
     queryFn: async (): Promise<Row[]> => {
-      const { data, error } = await supabase
-        .from("transacciones")
-        .select("id, fecha, tercero_id, monto_bs, monto_usd, anticipo_usd_bcv, anticipo_aplicado_usd_bcv, tasa_bcv, tasa_paralela, anticipo_estado, anticipo_aplicado_usd, notas, grupo_transaccion_id, terceros(razon_social)").neq("standby", true)
-        .eq("cuenta_codigo", "9.2")
-        .gt("monto_usd", 0)
-        .gte("fecha", desde)
-        .lte("fecha", hasta)
-        .order("fecha", { ascending: false });
-      if (error) throw error;
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      const data = await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("id, fecha, tercero_id, monto_bs, monto_usd, anticipo_usd_bcv, anticipo_aplicado_usd_bcv, tasa_bcv, tasa_paralela, anticipo_estado, anticipo_aplicado_usd, notas, grupo_transaccion_id, terceros(razon_social)").neq("standby", true)
+          .eq("cuenta_codigo", "9.2")
+          .gt("monto_usd", 0)
+          .gte("fecha", desde)
+          .lte("fecha", hasta)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
 
       // Buscar facturas vinculadas por grupo_transaccion_id
       const grupos = Array.from(new Set((data ?? []).map((r: any) => r.grupo_transaccion_id).filter(Boolean)));

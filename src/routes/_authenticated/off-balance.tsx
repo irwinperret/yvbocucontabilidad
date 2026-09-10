@@ -18,10 +18,13 @@ function OffBalancePage() {
   const { data } = useQuery({
     queryKey: ["off-balance"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones").select("*").neq("standby", true)
-        .eq("modo", "off_balance").order("fecha", { ascending: true });
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones").select("*").neq("standby", true)
+          .eq("modo", "off_balance").order("fecha", { ascending: true })
+          .range(from, to),
+      );
     },
   });
 

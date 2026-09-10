@@ -67,13 +67,16 @@ function PropinasPage() {
     queryFn: async () => {
       const ini = `${anio}-01-01`;
       const fin = `${anio}-12-31`;
-      const { data } = await supabase
-        .from("propinas")
-        .select("id,fecha,monto_usd,monto_bs,tasa_paralela,centro_costo,concepto,notas,transaccion_entrada_id,transaccion_salida_id,fecha_distribucion,monto_distribuido_usd,notas_distribucion")
-        .gte("fecha", ini)
-        .lte("fecha", fin)
-        .order("fecha", { ascending: false });
-      return (data ?? []) as Propina[];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows<Propina>(async (from, to) =>
+        await supabase
+          .from("propinas")
+          .select("id,fecha,monto_usd,monto_bs,tasa_paralela,centro_costo,concepto,notas,transaccion_entrada_id,transaccion_salida_id,fecha_distribucion,monto_distribuido_usd,notas_distribucion")
+          .gte("fecha", ini)
+          .lte("fecha", fin)
+          .order("fecha", { ascending: false })
+          .range(from, to),
+      );
     },
   });
 
@@ -105,13 +108,17 @@ function PropinasPage() {
   const { data: saldosPersonal } = useQuery({
     queryKey: ["saldos-pasivos-personal", anio],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones")
-        .select("cuenta_codigo,monto_usd")
-        .in("cuenta_codigo", ["8.1", "8.3"])
-        .eq("standby", false)
-        .gte("fecha", `${anio}-01-01`)
-        .lte("fecha", `${anio}-12-31`);
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      const data = await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("cuenta_codigo,monto_usd")
+          .in("cuenta_codigo", ["8.1", "8.3"])
+          .eq("standby", false)
+          .gte("fecha", `${anio}-01-01`)
+          .lte("fecha", `${anio}-12-31`)
+          .range(from, to),
+      );
       const acc = { "8.1": 0, "8.3": 0 } as Record<string, number>;
       for (const r of (data ?? []) as any[]) acc[r.cuenta_codigo] += Number(r.monto_usd) || 0;
       return acc;

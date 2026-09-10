@@ -56,13 +56,16 @@ function ResumenEjecutivoPage() {
   const { data: movsCapital } = useQuery({
     queryKey: ["resumen-ejecutivo-capital"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("transacciones")
-        .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, detalle")
-        .in("cuenta_codigo", ["5.1", "5.4", "5.5"])
-        .neq("standby", true)
-        .order("fecha");
-      return data ?? [];
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela, detalle")
+          .in("cuenta_codigo", ["5.1", "5.4", "5.5"])
+          .neq("standby", true)
+          .order("fecha")
+          .range(from, to),
+      );
     },
   });
 

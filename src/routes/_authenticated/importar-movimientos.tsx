@@ -386,12 +386,19 @@ function ImportarMovimientosInner() {
       const porPrefijo = new Map<string, Existente & { montoStr: string }>();
       if (prefijosConRef.length > 0) {
         const fechas = parsed.map((p) => p.fecha).filter(Boolean).sort();
-        const { data: candidatas } = await supabase
-          .from("transacciones")
-          .select("id, referencia, cuenta_codigo, notas, detalle, monto_bs, monto_usd")
-          .like("referencia", "BANK:%")
-          .gte("fecha", fechas[0])
-          .lte("fecha", fechas[fechas.length - 1]);
+        // Sin límite de filas: un archivo con muchos movimientos del mismo
+        // rango de fechas podría superar las 1.000 filas por defecto de
+        // Supabase, así que se pagina con fetchAllRows.
+        const { fetchAllRows } = await import("@/lib/fetch-all");
+        const candidatas = await fetchAllRows<any>((from, to) =>
+          supabase
+            .from("transacciones")
+            .select("id, referencia, cuenta_codigo, notas, detalle, monto_bs, monto_usd")
+            .like("referencia", "BANK:%")
+            .gte("fecha", fechas[0])
+            .lte("fecha", fechas[fechas.length - 1])
+            .range(from, to),
+        );
         for (const r of candidatas ?? []) {
           const ref = String((r as any).referencia ?? "");
           if (ref.includes("|SINREF|")) continue;

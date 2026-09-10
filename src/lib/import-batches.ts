@@ -233,19 +233,20 @@ export const ORIGEN_LABEL: Record<Residuo["origen"], string> = {
 /** Lista transacciones de origen importado que no pertenecen a ninguna carga. */
 export async function listarResiduos(): Promise<Residuo[]> {
   const cols = "id, fecha, cuenta_codigo, monto_bs, monto_usd, referencia, notas, created_at, standby";
+  const { fetchAllRows } = await import("@/lib/fetch-all");
   const base = () => supabase.from("transacciones").select(cols).is("import_batch_id", null);
   // OJO: las transacciones "PAREO:..." (pago de CxP generado al confirmar un
   // pareo manual) NUNCA tienen import_batch_id por diseño — no vienen de un
   // archivo importado en lote, se crean una por una al confirmar el pareo en
   // pantalla. Incluirlas aquí las hacía aparecer siempre como "residuo",
   // aunque sean pagos reales y válidos que no hay que tocar.
+  // Sin fecha límite: puede haber más de 1.000 filas sueltas acumuladas con
+  // el tiempo, así que se pagina con fetchAllRows en vez de un solo select.
   const [bank, xetux] = await Promise.all([
-    base().like("referencia", "BANK:%"),
-    base().eq("referencia", "xetux"),
+    fetchAllRows<any>((from, to) => base().like("referencia", "BANK:%").range(from, to)),
+    fetchAllRows<any>((from, to) => base().eq("referencia", "xetux").range(from, to)),
   ]);
-  const error = bank.error ?? xetux.error;
-  if (error) throw error;
-  const data = [...(bank.data ?? []), ...(xetux.data ?? [])].sort((a: any, b: any) =>
+  const data = [...bank, ...xetux].sort((a: any, b: any) =>
     a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0
   );
   return (data ?? [])
