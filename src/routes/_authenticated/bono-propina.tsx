@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -50,16 +49,18 @@ type ItemCombinado = {
   notas_distribucion: string | null;
 };
 
-type SortKey = "fecha" | "tipo" | "centro_costo" | "monto_usd" | "concepto" | "estado";
-type TipoFiltro = "todos" | Tipo;
+// El campo `tipo` (bono | propina) y el campo `centro_costo` se siguen
+// guardando en cada registro (los sigue usando el diálogo "Registrar" y la
+// lógica de dedup de los imports), pero esta pantalla ya no los muestra ni
+// los usa como filtro: para el usuario es un solo pasivo, sin distinguir por
+// tipo ni por centro de costo.
+type SortKey = "fecha" | "monto_usd" | "concepto" | "estado";
 
 function BonoPropinaPage() {
   const { mode, label } = useUsdView();
   const now = new Date();
   const [anio, setAnio] = useState(now.getFullYear());
   const [mes, setMes] = useState<number | "all">(now.getMonth() + 1);
-  const [centroFiltro, setCentroFiltro] = useState<string>("Consolidado");
-  const [tipoFiltro, setTipoFiltro] = useState<TipoFiltro>("todos");
   const [sortKey, setSortKey] = useState<SortKey>("fecha");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [registrando, setRegistrando] = useState(false);
@@ -81,20 +82,6 @@ function BonoPropinaPage() {
           .order("fecha", { ascending: false })
           .range(from, to),
       );
-    },
-  });
-
-  const { data: ventasMensual } = useQuery({
-    queryKey: ["ventas-netas-mensual-bono-propina", anio, mode],
-    queryFn: async () => {
-      const view = mode === "bcv" ? "v_transacciones_mensual_bcv" : "v_transacciones_mensual";
-      const { data } = await (supabase as any)
-        .from(view)
-        .select("mes,cuenta_codigo,base_usd")
-        .eq("anio", anio)
-        .eq("modo", "on_balance")
-        .in("cuenta_codigo", ["1.1", "1.2", "1.3", "1.4", "1.6", "1.7"]);
-      return (data ?? []) as { mes: number; cuenta_codigo: string; base_usd: number }[];
     },
   });
 
@@ -147,11 +134,9 @@ function BonoPropinaPage() {
     return items.filter((p) => {
       const m = Number(p.fecha.slice(5, 7));
       if (mes !== "all" && m !== mes) return false;
-      if (centroFiltro !== "Consolidado" && (p.centro_costo ?? "") !== centroFiltro) return false;
-      if (tipoFiltro !== "todos" && p.tipo !== tipoFiltro) return false;
       return true;
     });
-  }, [items, mes, centroFiltro, tipoFiltro]);
+  }, [items, mes]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -173,43 +158,25 @@ function BonoPropinaPage() {
   }, [filtered, sortKey, sortDir]);
 
   const total = filtered.reduce((s, p) => s + usdOf(p), 0);
-  const totalYV = filtered.filter((p) => p.centro_costo === "YV").reduce((s, p) => s + usdOf(p), 0);
-  const totalBocu = filtered.filter((p) => p.centro_costo === "Bocu").reduce((s, p) => s + usdOf(p), 0);
   const dias = new Set(filtered.map((p) => p.fecha)).size;
   const promedio = dias > 0 ? total / dias : 0;
 
-  // Pendientes de distribuir = todo el año (no del filtro de mes/centro/tipo) sin transacción de salida
-  const pendientesBono = items.filter((p) => p.tipo === "bono" && !p.transaccion_salida_id);
-  const pendientesPropina = items.filter((p) => p.tipo === "propina" && !p.transaccion_salida_id);
-  const pendientesBonoUsd = pendientesBono.reduce((s, p) => s + usdOf(p), 0);
-  const pendientesPropinaUsd = pendientesPropina.reduce((s, p) => s + usdOf(p), 0);
-  const pendientesUsd = pendientesBonoUsd + pendientesPropinaUsd;
-  const pendientesCount = pendientesBono.length + pendientesPropina.length;
+  // Pendientes de distribuir = todo el año (no del filtro de mes) sin transacción de salida
+  const pendientes = items.filter((p) => !p.transaccion_salida_id);
+  const pendientesUsd = pendientes.reduce((s, p) => s + usdOf(p), 0);
+  const pendientesCount = pendientes.length;
 
   const chartData = useMemo(() => {
-    const out: Record<number, { mes: number; mesLabel: string; Bono10: number; Propina: number; total: number }> = {};
+    const out: Record<number, { mes: number; mesLabel: string; total: number }> = {};
     for (let m = 1; m <= 12; m++) {
-      out[m] = { mes: m, mesLabel: MESES[m - 1], Bono10: 0, Propina: 0, total: 0 };
+      out[m] = { mes: m, mesLabel: MESES[m - 1], total: 0 };
     }
     items.forEach((p) => {
       const m = Number(p.fecha.slice(5, 7));
-      const amt = usdOf(p);
-      if (p.tipo === "bono") out[m].Bono10 += amt;
-      else out[m].Propina += amt;
-      out[m].total += amt;
+      out[m].total += usdOf(p);
     });
-    const ventasPorMes: Record<number, number> = {};
-    (ventasMensual ?? []).forEach((v) => {
-      // Descuentos (1.6) y devoluciones/NC (1.7) ya vienen con signo negativo
-      // desde el origen (import), así que sumar directo ya resta correctamente.
-      ventasPorMes[v.mes] = (ventasPorMes[v.mes] ?? 0) + Number(v.base_usd ?? 0);
-    });
-    return Object.values(out).map((r) => {
-      const ventas = ventasPorMes[r.mes] ?? 0;
-      const pct = ventas > 0 ? (r.total / ventas) * 100 : 0;
-      return { ...r, ventas, pctVentas: Number(pct.toFixed(2)) };
-    });
-  }, [items, ventasMensual, mode, bcvByFecha]);
+    return Object.values(out);
+  }, [items, mode, bcvByFecha]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -237,10 +204,9 @@ function BonoPropinaPage() {
           Ni el bono 10% de servicio ni las propinas adicionales son gasto de nómina ni afectan el G&P. Ambos se
           devengan en el mismo pasivo unificado (cuenta 8.1 "Bono 10% y Propinas por pagar al personal") y ninguno
           viene incluido en la nómina general — en la realidad, el negocio paga ambos juntos, al personal, en una
-          sola transferencia bancaria aparte. Por eso esta pantalla los muestra unificados: cada fila indica su Tipo,
-          pero ambos se descargan contra el mismo pago real. La distribución se marca automáticamente solo cuando se
-          importa ese movimiento bancario (concepto con "bono" o "propina") desde Importar Movimientos — no existe un
-          botón manual para marcarla.
+          sola transferencia bancaria aparte. Por eso esta pantalla los muestra como un solo total, sin separar por
+          tipo. La distribución se marca automáticamente solo cuando se importa ese movimiento bancario desde
+          Importar Movimientos — no existe un botón manual para marcarla.
         </AlertDescription>
       </Alert>
 
@@ -263,43 +229,13 @@ function BonoPropinaPage() {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label className="text-xs">Centro de costo</Label>
-            <Select value={centroFiltro} onValueChange={setCentroFiltro}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Consolidado">Consolidado</SelectItem>
-                <SelectItem value="YV">YV</SelectItem>
-                <SelectItem value="Bocu">Bocú</SelectItem>
-                <SelectItem value="Compartido">Compartido</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Tipo</Label>
-            <Select value={tipoFiltro} onValueChange={(v) => setTipoFiltro(v as TipoFiltro)}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="bono">Bono 10%</SelectItem>
-                <SelectItem value="propina">Propina</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Total del período</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold">{fmtUsd(total)}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Por centro de costo</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">YV</span><span className="font-semibold">{fmtUsd(totalYV)}</span></div>
-            <div className="flex justify-between text-sm mt-1"><span className="text-muted-foreground">Bocú</span><span className="font-semibold">{fmtUsd(totalBocu)}</span></div>
-          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Promedio por día</CardTitle></CardHeader>
@@ -317,10 +253,6 @@ function BonoPropinaPage() {
           <CardContent>
             <div className={`text-2xl font-bold ${pendientesUsd > 0.01 ? "text-orange-700 dark:text-orange-300" : ""}`}>{fmtUsd(pendientesUsd)}</div>
             <div className="text-xs text-muted-foreground mt-1">{pendientesCount} registro{pendientesCount === 1 ? "" : "s"} sin distribuir (todo el año)</div>
-            <div className="text-[11px] text-muted-foreground mt-1 flex justify-between">
-              <span>Bono 10%: {fmtUsd(pendientesBonoUsd)} ({pendientesBono.length})</span>
-              <span>Propina: {fmtUsd(pendientesPropinaUsd)} ({pendientesPropina.length})</span>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -342,13 +274,10 @@ function BonoPropinaPage() {
             <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="mesLabel" />
-              <YAxis yAxisId="left" tickFormatter={(v) => `$${v}`} />
-              <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} />
-              <Tooltip formatter={(v: number, name) => name === "% sobre ventas" ? `${v}%` : fmtUsd(v)} />
+              <YAxis tickFormatter={(v) => `$${v}`} />
+              <Tooltip formatter={(v: number) => fmtUsd(v)} />
               <Legend />
-              <Bar yAxisId="left" dataKey="Bono10" stackId="a" fill="#534AB7" name="Bono 10%" />
-              <Bar yAxisId="left" dataKey="Propina" stackId="a" fill="#0F6E56" name="Propina" />
-              <Line yAxisId="right" type="monotone" dataKey="pctVentas" stroke="#E11D48" strokeWidth={2} name="% sobre ventas" dot={{ r: 3 }} />
+              <Bar dataKey="total" fill="#534AB7" name="Bono 10% + Propina" />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
@@ -363,8 +292,6 @@ function BonoPropinaPage() {
                 <tr>
                   {([
                     ["fecha", "Fecha"],
-                    ["tipo", "Tipo"],
-                    ["centro_costo", "Centro"],
                     ["monto_usd", `Monto ${label}`],
                     ["concepto", "Método/Concepto"],
                     ["estado", "Estado"],
@@ -383,25 +310,17 @@ function BonoPropinaPage() {
                   return (
                     <tr key={`${p.tipo}-${p.id}`} className="border-b last:border-0">
                       <td className="py-1.5 px-2 mono">{fmtDate(p.fecha)}</td>
-                      <td className="py-1.5 px-2">
-                        {p.tipo === "bono" ? (
-                          <Badge variant="outline" className="border-[#534AB7] text-[#534AB7]">Bono 10%</Badge>
-                        ) : (
-                          <Badge variant="outline" className="border-[#0F6E56] text-[#0F6E56]">Propina</Badge>
-                        )}
-                      </td>
-                      <td className="py-1.5 px-2">{p.centro_costo ?? "—"}</td>
                       <td className="py-1.5 px-2 mono">{fmtUsd(usdOf(p))}</td>
                       <td className="py-1.5 px-2">{p.concepto ?? "—"}</td>
                       <td className="py-1.5 px-2">
                         {distribuida ? (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-green-300">
+                          <span className="inline-block rounded-full bg-green-100 text-green-800 border border-green-300 px-2 py-0.5 text-xs">
                             Distribuida {p.fecha_distribucion ? `· ${fmtDate(p.fecha_distribucion)}` : ""}
-                          </Badge>
+                          </span>
                         ) : (
-                          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 border-orange-300">
+                          <span className="inline-block rounded-full bg-orange-100 text-orange-800 border border-orange-300 px-2 py-0.5 text-xs">
                             Pendiente de distribuir
-                          </Badge>
+                          </span>
                         )}
                       </td>
                       <td className="py-1.5 px-2 text-muted-foreground text-xs">{p.notas ?? "—"}</td>
@@ -419,7 +338,7 @@ function BonoPropinaPage() {
                   );
                 })}
                 {sorted.length === 0 && (
-                  <tr><td colSpan={8} className="py-6 text-center text-muted-foreground">Sin registros en este período</td></tr>
+                  <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">Sin registros en este período</td></tr>
                 )}
               </tbody>
             </table>
@@ -439,7 +358,9 @@ function BonoPropinaPage() {
 // en la UI — el único campo que distingue es el selector "Tipo", que decide
 // qué se guarda en la columna `tipo` de bono10_propina y qué texto lleva la
 // nota de la transacción 8.1 (usada como discriminador de dedup en los
-// imports, junto con el índice único de la base de datos).
+// imports, junto con el índice único de la base de datos). El centro de
+// costo también se guarda (lo usan otros reportes), aunque esta pantalla ya
+// no lo muestre ni lo filtre.
 function RegistrarDialog({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -596,11 +517,9 @@ function RegistrarDialog({ onClose }: { onClose: () => void }) {
 function EditarDialog({ item, onClose }: { item: ItemCombinado; onClose: () => void }) {
   const qc = useQueryClient();
   const [fecha, setFecha] = useState(item.fecha);
-  const [centro, setCentro] = useState<string>(item.centro_costo ?? "YV");
   const [montoUsd, setMontoUsd] = useState(String(item.monto_usd ?? ""));
   const [notas, setNotas] = useState(item.notas ?? "");
   const [busy, setBusy] = useState(false);
-  const etiqueta = item.tipo === "bono" ? "bono 10%" : "propina";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -615,14 +534,15 @@ function EditarDialog({ item, onClose }: { item: ItemCombinado; onClose: () => v
     const tBcv = Number((rateBcv as any)?.tasa) || Number(item.tasa_paralela) || 0;
     const tPar = Number((rateP as any)?.tasa) || Number(item.tasa_paralela) || tBcv;
     const montoBs = +(n * (tPar || tBcv || 0)).toFixed(2);
+    const centro = item.centro_costo ?? "YV";
 
     const { error: ePr } = await (supabase as any).from("bono10_propina").update({
-      fecha, centro_costo: centro as any,
+      fecha,
       monto_usd: n, monto_bs: montoBs, tasa_paralela: tPar,
       notas: notas || null,
     }).eq("id", item.id);
-    if (ePr) { setBusy(false); return toast.error(`Falló actualizar la ${etiqueta}: ` + ePr.message); }
-    await logAudit("bono10_propina", "UPDATE", item.id, item, { ...item, fecha, centro_costo: centro, monto_usd: n, monto_bs: montoBs });
+    if (ePr) { setBusy(false); return toast.error("Falló actualizar el registro: " + ePr.message); }
+    await logAudit("bono10_propina", "UPDATE", item.id, item, { ...item, fecha, monto_usd: n, monto_bs: montoBs });
 
     if (item.transaccion_entrada_id) {
       const { error: eTx } = await supabase.from("transacciones").update({
@@ -636,7 +556,6 @@ function EditarDialog({ item, onClose }: { item: ItemCombinado; onClose: () => v
       const montoSalUsd = Number(item.monto_distribuido_usd ?? n);
       const montoSalBs = +(montoSalUsd * (tPar || tBcv || 0)).toFixed(2);
       const { error: eTx2 } = await supabase.from("transacciones").update({
-        centro_costo: centro as any,
         monto_bs: -montoSalBs, monto_base_bs: -montoSalBs,
         monto_usd: -montoSalUsd, tasa_bcv: tBcv || tPar, tasa_paralela: tPar,
       } as any).eq("id", item.transaccion_salida_id);
@@ -644,7 +563,7 @@ function EditarDialog({ item, onClose }: { item: ItemCombinado; onClose: () => v
     }
 
     setBusy(false);
-    toast.success(`${item.tipo === "bono" ? "Bono" : "Propina"} actualizado`);
+    toast.success("Registro actualizado");
     qc.invalidateQueries();
     onClose();
   };
@@ -653,23 +572,13 @@ function EditarDialog({ item, onClose }: { item: ItemCombinado; onClose: () => v
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar {etiqueta}</DialogTitle>
+          <DialogTitle>Editar registro</DialogTitle>
           <p className="text-xs text-muted-foreground">Los cambios sincronizan la(s) transacción(es) vinculada(s) en 8.1.</p>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div><Label>Fecha</Label><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required /></div>
-            <div>
-              <Label>Centro de costo</Label>
-              <Select value={centro} onValueChange={setCentro}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="YV">YV</SelectItem>
-                  <SelectItem value="Bocu">Bocú</SelectItem>
-                  <SelectItem value="Compartido">Compartido</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <Label>Fecha</Label>
+            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
           </div>
           <div>
             <Label>Monto USD</Label>
@@ -693,24 +602,23 @@ function EditarDialog({ item, onClose }: { item: ItemCombinado; onClose: () => v
 function EliminarDialog({ item, onClose }: { item: ItemCombinado; onClose: () => void }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const etiqueta = item.tipo === "bono" ? "bono 10%" : "propina";
 
   const eliminar = async () => {
     setBusy(true);
     const txIds = [item.transaccion_entrada_id, item.transaccion_salida_id].filter(Boolean) as string[];
     const { error: eP } = await (supabase as any).from("bono10_propina").delete().eq("id", item.id);
-    if (eP) { setBusy(false); return toast.error(`Falló eliminar la ${etiqueta}: ` + eP.message); }
+    if (eP) { setBusy(false); return toast.error("Falló eliminar el registro: " + eP.message); }
     await logAudit("bono10_propina", "DELETE", item.id, item, null);
     if (txIds.length) {
       const { error: eT } = await supabase.from("transacciones").delete().in("id", txIds);
       if (eT) {
         setBusy(false);
-        return toast.error(`${item.tipo === "bono" ? "Bono" : "Propina"} eliminado, pero falló eliminar transacción(es): ` + eT.message);
+        return toast.error("Registro eliminado, pero falló eliminar transacción(es): " + eT.message);
       }
       for (const id of txIds) await logAudit("transacciones", "DELETE", id, { id }, null);
     }
     setBusy(false);
-    toast.success(`${item.tipo === "bono" ? "Bono" : "Propina"} y transacciones asociadas eliminadas`);
+    toast.success("Registro y transacciones asociadas eliminadas");
     qc.invalidateQueries();
     onClose();
   };
@@ -719,9 +627,9 @@ function EliminarDialog({ item, onClose }: { item: ItemCombinado; onClose: () =>
     <AlertDialog open onOpenChange={(o) => !o && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Eliminar {etiqueta}</AlertDialogTitle>
+          <AlertDialogTitle>Eliminar registro</AlertDialogTitle>
           <AlertDialogDescription>
-            Esto eliminará la {etiqueta} del {fmtDate(item.fecha)} por {fmtUsd(item.monto_usd)} y su(s) transacción(es)
+            Esto eliminará el registro del {fmtDate(item.fecha)} por {fmtUsd(item.monto_usd)} y su(s) transacción(es)
             asociada(s) en el sistema. ¿Confirmar?
           </AlertDialogDescription>
         </AlertDialogHeader>
