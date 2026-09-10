@@ -137,6 +137,8 @@ const normServicios = (s: unknown) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+export const normalizarConcepto = normServicios;
+
 /**
  * ¿Este movimiento es un "Pago por Internet" agrupado bajo el concepto
  * "Servicios"? Se detecta por el texto del concepto/descripción bancaria
@@ -145,6 +147,19 @@ const normServicios = (s: unknown) =>
 export function esPagoServiciosCombinado(concepto: string | null | undefined): boolean {
   const c = normServicios(concepto);
   return c.includes("PAGO POR INTERNET") && c.includes("SERVICIOS");
+}
+
+/**
+ * ¿Es el pago combinado de Bono 10% + Propina al personal? El negocio los
+ * paga juntos en una sola transferencia (nunca mezclados con la nómina
+ * general, a pesar de lo que se asumía antes) — normalmente cubre TODO lo
+ * pendiente de ambos pasivos a la fecha del pago. Se detecta por
+ * "bono"/"bonos" o "prop"/"propina"/"propinas" en el concepto, con límite de
+ * palabra para no confundir "bono" con "abono" (pago de una factura/CxP).
+ */
+export function esPagoBonoPropinaCombinado(concepto: string | null | undefined): boolean {
+  const c = normServicios(concepto);
+  return /\bBONOS?\b/.test(c) || /\bPROP(?:INAS?)?\b/.test(c);
 }
 
 /**

@@ -252,12 +252,15 @@ function ImportarVentasPage() {
     // Helpers compartidos para sincronizar patas anexas (IVA, bono, propina) en INSERT y UPDATE.
     // Conversión Xetux: el USD del reporte está calculado a tasa BCV.
     //
-    // Bono 10%: igual que Propinas, NO se registra como gasto de nómina (ya no
-    // existen cuentas 3.5/3.10). Solo se devenga el pasivo 13.4 ("Bonos 10% por
-    // pagar al personal", afecta_gyp=false) y se hace seguimiento en la tabla
-    // bonos_10, exactamente como propinas usa 13.1 y la tabla propinas. El pago
-    // real al personal se ve reflejado cuando se transfiere por nómina general
-    // (3.1/3.4/3.9, ahora renombradas "(10% inc.)"), sin duplicar el gasto.
+    // Bono 10%: igual que Propinas, NO se registra como gasto de nómina. Solo
+    // se devenga el pasivo 8.3 ("Bonos 10% por pagar al personal",
+    // afecta_gyp=false) y se hace seguimiento en la tabla bonos_10, igual que
+    // Propinas usa 8.1 y la tabla propinas. El pago real al personal NO viene
+    // incluido en la nómina general (se corrigió esa asunción) — se paga junto
+    // con la propina, aparte, en una transferencia real distinta. Ese pago
+    // descarga el pasivo vía @/lib/bono-propina-combinado (import de
+    // movimientos bancarios, o el botón "Distribuir todo pendiente" en las
+    // pantallas Bono 10% / Propinas) — nunca aquí, en el devengo.
     const syncBono = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, grupoId: string, txId: string) => {
       if (r.clase !== "factura" || r.servicio_usd <= 0 || centroRow === ("Compartido" as any)) return;
       const tasaBcv = tasas.bcv;

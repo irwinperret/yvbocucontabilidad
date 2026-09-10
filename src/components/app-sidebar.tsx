@@ -106,8 +106,7 @@ const analisisDetalles = [
 
 const analisisHerramientasSecundarias = [
   { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
-  { title: "Propinas", url: "/propinas", icon: DollarSign },
-  { title: "Bonos 10%", url: "/bonos10", icon: DollarSign },
+  { title: "Bono 10% + Propina", url: "/bono-propina", icon: DollarSign },
 ];
 
 export function AppSidebar() {

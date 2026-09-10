@@ -182,6 +182,17 @@ function CierresDeMesPage() {
     try {
       const r = await calcularYGuardarCierre(cerrando.periodo, invIniUsd, invFinUsd, user.id);
       toast.success(`${periodoLabel(cerrando.periodo)} cerrado. COGS (BCV): ${fmtUsd(r.cogsUsdBcv)}`);
+      // Bono 10% y Propina ya NO se descargan solos al cerrar (antes se
+      // asumía, mal, que venían incluidos en la nómina) — si queda algo
+      // pendiente, se avisa aquí para que se reconcilie con un pago
+      // bancario real (import de movimientos, o "Distribuir todo
+      // pendiente" en Bono 10% / Propinas).
+      if (r.bono10PendienteUsd > 0.01 || r.propinaPendienteUsd > 0.01) {
+        toast.warning(
+          `Quedan pendientes de distribuir: ${fmtUsd(r.bono10PendienteUsd)} en Bono 10% (${r.bono10PendienteCount}) y ${fmtUsd(r.propinaPendienteUsd)} en Propinas (${r.propinaPendienteCount}). Reconcílialos contra el pago bancario real cuando corresponda.`,
+          { duration: 10000 },
+        );
+      }
       setCerrando(null);
       refrescar();
     } catch (err: any) {

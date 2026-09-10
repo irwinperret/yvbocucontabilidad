@@ -33,8 +33,10 @@ import {
   marcarEstadoConciliacion,
   esPagoServiciosCombinado,
   REPARTO_SERVICIOS_COMBINADOS,
+  esPagoBonoPropinaCombinado,
   type CodigoDoc,
 } from "@/lib/conciliacion";
+import { distribuirBonoPropinaCombinado } from "@/lib/bono-propina-combinado";
 import { SearchCombobox } from "@/components/search-combobox";
 import { CUENTA_CAMBIO, esCambio, esCuentaNoConciliable } from "@/lib/operaciones-cambio";
 import { tasaBcvQuery } from "@/lib/tasas";
@@ -651,7 +653,17 @@ function ImportarMovimientosInner() {
 
   const confirmar = async () => {
     if (!user) return;
-    const toImport = matches.filter(importable);
+    // Orden cronológico: necesario para que la reconciliación combinada de
+    // Bono 10% + Propina (abajo) calcule "lo pendiente a esa fecha" de forma
+    // correcta cuando el mismo lote trae varios pagos combinados — si se
+    // procesaran fuera de orden, un pago más reciente podría descargar
+    // pendientes que en realidad le tocaban a uno anterior. También es lo
+    // correcto en general para cualquier fila de un mismo lote.
+    const toImport = matches.filter(importable).sort((a, b) => {
+      const fa = a.bankRow.fecha || "";
+      const fb = b.bankRow.fecha || "";
+      return fa < fb ? -1 : fa > fb ? 1 : 0;
+    });
     if (toImport.length === 0) return toast.error("Selecciona al menos un movimiento con cuenta bancaria y CxP o cuenta contable");
 
     const firstFecha = toImport[0]?.bankRow.fecha;
@@ -888,6 +900,37 @@ function ImportarMovimientosInner() {
             importados.add(bankRow.id);
             setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
             continue;
+          }
+
+          // ── Pago combinado de Bono 10% + Propina al personal: el banco lo
+          // reporta como un solo movimiento, pero cubre dos pasivos por
+          // separado (8.3 Bono 10% y 8.1 Propinas) — nunca incluido en la
+          // nómina general. Se distribuye automáticamente TODO lo que esté
+          // pendiente hasta la fecha del pago, siempre que el monto del
+          // banco cuadre con esa suma (si no cuadra, se deja para revisión
+          // manual en vez de forzar un reparto que no corresponde). ──
+          if (esPagoBonoPropinaCombinado(bankRow.concepto)) {
+            const resultado = await distribuirBonoPropinaCombinado({
+              fecha: bankRow.fecha,
+              montoBs,
+              montoUsd: montoUsdMov,
+              tasaBcv: rates.bcv || null,
+              tasaParalela: rates.paralela || null,
+              cuentaBancariaId: bankRow.cuentaBancariaId,
+              userId: user.id,
+              referenciaBanco: bankRow.huella,
+              origenNota: `Conciliación bancaria · reparto automático "Bono 10% + Propina" · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`,
+              batchId: batch?.id ?? null,
+            });
+            if (resultado.ok) {
+              sinFactura++;
+              importados.add(bankRow.id);
+              setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+              continue;
+            }
+            // No cuadró (o no hay nada pendiente): sigue el flujo normal de
+            // abajo para que quede visible en la tabla y se pueda revisar a
+            // mano, en vez de fallar el lote completo.
           }
 
           // ── Movimiento sin CxP emparejada ──
@@ -1169,6 +1212,12 @@ function ImportarMovimientosInner() {
         ? "por cuenta 3.21 SERVICIOS (Sin discriminar)"
         : "ignora la cuenta sugerida";
       return { tipo: "gasto", nota: `Se reparte automático en 5 cuentas: ${detalle} (${motivo})` };
+    }
+    if (esPagoBonoPropinaCombinado(m.bankRow.concepto)) {
+      return {
+        tipo: "pasivo",
+        nota: "Bono 10% + Propina: se descarga automático todo lo pendiente de ambos (8.3 + 8.1) si el monto cuadra; si no cuadra, queda para revisión manual",
+      };
     }
     const clasif = esPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)
       ? clasificarPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)

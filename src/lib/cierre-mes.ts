@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { pendientesBonoPropina } from "@/lib/bono-propina-combinado";
 
 /**
  * Cálculo y guardado del cierre de mes: MISMA lógica que usaba
@@ -24,6 +25,12 @@ export type ResultadoCierre = {
   tasaBcvFin: number;
   paralelaPromedio: number;
   totalComprasNetoBs: number;
+  /** Bono 10% + Propina pendientes de distribuir a la fecha de cierre (no se
+   * descargan solos — solo se informan, ver pendientesBonoPropina). */
+  bono10PendienteUsd: number;
+  bono10PendienteCount: number;
+  propinaPendienteUsd: number;
+  propinaPendienteCount: number;
 };
 
 function primerYUltimoDia(periodo: string) {
@@ -91,8 +98,9 @@ async function comprasNetoDelPeriodo(periodo: string) {
 
 /** Calcula el cierre de un período sin guardar nada (para previsualizar). */
 export async function calcularCierre(periodo: string, invIniUsd: number, invFinUsd: number): Promise<ResultadoCierre> {
-  const { tasaBcvPromedio, paralelaPromedio, tasaBcvIni, tasaBcvFin } = await tasasDelPeriodo(periodo);
+  const { tasaBcvPromedio, paralelaPromedio, tasaBcvIni, tasaBcvFin, ultimoDia } = await tasasDelPeriodo(periodo);
   const { totalComprasNetoBs, totalComprasNetoUsdBcv } = await comprasNetoDelPeriodo(periodo);
+  const pendBonoProp = await pendientesBonoPropina(ultimoDia);
 
   const iniBs = invIniUsd * tasaBcvIni;
   const finBs = invFinUsd * tasaBcvFin;
@@ -104,77 +112,11 @@ export async function calcularCierre(periodo: string, invIniUsd: number, invFinU
     periodo, iniUsd: invIniUsd, finUsd: invFinUsd, iniBs, finBs,
     cogsBs, cogsUsdBcv, cogsUsdParalelo,
     tasaBcvPromedio, tasaBcvIni, tasaBcvFin, paralelaPromedio, totalComprasNetoBs,
+    bono10PendienteUsd: pendBonoProp.bono10Usd,
+    bono10PendienteCount: pendBonoProp.bono10Count,
+    propinaPendienteUsd: pendBonoProp.propinaUsd,
+    propinaPendienteCount: pendBonoProp.propinaCount,
   };
-}
-
-/**
- * Al cerrar un mes, cierra también en bloque los bonos 10% de servicio de
- * ese período que sigan "pendientes de distribuir" (bonos_10 sin
- * transaccion_salida_id): crea la transacción de salida en cuenta 8.3 (igual
- * que el botón manual "Distribuir" de la pantalla Bono 10%) y actualiza la
- * fila de bonos_10, para que el usuario no tenga que marcarlos uno por uno.
- *
- * OJO: esta transacción de cierre NO se ata a ninguna cuenta bancaria — el
- * pago real del bono ya salió mezclado dentro de la transferencia general de
- * nómina (que ya se contabilizó aparte contra su propia cuenta bancaria al
- * importar ese movimiento). Ponerle banco aquí restaría esa plata dos veces
- * del saldo de esa cuenta. Esta transacción es solo para cerrar el pasivo en
- * los libros y en el seguimiento de bonos_10.
- *
- * Se etiqueta con referencia = CIERRE-BONO10-<periodo> para que reabrirMes
- * pueda encontrarlas y deshacerlas igual que hace con el COGS del cierre.
- */
-async function distribuirBonos10DelPeriodo(periodo: string, userId: string) {
-  const { primerDia, ultimoDia } = primerYUltimoDia(periodo);
-  const { tasaBcvPromedio, paralelaPromedio } = await tasasDelPeriodo(periodo);
-
-  const { data: pendientes } = await supabase
-    .from("bonos_10")
-    .select("id, fecha, monto_usd, monto_bs, tasa_paralela, centro_costo")
-    .is("transaccion_salida_id", null)
-    .gte("fecha", primerDia)
-    .lte("fecha", ultimoDia);
-
-  for (const bono of (pendientes ?? []) as any[]) {
-    const montoUsd = Number(bono.monto_usd) || 0;
-    const montoBs = Number(bono.monto_bs) || 0;
-    if (!montoUsd && !montoBs) continue;
-    const tasaPar = Number(bono.tasa_paralela) || paralelaPromedio || tasaBcvPromedio || null;
-
-    const { data: txSalida, error } = await supabase
-      .from("transacciones")
-      .insert({
-        fecha: ultimoDia,
-        cuenta_codigo: "8.3",
-        centro_costo: (bono.centro_costo ?? "Compartido") as any,
-        monto_bs: -montoBs,
-        monto_base_bs: -montoBs,
-        iva_bs: 0,
-        iva_aplica: false,
-        tipo_iva: null,
-        tasa_bcv: tasaBcvPromedio || tasaPar,
-        tasa_paralela: tasaPar,
-        monto_usd: -montoUsd,
-        metodo_pago: "transferencia" as any,
-        referencia: `CIERRE-BONO10-${periodo}`,
-        notas: `Bono 10% distribuido automáticamente al cierre de ${periodo} — pago ya incluido en la nómina general del mes`,
-        modo: "on_balance" as any,
-        created_by: userId,
-      } as any)
-      .select()
-      .single();
-    if (error || !txSalida) continue;
-
-    await supabase
-      .from("bonos_10")
-      .update({
-        transaccion_salida_id: txSalida.id,
-        fecha_distribucion: ultimoDia,
-        monto_distribuido_usd: montoUsd,
-        notas_distribucion: "Distribución automática al cierre de mes",
-      } as any)
-      .eq("id", bono.id);
-  }
 }
 
 /** Calcula y guarda (crea o reemplaza) el cierre de un período. */
@@ -237,14 +179,24 @@ export async function calcularYGuardarCierre(
     } as any);
   }
 
-  await distribuirBonos10DelPeriodo(periodo, userId);
+  // Ya NO se descarga automáticamente el Bono 10% al cerrar el mes: se
+  // asumía (mal) que ese pago venía incluido en la nómina general, así que
+  // se cerraba el pasivo sin tocar ningún banco. En realidad Bono 10% y
+  // Propina se pagan juntos, aparte, en una transferencia real — ese
+  // descargo ahora solo pasa cuando hay un pago bancario real detrás, vía
+  // conciliación al importar movimientos o el botón "Distribuir todo
+  // pendiente" en las pantallas Bono 10% / Propinas. r.bono10PendienteUsd /
+  // r.propinaPendienteUsd le avisan al que cierra si queda algo suelto.
 
   return r;
 }
 
-/** Reabre un mes: elimina el cierre, la transacción COGS que generó, y
- * deshace el cierre automático de bonos 10% (los vuelve a dejar "pendientes
- * de distribuir" en bonos_10), igual que hace con el COGS. */
+/** Reabre un mes: elimina el cierre y la transacción COGS que generó.
+ *
+ * NOTA: la limpieza de CIERRE-BONO10-<periodo> se conserva por compatibilidad
+ * con cierres viejos que alguna vez hayan quedado con ese descargo
+ * automático (ya no se generan desde este archivo) — si no hay ninguno, este
+ * bloque simplemente no encuentra nada que deshacer. */
 export async function reabrirMes(periodo: string) {
   const { data: cierre } = await supabase.from("cierres_de_mes").select("id").eq("periodo", periodo).maybeSingle();
   if (!cierre) return;
