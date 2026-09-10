@@ -302,7 +302,7 @@ function ImportarMovimientosInner() {
 
         const conceptoRaw = String(row[idxConcepto] ?? "");
         // Pagos al personal: clasificación por palabras clave (nómina, parafiscales,
-        // propinas 13.1, bono 10% 13.4, liquidaciones, anticipos…).
+        // bono 10% + propinas 8.1, liquidaciones, anticipos…).
         const clasifPersonal = esPagoPersonal(conceptoRaw, categoria)
           ? clasificarPagoPersonal(conceptoRaw, categoria)
           : null;
@@ -903,8 +903,9 @@ function ImportarMovimientosInner() {
           }
 
           // ── Pago combinado de Bono 10% + Propina al personal: el banco lo
-          // reporta como un solo movimiento, pero cubre dos pasivos por
-          // separado (8.3 Bono 10% y 8.1 Propinas) — nunca incluido en la
+          // reporta como un solo movimiento, pero cubre lo pendiente de
+          // ambos tipos a la vez (unificados en la cuenta 8.1 "Bono 10% y
+          // Propinas por pagar al personal") — nunca incluido en la
           // nómina general. Se distribuye automáticamente TODO lo que esté
           // pendiente hasta la fecha del pago, siempre que el monto del
           // banco cuadre con esa suma (si no cuadra, se deja para revisión
@@ -947,11 +948,12 @@ function ImportarMovimientosInner() {
             ? `Conciliación bancaria (no aplica factura) · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
             : `Conciliación bancaria sin factura · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`;
 
-          // Propinas (13.1) y bono 10% (13.4) ya se devengaron al importar las
-          // ventas: el pago bancario descarga el pasivo (signo negativo) y no
-          // vuelve a registrar gasto. Devoluciones/NC (1.7) y descuentos (1.6)
-          // son contra-ingreso: también van con signo negativo para restar del
-          // total de Ingresos en vez de sumar como si fueran una venta más.
+          // Bono 10% y Propinas (unificados en la cuenta 8.1) ya se devengaron
+          // al importar las ventas: el pago bancario descarga el pasivo (signo
+          // negativo) y no vuelve a registrar gasto. Devoluciones/NC (1.7) y
+          // descuentos (1.6) son contra-ingreso: también van con signo
+          // negativo para restar del total de Ingresos en vez de sumar como
+          // si fueran una venta más.
           const signo = requiereSignoNegativo(m.cuentaCodigo) ? -1 : 1;
           const montoBsFirmado = +(signo * montoBs).toFixed(2);
           const montoUsdFirmado = +(signo * montoUsdMov).toFixed(2);
@@ -1216,7 +1218,7 @@ function ImportarMovimientosInner() {
     if (esPagoBonoPropinaCombinado(m.bankRow.concepto)) {
       return {
         tipo: "pasivo",
-        nota: "Bono 10% + Propina: se descarga automático todo lo pendiente de ambos (8.3 + 8.1) si el monto cuadra; si no cuadra, queda para revisión manual",
+        nota: "Bono 10% + Propina: se descarga automático todo lo pendiente de ambos (cuenta 8.1) si el monto cuadra; si no cuadra, queda para revisión manual",
       };
     }
     const clasif = esPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)

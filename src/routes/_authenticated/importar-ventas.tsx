@@ -252,15 +252,20 @@ function ImportarVentasPage() {
     // Helpers compartidos para sincronizar patas anexas (IVA, bono, propina) en INSERT y UPDATE.
     // Conversión Xetux: el USD del reporte está calculado a tasa BCV.
     //
-    // Bono 10%: igual que Propinas, NO se registra como gasto de nómina. Solo
-    // se devenga el pasivo 8.3 ("Bonos 10% por pagar al personal",
-    // afecta_gyp=false) y se hace seguimiento en la tabla bonos_10, igual que
-    // Propinas usa 8.1 y la tabla propinas. El pago real al personal NO viene
-    // incluido en la nómina general (se corrigió esa asunción) — se paga junto
-    // con la propina, aparte, en una transferencia real distinta. Ese pago
-    // descarga el pasivo vía @/lib/bono-propina-combinado (import de
-    // movimientos bancarios, o el botón "Distribuir todo pendiente" en las
-    // pantallas Bono 10% / Propinas) — nunca aquí, en el devengo.
+    // Bono 10% y Propinas: NO se registran como gasto de nómina. Ambos se
+    // devengan como el mismo pasivo unificado, cuenta 8.1 ("Bono 10% y
+    // Propinas por pagar al personal", afecta_gyp=false), y se hace
+    // seguimiento en la tabla única bono10_propina (columna tipo: "bono" |
+    // "propina"). Como bono y propina comparten cuenta contable y tabla de
+    // detalle, cualquier dedup por número de factura/orden debe filtrar
+    // también por el texto de "notas" (o por tipo, en bono10_propina) —
+    // igual que lo hace el índice único de la base de datos
+    // (trans_xetux_numero_factura_cuenta_uq) — para no confundir la pata de
+    // bono con la de propina de la misma factura. El pago real al personal
+    // NO viene incluido en la nómina general — se paga aparte, en una
+    // transferencia real distinta. Ese pago descarga el pasivo vía
+    // @/lib/bono-propina-combinado (import de movimientos bancarios) —
+    // nunca aquí, en el devengo.
     const syncBono = async (r: ParsedRow, centroRow: Centro, tasas: { bcv: number; paralela: number }, grupoId: string, txId: string) => {
       if (r.clase !== "factura" || r.servicio_usd <= 0 || centroRow === ("Compartido" as any)) return;
       const tasaBcv = tasas.bcv;
@@ -268,15 +273,16 @@ function ImportarVentasPage() {
       const bonoBs = +(r.servicio_usd * tasaBcv).toFixed(2);
       const bonoUsdPar = +(bonoBs / tasaPar).toFixed(2);
 
-      // 1) Upsert leg contable 13.4 "Bonos 10% por pagar al personal"
+      // 1) Upsert leg contable 8.1 "Bono 10% y Propinas por pagar al personal"
       const { data: pasivoExist } = await supabase.from("transacciones")
         .select("id")
         .eq("referencia", referencia)
-        .eq("cuenta_codigo", "8.3")
+        .eq("cuenta_codigo", "8.1")
         .eq("numero_factura", r.numero_factura)
+        .ilike("notas", "%Bono 10%")
         .limit(1).maybeSingle();
       const pasivoPayload: any = {
-        fecha: r.fecha, cuenta_codigo: "8.3", centro_costo: centroRow as any,
+        fecha: r.fecha, cuenta_codigo: "8.1", centro_costo: centroRow as any,
         monto_bs: bonoBs, monto_base_bs: bonoBs, iva_bs: 0,
         iva_aplica: false, tipo_iva: null,
         tasa_bcv: tasaBcv, tasa_paralela: tasas.paralela || null,
@@ -295,10 +301,11 @@ function ImportarVentasPage() {
         pasivoId = ins?.id ?? null;
       }
 
-      // 2) Upsert fila en bonos_10, enlazando transaccion_entrada_id al leg 13.4
-      const { data: bonoExist } = await supabase.from("bonos_10").select("id")
-        .eq("numero_factura", r.numero_factura).eq("referencia", referencia).limit(1).maybeSingle();
+      // 2) Upsert fila en bono10_propina (tipo="bono"), enlazando transaccion_entrada_id al leg 8.1
+      const { data: bonoExist } = await supabase.from("bono10_propina").select("id")
+        .eq("numero_factura", r.numero_factura).eq("referencia", referencia).eq("tipo", "bono").limit(1).maybeSingle();
       const bono10Payload: any = {
+        tipo: "bono",
         transaccion_id: txId,
         transaccion_entrada_id: pasivoId,
         fecha: r.fecha,
@@ -308,9 +315,9 @@ function ImportarVentasPage() {
         numero_factura: r.numero_factura, created_by: user.id,
       };
       if (bonoExist) {
-        await supabase.from("bonos_10").update(bono10Payload).eq("id", bonoExist.id);
+        await supabase.from("bono10_propina").update(bono10Payload).eq("id", bonoExist.id);
       } else {
-        await supabase.from("bonos_10").insert(bono10Payload);
+        await supabase.from("bono10_propina").insert(bono10Payload);
       }
       legs.bono++;
     };
@@ -330,13 +337,14 @@ function ImportarVentasPage() {
       const propinaBs = +(r.propina_usd * tasaBcv).toFixed(2);
       const propinaUsdPar = +(propinaBs / tasaPar).toFixed(2);
 
-      // 1) Upsert leg contable 13.1 "Propinas por pagar al personal"
+      // 1) Upsert leg contable 8.1 "Bono 10% y Propinas por pagar al personal"
       const dedupTx = r.numero_factura
         ? supabase.from("transacciones").select("id").eq("numero_factura", r.numero_factura)
         : supabase.from("transacciones").select("id").eq("numero_orden", r.numero_orden);
       const { data: propTxExist } = await dedupTx
         .eq("referencia", referencia)
         .eq("cuenta_codigo", "8.1")
+        .ilike("notas", "%Propina%")
         .limit(1).maybeSingle();
       const propTxPayload: any = {
         fecha: r.fecha, cuenta_codigo: "8.1", centro_costo: centroRow as any,
@@ -361,12 +369,13 @@ function ImportarVentasPage() {
         propTxId = ins?.id ?? null;
       }
 
-      // 2) Upsert fila en propinas, enlazando transaccion_entrada_id al leg 13.1
+      // 2) Upsert fila en bono10_propina (tipo="propina"), enlazando transaccion_entrada_id al leg 8.1
       const dedupFilter = r.numero_factura
-        ? supabase.from("propinas").select("id").eq("numero_factura", r.numero_factura)
-        : supabase.from("propinas").select("id").eq("numero_orden", r.numero_orden);
-      const { data: propExist } = await dedupFilter.eq("referencia", referencia).limit(1).maybeSingle();
+        ? supabase.from("bono10_propina").select("id").eq("numero_factura", r.numero_factura)
+        : supabase.from("bono10_propina").select("id").eq("numero_orden", r.numero_orden);
+      const { data: propExist } = await dedupFilter.eq("referencia", referencia).eq("tipo", "propina").limit(1).maybeSingle();
       const propPayload: any = {
+        tipo: "propina",
         transaccion_id: txId,
         transaccion_entrada_id: propTxId,
         fecha: r.fecha,
@@ -377,9 +386,9 @@ function ImportarVentasPage() {
         created_by: user.id,
       };
       if (propExist) {
-        await supabase.from("propinas").update(propPayload).eq("id", propExist.id);
+        await supabase.from("bono10_propina").update(propPayload).eq("id", propExist.id);
       } else {
-        await supabase.from("propinas").insert(propPayload);
+        await supabase.from("bono10_propina").insert(propPayload);
       }
       legs.propina++;
     };
@@ -830,7 +839,7 @@ function ImportarVentasPage() {
                 <Badge variant="outline" className="border-violet-400 text-violet-700">N. Crédito: {stats.notaCredito}</Badge>
                 <Badge variant="outline" className="border-zinc-400 text-zinc-700">Por determinar: {stats.porDeterminar}</Badge>
                 <Badge variant="outline" className="border-sky-400 text-sky-700">IVA: {fmtUsd(stats.totalIva)} ({stats.conIva})</Badge>
-                <Badge variant="outline" className="border-emerald-400 text-emerald-700">Servicio → bono nómina: {fmtUsd(stats.totalServicio)} ({stats.conServicio})</Badge>
+                <Badge variant="outline" className="border-emerald-400 text-emerald-700">Servicio → bono 10%: {fmtUsd(stats.totalServicio)} ({stats.conServicio})</Badge>
                 <Badge variant="outline" className="border-pink-400 text-pink-700">Propina: {fmtUsd(stats.totalPropina)} ({stats.conPropina})</Badge>
               </div>
               <div className="border rounded overflow-x-auto max-h-[500px]">
