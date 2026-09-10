@@ -116,6 +116,38 @@ const CUENTAS_SIN_FACTURA_FIJAS = new Set([
 export const CUENTAS_SERVICIOS = new Set(["3.14", "3.15", "3.18"]);
 
 /**
+ * "Pago por Internet" con concepto/beneficiario "Servicios": el banco lo
+ * reporta como un solo movimiento agrupado, pero en realidad cubre varios
+ * servicios básicos a la vez. En vez de dejarlo en una sola cuenta (la que
+ * venga sugerida en el Excel, si viene), se reparte automáticamente entre
+ * estas 5 cuentas por el porcentaje fijo acordado con el negocio — al
+ * margen de cualquier cuenta sugerida/marcada para esa fila.
+ */
+export const REPARTO_SERVICIOS_COMBINADOS: { cuenta: string; nombre: string; pct: number }[] = [
+  { cuenta: "3.13", nombre: "Aseo", pct: 0.40 },
+  { cuenta: "3.15", nombre: "Internet", pct: 0.14 },
+  { cuenta: "3.19", nombre: "DirecTV", pct: 0.05 },
+  { cuenta: "3.16", nombre: "Teléfono/Celulares", pct: 0.03 },
+  { cuenta: "3.18", nombre: "Electricidad", pct: 0.38 },
+];
+
+const normServicios = (s: unknown) =>
+  String(s ?? "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+/**
+ * ¿Este movimiento es un "Pago por Internet" agrupado bajo el concepto
+ * "Servicios"? Se detecta por el texto del concepto/descripción bancaria
+ * (columna F del Excel de movimientos), sin importar mayúsculas ni acentos.
+ */
+export function esPagoServiciosCombinado(concepto: string | null | undefined): boolean {
+  const c = normServicios(concepto);
+  return c.includes("PAGO POR INTERNET") && c.includes("SERVICIOS");
+}
+
+/**
  * Cuentas que, al importarse desde movimientos bancarios, se marcan
  * automáticamente como "Gasto Stand-Alone (sin factura)" en la conciliación:
  * nunca van a tener una factura de Xetux asociada, así que no tiene sentido

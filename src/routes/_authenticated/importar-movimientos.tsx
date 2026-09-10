@@ -31,6 +31,8 @@ import {
   monedaBase,
   limpiarReferencia,
   marcarEstadoConciliacion,
+  esPagoServiciosCombinado,
+  REPARTO_SERVICIOS_COMBINADOS,
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { SearchCombobox } from "@/components/search-combobox";
@@ -818,6 +820,70 @@ function ImportarMovimientosInner() {
         }
 
         if (m.cxps.length === 0) {
+          // ── "Pago por Internet" agrupado bajo "Servicios": el banco lo
+          // reporta como un solo movimiento, pero en realidad cubre 5
+          // servicios básicos a la vez. Se reparte automáticamente entre
+          // esas 5 cuentas por su porcentaje fijo — al margen de la cuenta
+          // sugerida/marcada para la fila — en vez de dejarlo en una sola. ──
+          if (esPagoServiciosCombinado(bankRow.concepto)) {
+            const grupoServicios = crypto.randomUUID();
+            const legs = REPARTO_SERVICIOS_COMBINADOS.map((r) => ({ ...r, montoBs: 0, montoUsd: 0 }));
+            // Cada pata se calcula a 2 decimales; el residuo de redondeo (si
+            // lo hay) se le suma a la cuenta de mayor porcentaje (Aseo), para
+            // que la suma de las 5 patas cuadre exacto con el movimiento.
+            let sumaBs = 0;
+            let sumaUsd = 0;
+            for (const leg of legs) {
+              leg.montoBs = +(montoBs * leg.pct).toFixed(2);
+              leg.montoUsd = +(montoUsdMov * leg.pct).toFixed(2);
+              sumaBs += leg.montoBs;
+              sumaUsd += leg.montoUsd;
+            }
+            const mayor = legs.reduce((a, b) => (b.pct > a.pct ? b : a), legs[0]);
+            mayor.montoBs = +(mayor.montoBs + (montoBs - sumaBs)).toFixed(2);
+            mayor.montoUsd = +(mayor.montoUsd + (montoUsdMov - sumaUsd)).toFixed(2);
+
+            const payloads = legs.map((leg, i) => ({
+              fecha: bankRow.fecha,
+              cuenta_codigo: leg.cuenta,
+              centro_costo: "Compartido" as any,
+              monto_bs: leg.montoBs,
+              monto_base_bs: leg.montoBs,
+              iva_bs: 0,
+              iva_aplica: false,
+              tipo_iva: null,
+              tasa_bcv: rates.bcv || null,
+              tasa_paralela: rates.paralela || null,
+              monto_usd: leg.montoUsd,
+              metodo_pago: "transferencia" as any,
+              // La huella de dedupe va solo en la primera pata, igual que las
+              // operaciones de cambio (dos patas, una sola con referencia).
+              referencia: i === 0 ? bankRow.huella : null,
+              detalle: `Servicios (${Math.round(leg.pct * 100)}% de pago combinado) · ${leg.nombre}`.slice(0, 255),
+              notas: `Conciliación bancaria · reparto automático "Pago por Internet — Servicios" · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`.slice(0, 255),
+              modo: "on_balance" as any,
+              cuenta_bancaria_id: bankRow.cuentaBancariaId,
+              grupo_transaccion_id: grupoServicios,
+              import_batch_id: batch?.id ?? null,
+              created_by: user.id,
+            }));
+
+            const { data: legsTx, error: errServicios } = await supabase
+              .from("transacciones")
+              .insert(payloads as any)
+              .select();
+            if (errServicios) throw new Error(errServicios.message);
+            for (const tx of legsTx ?? []) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
+            // Las 5 cuentas de servicios son gasto directo automático: nunca llevan factura.
+            for (const tx of legsTx ?? []) {
+              await marcarEstadoConciliacion({ movimientoId: (tx as any).id, estado: "gasto_directo", userId: user.id });
+            }
+            sinFactura++;
+            importados.add(bankRow.id);
+            setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+            continue;
+          }
+
           // ── Movimiento sin CxP emparejada ──
           const noAplica =
             !requiereCxP(bankRow.categoria) &&
@@ -1089,6 +1155,12 @@ function ImportarMovimientosInner() {
   /** Tipo de registro + nota explicativa para la columna de la vista previa. */
   const tipoDe = (m: Match): { tipo: TipoRegistro; nota?: string } => {
     if (m.cxps.length > 0) return { tipo: "pasivo", nota: "Pago de factura (CxP)" };
+    if (esPagoServiciosCombinado(m.bankRow.concepto)) {
+      const detalle = REPARTO_SERVICIOS_COMBINADOS
+        .map((r) => `${r.nombre} ${Math.round(r.pct * 100)}%`)
+        .join(", ");
+      return { tipo: "gasto", nota: `Se reparte automático en 5 cuentas: ${detalle} (ignora la cuenta sugerida)` };
+    }
     const clasif = esPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)
       ? clasificarPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)
       : null;
