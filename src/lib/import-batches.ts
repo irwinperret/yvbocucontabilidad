@@ -90,7 +90,7 @@ export async function cerrarBatch(
     .is("import_batch_id", null)
     .gte("created_at", startedAt);
 
-  for (const tabla of ["cuentas_por_pagar", "cuentas_por_cobrar", "propinas"] as const) {
+  for (const tabla of ["cuentas_por_pagar", "cuentas_por_cobrar", "bono10_propina"] as const) {
     await supabase
       .from(tabla)
       .update({ import_batch_id: id } as any)
@@ -140,7 +140,7 @@ export async function analizarReversion(batch: ImportBatch): Promise<RevertPlan>
   plan.transacciones = (txs ?? []) as any;
 
   const counts = await Promise.all(
-    (["cuentas_por_pagar", "cuentas_por_cobrar", "propinas"] as const).map((t) =>
+    (["cuentas_por_pagar", "cuentas_por_cobrar", "bono10_propina"] as const).map((t) =>
       supabase.from(t).select("id", { count: "exact", head: true }).eq("import_batch_id" as any, batch.id)
     )
   );

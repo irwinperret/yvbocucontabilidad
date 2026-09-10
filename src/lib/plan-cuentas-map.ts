@@ -66,9 +66,8 @@ export const CUENTA = {
   IVA_CREDITO: "7.4",
 
   // Pasivos transitorios
-  PROPINAS_POR_PAGAR: "8.1",
+  PROPINAS_POR_PAGAR: "8.1", // unificada: "Bono 10% y Propinas por pagar al personal"
   PAGO_CXP: "8.2",
-  BONOS_10: "8.3",
 
   // Activos transitorios
   PRESTAMOS_PERSONAL: "9.1",
@@ -83,7 +82,7 @@ export const MAPA_CUENTAS_ANTERIOR: Record<string, string> = {
   "10.5": "5.5", "10.6": "5.6", "10.7": "5.7",
   "11.1": "6.1", "11.2": "6.2",
   "12.1": "4.11", "12.2": "7.1", "12.3": "7.2", "12.4": "7.3", "12.5": "7.4",
-  "13.1": "8.1", "13.2": "8.2", "13.4": "8.3",
+  "13.1": "8.1", "13.2": "8.2", "13.4": "8.1",
   "14.1": "9.1", "14.2": "9.2", "14.3": "9.3",
   "3.16": "3.3", "3.17": "3.4", "3.23": "3.5", "3.24": "3.6",
 };

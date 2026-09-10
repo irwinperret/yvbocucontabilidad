@@ -16,23 +16,21 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+const DETALLE_BONO = "Bono 10% — pago combinado";
+const DETALLE_PROP = "Propinas — pago combinado";
+
 /**
- * Distribuye en bloque TODO lo pendiente de Bono 10% (8.3) y Propinas (8.1)
- * con fecha <= la fecha de corte dada, contra UN solo pago bancario real.
+ * Distribuye en bloque TODO lo pendiente de Bono 10% y Propinas (ambos viven
+ * en la tabla unificada `bono10_propina` y en la cuenta 8.1) con fecha <= la
+ * fecha de corte dada, contra UN solo pago bancario real.
  *
- * Reemplaza el supuesto anterior (equivocado) de que el bono 10% venía
- * incluido en la transferencia de nómina general: en realidad el negocio
- * paga bono 10% + propinas juntos, en una transferencia aparte, que
- * normalmente cubre TODO lo acumulado hasta esa fecha.
- *
- * Crea hasta 2 transacciones de salida (una por cada pasivo con algo
- * pendiente), comparte grupo_transaccion_id y va contra la cuenta bancaria
- * real del pago — así el FC queda correcto, a diferencia del cierre de mes
- * automático anterior que descargaba el pasivo sin tocar ningún banco.
+ * Crea hasta 2 transacciones de salida (una por cada tipo con algo pendiente),
+ * ambas en la cuenta 8.1, comparten grupo_transaccion_id y van contra la
+ * cuenta bancaria real del pago — así el FC queda correcto.
  *
  * Se usa tanto al importar movimientos bancarios (detección automática por
  * texto "bono"/"propina" en el concepto) como desde el botón manual
- * "Distribuir todo pendiente" en las pantallas Bono 10% y Propinas.
+ * "Distribuir todo pendiente" en la pantalla Bono 10% + Propina.
  */
 export async function distribuirBonoPropinaCombinado(args: {
   /** Fecha de corte: se distribuye TODO lo pendiente con fecha <= esta. */
@@ -59,8 +57,8 @@ export async function distribuirBonoPropinaCombinado(args: {
   } = args;
 
   const [{ data: bonosPend, error: eB }, { data: propsPend, error: eP }] = await Promise.all([
-    supabase.from("bonos_10").select("id, monto_bs, monto_usd").is("transaccion_salida_id", null).lte("fecha", fecha),
-    supabase.from("propinas").select("id, monto_bs, monto_usd").is("transaccion_salida_id", null).lte("fecha", fecha),
+    supabase.from("bono10_propina").select("id, monto_bs, monto_usd").eq("tipo", "bono").is("transaccion_salida_id", null).lte("fecha", fecha),
+    supabase.from("bono10_propina").select("id, monto_bs, monto_usd").eq("tipo", "propina").is("transaccion_salida_id", null).lte("fecha", fecha),
   ]);
   if (eB) return { ok: false, error: eB.message };
   if (eP) return { ok: false, error: eP.message };
@@ -91,8 +89,7 @@ export async function distribuirBonoPropinaCombinado(args: {
 
   const grupoId = crypto.randomUUID();
   // El residuo de redondeo (si lo hay) entre lo transferido y la suma exacta
-  // de lo pendiente se le suma a la pata más grande — mismo criterio que el
-  // reparto de Servicios — para que el banco cuadre exacto.
+  // de lo pendiente se le suma a la pata más grande para que el banco cuadre exacto.
   const residuoBs = montoBs - totalPendienteBs;
   const residuoUsd = montoUsd - (totalBonoUsd + totalPropUsd);
   const bonoEsMayor = totalBonoBs >= totalPropBs;
@@ -101,54 +98,45 @@ export async function distribuirBonoPropinaCombinado(args: {
   const legPropBs = +(totalPropBs + (bonoEsMayor ? 0 : residuoBs)).toFixed(2);
   const legPropUsd = +(totalPropUsd + (bonoEsMayor ? 0 : residuoUsd)).toFixed(2);
 
+  const baseLeg = {
+    fecha,
+    cuenta_codigo: "8.1",
+    centro_costo: "Compartido",
+    iva_bs: 0,
+    iva_aplica: false,
+    tipo_iva: null,
+    tasa_bcv: tasaBcv,
+    tasa_paralela: tasaParalela,
+    metodo_pago: "transferencia",
+    modo: "on_balance",
+    cuenta_bancaria_id: cuentaBancariaId,
+    grupo_transaccion_id: grupoId,
+    import_batch_id: batchId ?? null,
+    created_by: userId,
+  };
+
   const payloads: any[] = [];
   if (bonos.length > 0) {
     payloads.push({
-      fecha,
-      cuenta_codigo: "8.3",
-      centro_costo: "Compartido",
+      ...baseLeg,
       monto_bs: -legBonoBs,
       monto_base_bs: -legBonoBs,
-      iva_bs: 0,
-      iva_aplica: false,
-      tipo_iva: null,
-      tasa_bcv: tasaBcv,
-      tasa_paralela: tasaParalela,
       monto_usd: -legBonoUsd,
-      metodo_pago: "transferencia",
       referencia: referenciaBanco ?? null,
-      detalle: `Bono 10% — pago combinado (${bonos.length} pendientes)`.slice(0, 255),
+      detalle: `${DETALLE_BONO} (${bonos.length} pendientes)`.slice(0, 255),
       notas: `${origenNota} · Bono 10% por pagar al personal`.slice(0, 255),
-      modo: "on_balance",
-      cuenta_bancaria_id: cuentaBancariaId,
-      grupo_transaccion_id: grupoId,
-      import_batch_id: batchId ?? null,
-      created_by: userId,
     });
   }
   if (props.length > 0) {
     payloads.push({
-      fecha,
-      cuenta_codigo: "8.1",
-      centro_costo: "Compartido",
+      ...baseLeg,
       monto_bs: -legPropBs,
       monto_base_bs: -legPropBs,
-      iva_bs: 0,
-      iva_aplica: false,
-      tipo_iva: null,
-      tasa_bcv: tasaBcv,
-      tasa_paralela: tasaParalela,
       monto_usd: -legPropUsd,
-      metodo_pago: "transferencia",
       // Si no hubo pierna de bono10, la huella de dedupe va aquí.
       referencia: bonos.length === 0 ? (referenciaBanco ?? null) : null,
-      detalle: `Propinas — pago combinado (${props.length} pendientes)`.slice(0, 255),
+      detalle: `${DETALLE_PROP} (${props.length} pendientes)`.slice(0, 255),
       notas: `${origenNota} · Propinas por pagar al personal`.slice(0, 255),
-      modo: "on_balance",
-      cuenta_bancaria_id: cuentaBancariaId,
-      grupo_transaccion_id: grupoId,
-      import_batch_id: batchId ?? null,
-      created_by: userId,
     });
   }
 
@@ -156,12 +144,12 @@ export async function distribuirBonoPropinaCombinado(args: {
   if (errIns) return { ok: false, error: errIns.message };
   for (const tx of legsTx ?? []) await logAudit("transacciones", "INSERT", (tx as any).id, null, tx);
 
-  const txBono = (legsTx ?? []).find((t: any) => t.cuenta_codigo === "8.3");
-  const txProp = (legsTx ?? []).find((t: any) => t.cuenta_codigo === "8.1");
+  const txBono = (legsTx ?? []).find((t: any) => String(t.detalle ?? "").startsWith(DETALLE_BONO));
+  const txProp = (legsTx ?? []).find((t: any) => String(t.detalle ?? "").startsWith(DETALLE_PROP));
 
-  const marcarDistribuidas = async (tabla: "bonos_10" | "propinas", ids: string[], txId: string) => {
+  const marcarDistribuidas = async (ids: string[], txId: string) => {
     for (const idsChunk of chunk(ids, 500)) {
-      await (supabase.from(tabla) as any)
+      await (supabase.from("bono10_propina") as any)
         .update({
           transaccion_salida_id: txId,
           fecha_distribucion: fecha,
@@ -170,8 +158,8 @@ export async function distribuirBonoPropinaCombinado(args: {
         .in("id", idsChunk);
     }
   };
-  if (txBono) await marcarDistribuidas("bonos_10", bonos.map((b) => b.id), (txBono as any).id);
-  if (txProp) await marcarDistribuidas("propinas", props.map((p) => p.id), (txProp as any).id);
+  if (txBono) await marcarDistribuidas(bonos.map((b) => b.id), (txBono as any).id);
+  if (txProp) await marcarDistribuidas(props.map((p) => p.id), (txProp as any).id);
 
   return {
     ok: true,
@@ -188,8 +176,8 @@ export async function distribuirBonoPropinaCombinado(args: {
  * mes — sin crear ninguna transacción.
  */
 export async function pendientesBonoPropina(fechaCorte?: string) {
-  let qBono = supabase.from("bonos_10").select("monto_usd").is("transaccion_salida_id", null);
-  let qProp = supabase.from("propinas").select("monto_usd").is("transaccion_salida_id", null);
+  let qBono = supabase.from("bono10_propina").select("monto_usd").eq("tipo", "bono").is("transaccion_salida_id", null);
+  let qProp = supabase.from("bono10_propina").select("monto_usd").eq("tipo", "propina").is("transaccion_salida_id", null);
   if (fechaCorte) {
     qBono = qBono.lte("fecha", fechaCorte);
     qProp = qProp.lte("fecha", fechaCorte);

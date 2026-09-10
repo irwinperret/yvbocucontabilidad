@@ -212,7 +212,7 @@ export async function reabrirMes(periodo: string) {
   const idsBonoCierre = (txBonoCierre ?? []).map((t: any) => t.id);
   if (idsBonoCierre.length > 0) {
     await supabase
-      .from("bonos_10")
+      .from("bono10_propina")
       .update({ transaccion_salida_id: null, fecha_distribucion: null, monto_distribuido_usd: null, notas_distribucion: null } as any)
       .in("transaccion_salida_id", idsBonoCierre);
     await supabase.from("transacciones").delete().eq("referencia", referenciaBono);

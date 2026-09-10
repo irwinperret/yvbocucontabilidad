@@ -20,10 +20,10 @@ export type ClasificacionPersonal = {
 };
 
 /** Cuentas de pasivo/activo transitorio: el movimiento descarga saldo, no crea gasto. */
-export const CUENTAS_PASIVO_PAGO = new Set(["8.1", "8.2", "8.3", "9.1", "9.3"]);
+export const CUENTAS_PASIVO_PAGO = new Set(["8.1", "8.2", "9.1", "9.3"]);
 
 /** Cuenta de pasivo por bonos 10% de servicio devengados en la importación de ventas. */
-export const CUENTA_BONO_10 = "8.3";
+export const CUENTA_BONO_10 = "8.1";
 /** Cuenta de pasivo por propinas devengadas en la importación de ventas. */
 export const CUENTA_PROPINAS = "8.1";
 
