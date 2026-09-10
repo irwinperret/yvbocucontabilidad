@@ -824,8 +824,11 @@ function ImportarMovimientosInner() {
           // reporta como un solo movimiento, pero en realidad cubre 5
           // servicios básicos a la vez. Se reparte automáticamente entre
           // esas 5 cuentas por su porcentaje fijo — al margen de la cuenta
-          // sugerida/marcada para la fila — en vez de dejarlo en una sola. ──
-          if (esPagoServiciosCombinado(bankRow.concepto)) {
+          // sugerida/marcada para la fila — en vez de dejarlo en una sola.
+          // Mismo reparto si la cuenta asignada a la fila es 3.21 "SERVICIOS
+          // (Sin discriminar)", sin importar el texto del concepto. ──
+          const esServicios321 = m.cuentaCodigo === "3.21";
+          if (esPagoServiciosCombinado(bankRow.concepto) || esServicios321) {
             const grupoServicios = crypto.randomUUID();
             const legs = REPARTO_SERVICIOS_COMBINADOS.map((r) => ({ ...r, montoBs: 0, montoUsd: 0 }));
             // Cada pata se calcula a 2 decimales; el residuo de redondeo (si
@@ -860,7 +863,10 @@ function ImportarMovimientosInner() {
               // operaciones de cambio (dos patas, una sola con referencia).
               referencia: i === 0 ? bankRow.huella : null,
               detalle: `Servicios (${Math.round(leg.pct * 100)}% de pago combinado) · ${leg.nombre}`.slice(0, 255),
-              notas: `Conciliación bancaria · reparto automático "Pago por Internet — Servicios" · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`.slice(0, 255),
+              notas: (esServicios321
+                ? `Conciliación bancaria · reparto automático cuenta 3.21 "SERVICIOS (Sin discriminar)" · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+                : `Conciliación bancaria · reparto automático "Pago por Internet — Servicios" · ${bankRow.banco} · Ref ${bankRow.referencia || "—"} · ${bankRow.concepto}`
+              ).slice(0, 255),
               modo: "on_balance" as any,
               cuenta_bancaria_id: bankRow.cuentaBancariaId,
               grupo_transaccion_id: grupoServicios,
@@ -1155,11 +1161,14 @@ function ImportarMovimientosInner() {
   /** Tipo de registro + nota explicativa para la columna de la vista previa. */
   const tipoDe = (m: Match): { tipo: TipoRegistro; nota?: string } => {
     if (m.cxps.length > 0) return { tipo: "pasivo", nota: "Pago de factura (CxP)" };
-    if (esPagoServiciosCombinado(m.bankRow.concepto)) {
+    if (esPagoServiciosCombinado(m.bankRow.concepto) || m.cuentaCodigo === "3.21") {
       const detalle = REPARTO_SERVICIOS_COMBINADOS
         .map((r) => `${r.nombre} ${Math.round(r.pct * 100)}%`)
         .join(", ");
-      return { tipo: "gasto", nota: `Se reparte automático en 5 cuentas: ${detalle} (ignora la cuenta sugerida)` };
+      const motivo = m.cuentaCodigo === "3.21" && !esPagoServiciosCombinado(m.bankRow.concepto)
+        ? "por cuenta 3.21 SERVICIOS (Sin discriminar)"
+        : "ignora la cuenta sugerida";
+      return { tipo: "gasto", nota: `Se reparte automático en 5 cuentas: ${detalle} (${motivo})` };
     }
     const clasif = esPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)
       ? clasificarPagoPersonal(m.bankRow.concepto, m.bankRow.categoria)

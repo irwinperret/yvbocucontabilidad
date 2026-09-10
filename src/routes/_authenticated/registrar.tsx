@@ -40,6 +40,7 @@ import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { PagarCxPInline } from "@/components/pagar-cxp-inline";
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { REPARTO_SERVICIOS_COMBINADOS, marcarEstadoConciliacion } from "@/lib/conciliacion";
 
 const CUENTA_PAGO_CXP = "8.2";
 
@@ -1698,6 +1699,83 @@ function GastosFacturaForm() {
     if (!(await ensurePeriodoAbierto(fecha))) return;
     if (!cuenta) return toast.error("Selecciona cuenta");
     if (!tasaN) return toast.error("Falta tasa");
+
+    // Cuenta 3.21 "SERVICIOS (Sin discriminar)": no se guarda como un solo
+    // gasto — se reparte automáticamente entre las mismas 5 cuentas del
+    // reparto de "Pago por Internet · Servicios" (ver conciliacion.ts). Es
+    // un gasto directo (como el resto de las cuentas 3.13-3.20): no lleva
+    // factura, IVA, CxP ni anticipo, así que ese flujo se salta por completo.
+    if (cuenta === "3.21") {
+      if (!netoInput) return toast.error("Falta el monto");
+      if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
+      setBusy(true);
+      const grupoServicios = crypto.randomUUID();
+      const legs = REPARTO_SERVICIOS_COMBINADOS.map((r) => ({ ...r, montoBs: 0, montoUsd: 0 }));
+      let sumaBs = 0;
+      let sumaUsd = 0;
+      for (const leg of legs) {
+        leg.montoBs = +(base * leg.pct).toFixed(2);
+        leg.montoUsd = +(baseUsdParalelo * leg.pct).toFixed(2);
+        sumaBs += leg.montoBs;
+        sumaUsd += leg.montoUsd;
+      }
+      const mayor = legs.reduce((a, b) => (b.pct > a.pct ? b : a), legs[0]);
+      mayor.montoBs = +(mayor.montoBs + (base - sumaBs)).toFixed(2);
+      mayor.montoUsd = +(mayor.montoUsd + (baseUsdParalelo - sumaUsd)).toFixed(2);
+
+      const notaBase = (
+        (notas ? `${notas} · ` : "") +
+        `Gastos/Facturas · reparto automático cuenta 3.21 "SERVICIOS (Sin discriminar)"` +
+        (numFactura ? ` · Fact ${numFactura}` : "")
+      ).slice(0, 255);
+      const payloadsServicios = legs.map((leg) => ({
+        fecha,
+        cuenta_codigo: leg.cuenta,
+        centro_costo: centro as any,
+        monto_bs: leg.montoBs,
+        monto_base_bs: leg.montoBs,
+        iva_bs: 0,
+        iva_aplica: false,
+        tipo_iva: null,
+        tasa_bcv: tasaN,
+        tasa_paralela: paralelaSugerida?.tasa ?? null,
+        monto_usd: leg.montoUsd,
+        metodo_pago: metodo as any,
+        tercero_id: terceroId || null,
+        numero_factura: numFactura || null,
+        detalle: `Servicios (${Math.round(leg.pct * 100)}% de pago combinado) · ${leg.nombre}`.slice(0, 255),
+        notas: notaBase,
+        modo: offBalance ? "off_balance" : ("on_balance" as any),
+        cuenta_bancaria_id: cuentaBancariaId,
+        grupo_transaccion_id: grupoServicios,
+        created_by: user.id,
+      }));
+      const { data: legsTx, error: errServicios } = await supabase
+        .from("transacciones")
+        .insert(payloadsServicios as any)
+        .select();
+      if (errServicios) {
+        setBusy(false);
+        return toast.error(errServicios.message);
+      }
+      for (const t of legsTx ?? []) await logAudit("transacciones", "INSERT", (t as any).id, null, t);
+      for (const t of legsTx ?? []) {
+        await marcarEstadoConciliacion({ movimientoId: (t as any).id, estado: "gasto_directo", userId: user.id });
+      }
+      setBusy(false);
+      toast.success(
+        `Gasto repartido automáticamente en 5 cuentas de SERVICIOS (Sin discriminar) · ${legs.length} transacciones`,
+      );
+      qc.invalidateQueries();
+      setMontoNeto("");
+      setMontoIva("");
+      setIvaTocado(false);
+      setNumFactura("");
+      setNotas("");
+      setAplicaciones([]);
+      return;
+    }
+
     if (!numFactura) return toast.error("N° factura obligatorio");
     if (!pendiente && !cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria");
     setBusy(true);
@@ -1922,7 +2000,7 @@ function GastosFacturaForm() {
           <div className="md:col-span-2">
             <TerceroSelect value={terceroId} onChange={setTerceroId} terceros={(terceros ?? []) as any} />
           </div>
-          {terceroId && (
+          {terceroId && cuenta !== "3.21" && (
             <div className="md:col-span-2">
               <AnticipoProveedorBanner
                 terceroId={terceroId}
@@ -1973,20 +2051,29 @@ function GastosFacturaForm() {
                 {cuentaSel.afecta_fc && <span className="text-primary font-semibold">FC</span>}
               </p>
             )}
+            {cuenta === "3.21" && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                Se reparte automático en 5 cuentas: Aseo 40%, Internet 14%, DirecTV 5%, Teléfono/Celulares 3%,
+                Electricidad 38% (se crearán {REPARTO_SERVICIOS_COMBINADOS.length} transacciones en lugar de una;
+                no aplica IVA, CxP ni anticipo).
+              </p>
+            )}
           </div>
           <div className="md:col-span-2">
-            <Label>N° factura</Label>
-            <Input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} required />
+            <Label>N° factura {cuenta === "3.21" && <span className="text-muted-foreground font-normal">(opcional)</span>}</Label>
+            <Input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} required={cuenta !== "3.21"} />
           </div>
 
-          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-            <div>
-              <Label>Pendiente de pago (crear CxP)</Label>
-              <p className="text-xs text-muted-foreground">Si está activo, no afecta FC hoy</p>
+          {cuenta !== "3.21" && (
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <div>
+                <Label>Pendiente de pago (crear CxP)</Label>
+                <p className="text-xs text-muted-foreground">Si está activo, no afecta FC hoy</p>
+              </div>
+              <Switch checked={pendiente} onCheckedChange={setPendiente} />
             </div>
-            <Switch checked={pendiente} onCheckedChange={setPendiente} />
-          </div>
-          {pendiente ? (
+          )}
+          {(cuenta === "3.21" ? false : pendiente) ? (
             <div className="md:col-span-2">
               <Label>Fecha vencimiento (opcional)</Label>
               <Input type="date" value={fechaVenc} onChange={(e) => setFechaVenc(e.target.value)} />
@@ -2014,10 +2101,12 @@ function GastosFacturaForm() {
             </>
           )}
 
-          <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
-            <Label>¿Factura con IVA 16%?</Label>
-            <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
-          </div>
+          {cuenta !== "3.21" && (
+            <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
+              <Label>¿Factura con IVA 16%?</Label>
+              <Switch checked={ivaAplica} onCheckedChange={setIvaAplica} />
+            </div>
+          )}
           <div className="md:col-span-2 flex items-center justify-between border-t pt-3">
             <Label>Moneda de registro</Label>
             <div className="inline-flex rounded-lg border p-1">
@@ -2064,7 +2153,7 @@ function GastosFacturaForm() {
               </p>
             )}
           </div>
-          {ivaAplica && (
+          {ivaAplica && cuenta !== "3.21" && (
             <div className="md:col-span-2">
               <Label>
                 {esUSD ? "IVA USD" : "IVA Bs"}{" "}
@@ -2086,7 +2175,7 @@ function GastosFacturaForm() {
             <div>
               Monto neto: <span className="mono font-semibold">{esUSD ? fmtUsd(netoInput) : fmtBs(netoInput)}</span>
             </div>
-            {ivaAplica && (
+            {ivaAplica && cuenta !== "3.21" && (
               <div>
                 IVA: <span className="mono font-semibold">{esUSD ? fmtUsd(ivaInput) : fmtBs(ivaInput)}</span>
               </div>
@@ -2116,7 +2205,7 @@ function GastosFacturaForm() {
               <div>
                 Base (G&amp;P) Bs: <span className="mono font-semibold">{fmtBs(base)}</span>
               </div>
-              {ivaAplica && (
+              {ivaAplica && cuenta !== "3.21" && (
                 <div>
                   IVA crédito Bs: <span className="mono font-semibold">{fmtBs(iva)}</span>
                 </div>
