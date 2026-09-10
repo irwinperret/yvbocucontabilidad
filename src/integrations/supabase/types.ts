@@ -215,6 +215,7 @@ export type Database = {
           numero_orden: string | null
           referencia: string | null
           tasa_paralela: number | null
+          tipo: string
           transaccion_entrada_id: string | null
           transaccion_id: string | null
           transaccion_salida_id: string | null
@@ -237,6 +238,7 @@ export type Database = {
           numero_orden?: string | null
           referencia?: string | null
           tasa_paralela?: number | null
+          tipo?: string
           transaccion_entrada_id?: string | null
           transaccion_id?: string | null
           transaccion_salida_id?: string | null
@@ -259,6 +261,7 @@ export type Database = {
           numero_orden?: string | null
           referencia?: string | null
           tasa_paralela?: number | null
+          tipo?: string
           transaccion_entrada_id?: string | null
           transaccion_id?: string | null
           transaccion_salida_id?: string | null
