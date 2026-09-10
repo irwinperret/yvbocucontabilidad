@@ -68,12 +68,18 @@ function CapExPage() {
     queryFn: async () => {
       const desde = `${anio}-01-01`;
       const hasta = `${anio}-12-31`;
-      const { data } = await supabase
-        .from("transacciones")
-        .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela").neq("standby", true)
-        .gte("fecha", desde).lte("fecha", hasta)
-        .eq("modo", "on_balance");
-      return data ?? [];
+      // Un año completo de gastos operativos fácilmente pasa de 1.000 filas
+      // (el límite por defecto de Supabase/PostgREST) — sin paginar, meses
+      // que en cxp.tsx y otras pantallas de la app.
+      const { fetchAllRows } = await import("@/lib/fetch-all");
+      return await fetchAllRows(async (from, to) =>
+        await supabase
+          .from("transacciones")
+          .select("fecha, cuenta_codigo, monto_bs, monto_usd, tasa_bcv, tasa_paralela").neq("standby", true)
+          .gte("fecha", desde).lte("fecha", hasta)
+          .eq("modo", "on_balance")
+          .range(from, to),
+      );
     },
   });
 
