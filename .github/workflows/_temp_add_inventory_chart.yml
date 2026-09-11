@@ -1,6 +1,7 @@
 name: Temp add inventory chart
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 permissions:
   contents: write
 jobs:
@@ -12,10 +13,8 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-
           screen = Path('src/routes/_authenticated/resumen-ejecutivo-mensual.tsx')
           s = screen.read_text()
-
           old = '''  const { data: cogsEstimadoPrev } = useQuery({
     queryKey: ["rie-mensual-cogs-est", anio - 1],
     queryFn: () => estimarCogsMesesAbiertos(anio - 1),
@@ -44,10 +43,8 @@ jobs:
     });
   }, [inventarioSnapshots, anio, mes]);
 '''
-          if old not in s:
-              raise SystemExit('Screen anchor not found')
+          if old not in s: raise SystemExit('Screen anchor not found')
           s = s.replace(old, new, 1)
-
           old = '''        <Card>
           <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
           <CardContent className="h-[360px]">
@@ -66,7 +63,6 @@ jobs:
         </Card>
 '''
           new = old + '''
-
         <Card>
           <CardHeader><CardTitle className="text-lg">Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
           <CardContent className="h-[360px]">
@@ -83,16 +79,12 @@ jobs:
           </CardContent>
         </Card>
 '''
-          if old not in s:
-              raise SystemExit('Screen chart anchor not found')
-          s = s.replace(old, new, 1)
-          screen.write_text(s)
+          if old not in s: raise SystemExit('Screen chart anchor not found')
+          screen.write_text(s.replace(old, new, 1))
 
-          # Printable version: same third chart, sized so all three fit cleanly in landscape.
           pr = Path('src/routes/reporte-mensual-imprimir.tsx')
           p = pr.read_text()
           p = p.replace('const ANCHO_GRAFICO = 460; // los 2 gráficos van lado a lado (flex) dentro del ancho impreso en landscape (~980px); a 560c/u se salían de la página y el de la derecha quedaba cortado', 'const ANCHO_GRAFICO = 300; // 3 gráficos lado a lado dentro del ancho impreso en landscape')
-
           old = '''  const { data: cogsEstimadoPrev } = useQuery({
     queryKey: ["rie-print-cogs-est", anio - 1],
     queryFn: () => estimarCogsMesesAbiertos(anio - 1),
@@ -121,11 +113,9 @@ jobs:
     });
   }, [inventarioSnapshots, anio, mes]);
 '''
-          if old not in p:
-              raise SystemExit('Print anchor not found')
+          if old not in p: raise SystemExit('Print anchor not found')
           p = p.replace(old, new, 1)
           p = p.replace('const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev;', 'const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !inventarioSnapshots;', 1)
-
           old = '''        <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</p>
           <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieMargenes}>
@@ -139,8 +129,7 @@ jobs:
           </ComposedChart>
         </div>
 '''
-          new = old + '''
-        <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
+          new = old + '''        <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio}</p>
           <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieInventario}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -152,11 +141,9 @@ jobs:
           </ComposedChart>
         </div>
 '''
-          if old not in p:
-              raise SystemExit('Print chart anchor not found')
-          p = p.replace(old, new, 1)
-          pr.write_text(p)
-          print('Patched both Resumen IPA Mensual views')
+          if old not in p: raise SystemExit('Print chart anchor not found')
+          pr.write_text(p.replace(old, new, 1))
+          print('Patched both views')
       - name: Verify build
         run: |
           npm ci
