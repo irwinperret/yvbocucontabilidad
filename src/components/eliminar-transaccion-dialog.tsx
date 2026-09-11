@@ -63,7 +63,7 @@ export function EliminarTransaccionDialog({ open, transaccion, onClose, onDelete
     onClose();
   };
 
-  const bloqueado = !!(plan?.bloqueoMesCerrado || plan?.bloqueoAnticipoAplicado);
+  const bloqueado = !!(plan?.bloqueoMesCerrado || plan?.bloqueoAnticipoAplicado || plan?.bloqueoPrestamoVinculado);
 
   return (
     <AlertDialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -92,6 +92,12 @@ export function EliminarTransaccionDialog({ open, transaccion, onClose, onDelete
                     <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-destructive flex gap-2">
                       <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                       <div>{plan.bloqueoAnticipoAplicado}</div>
+                    </div>
+                  )}
+                  {plan.bloqueoPrestamoVinculado && (
+                    <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-destructive flex gap-2">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <div>{plan.bloqueoPrestamoVinculado}</div>
                     </div>
                   )}
 
@@ -142,6 +148,11 @@ export function EliminarTransaccionDialog({ open, transaccion, onClose, onDelete
                   {plan.propinasCount > 0 && (
                     <div className="text-xs text-muted-foreground">
                       Además se eliminarán <b>{plan.propinasCount}</b> registro(s) en la tabla de propinas.
+                    </div>
+                  )}
+                  {plan.conciliacionCount > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      Además se eliminarán <b>{plan.conciliacionCount}</b> vínculo(s) de conciliación bancaria.
                     </div>
                   )}
                 </>

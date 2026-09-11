@@ -29,8 +29,10 @@ export type DeletePlan = {
   cxc: CxcRef[];
   cxp: CxpRef[];
   propinasCount: number;
+  conciliacionCount: number;
   bloqueoMesCerrado: string | null;
   bloqueoAnticipoAplicado: string | null;
+  bloqueoPrestamoVinculado: string | null;
   advertencias: string[];
 };
 
@@ -50,8 +52,10 @@ export async function analizarBorradoTransaccion(t: any): Promise<DeletePlan> {
     cxc: [],
     cxp: [],
     propinasCount: 0,
+    conciliacionCount: 0,
     bloqueoMesCerrado: null,
     bloqueoAnticipoAplicado: null,
+    bloqueoPrestamoVinculado: null,
     advertencias: [],
   };
 
@@ -148,6 +152,36 @@ export async function analizarBorradoTransaccion(t: any): Promise<DeletePlan> {
     plan.propinasCount = count ?? 0;
   }
 
+  // 6b) Vínculos de conciliación bancaria de cualquier transacción del plan.
+  // Son solo metadata de conciliación (qué se pareó con qué): no tienen
+  // sentido sin la transacción y su FK impide borrar la transacción si no
+  // se eliminan primero (ver ejecutarBorradoTransaccion). Se cuentan aquí
+  // solo para informar; el borrado real ocurre al ejecutar.
+  if (ids.length) {
+    const { count } = await supabase
+      .from("conciliacion_bancaria")
+      .select("id", { count: "exact", head: true })
+      .or(
+        ids
+          .map((id) => `transaccion_bancaria_id.eq.${id},transaccion_factura_id.eq.${id}`)
+          .join(",")
+      );
+    plan.conciliacionCount = count ?? 0;
+  }
+
+  // 6c) Préstamos vinculados: a diferencia de la conciliación, un préstamo es
+  // un registro real (no metadata) — no se borra en silencio, se bloquea.
+  if (ids.length) {
+    const { data: prestamosRows } = await supabase
+      .from("prestamos")
+      .select("id, prestamista")
+      .in("transaccion_id", ids);
+    if (prestamosRows && prestamosRows.length) {
+      const nombres = prestamosRows.map((p: any) => p.prestamista).filter(Boolean).join(", ");
+      plan.bloqueoPrestamoVinculado = `Hay ${prestamosRows.length} préstamo(s) vinculado(s)${nombres ? ` (${nombres})` : ""}. Elimina o desvincula el préstamo antes de borrar esta transacción.`;
+    }
+  }
+
   // 7) Bloqueo por mes cerrado en cualquiera de las transacciones a eliminar
   for (const tx of plan.transacciones) {
     if (await isPeriodClosed(tx.fecha)) {
@@ -165,6 +199,9 @@ export async function ejecutarBorradoTransaccion(plan: DeletePlan): Promise<{ ok
   }
   if (plan.bloqueoAnticipoAplicado) {
     return { ok: false, error: plan.bloqueoAnticipoAplicado };
+  }
+  if (plan.bloqueoPrestamoVinculado) {
+    return { ok: false, error: plan.bloqueoPrestamoVinculado };
   }
 
   const txIds = plan.transacciones.map((t) => t.id);
@@ -194,6 +231,19 @@ export async function ejecutarBorradoTransaccion(plan: DeletePlan): Promise<{ ok
       .join(",");
     const { error } = await supabase.from("bono10_propina").delete().or(orExpr);
     if (error) return { ok: false, error: `Error eliminando propinas: ${error.message}` };
+  }
+
+  // 3b) Vínculos de conciliación bancaria: tienen FK hacia transacciones
+  // (transaccion_bancaria_id y transaccion_factura_id) y bloquean el borrado
+  // si no se limpian primero — es la causa más común de que "Eliminar
+  // definitivamente" en Standby no haga nada visible (el error queda en un
+  // toast que pasa desapercibido).
+  if (txIds.length) {
+    const orExpr = txIds
+      .map((id) => `transaccion_bancaria_id.eq.${id},transaccion_factura_id.eq.${id}`)
+      .join(",");
+    const { error } = await supabase.from("conciliacion_bancaria").delete().or(orExpr);
+    if (error) return { ok: false, error: `Error eliminando vínculos de conciliación: ${error.message}` };
   }
 
   // 4) Romper FK self-reference de pareja off-balance

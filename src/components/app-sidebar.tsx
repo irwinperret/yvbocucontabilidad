@@ -80,6 +80,7 @@ const registroGestionEnConstruccion = [
 const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
+  { title: "Resumen IPA Mensual", url: "/resumen-ejecutivo-mensual", icon: BarChart3 },
 ];
 
 const analisisEnConstruccion = [
@@ -101,7 +102,6 @@ const analisisDetalles = [
   { title: "Tasa paralela", url: "/tasa-paralela", icon: ArrowLeftRight },
   { title: "Operaciones de Cambio", url: "/operaciones-cambio", icon: ArrowLeftRight },
   { title: "Resumen IPA", url: "/resumen-ejecutivo", icon: BarChart3 },
-  { title: "Resumen IPA Mensual", url: "/resumen-ejecutivo-mensual", icon: BarChart3 },
 ];
 
 const analisisHerramientasSecundarias = [
