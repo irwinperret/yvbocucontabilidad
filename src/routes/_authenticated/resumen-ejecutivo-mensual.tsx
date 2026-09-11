@@ -106,6 +106,28 @@ function ResumenEjecutivoMensualPage() {
     queryFn: () => estimarCogsMesesAbiertos(anio - 1),
   });
 
+  const { data: inventarioSnapshots } = useQuery({
+    queryKey: ["rie-mensual-inventario", anio],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inventario_snapshots")
+        .select("periodo, tipo, monto_usd")
+        .gte("periodo", `${anio}-01`)
+        .lte("periodo", `${anio}-12`)
+        .eq("tipo", "final")
+        .order("periodo");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const serieInventario = useMemo(() => {
+    const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
+    return Array.from({ length: mes }, (_, i) => {
+      const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
+      return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
+    });
+  }, [inventarioSnapshots, anio, mes]);
+
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
   const actual = useMemo(
@@ -292,8 +314,8 @@ function ResumenEjecutivoMensualPage() {
         />
       </div>
 
-      {/* Dos gráficos lado a lado: montos por categoría, y márgenes operativos (%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Tres gráficos: utilidad por categorías, márgenes operativos e inventario mensual */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
           <CardContent className="h-[360px]">
@@ -326,6 +348,22 @@ function ResumenEjecutivoMensualPage() {
                 <Legend />
                 <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                 <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={4} dot={{ r: 4, fill: "#00BFFF", stroke: "#00BFFF", strokeWidth: 2 }} activeDot={{ r: 6, fill: "#00BFFF", stroke: "#00BFFF" }} connectNulls />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-lg">Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
+          <CardContent className="h-[360px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={serieInventario}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="mesLabel" fontSize={11} />
+                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
+                <Tooltip formatter={(v: number) => fmtUsd(v)} />
+                <Legend />
+                <Bar dataKey="inventario" name="Inventario final" fill="#1e3a5f" radius={[4, 4, 0, 0]} />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
