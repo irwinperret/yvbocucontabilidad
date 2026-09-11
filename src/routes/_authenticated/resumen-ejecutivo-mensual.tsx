@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
+import { NotasResumenMensual } from "@/components/notas-resumen-mensual";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import {
   Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
@@ -300,6 +301,8 @@ function ResumenEjecutivoMensualPage() {
           )}
         </CardContent>
       </Card>
+
+      <NotasResumenMensual periodo={`${anio}-${String(mes).padStart(2, "0")}`} />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={`${labelMes} · ${label}`} />
