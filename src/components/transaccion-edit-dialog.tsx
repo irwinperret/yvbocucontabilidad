@@ -16,7 +16,6 @@ import { BankAccountSelect } from "@/components/bank-account-select";
 import { SearchCombobox, type ComboOption } from "@/components/search-combobox";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { esCuentaNoConciliable } from "@/lib/operaciones-cambio";
-import { REPARTO_SERVICIOS_COMBINADOS, marcarEstadoConciliacion } from "@/lib/conciliacion";
 import { useAuth } from "@/lib/auth-context";
 
 export function EditDialog({
@@ -154,109 +153,6 @@ export function EditDialog({
     setBusy(true);
     if (!cuentaCodigo) return toast.error("Selecciona una cuenta contable");
 
-    // Cuenta 3.21 "SERVICIOS (Sin discriminar)": no se guarda como una sola
-    // transacción — se reparte automáticamente en las mismas 5 cuentas que
-    // el reparto de "Pago por Internet · Servicios" (ver conciliacion.ts).
-    // La transacción actual se convierte en la pierna más grande y se
-    // insertan 4 transacciones nuevas para el resto, todas en un grupo nuevo.
-    if (cuentaCodigo === "3.21") {
-      const grupoServicios = crypto.randomUUID();
-      const legs = REPARTO_SERVICIOS_COMBINADOS.map((r) => ({ ...r, montoBs: 0, montoUsd: 0 }));
-      let sumaBs = 0;
-      let sumaUsd = 0;
-      for (const leg of legs) {
-        leg.montoBs = +(total * leg.pct).toFixed(2);
-        leg.montoUsd = +(usdN * leg.pct).toFixed(2);
-        sumaBs += leg.montoBs;
-        sumaUsd += leg.montoUsd;
-      }
-      const mayor = legs.reduce((a, b) => (b.pct > a.pct ? b : a), legs[0]);
-      mayor.montoBs = +(mayor.montoBs + (total - sumaBs)).toFixed(2);
-      mayor.montoUsd = +(mayor.montoUsd + (usdN - sumaUsd)).toFixed(2);
-
-      const [legPrincipal, ...legsRestantes] = [...legs].sort((a, b) => b.pct - a.pct);
-      const detalleLeg = (leg: (typeof legs)[number]) =>
-        `Servicios (${Math.round(leg.pct * 100)}% de pago combinado) · ${leg.nombre}`.slice(0, 255);
-      const notasLeg = (
-        notas
-          ? `${notas} · Reclasificado a SERVICIOS (Sin discriminar) — reparto automático`
-          : `Reclasificado a SERVICIOS (Sin discriminar) — reparto automático`
-      ).slice(0, 255);
-
-      const patchPrincipal = {
-        fecha,
-        cuenta_codigo: legPrincipal.cuenta,
-        centro_costo: "Compartido" as any,
-        monto_bs: legPrincipal.montoBs,
-        monto_base_bs: legPrincipal.montoBs,
-        iva_bs: 0,
-        iva_aplica: false,
-        tipo_iva: null,
-        tasa_bcv: tasaN,
-        tasa_paralela: tasaParalelaN || null,
-        monto_usd: legPrincipal.montoUsd,
-        metodo_pago: metodo as any,
-        numero_factura: null,
-        numero_orden: null,
-        referencia: referencia || null,
-        notas: notasLeg,
-        detalle: detalleLeg(legPrincipal),
-        cuenta_bancaria_id: cuentaBancariaId || null,
-        capex_categoria: tx.capex_categoria ?? null,
-        tercero_id: null,
-        sin_proveedor_deducido: sinProveedorDeducido,
-        grupo_transaccion_id: grupoServicios,
-      };
-      const { data: updatedPrincipal, error: errPrincipal } = await supabase
-        .from("transacciones")
-        .update(patchPrincipal as any)
-        .eq("id", tx.id)
-        .select()
-        .single();
-      if (errPrincipal) { setBusy(false); return toast.error(errPrincipal.message); }
-      if (updatedPrincipal) await logAudit("transacciones", "UPDATE", tx.id, tx, updatedPrincipal);
-      await marcarEstadoConciliacion({ movimientoId: tx.id, estado: "gasto_directo", userId: user?.id ?? null });
-
-      const payloadsRestantes = legsRestantes.map((leg) => ({
-        fecha,
-        cuenta_codigo: leg.cuenta,
-        centro_costo: "Compartido" as any,
-        monto_bs: leg.montoBs,
-        monto_base_bs: leg.montoBs,
-        iva_bs: 0,
-        iva_aplica: false,
-        tipo_iva: null,
-        tasa_bcv: tasaN,
-        tasa_paralela: tasaParalelaN || null,
-        monto_usd: leg.montoUsd,
-        metodo_pago: metodo as any,
-        referencia: null,
-        detalle: detalleLeg(leg),
-        notas: notasLeg,
-        modo: "on_balance" as any,
-        cuenta_bancaria_id: cuentaBancariaId || null,
-        grupo_transaccion_id: grupoServicios,
-        import_batch_id: tx.import_batch_id ?? null,
-        created_by: user?.id ?? tx.created_by ?? null,
-      }));
-      const { data: nuevasLegs, error: errRestantes } = await supabase
-        .from("transacciones")
-        .insert(payloadsRestantes as any)
-        .select();
-      if (errRestantes) { setBusy(false); return toast.error(errRestantes.message); }
-      for (const nueva of nuevasLegs ?? []) {
-        await logAudit("transacciones", "INSERT", (nueva as any).id, null, nueva);
-        await marcarEstadoConciliacion({ movimientoId: (nueva as any).id, estado: "gasto_directo", userId: user?.id ?? null });
-      }
-
-      setBusy(false);
-      toast.success(
-        `Movimiento repartido automáticamente en 5 cuentas de SERVICIOS (Sin discriminar) · ${legsRestantes.length + 1} transacciones`,
-      );
-      onSaved();
-      return;
-    }
-
     const aCuentaNoConciliable = esCuentaNoConciliable(cuentaCodigo);
     const patch = {
       fecha,
@@ -386,12 +282,6 @@ export function EditDialog({
             {cuentaCodigo !== tx.cuenta_codigo && (
               <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
                 Se reclasificará de {tx.cuenta_codigo} a {cuentaCodigo}.
-              </p>
-            )}
-            {cuentaCodigo === "3.21" && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
-                Se reparte automático en 5 cuentas: Aseo 40%, Internet 14%, DirecTV 5%, Teléfono/Celulares 3%,
-                Electricidad 38% (se crearán {REPARTO_SERVICIOS_COMBINADOS.length} transacciones en lugar de una).
               </p>
             )}
           </div>
