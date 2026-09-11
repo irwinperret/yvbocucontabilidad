@@ -14,142 +14,114 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
 
-          def patch(path, replacements):
+          def insert_after_once(path, marker, addition):
               p = Path(path)
               text = p.read_text()
-              for old, new in replacements:
-                  if old not in text:
-                      raise SystemExit(f'Anchor not found in {path}')
-                  text = text.replace(old, new, 1)
-              p.write_text(text)
+              if addition.strip() in text:
+                  return
+              if marker not in text:
+                  raise SystemExit(f'Anchor not found in {path}: {marker[:80]}')
+              p.write_text(text.replace(marker, marker + addition, 1))
 
-          screen = '''  const { data: cogsEstimadoPrev } = useQuery({
-            queryKey: ["rie-mensual-cogs-est", anio - 1],
-            queryFn: () => estimarCogsMesesAbiertos(anio - 1),
-          });
-          '''
-          screen_new = screen + '''
-          const { data: inventarioSnapshots } = useQuery({
-            queryKey: ["rie-mensual-inventario", anio],
-            queryFn: async () => {
-              const { data, error } = await supabase.from("inventario_snapshots")
-                .select("periodo, tipo, monto_usd")
-                .gte("periodo", `${anio}-01`)
-                .lte("periodo", `${anio}-12`)
-                .eq("tipo", "final")
-                .order("periodo");
-              if (error) throw error;
-              return data ?? [];
-            },
-          });
+          screen = Path('src/routes/_authenticated/resumen-ejecutivo-mensual.tsx')
+          s = screen.read_text()
+          marker = '    queryFn: () => estimarCogsMesesAbiertos(anio - 1),\n  });\n'
+          addition = '''\n  const { data: inventarioSnapshots } = useQuery({
+    queryKey: ["rie-mensual-inventario", anio],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inventario_snapshots")
+        .select("periodo, tipo, monto_usd")
+        .gte("periodo", `${anio}-01`)
+        .lte("periodo", `${anio}-12`)
+        .eq("tipo", "final")
+        .order("periodo");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
-          const serieInventario = useMemo(() => {
-            const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
-            return Array.from({ length: mes }, (_, i) => {
-              const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
-              return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
-            });
-          }, [inventarioSnapshots, anio, mes]);
-          '''
-
-          screen_chart = '''        <Card>
-            <CardHeader><CardTitle className="text-lg">Márgenes operativos — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
-            <CardContent className="h-[360px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={serieMargenes}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="mesLabel" fontSize={11} />
-                  <YAxis tickFormatter={(v) => `${v}%`} fontSize={11} width={45} />
-                  <Tooltip formatter={(v: number) => `${v}%`} />
-                  <Legend />
-                  <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                  <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={4} dot={{ r: 4, fill: "#00BFFF", stroke: "#00BFFF", strokeWidth: 2 }} activeDot={{ r: 6, fill: "#00BFFF", stroke: "#00BFFF" }} connectNulls />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          '''
-          screen_chart_new = screen_chart + '''
-
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
-            <CardContent className="h-[360px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={serieInventario}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="mesLabel" fontSize={11} />
-                  <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
-                  <Tooltip formatter={(v: number) => fmtUsd(v)} />
-                  <Legend />
-                  <Line type="monotone" dataKey="inventario" name="Inventario final" stroke="#1e3a5f" strokeWidth={3} dot={{ r: 4 }} connectNulls />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          '''
-
-          patch('src/routes/_authenticated/resumen-ejecutivo-mensual.tsx', [(screen, screen_new), (screen_chart, screen_chart_new)])
-
-          pr = '''  const { data: cogsEstimadoPrev } = useQuery({
-            queryKey: ["rie-print-cogs-est", anio - 1],
-            queryFn: () => estimarCogsMesesAbiertos(anio - 1),
-          });
-          '''
-          pr_new = pr + '''
-          const { data: inventarioSnapshots } = useQuery({
-            queryKey: ["rie-print-inventario", anio],
-            queryFn: async () => {
-              const { data, error } = await supabase.from("inventario_snapshots")
-                .select("periodo, tipo, monto_usd")
-                .gte("periodo", `${anio}-01`)
-                .lte("periodo", `${anio}-12`)
-                .eq("tipo", "final")
-                .order("periodo");
-              if (error) throw error;
-              return data ?? [];
-            },
-          });
-
-          const serieInventario = useMemo(() => {
-            const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
-            return Array.from({ length: mes }, (_, i) => {
-              const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
-              return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
-            });
-          }, [inventarioSnapshots, anio, mes]);
-          '''
-          pr_chart = '''        <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
-            <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</p>
-            <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieMargenes}>
+  const serieInventario = useMemo(() => {
+    const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
+    return Array.from({ length: mes }, (_, i) => {
+      const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
+      return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
+    });
+  }, [inventarioSnapshots, anio, mes]);
+'''
+          insert_after_once(screen, marker, addition)
+          s = screen.read_text()
+          marker = '      {/* Comparativo mensual — Enero hasta el mes de corte */}\n'
+          chart = '''      <Card>
+        <CardHeader><CardTitle className="text-lg">Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
+        <CardContent className="h-[360px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={serieInventario}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="mesLabel" fontSize={10} />
-              <YAxis tickFormatter={(v) => `${v}%`} fontSize={10} width={40} />
-              <Tooltip formatter={(v: number) => `${v}%`} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
-              <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} connectNulls isAnimationActive={false} />
-            </ComposedChart>
-          </div>
-          '''
-          pr_chart_new = pr_chart + '''
-          <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
-            <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio}</p>
-            <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieInventario}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="mesLabel" fontSize={10} />
-              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} width={40} />
+              <XAxis dataKey="mesLabel" fontSize={11} />
+              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
               <Tooltip formatter={(v: number) => fmtUsd(v)} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Line type="monotone" dataKey="inventario" name="Inventario final" stroke="#1e3a5f" strokeWidth={3} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+              <Legend />
+              <Line type="monotone" dataKey="inventario" name="Inventario final" stroke="#1e3a5f" strokeWidth={3} dot={{ r: 4 }} connectNulls />
             </ComposedChart>
-          </div>
-          '''
-          patch('src/routes/reporte-mensual-imprimir.tsx', [
-              ('const ANCHO_GRAFICO = 460;', 'const ANCHO_GRAFICO = 300;'),
-              (pr, pr_new),
-              ('const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev;', 'const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !inventarioSnapshots;'),
-              (pr_chart, pr_chart_new),
-          ])
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+'''
+          if marker not in s: raise SystemExit('Screen chart insertion point not found')
+          screen.write_text(s.replace(marker, chart + marker, 1))
+
+          pr = Path('src/routes/reporte-mensual-imprimir.tsx')
+          p = pr.read_text()
+          p = p.replace('const ANCHO_GRAFICO = 460;', 'const ANCHO_GRAFICO = 300;', 1)
+          marker = '    queryFn: () => estimarCogsMesesAbiertos(anio - 1),\n  });\n'
+          addition = '''\n  const { data: inventarioSnapshots } = useQuery({
+    queryKey: ["rie-print-inventario", anio],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inventario_snapshots")
+        .select("periodo, tipo, monto_usd")
+        .gte("periodo", `${anio}-01`)
+        .lte("periodo", `${anio}-12`)
+        .eq("tipo", "final")
+        .order("periodo");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const serieInventario = useMemo(() => {
+    const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
+    return Array.from({ length: mes }, (_, i) => {
+      const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
+      return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
+    });
+  }, [inventarioSnapshots, anio, mes]);
+'''
+          insert_after_once(pr, marker, addition)
+          p = pr.read_text()
+          p = p.replace('const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev;', 'const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !inventarioSnapshots;', 1)
+          marker = '      {/* 4. Análisis del mes */}\n'
+          chart = '''      {/* 4. Nivel de inventario mensual */}
+      <section className="rounded-md border p-2 mb-3" style={{ borderColor: "#E2E5EA", breakInside: "avoid" }}>
+        <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio}</p>
+        <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieInventario}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+          <XAxis dataKey="mesLabel" fontSize={10} />
+          <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} width={40} />
+          <Tooltip formatter={(v: number) => fmtUsd(v)} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <Line type="monotone" dataKey="inventario" name="Inventario final" stroke="#1e3a5f" strokeWidth={3} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+        </ComposedChart>
+      </section>
+
+      {/* 5. Análisis del mes */}
+'''
+          if marker not in p: raise SystemExit('Print chart insertion point not found')
+          p = p.replace(marker, chart, 1)
+          # Renumber following comments is intentionally cosmetic only and keeps the printable report easy to scan.
+          p = p.replace('      {/* 5. Desglose G&P', '      {/* 6. Desglose G&P', 1)
+          p = p.replace('      {/* Desglose mensual histórico', '      {/* 7. Desglose mensual histórico', 1)
+          pr.write_text(p)
           print('patch completed')
           PY
       - name: Verify build
