@@ -38,7 +38,7 @@ export const CUENTA_PRESTAMO_RECIBIDO = "5.1";
 export const CUENTA_PAGO_CAPITAL_PRESTAMO = "5.2";
 export const CUENTA_INTERESES = "5.3";
 export const CUENTA_DIVIDENDOS = "5.4";
-export const CUENTAS_IMPUESTOS_GASTO = ["7.1", "7.2"];
+export const CUENTAS_IMPUESTOS_GASTO = ["7.1"];
 export const CATEGORIA_INMUEBLES = "Remodelación/Obra Civil";
 
 export function totalFCMes(l: LineasFCMes) {
