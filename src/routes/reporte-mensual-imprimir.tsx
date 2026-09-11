@@ -276,7 +276,7 @@ function ReporteMensualImprimirPage() {
             <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} width={40} />
             <Tooltip formatter={(v: number) => fmtUsd(v)} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Line type="monotone" dataKey="inventario" name="Inventario final" stroke="#1e3a5f" strokeWidth={3} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+            <Bar dataKey="inventario" name="Inventario final" fill="#1e3a5f" radius={[3, 3, 0, 0]} isAnimationActive={false} />
           </ComposedChart>
         </div>
       </section>
@@ -313,7 +313,45 @@ function ReporteMensualImprimirPage() {
         </div>
       </section>
 
-      {/* 5. Desglose G&P — tabla nativa, paginación automática del navegador */}
+      {/* 5. Desglose mensual histórico — Enero al mes de corte */}
+      <section className="mb-3">
+        <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Desglose mensual — Enero a {MESES[mes - 1]} {anio}</p>
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr style={{ backgroundColor: "#1e3a5f" }}>
+              <th className="text-left py-1 px-1.5 text-white font-semibold">Categoría</th>
+              {comparativoMensual.map((c) => (
+                <th key={c.mesLabel} className="text-right py-1 px-1.5 text-white font-semibold whitespace-nowrap">
+                  {c.mesLabel}{c.estimado ? " *" : ""}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {categoriasComparativo.map((cat, ci) => (
+              <tr key={cat} style={{ breakInside: "avoid", backgroundColor: ci % 2 === 1 ? "#FAFBFC" : "white" }}>
+                <td className="py-1 px-1.5 border-b" style={{ borderColor: "#EEE" }}>{cat}</td>
+                {comparativoMensual.map((c) => (
+                  <td key={c.mesLabel} className="py-1 px-1.5 text-right mono border-b" style={{ borderColor: "#EEE" }}>{celdaHistorica(c.t[cat])}</td>
+                ))}
+              </tr>
+            ))}
+            <tr style={{ breakInside: "avoid", borderTop: "2px solid #1e3a5f", backgroundColor: "#F7F8FA" }}>
+              <td className="py-1.5 px-1.5 font-bold">{comparativoMensual.some((c) => c.utilidad < 0) ? "Utilidad / pérdida neta" : "Utilidad neta"}</td>
+              {comparativoMensual.map((c) => (
+                <td key={c.mesLabel} className={`py-1.5 px-1.5 text-right mono font-bold ${c.utilidad < 0 ? "text-red-700" : "text-green-700"}`}>
+                  {fmtUsdContable(fmtUsd, c.utilidad)}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+        {comparativoMensual.some((c) => c.estimado) && (
+          <p className="text-[9px] text-amber-700 mt-1">* Mes abierto — COGS estimado con el inventario y las compras ya cargados.</p>
+        )}
+      </section>
+
+      {/* 6. Desglose G&P — tabla nativa, paginación automática del navegador */}
       <section className="mb-3">
         <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Desglose G&P — {labelMes}</p>
         <table className="w-full text-[11px] border-collapse">
@@ -352,44 +390,6 @@ function ReporteMensualImprimirPage() {
             </tr>
           </tbody>
         </table>
-      </section>
-
-      {/* Desglose mensual histórico — Enero al mes de corte */}
-      <section className="mb-3">
-        <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Desglose mensual — Enero a {MESES[mes - 1]} {anio}</p>
-        <table className="w-full text-[10px] border-collapse">
-          <thead>
-            <tr style={{ backgroundColor: "#1e3a5f" }}>
-              <th className="text-left py-1 px-1.5 text-white font-semibold">Categoría</th>
-              {comparativoMensual.map((c) => (
-                <th key={c.mesLabel} className="text-right py-1 px-1.5 text-white font-semibold whitespace-nowrap">
-                  {c.mesLabel}{c.estimado ? " *" : ""}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {categoriasComparativo.map((cat, ci) => (
-              <tr key={cat} style={{ breakInside: "avoid", backgroundColor: ci % 2 === 1 ? "#FAFBFC" : "white" }}>
-                <td className="py-1 px-1.5 border-b" style={{ borderColor: "#EEE" }}>{cat}</td>
-                {comparativoMensual.map((c) => (
-                  <td key={c.mesLabel} className="py-1 px-1.5 text-right mono border-b" style={{ borderColor: "#EEE" }}>{celdaHistorica(c.t[cat])}</td>
-                ))}
-              </tr>
-            ))}
-            <tr style={{ breakInside: "avoid", borderTop: "2px solid #1e3a5f", backgroundColor: "#F7F8FA" }}>
-              <td className="py-1.5 px-1.5 font-bold">{comparativoMensual.some((c) => c.utilidad < 0) ? "Utilidad / pérdida neta" : "Utilidad neta"}</td>
-              {comparativoMensual.map((c) => (
-                <td key={c.mesLabel} className={`py-1.5 px-1.5 text-right mono font-bold ${c.utilidad < 0 ? "text-red-700" : "text-green-700"}`}>
-                  {fmtUsdContable(fmtUsd, c.utilidad)}
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-        {comparativoMensual.some((c) => c.estimado) && (
-          <p className="text-[9px] text-amber-700 mt-1">* Mes abierto — COGS estimado con el inventario y las compras ya cargados.</p>
-        )}
       </section>
     </div>
   );
