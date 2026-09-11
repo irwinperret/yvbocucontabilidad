@@ -1,4 +1,4 @@
-name: Update CxP top suppliers to 10
+name: One-shot IPA inventory chart patch
 on:
   push:
     branches: [main]
@@ -12,35 +12,86 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Update top supplier count
+      - name: Add inventory chart to printable IPA report
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('src/routes/_authenticated/pagar-cxp.tsx')
+          p = Path('src/routes/reporte-mensual-imprimir.tsx')
           s = p.read_text()
-          replacements = [
-            ('const top5Proveedores = useMemo(() => {', 'const top10Proveedores = useMemo(() => {'),
-            ('.slice(0, 5);', '.slice(0, 10);'),
-            ('{top5Proveedores.length > 0}', '{top10Proveedores.length > 0}'),
-            ('Top 5 proveedores con más CxP pendiente', 'Top 10 proveedores con más CxP pendiente'),
-            ('className="grid gap-3 md:grid-cols-5"', 'className="grid gap-3 md:grid-cols-5 lg:grid-cols-10"'),
-            ('{top5Proveedores.map((p) => (', '{top10Proveedores.map((p) => ('),
-          ]
-          for old, new in replacements:
-              if s.count(old) != 1:
-                  raise SystemExit(f'Expected exactly one occurrence of: {old!r}, found {s.count(old)}')
-              s = s.replace(old, new)
+
+          if 'rie-print-inventario' not in s:
+              marker = 'const { data: cogsEstimadoPrev } = useQuery'
+              start = s.find(marker)
+              if start < 0:
+                  raise SystemExit('Could not find cogsEstimadoPrev query')
+              end = s.find('  });', start)
+              if end < 0:
+                  raise SystemExit('Could not find end of cogsEstimadoPrev query')
+              end += len('  });')
+              addition = '''
+
+  const { data: inventarioSnapshots } = useQuery({
+    queryKey: ["rie-print-inventario", anio],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inventario_snapshots")
+        .select("periodo, tipo, monto_usd")
+        .gte("periodo", `${anio}-01`)
+        .lte("periodo", `${anio}-12`)
+        .eq("tipo", "final")
+        .order("periodo");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const serieInventario = useMemo(() => {
+    const porPeriodo = new Map((inventarioSnapshots ?? []).map((x: any) => [x.periodo, Number(x.monto_usd) || 0]));
+    return Array.from({ length: mes }, (_, i) => {
+      const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
+      return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
+    });
+  }, [inventarioSnapshots, anio, mes]);'''
+              s = s[:end] + addition + s[end:]
+
+          s = s.replace('const ANCHO_GRAFICO = 460;', 'const ANCHO_GRAFICO = 300;', 1)
+          s = s.replace('const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev;', 'const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !inventarioSnapshots;', 1)
+
+          if 'dataKey="inventario"' not in s:
+              section_start = s.find('<section className="flex gap-3 mb-3"')
+              if section_start < 0:
+                  raise SystemExit('Could not find printable chart section')
+              section_end = s.find('      </section>', section_start)
+              if section_end < 0:
+                  raise SystemExit('Could not find end of printable chart section')
+              chart = '''
+        <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
+          <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio}</p>
+          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieInventario}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+            <XAxis dataKey="mesLabel" fontSize={10} />
+            <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} width={40} />
+            <Tooltip formatter={(v: number) => fmtUsd(v)} />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+            <Line type="monotone" dataKey="inventario" name="Inventario final" stroke="#1e3a5f" strokeWidth={3} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+          </ComposedChart>
+        </div>
+'''
+              s = s[:section_end] + chart + s[section_end:]
           p.write_text(s)
           PY
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/routes/_authenticated/pagar-cxp.tsx
-          git commit -m 'Show top 10 suppliers with pending CxP' || exit 0
+          git add src/routes/_authenticated/resumen-ejecutivo-mensual.tsx src/routes/reporte-mensual-imprimir.tsx
+          git commit -m 'Add monthly inventory chart to printable IPA report'
           git push
-          rm -f .github/workflows/update-top-cxp-10.yml
-          git add .github/workflows/update-top-cxp-10.yml
-          git commit -m 'Remove temporary CxP top 10 workflow'
+
+          rm -f .github/workflows/update-top-cxp-10.yml .github/workflows/_temp_add_inventory_chart.yml .github/_temp_inventory_chart_trigger .github/_temp_inventory_chart_trigger_2
+          git add -u .github/workflows/update-top-cxp-10.yml .github/workflows/_temp_add_inventory_chart.yml .github/_temp_inventory_chart_trigger .github/_temp_inventory_chart_trigger_2
+          git commit -m 'Remove temporary chart patch workflows'
           git push
-          # Triggered by a fresh main-branch commit so the workflow executes.
-          # This workflow is intentionally one-shot.
+      - name: Verify build
+        run: |
+          npm ci
+          npm run build
