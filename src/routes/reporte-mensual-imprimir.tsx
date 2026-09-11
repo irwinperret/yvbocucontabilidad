@@ -25,7 +25,7 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
   }),
 });
 
-const ANCHO_GRAFICO = 460; // los 2 gráficos van lado a lado (flex) dentro del ancho impreso en landscape (~980px); a 560c/u se salían de la página y el de la derecha quedaba cortado
+const ANCHO_GRAFICO = 300;
 const ALTO_GRAFICO = 250;
 
 /** Convierte los **negrita** de frase() en <b> reales dentro de un <p>. */
@@ -83,7 +83,29 @@ function ReporteMensualImprimirPage() {
     queryFn: () => estimarCogsMesesAbiertos(anio - 1),
   });
 
-  const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev;
+  const { data: inventarioSnapshots } = useQuery({
+    queryKey: ["rie-print-inventario", anio],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inventario_snapshots")
+        .select("periodo, tipo, monto_usd")
+        .gte("periodo", `${anio}-01`)
+        .lte("periodo", `${anio}-12`)
+        .eq("tipo", "final")
+        .order("periodo");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const serieInventario = useMemo(() => {
+    const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
+    return Array.from({ length: mes }, (_, i) => {
+      const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
+      return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
+    });
+  }, [inventarioSnapshots, anio, mes]);
+
+  const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !inventarioSnapshots;
 
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
@@ -136,7 +158,6 @@ function ReporteMensualImprimirPage() {
   const utilidadNeta = ingresos - gastosTotales;
   const { pagoPrestamos, dividendos } = useMemo(() => calcularPrestamosYDividendos(rowsAnio ?? [], mes), [rowsAnio, mes]);
   const sinOperaciones = mesSinOperaciones(actual.t);
-
   const autorizado = !!user?.email && PERMITIDOS_RESUMEN_MENSUAL.includes(user.email.toLowerCase());
 
   // El navegador usa document.title como nombre sugerido al "Guardar como PDF",
@@ -218,7 +239,7 @@ function ReporteMensualImprimirPage() {
         ))}
       </section>
 
-      {/* 3. Gráficos — tamaño fijo, SVG, colores y leyendas conservados */}
+      {/* 3. Gráficos — tres tarjetas compactas, pensadas para landscape/PDF */}
       <section className="flex gap-3 mb-3" style={{ breakInside: "avoid" }}>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</p>
@@ -245,6 +266,17 @@ function ReporteMensualImprimirPage() {
             <Legend wrapperStyle={{ fontSize: 10 }} />
             <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
             <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} connectNulls isAnimationActive={false} />
+          </ComposedChart>
+        </div>
+        <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
+          <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio}</p>
+          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieInventario}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+            <XAxis dataKey="mesLabel" fontSize={10} />
+            <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} width={40} />
+            <Tooltip formatter={(v: number) => fmtUsd(v)} />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+            <Line type="monotone" dataKey="inventario" name="Inventario final" stroke="#1e3a5f" strokeWidth={3} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
           </ComposedChart>
         </div>
       </section>

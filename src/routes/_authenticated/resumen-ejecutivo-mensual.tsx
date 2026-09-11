@@ -363,7 +363,11 @@ function ResumenEjecutivoMensualPage() {
                 <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
                 <Tooltip formatter={(v: number) => fmtUsd(v)} />
                 <Legend />
+<<<<<<< HEAD
                 <Bar dataKey="inventario" name="Inventario final" fill="#1e3a5f" radius={[4, 4, 0, 0]} />
+=======
+                <Line type="monotone" dataKey="inventario" name="Inventario final" stroke="#1e3a5f" strokeWidth={3} dot={{ r: 4 }} connectNulls />
+>>>>>>> 594161503b8b5796dc2dbeabaae17801fbca1774
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
