@@ -30,8 +30,8 @@ export function EditDialog({
   /** Formato para las fechas de SOLO LECTURA que se muestran en el diálogo
    * (p. ej. la lista de transacciones hermanas) -- el campo de fecha
    * editable sigue siendo el selector nativo del navegador, que no se
-   * puede reformatear. Por defecto usa fmtDate (dd/mm/yyyy); Transacciones
-   * y Movimientos bancarios pasan fmtDateMDY (mmm/dd/yyyy). */
+   * puede reformatear. Por defecto usa fmtDate (dd/mmm/yyyy); Transacciones
+   * y Movimientos bancarios pasan fmtDateMDY, que ahora es el mismo formato. */
   fechaFmt?: (d: string | Date) => string;
 }) {
   const fmtDateHermanos = fechaFmt ?? fmtDate;

@@ -12,7 +12,7 @@ import { AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { numFromCell, parseDateCell } from "@/lib/xetux-parse";
-import { fmtUsd } from "@/lib/format";
+import { fmtUsd, fmtDate } from "@/lib/format";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
 import { isPeriodClosed } from "@/lib/audit";
@@ -334,7 +334,7 @@ function ImportarAjustesPage() {
                     const bs = totalValorLista * f.tasaParalela;
                     return (
                       <tr key={f.fecha} className="border-b [&>td]:py-1.5 [&>td]:px-2 whitespace-nowrap">
-                        <td className="font-mono">{f.fecha}</td>
+                        <td className="font-mono">{fmtDate(f.fecha)}</td>
                         <td className="text-right">{fmtUsd(f.ventaLista)}</td>
                         <td className="text-right">{fmtUsd(f.ivaLista)}</td>
                         <td className="text-right font-medium">{fmtUsd(f.ajusteVentas)}</td>

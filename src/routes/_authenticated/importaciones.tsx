@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Undo2, Loader2, Trash2 } from "lucide-react";
-import { fmtUsd } from "@/lib/format";
+import { fmtUsd, fmtDate } from "@/lib/format";
 import {
   analizarReversion,
   ejecutarReversion,
@@ -295,7 +295,7 @@ function ImportacionesPage() {
               )}
               {residuos.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="whitespace-nowrap">{r.fecha}</TableCell>
+                  <TableCell className="whitespace-nowrap">{fmtDate(r.fecha)}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Badge variant="secondary">{ORIGEN_LABEL[r.origen]}</Badge>
                   </TableCell>

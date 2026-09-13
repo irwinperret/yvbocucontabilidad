@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Pencil, ChevronDown, ChevronRight, Download } from "lucide-react";
 import { exportCogsPorMes, type RowResumenCogs, type RowDetalleCompraCogs } from "@/lib/excel-export";
-import { fmtBs, fmtUsd, todayISO } from "@/lib/format";
+import { fmtBs, fmtUsd, fmtDate, todayISO } from "@/lib/format";
 import { toast } from "sonner";
 import { logAudit } from "@/lib/audit";
 import {
@@ -975,7 +975,7 @@ function VentasForm() {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Fecha:</span>{" "}
-                    <span className="mono">{facturaTx.fecha}</span>
+                    <span className="mono">{fmtDate(facturaTx.fecha)}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Centro:</span>{" "}
@@ -4775,7 +4775,7 @@ function CierreForm() {
         {cierreActual ? (
           <div className="rounded border border-red-300 bg-red-50 text-red-800 text-xs p-3 font-medium flex items-start justify-between gap-3 flex-wrap">
             <div>
-              🔒 <strong>Mes {periodo} cerrado</strong> el {new Date(cierreActual.created_at).toLocaleDateString()}. Las
+              🔒 <strong>Mes {periodo} cerrado</strong> el {fmtDate(cierreActual.created_at)}. Las
               transacciones están bloqueadas. Si necesitas corregir algo, reabre el mes, edita y vuelve a cerrarlo.
             </div>
             <Button
@@ -5272,25 +5272,25 @@ function CierreForm() {
           </div>
           <div className="md:col-span-2 rounded-md border border-blue-300 bg-blue-50 text-blue-900 text-xs p-2.5">
             💡 <strong>Valoración del inventario:</strong> el inventario <strong>inicial</strong> se valora a la
-            tasa BCV del primer día del mes ({primerDiaMes}
+            tasa BCV del primer día del mes ({fmtDate(primerDiaMes)}
             {tasaBcvIniN ? (
               <>
                 {" "}
                 = <span className="mono font-semibold">{tasaBcvIniN.toFixed(4)}</span>
                 {tasaBcvIniDia?.fecha && tasaBcvIniDia.fecha !== primerDiaMes && (
-                  <span className="text-blue-700"> · última disponible: {tasaBcvIniDia.fecha}</span>
+                  <span className="text-blue-700"> · última disponible: {fmtDate(tasaBcvIniDia.fecha)}</span>
                 )}
               </>
             ) : (
               <span className="text-red-700"> · sin tasa registrada</span>
             )}
-            ) y el inventario <strong>final</strong> a la tasa BCV del último día del mes ({ultimoDiaMes}
+            ) y el inventario <strong>final</strong> a la tasa BCV del último día del mes ({fmtDate(ultimoDiaMes)}
             {tasaBcvFinN ? (
               <>
                 {" "}
                 = <span className="mono font-semibold">{tasaBcvFinN.toFixed(4)}</span>
                 {tasaBcvFinDia?.fecha && tasaBcvFinDia.fecha !== ultimoDiaMes && (
-                  <span className="text-blue-700"> · última disponible: {tasaBcvFinDia.fecha}</span>
+                  <span className="text-blue-700"> · última disponible: {fmtDate(tasaBcvFinDia.fecha)}</span>
                 )}
               </>
             ) : (
