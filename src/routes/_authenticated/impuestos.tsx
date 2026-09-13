@@ -55,7 +55,7 @@ function ImpuestosPage() {
         return await supabase
           .from("transacciones")
           .select("id,fecha,cuenta_codigo,centro_costo,monto_bs,monto_base_bs,iva_bs,iva_aplica,tipo_iva,monto_usd,tasa_bcv,tasa_paralela,numero_factura,referencia,notas,grupo_transaccion_id").neq("standby", true)
-          .in("cuenta_codigo", ["7.3", "7.4"])
+          .in("cuenta_codigo", ["7.3", "7.4", "9.4"])
           .gte("fecha", ini)
           .lte("fecha", fin)
           .order("fecha", { ascending: false })
@@ -74,24 +74,30 @@ function ImpuestosPage() {
   }, [rows, mes, centroFiltro]);
 
   const totales = useMemo(() => {
-    let debUsd = 0, debBs = 0, credUsd = 0, credBs = 0;
+    let debUsd = 0, debBs = 0, credUsd = 0, credBs = 0, retUsd = 0, retBs = 0;
     filtered.forEach((r) => {
       const bs = Number(r.monto_bs ?? 0);
       const usd = usdVisual(r as any, mode) ?? 0;
       if (r.cuenta_codigo === "7.3") { debUsd += usd; debBs += bs; }
       else if (r.cuenta_codigo === "7.4") { credUsd += usd; credBs += bs; }
+      else if (r.cuenta_codigo === "9.4") { retUsd += usd; retBs += bs; }
     });
     return {
-      debUsd, debBs, credUsd, credBs,
+      debUsd, debBs, credUsd, credBs, retUsd, retBs,
+      // Neto "bruto" (sin restar retenciones) — lo que da el cruce débito/crédito.
       netoUsd: debUsd - credUsd,
       netoBs: debBs - credBs,
+      // Lo que realmente hay que enterarle al SENIAT: el neto menos lo que
+      // el banco ya retuvo y enteró directamente en los cobros con tarjeta.
+      netoPagarUsd: debUsd - credUsd - retUsd,
+      netoPagarBs: debBs - credBs - retBs,
     };
   }, [filtered, mode]);
 
   const chartData = useMemo(() => {
-    const out: Record<number, { mes: number; mesLabel: string; debito: number; credito: number; neto: number }> = {};
+    const out: Record<number, { mes: number; mesLabel: string; debito: number; credito: number; retencion: number; neto: number }> = {};
     for (let m = 1; m <= 12; m++) {
-      out[m] = { mes: m, mesLabel: MESES[m - 1], debito: 0, credito: 0, neto: 0 };
+      out[m] = { mes: m, mesLabel: MESES[m - 1], debito: 0, credito: 0, retencion: 0, neto: 0 };
     }
     (rows ?? []).forEach((r) => {
       if (centroFiltro !== "Consolidado" && (r.centro_costo ?? "") !== centroFiltro) return;
@@ -99,8 +105,9 @@ function ImpuestosPage() {
       const usd = usdVisual(r as any, mode) ?? 0;
       if (r.cuenta_codigo === "7.3") out[m].debito += usd;
       else if (r.cuenta_codigo === "7.4") out[m].credito += usd;
+      else if (r.cuenta_codigo === "9.4") out[m].retencion += usd;
     });
-    Object.values(out).forEach((r) => { r.neto = r.debito - r.credito; });
+    Object.values(out).forEach((r) => { r.neto = r.debito - r.credito - r.retencion; });
     return Object.values(out);
   }, [rows, centroFiltro, mode]);
 
@@ -110,7 +117,11 @@ function ImpuestosPage() {
     filtered.forEach((r) => {
         const bs = Number(r.monto_bs ?? 0);
         const usd = Number(r.monto_usd ?? 0);
-        const tipo = r.cuenta_codigo === "7.3" ? "IVA Débito (Venta)" : "IVA Crédito (Compra)";
+        const tipo = r.cuenta_codigo === "7.3"
+          ? "IVA Débito (Venta)"
+          : r.cuenta_codigo === "7.4"
+            ? "IVA Crédito (Compra)"
+            : "Retención de IVA (banco)";
       const row = [
         r.fecha,
         tipo,
@@ -139,7 +150,7 @@ function ImpuestosPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Impuestos · IVA</h1>
           <p className="text-sm text-muted-foreground">
-            Movimientos de IVA débito (ventas, cuenta 7.3) y crédito (compras, cuenta 7.4) · neto a declarar · {label}
+            Movimientos de IVA débito (ventas, cuenta 7.3), crédito (compras, cuenta 7.4) y retenciones del banco (9.4) · neto a declarar · {label}
           </p>
         </div>
         <UsdViewToggle />
@@ -150,7 +161,10 @@ function ImpuestosPage() {
         <AlertDescription className="text-sm leading-relaxed">
           El <strong>IVA débito</strong> (12.4) es el IVA cobrado en ventas y representa una deuda con el fisco.
           El <strong>IVA crédito</strong> (12.5) es el IVA pagado en compras y se descuenta del débito.
-          El <strong>neto</strong> es lo que se debe pagar (positivo) o el crédito a favor (negativo) en la declaración mensual.
+          La <strong>retención de IVA</strong> (9.4) es lo que el banco ya enteró directamente al SENIAT al liquidar cobros
+          con tarjeta/POS — se resta de lo que hay que pagar, con comprobante propio.
+          El <strong>neto a pagar</strong> es lo que queda después de restar ambos (positivo) o el crédito a favor (negativo)
+          en la declaración mensual.
         </AlertDescription>
       </Alert>
 
@@ -193,7 +207,7 @@ function ImpuestosPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">IVA Débito (Ventas · 12.4)</CardTitle></CardHeader>
           <CardContent>
@@ -208,17 +222,29 @@ function ImpuestosPage() {
             <div className="text-xs text-muted-foreground mt-1 mono">{fmtBs(totales.credBs)}</div>
           </CardContent>
         </Card>
-        <Card className={totales.netoUsd > 0 ? "border-orange-400 bg-orange-50/60 dark:bg-orange-950/20" : "border-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/20"}>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-muted-foreground">Retenciones de IVA (banco · 9.4)</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{fmtUsd(totales.retUsd)}</div>
+            <div className="text-xs text-muted-foreground mt-1 mono">{fmtBs(totales.retBs)}</div>
+          </CardContent>
+        </Card>
+        <Card className={totales.netoPagarUsd > 0 ? "border-orange-400 bg-orange-50/60 dark:bg-orange-950/20" : "border-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/20"}>
           <CardHeader className="pb-2">
-            <CardTitle className={`text-xs uppercase ${totales.netoUsd > 0 ? "text-orange-700 dark:text-orange-300" : "text-emerald-700 dark:text-emerald-300"}`}>
-              {totales.netoUsd >= 0 ? "Neto a pagar" : "Crédito a favor"}
+            <CardTitle className={`text-xs uppercase ${totales.netoPagarUsd > 0 ? "text-orange-700 dark:text-orange-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+              {totales.netoPagarUsd >= 0 ? "Neto a pagar (con retenciones)" : "Crédito a favor (con retenciones)"}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${totales.netoUsd > 0 ? "text-orange-700 dark:text-orange-300" : "text-emerald-700 dark:text-emerald-300"}`}>
-              {fmtUsd(Math.abs(totales.netoUsd))}
+            <div className={`text-2xl font-bold ${totales.netoPagarUsd > 0 ? "text-orange-700 dark:text-orange-300" : "text-emerald-700 dark:text-emerald-300"}`}>
+              {fmtUsd(Math.abs(totales.netoPagarUsd))}
             </div>
-            <div className="text-xs text-muted-foreground mt-1 mono">{fmtBs(Math.abs(totales.netoBs))}</div>
+            <div className="text-xs text-muted-foreground mt-1 mono">{fmtBs(Math.abs(totales.netoPagarBs))}</div>
+            {totales.retUsd > 0 && (
+              <div className="text-[11px] text-muted-foreground mt-1">
+                Sin restar retenciones: {fmtUsd(Math.abs(totales.netoUsd))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -235,7 +261,8 @@ function ImpuestosPage() {
               <Legend />
               <Bar dataKey="debito" fill="#3b82f6" name="IVA Débito" />
               <Bar dataKey="credito" fill="#10b981" name="IVA Crédito" />
-              <Line type="monotone" dataKey="neto" stroke="#E11D48" strokeWidth={2} name="Neto" dot={{ r: 3 }} />
+              <Bar dataKey="retencion" fill="#a855f7" name="Retención (banco)" />
+              <Line type="monotone" dataKey="neto" stroke="#E11D48" strokeWidth={2} name="Neto a pagar" dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
@@ -265,16 +292,19 @@ function ImpuestosPage() {
               <tbody>
                 {filtered.map((r) => {
                    const isDeb = r.cuenta_codigo === "7.3";
+                   const isRet = r.cuenta_codigo === "9.4";
                    const bs = Number(r.monto_bs ?? 0);
                    const usd = usdVisual(r as any, mode) ?? 0;
                   return (
                     <tr key={r.id} className="border-b last:border-0">
                       <td className="py-1.5 px-2 mono">{fmtDate(r.fecha)}</td>
                       <td className="py-1.5 px-2">
-                        <Badge className={isDeb
-                          ? "bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-300"
-                          : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-300"}>
-                          {isDeb ? "Débito (venta)" : "Crédito (compra)"}
+                        <Badge className={isRet
+                          ? "bg-purple-100 text-purple-800 hover:bg-purple-100 border-purple-300"
+                          : isDeb
+                            ? "bg-blue-100 text-blue-800 hover:bg-blue-100 border-blue-300"
+                            : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-emerald-300"}>
+                          {isRet ? "Retención (banco)" : isDeb ? "Débito (venta)" : "Crédito (compra)"}
                         </Badge>
                       </td>
                       <td className="py-1.5 px-2">{r.centro_costo ?? "—"}</td>
