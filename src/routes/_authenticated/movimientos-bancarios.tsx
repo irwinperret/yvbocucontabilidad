@@ -1025,9 +1025,18 @@ function MovimientosBancariosPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="auto">Automático (sugerido)</SelectItem>
-                                {(Object.keys(ESTADO_MANUAL_LABEL) as EstadoManual[]).map((k) => (
-                                  <SelectItem key={k} value={k}>{ESTADO_MANUAL_LABEL[k]}</SelectItem>
-                                ))}
+                                {(Object.keys(ESTADO_MANUAL_LABEL) as EstadoManual[])
+                                  // Si el motor ya calculó un pareo parcial concreto (cubre
+                                  // X de Y, con números de factura identificados), no se
+                                  // puede tapar con "Pendiente de revisión" — esa opción
+                                  // solo aplica cuando de verdad no hay ninguna pista. Se
+                                  // deja pasar igual si ya era el valor guardado, para no
+                                  // romper el Select en movimientos marcados así antes de
+                                  // este cambio (hay que devolverlos a "Automático" a mano).
+                                  .filter((k) => k !== "pendiente_revision" || f.auto.estado !== "parcial" || f.estadoManual === "pendiente_revision")
+                                  .map((k) => (
+                                    <SelectItem key={k} value={k}>{ESTADO_MANUAL_LABEL[k]}</SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
                           )}

@@ -16,7 +16,7 @@ const PREFIJOS_SIN_FACTURA = ["3.", "5.", "6.", "7."];
 /** Cuentas puntuales sin factura (p. ej. Alquiler, gastos financieros, pasivos
  *  transitorios, activos transitorios, operaciones de cambio (98) y cuentas
  *  no contables (99)) */
-const CUENTAS_SIN_FACTURA = new Set(["4.3", "4.8", "8.1", "9.1", "9.3", "98", "99"]);
+const CUENTAS_SIN_FACTURA = new Set(["4.3", "4.8", "8.1", "8.3", "9.1", "9.3", "98", "99"]);
 /** Cuentas que sí pueden llevar factura pese al prefijo (CapEx, pagos de CxP, anticipos) */
 const EXCEPCIONES_CON_FACTURA = new Set(["5.6", "8.2", "9.2"]);
 
@@ -219,9 +219,15 @@ export function expandirNumerosMemo(
     const t = tok.replace(/\D/g, "");
     if (!t) continue;
 
-    if (t.length >= 5) {
+    // Un token se vuelve la nueva "base" para expandir los que le sigan
+    // cuando es igual o más largo que la base actual (o es el primero del
+    // memo). Antes exigía >= 5 dígitos a secas, lo que dejaba sin expandir
+    // memos de proveedores con facturas de 3-4 dígitos: "F3319 29 44 51 69
+    // Y 71" nunca llegaba a completar 3329/3344/3351/3369/3371 porque
+    // "3319" tiene solo 4 dígitos y nunca calificaba como base.
+    if (!base || t.length >= base.length) {
       push(t);
-      base = t; // el último número largo pasa a ser la base
+      base = t;
       continue;
     }
 
@@ -350,14 +356,36 @@ export function sugerirCombinacionParaFactura(
   return mejor ? (mejor as number[]).map((i) => relevantes[i].id) : [];
 }
 
-/** Números del memo que existen realmente como factura y los que no */
+/**
+ * Igual que expandirNumerosMemo, pero sin verificar existencia: devuelve
+ * TODOS los números candidatos que el memo sugiere, avanzando la base de
+ * forma optimista en cada paso (asume que cada número que se completa es
+ * correcto, aunque no exista todavía en el sistema). Sirve para mostrarle
+ * al usuario qué facturas debería tener un pago aunque falten por registrar
+ * — ej. "F3319 29 44 51 69 Y 71" expande a 3319, 3329, 3344, 3351, 3369, 3371.
+ */
+export function candidatosNumerosMemo(memo: string | null | undefined): string[] {
+  const out: string[] = [];
+  const tokens = tokensNumericos(memo);
+  let base = "";
+  for (const tok of tokens) {
+    const t = tok.replace(/\D/g, "");
+    if (!t) continue;
+    const cand = !base || t.length >= base.length ? t : base.slice(0, base.length - t.length) + t;
+    const k = normalizarFactura(cand);
+    if (k && !out.includes(k)) out.push(k);
+    base = cand;
+  }
+  return out;
+}
+
+/** Números del memo (ya expandidos) que no existen como factura registrada */
 export function numerosMemoNoUbicados(
   memo: string | null | undefined,
   facturasPorNumero: Map<string, FacturaRef[]>,
 ): string[] {
   const out: string[] = [];
-  for (const n of numerosEnMemo(memo)) {
-    const k = normalizarFactura(n);
+  for (const k of candidatosNumerosMemo(memo)) {
     if (!k || k.length < 3) continue;
     if (facturasPorNumero.has(k)) continue;
     if (!out.includes(k)) out.push(k);
