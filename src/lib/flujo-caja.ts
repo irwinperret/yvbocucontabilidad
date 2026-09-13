@@ -6,6 +6,11 @@ export type LineasFCMes = {
   cambioCxC: number;
   cambioInventario: number;
   cambioCxP: number;
+  /** Retenciones de IVA que el banco/adquirente descontó al liquidar cobros
+   * con tarjeta/POS (cuenta 9.4): la venta ya entró completa al EBITDA como
+   * si fuera 100% efectivo, pero esa parte nunca llegó al banco — se resta
+   * aquí para que el flujo de caja no sobreestime el efectivo real. */
+  retencionIva: number;
   compraInmuebles: number;
   compraEquipos: number;
   aumentoCapital: number;
@@ -39,10 +44,11 @@ export const CUENTA_PAGO_CAPITAL_PRESTAMO = "5.2";
 export const CUENTA_INTERESES = "5.3";
 export const CUENTA_DIVIDENDOS = "5.4";
 export const CUENTAS_IMPUESTOS_GASTO = ["7.1"];
+export const CUENTA_RETENCION_IVA = "9.4";
 export const CATEGORIA_INMUEBLES = "Remodelación/Obra Civil";
 
 export function totalFCMes(l: LineasFCMes) {
-  const operativo = l.ebitda + l.cambioCxC + l.cambioInventario + l.cambioCxP;
+  const operativo = l.ebitda + l.cambioCxC + l.cambioInventario + l.cambioCxP - l.retencionIva;
   const inversion = -l.compraInmuebles - l.compraEquipos;
   const financiero = l.aumentoCapital + l.aumentoPrestamos - l.gastoIntereses - l.gastoImpuestos - l.gastoDividendos;
   return { operativo, inversion, financiero, neto: operativo + inversion + financiero };
@@ -92,6 +98,12 @@ export function calcularLineasFC(opts: {
     const costosVariables = r.filter((x) => (x.cuenta_codigo.startsWith("4.") || x.cuenta_codigo === "99") && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
     const ebitda = ingresos - cogs - costosFijos - costosVariables;
 
+    // El EBITDA cuenta las ventas con tarjeta/POS como si fueran 100%
+    // efectivo (son "contado"), pero cuando el banco retiene IVA al
+    // liquidar, esa parte nunca llega al banco. Se resta acá mismo, junto
+    // al resto de los ajustes de devengado→efectivo.
+    const retencionIva = sumTotal(CUENTA_RETENCION_IVA, mes);
+
     const ventasCredito = sumTotal(CUENTA_INGRESO_CREDITO, mes);
     const cobrosCredito = sumTotal(CUENTA_COBRO_CREDITO, mes);
     const cambioCxC = cobrosCredito - ventasCredito;
@@ -140,7 +152,7 @@ export function calcularLineasFC(opts: {
     const gastoImpuestos = sum(CUENTAS_IMPUESTOS_GASTO, mes);
     const gastoDividendos = sumTotal(CUENTA_DIVIDENDOS, mes);
 
-    return { ebitda, cambioCxC, cambioInventario, cambioCxP, compraInmuebles, compraEquipos, aumentoCapital, aumentoPrestamos, gastoIntereses, gastoImpuestos, gastoDividendos, cogsEsEstimado: !!estimado };
+    return { ebitda, cambioCxC, cambioInventario, cambioCxP, retencionIva, compraInmuebles, compraEquipos, aumentoCapital, aumentoPrestamos, gastoIntereses, gastoImpuestos, gastoDividendos, cogsEsEstimado: !!estimado };
   });
 }
 
