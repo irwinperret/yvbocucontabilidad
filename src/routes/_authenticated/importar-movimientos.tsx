@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, Fragment } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -32,6 +32,8 @@ import {
   limpiarReferencia,
   marcarEstadoConciliacion,
   esPagoBonoPropinaCombinado,
+  CUENTAS_DUPLICADO_NOMINA,
+  normalizarConceptoNomina,
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { distribuirBonoPropinaCombinado } from "@/lib/bono-propina-combinado";
@@ -127,6 +129,17 @@ type Match = {
   esCambio?: boolean;
   cambioRecibido?: string;
   cambioMoneda?: "Bs" | "USD";
+  /** Segunda red de duplicados para nómina/personal: mismo concepto
+   * normalizado (persona + tipo de pago + rango de fechas) en el mismo mes
+   * y la misma cuenta, aunque la referencia bancaria sea distinta. No
+   * bloquea el resto del flujo de huella exacta, es una advertencia aparte
+   * que exige una decisión explícita antes de poder importarse. */
+  posibleDuplicadoNomina?: boolean;
+  nominaExistente?: { id: string; fecha: string; cuenta_codigo: string; monto_bs: number; monto_usd: number; referencia: string; concepto: string } | null;
+  /** "corregido": se actualizó el monto de la transacción existente en vez
+   * de crear una nueva. "importar": el usuario confirmó que sí es un pago
+   * distinto y se procesa como cualquier fila nueva. */
+  nominaResuelto?: "corregido" | "importar" | null;
 };
 
 const pendienteBs = (c: CxPRow, tasaBcv?: number) => pendienteBsAFecha(c, Number(tasaBcv) || 0);
@@ -540,14 +553,66 @@ function ImportarMovimientosInner() {
         }
       }
 
+      // Segunda red de duplicados, solo para cuentas de nómina/personal: la
+      // huella exacta (banco+fecha+referencia+monto) no sirve aquí porque
+      // cada transferencia trae su propio número de confirmación aunque sea
+      // el mismo sueldo/bono/propina reingresado por error. Se busca en
+      // `transacciones` alguna fila de la misma cuenta y el mismo mes cuyo
+      // concepto normalizado (persona + tipo de pago + rango de fechas) sea
+      // idéntico. No reemplaza la huella: solo corre sobre las filas que la
+      // huella no marcó ya como duplicado/actualizable.
+      const candidatasNomina = initialMatches.filter(
+        (m) => !m.duplicado && m.cuentaCodigo && CUENTAS_DUPLICADO_NOMINA.has(m.cuentaCodigo),
+      );
+      if (candidatasNomina.length > 0) {
+        const meses = Array.from(new Set(candidatasNomina.map((m) => m.bankRow.fecha.slice(0, 7)))).sort();
+        const desde = meses[0] + "-01";
+        const [yUlt, mUlt] = meses[meses.length - 1].split("-").map(Number);
+        const hastaExclusive = mUlt === 12 ? `${yUlt + 1}-01-01` : `${yUlt}-${String(mUlt + 1).padStart(2, "0")}-01`;
+        const { fetchAllRows } = await import("@/lib/fetch-all");
+        const existentesNomina = await fetchAllRows<any>((from, to) =>
+          supabase
+            .from("transacciones")
+            .select("id, fecha, cuenta_codigo, notas, monto_bs, monto_usd, referencia")
+            .in("cuenta_codigo", Array.from(CUENTAS_DUPLICADO_NOMINA))
+            .neq("standby", true)
+            .gte("fecha", desde)
+            .lt("fecha", hastaExclusive)
+            .range(from, to),
+        );
+        const porFirma = new Map<string, any>();
+        for (const r of existentesNomina ?? []) {
+          const conceptoExistente = String(r.notas ?? "").split(" · ").pop() ?? "";
+          const firma = `${r.cuenta_codigo}|${String(r.fecha).slice(0, 7)}|${normalizarConceptoNomina(conceptoExistente)}`;
+          if (!porFirma.has(firma)) porFirma.set(firma, r);
+        }
+        for (const m of candidatasNomina) {
+          const firma = `${m.cuentaCodigo}|${m.bankRow.fecha.slice(0, 7)}|${normalizarConceptoNomina(m.bankRow.concepto)}`;
+          const hit = porFirma.get(firma);
+          if (!hit) continue;
+          m.posibleDuplicadoNomina = true;
+          m.nominaExistente = {
+            id: hit.id,
+            fecha: hit.fecha,
+            cuenta_codigo: hit.cuenta_codigo,
+            monto_bs: Number(hit.monto_bs) || 0,
+            monto_usd: Number(hit.monto_usd) || 0,
+            referencia: hit.referencia,
+            concepto: String(hit.notas ?? "").split(" · ").pop() ?? "",
+          };
+          m.selected = false;
+        }
+      }
+
       setMatches(initialMatches);
 
       const dups = initialMatches.filter((m) => m.duplicado).length;
       const actualizables = initialMatches.filter((m) => m.duplicadoActualizable).length;
+      const posiblesNomina = initialMatches.filter((m) => m.posibleDuplicadoNomina).length;
       toast.success(
         `${parsed.length} movimientos cargados${dups ? ` · ${dups} ya importados` : ""}${
           actualizables ? ` · ${actualizables} con cuenta distinta (se pueden actualizar)` : ""
-        }`,
+        }${posiblesNomina ? ` · ${posiblesNomina} posibles duplicados de nómina` : ""}`,
       );
     } catch (e: any) {
       toast.error(e?.message ?? "Error leyendo archivo");
@@ -631,6 +696,7 @@ function ImportarMovimientosInner() {
   const importable = (m: Match) =>
     m.selected &&
     (!m.duplicado || m.duplicadoActualizable) &&
+    (!m.posibleDuplicadoNomina || m.nominaResuelto === "importar") &&
     !!m.bankRow.cuentaBancariaId &&
     (m.cxps.length > 0 || !!m.cuentaCodigo) &&
     (!m.esCambio || Number(m.cambioRecibido) > 0);
@@ -647,6 +713,55 @@ function ImportarMovimientosInner() {
 
   const setCambioMoneda = (bankRowId: string, moneda: "Bs" | "USD") => {
     setMatches((prev) => prev.map((m) => (m.bankRow.id === bankRowId ? { ...m, cambioMoneda: moneda } : m)));
+  };
+
+  /** Posible duplicado de nómina: en vez de crear una fila nueva, corrige el
+   * monto de la transacción existente con los datos de esta fila del archivo
+   * (mismo cálculo de tasas/USD que el resto de "duplicado actualizable"). */
+  const corregirMontoNomina = async (bankRowId: string) => {
+    const m = matches.find((x) => x.bankRow.id === bankRowId);
+    if (!m || !m.nominaExistente || !m.cuentaCodigo) return;
+    const bankRow = m.bankRow;
+    const rates = await getRatesForDate(bankRow.fecha);
+    const montoBsNuevo =
+      bankRow.moneda === "USD" || Math.abs(bankRow.montoBs) === 0
+        ? +(Math.abs(bankRow.montoUsd) * (rates.paralela || rates.bcv || 1)).toFixed(2)
+        : Math.abs(bankRow.montoBs);
+    const montoUsdNuevo =
+      rates.paralela > 0 ? +(montoBsNuevo / rates.paralela).toFixed(2) : rates.bcv > 0 ? +(montoBsNuevo / rates.bcv).toFixed(2) : 0;
+    const signo = requiereSignoNegativo(m.cuentaCodigo) ? -1 : 1;
+    const patch = {
+      monto_bs: +(signo * montoBsNuevo).toFixed(2),
+      monto_base_bs: +(signo * montoBsNuevo).toFixed(2),
+      monto_usd: +(signo * montoUsdNuevo).toFixed(2),
+      tasa_bcv: rates.bcv || null,
+      tasa_paralela: rates.paralela || null,
+    };
+    const antes = { monto_bs: m.nominaExistente.monto_bs, monto_usd: m.nominaExistente.monto_usd };
+    const { data: updated, error } = await supabase
+      .from("transacciones")
+      .update(patch as any)
+      .eq("id", m.nominaExistente.id)
+      .select()
+      .single();
+    if (error) return toast.error(error.message);
+    if (updated) await logAudit("transacciones", "UPDATE", m.nominaExistente.id, antes, updated);
+    toast.success("Monto corregido en la transacción existente");
+    setMatches((prev) =>
+      prev.map((x) => (x.bankRow.id === bankRowId ? { ...x, nominaResuelto: "corregido", selected: false } : x)),
+    );
+  };
+
+  /** El usuario confirma que sí es un pago distinto (misma persona/concepto,
+   * pero otra transferencia real) y quiere importarlo igual como fila nueva. */
+  const marcarNominaComoNuevo = (bankRowId: string) => {
+    setMatches((prev) =>
+      prev.map((m) =>
+        m.bankRow.id === bankRowId
+          ? { ...m, nominaResuelto: "importar", selected: !m.duplicado && (m.cxps.length > 0 || !!m.cuentaCodigo) }
+          : m,
+      ),
+    );
   };
 
   const confirmar = async () => {
@@ -1171,6 +1286,7 @@ function ImportarMovimientosInner() {
     const matched = matches.filter((m) => m.cxps.length > 0).length;
     const actualizables = matches.filter((m) => m.duplicadoActualizable).length;
     const duplicados = matches.filter((m) => m.duplicado && !m.duplicadoActualizable).length;
+    const posibleNomina = matches.filter((m) => m.posibleDuplicadoNomina && !m.nominaResuelto).length;
     const sinCuenta = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && !m.cuentaCodigo).length;
     const noAplica = matches.filter((m) => !m.duplicado && m.cxps.length === 0 && noAplicaFactura(m)).length;
     const sinFactura = matches.filter(
@@ -1180,7 +1296,7 @@ function ImportarMovimientosInner() {
     const withAccount = matches.filter((m) => m.bankRow.cuentaBancariaId).length;
     const dudaCuenta = matches.filter((m) => !m.bankRow.cuentaBancariaId).length;
     const difTotal = matches.reduce((s, m) => s + (m.duplicado ? 0 : (difBs(m) ?? 0)), 0);
-    return { total, matched, selected, withAccount, dudaCuenta, duplicados, actualizables, sinCuenta, sinFactura, noAplica, difTotal };
+    return { total, matched, selected, withAccount, dudaCuenta, duplicados, actualizables, posibleNomina, sinCuenta, sinFactura, noAplica, difTotal };
   }, [rows, matches]);
 
   return (
@@ -1223,6 +1339,9 @@ function ImportarMovimientosInner() {
               {stats.duplicados > 0 && <Badge variant="secondary">Ya importadas: {stats.duplicados}</Badge>}
               {stats.actualizables > 0 && (
                 <Badge className="bg-sky-600">Con cuenta distinta (se actualizan): {stats.actualizables}</Badge>
+              )}
+              {stats.posibleNomina > 0 && (
+                <Badge className="bg-amber-600">Posible duplicado de nómina: {stats.posibleNomina}</Badge>
               )}
               {stats.sinCuenta > 0 && (
                 <>
@@ -1276,27 +1395,36 @@ function ImportarMovimientosInner() {
                           .slice(0, 50)
                       : [];
                     return (
+                    <Fragment key={m.bankRow.id}>
                     <tr
-                      key={m.bankRow.id}
                       className={
                         "border-t " +
-                        (m.duplicado && !m.duplicadoActualizable
-                          ? "opacity-50"
-                          : m.duplicadoActualizable
+                        (m.posibleDuplicadoNomina && !m.nominaResuelto
+                          ? "bg-amber-50"
+                          : m.nominaResuelto === "corregido"
                             ? "bg-sky-50"
-                            : m.cxps.length === 0 && !m.cuentaCodigo
-                              ? "bg-destructive/5"
-                              : "")
+                            : m.duplicado && !m.duplicadoActualizable
+                              ? "opacity-50"
+                              : m.duplicadoActualizable
+                                ? "bg-sky-50"
+                                : m.cxps.length === 0 && !m.cuentaCodigo
+                                  ? "bg-destructive/5"
+                                  : "")
                       }
                     >
                       <td className="p-2">
                         <Checkbox
-                          checked={m.selected && (!m.duplicado || m.duplicadoActualizable)}
+                          checked={
+                            m.selected &&
+                            (!m.duplicado || m.duplicadoActualizable) &&
+                            (!m.posibleDuplicadoNomina || m.nominaResuelto === "importar")
+                          }
                           onCheckedChange={(v) => setMatchSelected(m.bankRow.id, Boolean(v))}
                           disabled={
                             (m.duplicado && !m.duplicadoActualizable) ||
                             !m.bankRow.cuentaBancariaId ||
-                            (m.cxps.length === 0 && !m.cuentaCodigo)
+                            (m.cxps.length === 0 && !m.cuentaCodigo) ||
+                            (m.posibleDuplicadoNomina && m.nominaResuelto !== "importar")
                           }
                         />
                       </td>
@@ -1330,6 +1458,21 @@ function ImportarMovimientosInner() {
                             <Badge className="bg-sky-600 text-[9px] px-1 py-0">
                               Actualizar{m.existenteCuentaAnterior !== m.cuentaCodigo ? ` cuenta: ${m.existenteCuentaAnterior ?? "—"} → ${m.cuentaCodigo}` : ""}
                               {m.montoCambio ? " · monto corregido" : ""}
+                            </Badge>
+                          )}
+                          {m.posibleDuplicadoNomina && !m.nominaResuelto && (
+                            <Badge className="bg-amber-600 text-[9px] px-1 py-0 text-white hover:bg-amber-600">
+                              Posible duplicado de nómina
+                            </Badge>
+                          )}
+                          {m.nominaResuelto === "corregido" && (
+                            <Badge className="bg-sky-600 text-[9px] px-1 py-0 text-white hover:bg-sky-600">
+                              Monto corregido en la existente
+                            </Badge>
+                          )}
+                          {m.nominaResuelto === "importar" && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0">
+                              Importado como nuevo (revisar)
                             </Badge>
                           )}
                           {!m.duplicado && m.cxps.length === 0 && requiereCxP(m.bankRow.categoria) && (
@@ -1490,6 +1633,36 @@ function ImportarMovimientosInner() {
 
 
                     </tr>
+                    {m.posibleDuplicadoNomina && !m.nominaResuelto && (
+                      <tr className="border-t bg-amber-50/70">
+                        <td colSpan={12} className="p-2">
+                          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div>
+                              <span className="font-medium text-amber-800">Posible duplicado de nómina.</span>{" "}
+                              Ya existe una transacción similar este mes
+                              {m.nominaExistente ? (
+                                <>
+                                  {": "}
+                                  {fmtDate(m.nominaExistente.fecha)} · cuenta {m.nominaExistente.cuenta_codigo}
+                                  {m.nominaExistente.monto_bs != null ? ` · ${fmtBs(m.nominaExistente.monto_bs)}` : ""}
+                                  {m.nominaExistente.concepto ? ` · "${m.nominaExistente.concepto}"` : ""}
+                                </>
+                              ) : "."}
+                              {" "}¿Es un error de digitación del mismo pago, o es realmente un pago nuevo?
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              <Button size="sm" variant="outline" onClick={() => corregirMontoNomina(m.bankRow.id)}>
+                                Corregir monto de la existente
+                              </Button>
+                              <Button size="sm" variant="secondary" onClick={() => marcarNominaComoNuevo(m.bankRow.id)}>
+                                Importar de todos modos
+                              </Button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                     );
                   })}
                 </tbody>

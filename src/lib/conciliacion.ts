@@ -456,3 +456,62 @@ export async function marcarEstadoConciliacion(args: {
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// ─────────────────────────────────────────────────────────────
+// Duplicados de nómina/personal (mismo concepto, referencia distinta)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Cuentas de personal donde la referencia bancaria casi nunca sirve para
+ * detectar duplicados: cada transferencia trae su propio número de
+ * confirmación aunque sea el mismo concepto (sueldo, bono, propina, anticipo)
+ * reingresado por error. Para estas cuentas el importador de movimientos
+ * bancarios agrega una segunda búsqueda por persona + concepto normalizado
+ * dentro del mismo mes, además de la huella banco+fecha+referencia+monto.
+ */
+export const CUENTAS_DUPLICADO_NOMINA = new Set([
+  "3.1", "3.2", "3.3", "3.4", // sueldos y pasivos laborales
+  "3.5",                       // transporte de personal
+  "8.1",                       // bono 10% + propinas
+  "9.1", "9.3",                 // préstamos y anticipos al personal
+]);
+
+/**
+ * Normaliza el concepto de un pago de nómina para comparar dos movimientos
+ * que describen lo mismo con distinta redacción: mayúsculas, sin tildes,
+ * sinónimos de quincena/concepto unificados (PRIM/PRIN/1RA, SDA/SEGUNDA/2DA,
+ * QUINCENA/QNA, PROPINA(S)/PROP, DIAS TRABAJADOS/DIASTRAB, BONO
+ * ALIMENTACION/BONOALIM, BONO COMPENSATORIO/BONOCOMP, TRANSPORTE/TRANSP,
+ * ANTICIPO/ANTC), sin espacios ni puntuación. Los números de fecha/rango SÍ
+ * se conservan (solo se les quitan ceros a la izquierda) porque son lo que
+ * distingue el pago de una semana del de la semana siguiente para la misma
+ * persona — no queremos que "PROP 14 AL 19 04 26" y "PROP 20 AL 26 04 26"
+ * (dos propinas reales de semanas distintas) se confundan entre sí.
+ */
+export function normalizarConceptoNomina(concepto: string | null | undefined): string {
+  let v = String(concepto ?? "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const sinonimos: [RegExp, string][] = [
+    [/\b(?:PRIM(?:ER[AO]?)?|PRIN|1RA)\b/g, "1RA"],
+    [/\b(?:SDA|SEGUNDA|2DA)\b/g, "2DA"],
+    [/\bQUINCENA\b/g, "QNA"],
+    [/\bPROPINAS?\b/g, "PROP"],
+    [/\bDIAS\s*TRABAJADOS?\b/g, "DIASTRAB"],
+    [/\bDIAS\s*TRAB\b/g, "DIASTRAB"],
+    [/\bBONO\s*ALIMENTACION\b/g, "BONOALIM"],
+    [/\bBONO\s*ALIM\b/g, "BONOALIM"],
+    [/\bBONO\s*COMPENSATORIO\b/g, "BONOCOMP"],
+    [/\bBONO\s*COMPL?\b/g, "BONOCOMP"],
+    [/\bTRANSPORTE\b/g, "TRANSP"],
+    [/\bANTICIPO\b/g, "ANTC"],
+  ];
+  for (const [pat, rep] of sinonimos) v = v.replace(pat, rep);
+  // Quita ceros a la izquierda de cada grupo de dígitos ("04" -> "4") para
+  // que "20 AL 26 04 26" y "20 AL 26 4 26" queden iguales.
+  v = v.replace(/\b0+(\d)/g, "$1");
+  // Colapsa todo lo que no sea letra/dígito (espacios, puntos, guiones).
+  v = v.replace(/[^A-Z0-9]/g, "");
+  return v;
+}
