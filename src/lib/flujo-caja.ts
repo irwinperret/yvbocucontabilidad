@@ -72,7 +72,10 @@ type Row = { anio: number; mes: number; cuenta_codigo: string; centro_costo: str
 export function calcularLineasFC(opts: {
   rows: Row[];
   capexRows: any[];
-  inventario: { periodo: string; tipo: string; monto_usd: number | null }[];
+  /** monto_usd_paralelo: el mismo snapshot re-expresado en USD paralelo (bs
+   * del snapshot / tasa paralela de SU propia fecha) -- ver comentario en
+   * "Cambios en Inventario" más abajo sobre por qué monto_usd solo no basta. */
+  inventario: { periodo: string; tipo: string; monto_usd: number | null; monto_usd_paralelo?: number | null }[];
   cxpCreadas: { anio: number; mes: number; montoUsdBcv: number; montoUsdParalelo: number }[];
   anio: number;
   usdDe: (t: any) => number;
@@ -116,9 +119,23 @@ export function calcularLineasFC(opts: {
     // el inventario del mes anterior cuando no hay inicial propio, y asume
     // "sin cambio" (fin = ini) cuando falta el final -- para que esta fila
     // nunca se desincronice del COGS que se está mostrando arriba.
+    //
+    // En vista paralelo, un mes CERRADO usa monto_usd_paralelo (el mismo
+    // monto_bs del snapshot dividido entre la tasa paralela de SU propia
+    // fecha) en vez de monto_usd (que siempre es el valor a tasa BCV,
+    // según cómo se registra el inventario) -- si no, esta fila se veía
+    // idéntica al cambiar entre BCV y paralelo, porque monto_usd es un solo
+    // valor fijo que no depende de la vista. Un mes ABIERTO/estimado usa
+    // iniUsd/finUsd directo (mismo número en ambas vistas cuando no hay
+    // cambio real, que es la mayoría de los casos): a diferencia de un
+    // cierre real, ini y fin ahí son el MISMO monto "arrastrado" -- si se
+    // revaluara cada uno con la tasa de una fecha distinta se inventaría un
+    // cambio que no existe (el mismo bug que tenía el COGS estimado).
     const cambioInventario =
       invIni && invFin
-        ? Number(invIni.monto_usd || 0) - Number(invFin.monto_usd || 0)
+        ? moneda === "paralela"
+          ? Number(invIni.monto_usd_paralelo ?? invIni.monto_usd ?? 0) - Number(invFin.monto_usd_paralelo ?? invFin.monto_usd ?? 0)
+          : Number(invIni.monto_usd || 0) - Number(invFin.monto_usd || 0)
         : estimado && estimado.iniUsd != null && estimado.finUsd != null
           ? estimado.iniUsd - estimado.finUsd
           : 0;
@@ -171,8 +188,37 @@ export async function fetchInsumosFC(opts: { anio: number; centro: string; modoF
     return await q.range(from, to);
   });
 
-  const { data: inventario } = await supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd")
+  const { data: inventarioRaw } = await supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd, monto_bs, fecha")
     .gte("periodo", `${anio}-01`).lte("periodo", `${anio}-12`);
+
+  // El inventario siempre se registra en USD a tasa BCV (ver comentario en
+  // cierre-mes.ts), pero además queda guardado su monto_bs y su fecha
+  // exacta -- con eso se puede re-expresar cada snapshot en USD paralelo
+  // usando la tasa paralela de ESA fecha (con la misma regla de respaldo
+  // que el resto del sistema: si no hay tasa exacta ese día, se usa la más
+  // reciente anterior disponible). Sin esto, "Cambios en Inventario" en
+  // Flujo de Caja mostraba el mismo número sin importar si la pantalla
+  // estaba en BCV o en paralelo, porque monto_usd es un solo valor fijo
+  // que nunca dependía de la vista.
+  const fechasInventario = (inventarioRaw ?? []).map((s: any) => s.fecha).filter(Boolean).sort();
+  const { data: paralelasHist } = fechasInventario.length
+    ? await supabase.from("tasas_paralela").select("fecha, tasa")
+        .lte("fecha", fechasInventario[fechasInventario.length - 1])
+        .order("fecha", { ascending: true })
+    : { data: [] as { fecha: string; tasa: number }[] };
+  const paralelaOnOrBefore = (fecha: string): number => {
+    let tasa = 0;
+    for (const p of paralelasHist ?? []) {
+      if (p.fecha > fecha) break;
+      tasa = Number(p.tasa) || tasa;
+    }
+    return tasa;
+  };
+  const inventario = (inventarioRaw ?? []).map((s: any) => {
+    const bs = Number(s.monto_bs) || 0;
+    const tasaParalela = s.fecha ? paralelaOnOrBefore(s.fecha) : 0;
+    return { ...s, monto_usd_paralelo: tasaParalela > 0 ? bs / tasaParalela : Number(s.monto_usd) || 0 };
+  });
 
   // "Cambios en Cuentas por pagar" tiene que agruparse por la fecha REAL de
   // la factura (la de la transacción que originó la CxP), no por
