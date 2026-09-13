@@ -216,11 +216,16 @@ function ReporteMensualImprimirPage() {
             Montos en <span className="uppercase tracking-wide">{modoLabel}</span>
           </div>
         </div>
-        {actual.estimado && (
-          <div className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 rounded px-2 py-1 max-w-[260px]">
-            ⚠ COGS estimado — mes abierto, sin cierre formal.
+        <div className="flex flex-col gap-1 items-end">
+          {actual.estimado && (
+            <div className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 rounded px-2 py-1 max-w-[260px]">
+              ⚠ COGS estimado — mes abierto, sin cierre formal.
+            </div>
+          )}
+          <div className="text-[10px] bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-1 max-w-[260px]">
+            ℹ Ingresos no incluyen servicio (10%) ni propina.
           </div>
-        )}
+        </div>
       </header>
 
       {/* 2. KPIs */}

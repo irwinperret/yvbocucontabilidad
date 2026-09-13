@@ -229,6 +229,9 @@ function ReporteFCIndirecto({ lineas: l }: { lineas: LineasMes }) {
             ⚠ El EBITDA incluye un COGS <b>estimado</b> — al menos un mes de este período sigue abierto (sin cierre formal). Se calculó con el inventario y las compras ya cargados para ese mes, pero puede cambiar cuando cierres el mes de verdad.
           </div>
         )}
+        <div className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-1.5 mb-2">
+          ℹ El EBITDA (ingresos) <b>no incluye</b> el 10% de servicio ni la propina — ambos se registran como pasivo por pagar al personal, no como venta.
+        </div>
         <Seccion titulo="Flujo de Caja de Actividades Operativas">
           <Linea label="EBITDA" v={l.ebitda} />
           <Linea label="Cambios en Cuentas por cobrar" v={l.cambioCxC} />
@@ -387,6 +390,9 @@ function ReporteFCComparativo({ lineasPorMes, anio }: { lineasPorMes: LineasMes[
               * EBITDA con COGS estimado — ese mes sigue abierto (sin cierre formal), calculado con el inventario y las compras ya cargados para ese mes.
             </p>
           )}
+          <p className="text-xs text-blue-700 mt-2">
+            ℹ El EBITDA (ingresos) no incluye el 10% de servicio ni la propina — ambos se registran como pasivo por pagar al personal, no como venta.
+          </p>
         </CardContent>
       </Card>
       {seleccion.count > 0 && (

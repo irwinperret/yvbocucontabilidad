@@ -263,6 +263,10 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
+      <div className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-1.5">
+        ℹ Los ingresos <b>no incluyen</b> el 10% de servicio ni la propina — ambos se registran como pasivo por pagar al personal, no como venta.
+      </div>
+
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
       <Card>
         <CardHeader>
