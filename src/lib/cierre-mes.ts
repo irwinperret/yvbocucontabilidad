@@ -59,9 +59,29 @@ async function tasasDelPeriodo(periodo: string) {
     return a.reduce((s, t) => s + Number(t.tasa || 0), 0) / a.length;
   };
 
+  // Si el período todavía no tiene NINGUNA tasa paralela cargada (típico de
+  // un mes recién abierto, antes de que se registren sus tasas día a día),
+  // promedio(paralelasMes) daba 0 -- lo que hacía que el COGS estimado en
+  // vista "paralelo" se reportara como $0 aunque la vista BCV mostrara un
+  // costo real, dejando Flujo de Caja > Comparativo mensual incoherente
+  // entre las dos vistas (BCV negativo, paralelo en $0). Ahora, en ese caso,
+  // se usa la última tasa paralela conocida ANTES del período, igual que ya
+  // se hace con la tasa BCV (ver tasaBcvQuery en lib/tasas.ts).
+  let paralelaPromedio = promedio(paralelasMes);
+  if (!paralelasMes?.length) {
+    const { data: ultimaParalela } = await supabase
+      .from("tasas_paralela")
+      .select("fecha, tasa")
+      .lt("fecha", primerDia)
+      .order("fecha", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    paralelaPromedio = Number((ultimaParalela as any)?.tasa) || 0;
+  }
+
   return {
     tasaBcvPromedio: promedio(tasasMes),
-    paralelaPromedio: promedio(paralelasMes),
+    paralelaPromedio,
     tasaBcvIni: Number((tasaIniDia as any)?.tasa) || 0,
     tasaBcvFin: Number((tasaFinDia as any)?.tasa) || 0,
     ultimoDia,
@@ -212,7 +232,7 @@ export async function reabrirMes(periodo: string) {
   const idsBonoCierre = (txBonoCierre ?? []).map((t: any) => t.id);
   if (idsBonoCierre.length > 0) {
     await supabase
-      .from("bono10_propina")
+      .from("bonos_10")
       .update({ transaccion_salida_id: null, fecha_distribucion: null, monto_distribuido_usd: null, notas_distribucion: null } as any)
       .in("transaccion_salida_id", idsBonoCierre);
     await supabase.from("transacciones").delete().eq("referencia", referenciaBono);
