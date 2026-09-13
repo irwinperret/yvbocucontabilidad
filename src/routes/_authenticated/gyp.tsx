@@ -114,6 +114,10 @@ function GyPPage() {
         <UsdViewToggle />
       </div>
 
+      <div className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-1.5">
+        ℹ Los ingresos <b>no incluyen</b> el 10% de servicio ni la propina — ambos se registran como pasivo por pagar al personal, no como venta.
+      </div>
+
       <Card>
         <CardContent className="pt-4 flex flex-wrap gap-4 items-end">
           <div><Label className="text-xs">Año</Label><Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}><SelectTrigger className="w-24"><SelectValue /></SelectTrigger><SelectContent>{[2024,2025,2026,2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></div>
