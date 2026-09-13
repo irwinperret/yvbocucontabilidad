@@ -93,7 +93,7 @@ async function comprasNetoDelPeriodo(periodo: string) {
   finExclusivo.setMonth(finExclusivo.getMonth() + 1);
   const { data, error } = await supabase
     .from("transacciones")
-    .select("monto_bs, monto_base_bs, monto_usd, tasa_bcv, modo")
+    .select("monto_bs, monto_base_bs, monto_usd, tasa_bcv, tasa_paralela, modo")
     .eq("cuenta_codigo", "2.1")
     .neq("standby", true)
     .gte("fecha", `${periodo}-01`)
@@ -113,20 +113,48 @@ async function comprasNetoDelPeriodo(periodo: string) {
     if (tasa > 0) return s + +(netoBs / tasa).toFixed(2);
     return s + (Number(c.monto_usd) || 0);
   }, 0);
-  return { totalComprasNetoBs, totalComprasNetoUsdBcv };
+  // Misma idea que totalComprasNetoUsdBcv, pero con la tasa paralela propia
+  // de cada compra -- así el COGS en paralelo queda en USD real de cada
+  // factura, igual que el de BCV, en vez de reconvertir por bolívares (ver
+  // comentario en calcularCierre sobre por qué eso rompía el estimado).
+  const totalComprasNetoUsdParalelo = comprasOn.reduce((s: number, c: any) => {
+    const netoBs = Number(c.monto_base_bs) || Number(c.monto_bs) || 0;
+    const tasa = Number(c.tasa_paralela) || 0;
+    if (tasa > 0) return s + +(netoBs / tasa).toFixed(2);
+    return s + (Number(c.monto_usd) || 0);
+  }, 0);
+  return { totalComprasNetoBs, totalComprasNetoUsdBcv, totalComprasNetoUsdParalelo };
 }
 
 /** Calcula el cierre de un período sin guardar nada (para previsualizar). */
 export async function calcularCierre(periodo: string, invIniUsd: number, invFinUsd: number): Promise<ResultadoCierre> {
   const { tasaBcvPromedio, paralelaPromedio, tasaBcvIni, tasaBcvFin, ultimoDia } = await tasasDelPeriodo(periodo);
-  const { totalComprasNetoBs, totalComprasNetoUsdBcv } = await comprasNetoDelPeriodo(periodo);
+  const { totalComprasNetoBs, totalComprasNetoUsdBcv, totalComprasNetoUsdParalelo } = await comprasNetoDelPeriodo(periodo);
   const pendBonoProp = await pendientesBonoPropina(ultimoDia);
 
   const iniBs = invIniUsd * tasaBcvIni;
   const finBs = invFinUsd * tasaBcvFin;
   const cogsBs = iniBs + totalComprasNetoBs - finBs;
   const cogsUsdBcv = invIniUsd + totalComprasNetoUsdBcv - invFinUsd;
-  const cogsUsdParalelo = paralelaPromedio > 0 ? cogsBs / paralelaPromedio : 0;
+  // ANTES: cogsUsdParalelo = cogsBs / paralelaPromedio -- convertía el COGS
+  // ya calculado en bolívares (iniBs a la tasa BCV del día 1, menos finBs a
+  // la tasa BCV del último día) dividiendo por el promedio de la tasa
+  // paralela del mes. El problema: en un mes ABIERTO sin cierre real, el
+  // inventario final es solo el inicial "arrastrado" (mismo monto en USD),
+  // pero iniBs y finBs igual se calculan con la tasa BCV de DÍAS distintos
+  // (día 1 vs. el día más reciente disponible) -- como el BCV sube todos
+  // los días, eso generaba un "COGS" en bolívares que no era real (un
+  // mismo inventario en USD valorado dos veces a tasas distintas), y ese
+  // número fantasma se colaba en cogsUsdParalelo aunque cogsUsdBcv diera
+  // $0 correctamente. Por eso Flujo de Caja > Comparativo mensual mostraba
+  // BCV y paralelo totalmente incoherentes en el mes en curso.
+  //
+  // AHORA: se calcula igual que cogsUsdBcv -- restando directamente en USD
+  // (inventario inicial + compras del mes en USD paralelo − inventario
+  // final), sin pasar por bolívares. Así un inventario sin cambio real da
+  // $0 en ambas vistas, y ya no depende de que la tasa paralela promedio
+  // del mes exista.
+  const cogsUsdParalelo = invIniUsd + totalComprasNetoUsdParalelo - invFinUsd;
 
   return {
     periodo, iniUsd: invIniUsd, finUsd: invFinUsd, iniBs, finBs,
