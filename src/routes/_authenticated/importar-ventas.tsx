@@ -412,15 +412,32 @@ function ImportarVentasPage() {
         const tasaPar = tasas.paralela || tasas.bcv;
         if (!tasaBcv) return { status: "fail", motivo: `No hay tasa BCV registrada para ${r.fecha}` };
 
+        // Centro: factura → derivado del nº factura; resto (orden) → Bocu por regla.
+        const centroRow: Centro = opts.centroOverride ?? (r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu");
+
+        // El 10% de servicio (r.servicio_usd) NO se cuenta como ingreso: se
+        // cobra íntegro para pagárselo al personal (syncBono, más abajo,
+        // crea el pasivo correspondiente en cuenta 8.1, "Pasivos
+        // transitorios", afecta_gyp=false), igual que ya pasaba con la
+        // propina. Antes r.base_usd (que según Xetux incluye el servicio)
+        // se registraba completo como venta -- eso contaba el 10% como
+        // ganancia del negocio en G&P sin nunca contarlo como costo del
+        // otro lado, inflando las ganancias reportadas por ese mismo monto.
+        // Se excluye solo en los mismos casos en que syncBono realmente
+        // crea el pasivo (factura real, fuera del centro "Compartido");
+        // fuera de esos casos se deja tal cual venía para no hacer
+        // desaparecer el monto de ambos lados. El grupo de la transacción
+        // sigue cuadrando con el total cobrado al cliente: ingreso
+        // (base − servicio) + IVA (sin cambios) + pasivo de servicio
+        // (cuenta 8.1) = total_usd.
+        const excluyeServicioDeIngreso = r.clase === "factura" && r.servicio_usd > 0 && centroRow !== ("Compartido" as Centro);
+        const baseIngresoUsd = excluyeServicioDeIngreso ? Math.max(0, r.base_usd - r.servicio_usd) : r.base_usd;
         const totalBs = +(r.total_usd * tasaBcv).toFixed(2);
-        const baseBs = +(r.base_usd * tasaBcv).toFixed(2);
+        const baseBs = +(baseIngresoUsd * tasaBcv).toFixed(2);
         const ivaBs = +(r.iva_usd * tasaBcv).toFixed(2);
         const totalUsdPar = +(totalBs / tasaPar).toFixed(2);
         const baseUsdPar = +(baseBs / tasaPar).toFixed(2);
         const ivaUsdPar = +(ivaBs / tasaPar).toFixed(2);
-
-        // Centro: factura → derivado del nº factura; resto (orden) → Bocu por regla.
-        const centroRow: Centro = opts.centroOverride ?? (r.clase === "factura" ? centroDeFactura(r.numero_factura) : "Bocu");
 
         let cuenta_codigo: string;
         let metodo: Metodo;
