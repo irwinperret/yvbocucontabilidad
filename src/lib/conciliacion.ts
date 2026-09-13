@@ -515,3 +515,65 @@ export function normalizarConceptoNomina(concepto: string | null | undefined): s
   v = v.replace(/[^A-Z0-9]/g, "");
   return v;
 }
+
+/**
+ * Palabras que aparecen en casi CUALQUIER pago de nómina/pasivo laboral y
+ * que, por sí solas, no distinguen un pago de otro: decenas de personas o
+ * departamentos distintos comparten literalmente ese texto en el mismo mes
+ * sin que sea el mismo pago repetido. Se usan para decidir si un concepto
+ * trae algo específico o es puro relleno genérico (lista heurística,
+ * ajustable si aparecen más casos).
+ */
+const PALABRAS_GENERICAS_NOMINA = new Set([
+  "PAGO", "DE", "DEL", "LA", "EL", "LOS", "LAS", "PARA", "A", "AL", "MES",
+  "NOMINA", "SUELDO", "SUELDOS", "SALARIO", "SALARIOS", "PERSONAL",
+  "EMPLEADO", "EMPLEADOS", "TRABAJADOR", "TRABAJADORES", "TRABAJADO",
+  "TRABAJADOS", "BONO", "BONOS", "BONOALIM", "BONOCOMP", "ALIMENTACION",
+  "COMPENSATORIO", "SERVICIO", "SERVICIOS", "PROP", "PROPINA", "PROPINAS",
+  "TRANSP", "TRANSPORTE", "ANTC", "ANTICIPO", "ANTICIPOS", "PRESTAMO",
+  "PRESTAMOS", "DIASTRAB", "QNA", "1RA", "2DA", "QUINCENA", "QUINCENAL",
+  "MENSUAL", "SEMANA", "SEMANAL", "YV", "BOCU", "SALA", "COCINA", "CHEF",
+  "COCINERO", "ADMIN", "ADMINISTRACION", "GENERAL", "DEPARTAMENTO", "AREA",
+  "EQUIPO", "VARIOS", "TRANSFERENCIA", "TRANSF", "DEPOSITO", "ABONO",
+  "ENVIO", "PAGOMOVIL", "CANCELACION", "CANCELA", "CORRESPONDIENTE",
+  "MOVIL", "BS", "BOLIVARES", "VES", "USD", "DOLARES",
+  "LIQUIDACION", "TERMINACION", "PERIODO", "PRUEBA", "IVSS", "FAOV",
+  "INCES", "PARAFISCAL", "SEGURO", "SOCIAL", "CESTA", "TICKET",
+  "ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "SEPT",
+  "OCT", "NOV", "DIC", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO",
+  "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE",
+  "DICIEMBRE",
+]);
+
+/**
+ * ¿Este concepto de nómina/pasivo trae algo ESPECÍFICO — una quincena
+ * puntual (1ra/2da) o un residuo con contenido propio (nombre de persona,
+ * rango de fechas, número de referencia interno, etc.) — que haría
+ * sospechoso ver el mismo texto repetido dos veces en el mismo mes?
+ *
+ * Un concepto puramente genérico como "Pago de nómina" o "Bono
+ * alimentación personal" NO cuenta como específico: decenas de pagos
+ * legítimos a personas o departamentos distintos comparten exactamente ese
+ * texto en el mismo mes, así que compararlos solo generaría falsos
+ * positivos (justo el caso de sobre-corrección que se quiere evitar).
+ */
+export function esConceptoNominaEspecifico(concepto: string | null | undefined): boolean {
+  const v = String(concepto ?? "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const tieneMitad = /\b(?:1RA|PRIM(?:ER[AO]?)?|PRIN)\b/.test(v) || /\b(?:2DA|SDA|SEGUNDA)\b/.test(v);
+  const tieneQuincena = /\bQ(?:UINCENA|NA)\b/.test(v);
+  if (tieneMitad && tieneQuincena) return true;
+
+  // Rango de fechas puntual ("14 AL 19", "20-26"): así se identifican las
+  // propinas semanales — sin esto, "PROP 14 AL 19" y "PROP 20 AL 26" (dos
+  // semanas reales, no un duplicado) perderían su única marca distintiva.
+  if (/\b\d{1,2}\s*(?:AL|-)\s*\d{1,2}\b/.test(v)) return true;
+
+  const tokens = v.replace(/[^A-Z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  const residual = tokens.filter(
+    (t) => t.length >= 4 && !PALABRAS_GENERICAS_NOMINA.has(t) && !/^\d+$/.test(t),
+  );
+  return residual.length > 0;
+}

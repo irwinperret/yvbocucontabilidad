@@ -34,6 +34,7 @@ import {
   esPagoBonoPropinaCombinado,
   CUENTAS_DUPLICADO_NOMINA,
   normalizarConceptoNomina,
+  esConceptoNominaEspecifico,
   type CodigoDoc,
 } from "@/lib/conciliacion";
 import { distribuirBonoPropinaCombinado } from "@/lib/bono-propina-combinado";
@@ -561,8 +562,19 @@ function ImportarMovimientosInner() {
       // concepto normalizado (persona + tipo de pago + rango de fechas) sea
       // idéntico. No reemplaza la huella: solo corre sobre las filas que la
       // huella no marcó ya como duplicado/actualizable.
+      //
+      // Solo se compara cuando el concepto trae algo ESPECÍFICO (una
+      // quincena puntual, un rango de fechas, un nombre de persona...) —
+      // "Pago de nómina" o "Bono alimentación personal" a secas NO cuentan:
+      // decenas de pagos legítimos a personas o departamentos distintos
+      // comparten ese texto genérico en el mismo mes sin ser el mismo pago,
+      // así que compararlos solo generaba falsos positivos.
       const candidatasNomina = initialMatches.filter(
-        (m) => !m.duplicado && m.cuentaCodigo && CUENTAS_DUPLICADO_NOMINA.has(m.cuentaCodigo),
+        (m) =>
+          !m.duplicado &&
+          m.cuentaCodigo &&
+          CUENTAS_DUPLICADO_NOMINA.has(m.cuentaCodigo) &&
+          esConceptoNominaEspecifico(m.bankRow.concepto),
       );
       if (candidatasNomina.length > 0) {
         const meses = Array.from(new Set(candidatasNomina.map((m) => m.bankRow.fecha.slice(0, 7)))).sort();
@@ -583,6 +595,7 @@ function ImportarMovimientosInner() {
         const porFirma = new Map<string, any>();
         for (const r of existentesNomina ?? []) {
           const conceptoExistente = String(r.notas ?? "").split(" · ").pop() ?? "";
+          if (!esConceptoNominaEspecifico(conceptoExistente)) continue;
           const firma = `${r.cuenta_codigo}|${String(r.fecha).slice(0, 7)}|${normalizarConceptoNomina(conceptoExistente)}`;
           if (!porFirma.has(firma)) porFirma.set(firma, r);
         }
