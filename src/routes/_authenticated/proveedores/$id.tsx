@@ -290,7 +290,6 @@ function FacturaBoardCard({
               {esRemanente ? "remanente por cubrir (USD BCV)" : "por aplicar (USD BCV)"}
             </span>
           </div>
-          <div className="text-[11px] text-primary font-medium mt-0.5">tasa factura {fmtTasa(tasaBcvFactura(c))}</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
             {emision ? `Emitida ${fmtDate(emision)}` : "—"}
           </div>
