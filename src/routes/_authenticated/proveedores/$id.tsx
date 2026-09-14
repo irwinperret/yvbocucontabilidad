@@ -20,7 +20,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
-import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle, Clock, ListChecks, Scissors, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle, Clock, ChevronDown, ChevronRight, MoreHorizontal, Search, Ban } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { FacturaDetalleDialog } from "@/components/factura-detalle-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
@@ -184,6 +193,165 @@ function FacturaChip({
   );
 }
 
+/**
+ * Tarjeta grande de factura para el tablero "Facturas sin resolver" — cubre
+ * tanto una factura sin ningún movimiento (remanenteUsd undefined) como el
+ * remanente de una factura ya pareada parcialmente (dividir pago). Es un
+ * componente propio (no una función auxiliar llamada a mano) porque usa
+ * useDraggable, que como todo hook solo puede vivir dentro de un componente
+ * de verdad montado por React — llamarlo desde un simple .map() rompería las
+ * reglas de hooks en cuanto la lista cambiara de tamaño.
+ */
+function FacturaBoardCard({
+  cxp: c,
+  emision,
+  remanenteUsd,
+  disabled,
+  isAdmin,
+  checked,
+  onToggleCheck,
+  onMarkPaid,
+  onToggleEspera,
+  movimientosCount,
+  onEditar,
+  puedeEditarFacturas,
+  movsDisponibles,
+  onAsignar,
+  terceros,
+  onCambiarProveedor,
+}: {
+  cxp: any;
+  emision?: string;
+  remanenteUsd?: number;
+  disabled?: boolean;
+  isAdmin: boolean;
+  checked?: boolean;
+  onToggleCheck?: (v: boolean) => void;
+  onMarkPaid?: () => void;
+  onToggleEspera?: () => void;
+  movimientosCount?: number;
+  onEditar?: () => void;
+  puedeEditarFacturas: boolean;
+  movsDisponibles: any[];
+  onAsignar: (movId: string) => void;
+  terceros?: any[];
+  onCambiarProveedor?: (nuevo: string | null) => void;
+}) {
+  const esRemanente = typeof remanenteUsd === "number";
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `${esRemanente ? "cxp-remanente" : "cxp"}:${c.id}`,
+    disabled,
+  });
+  const dias = (() => {
+    const em = emision ?? c.fecha_vencimiento;
+    if (!em) return 0;
+    return Math.floor((Date.now() - new Date(`${String(em).slice(0, 10)}T12:00:00`).getTime()) / 86400000);
+  })();
+  const antigua = dias > 90;
+  return (
+    <div
+      className={`rounded-xl border-2 bg-card p-3 transition-opacity ${isDragging ? "opacity-40" : ""} ${antigua ? "border-amber-500/50 bg-amber-500/5" : "border-border"}`}
+    >
+      <div className="flex items-start gap-2">
+        {isAdmin && !esRemanente && onToggleCheck && (
+          <Checkbox
+            className="mt-1"
+            checked={checked}
+            onCheckedChange={(v) => onToggleCheck(!!v)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+        <div ref={setNodeRef} {...listeners} {...attributes} className="flex-1 min-w-0 cursor-grab active:cursor-grabbing">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-semibold">Factura {c.numero_factura ?? "s/n"}</span>
+            {antigua && (
+              <Badge variant="outline" className="text-amber-700 border-amber-600/40 bg-amber-500/10 gap-1">
+                <Clock className="h-3 w-3" />{dias} días
+              </Badge>
+            )}
+            {esRemanente && (
+              <Badge variant="outline" className="text-orange-700 border-orange-600/40 bg-orange-500/10">parcial</Badge>
+            )}
+            {c.en_espera_movimiento && (
+              <Badge variant="outline" className="text-amber-600 border-amber-600/40">En espera</Badge>
+            )}
+            {(movimientosCount ?? 0) > 1 && (
+              <Badge variant="outline" className="text-indigo-600 border-indigo-600/40">
+                Dividida entre {movimientosCount} movimientos
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-baseline gap-2 mt-1 flex-wrap">
+            <span className="mono text-sm font-bold">
+              {fmtUsd(esRemanente ? remanenteUsd : pendienteUsdBcv(c))}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {esRemanente ? "remanente por cubrir (USD BCV)" : "por aplicar (USD BCV)"}
+            </span>
+          </div>
+          <div className="text-[11px] text-primary font-medium mt-0.5">tasa factura {fmtTasa(tasaBcvFactura(c))}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {emision ? `Emitida ${fmtDate(emision)}` : "—"}
+          </div>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={(e) => e.stopPropagation()}>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isAdmin && !esRemanente && onMarkPaid && (
+              <DropdownMenuItem onClick={onMarkPaid}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-2" />Marcar como pagada (sin movimiento)
+              </DropdownMenuItem>
+            )}
+            {isAdmin && !esRemanente && onToggleEspera && (
+              <DropdownMenuItem onClick={onToggleEspera}>
+                <Clock className="h-3.5 w-3.5 mr-2" />
+                {c.en_espera_movimiento ? "Quitar espera de movimiento" : "En espera de movimiento"}
+              </DropdownMenuItem>
+            )}
+            {puedeEditarFacturas && onEditar && (
+              <DropdownMenuItem onClick={onEditar}>
+                <Pencil className="h-3.5 w-3.5 mr-2" />Ver / editar factura
+              </DropdownMenuItem>
+            )}
+            {onCambiarProveedor && (terceros?.length ?? 0) > 0 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>Cambiar proveedor</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="max-h-64 overflow-y-auto">
+                  <DropdownMenuItem onClick={() => onCambiarProveedor(null)}>Sin proveedor</DropdownMenuItem>
+                  {terceros!.map((t) => (
+                    <DropdownMenuItem key={t.id} onClick={() => onCambiarProveedor(t.id)}>
+                      {t.nombre_comercial || t.razon_social}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="mt-2 pl-5">
+        <Select onValueChange={(v) => onAsignar(v)}>
+          <SelectTrigger className="h-7 text-[11px] w-full max-w-xs">
+            <SelectValue placeholder={esRemanente ? "…o agrega el remanente a otro movimiento" : "…o asígnala a un movimiento"} />
+          </SelectTrigger>
+          <SelectContent>
+            {movsDisponibles.map((mv) => (
+              <SelectItem key={mv.id} value={mv.id}>
+                {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
 function Zona({ id, children, className, onClick }: { id: string; children: React.ReactNode; className?: string; onClick?: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
@@ -200,9 +368,7 @@ function TableroProveedor() {
   // Edición de facturas restringida a estas dos cuentas específicas.
   const puedeEditarFacturas = user?.email === "irwinperret@hotmail.com" || user?.email === "irwinperret@gmail.com";
   const esSin = id === SIN;
-  const [filtroEstado, setFiltroEstado] = useState("todos");
   const [busca, setBusca] = useState("");
-  const [focusResumen, setFocusResumen] = useState<null | "movs-sin-factura" | "facturas-sin-mov">(null);
   const [busy, setBusy] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   // Cabecera consolidada: un solo número de deuda arriba, detalle (las 6
@@ -216,6 +382,13 @@ function TableroProveedor() {
   const [selMovManual, setSelMovManual] = useState<string[]>([]);
   const [estadoBulk, setEstadoBulk] = useState<EstadoManual>("sin_pareo");
   const [aplicandoEstadoBulk, setAplicandoEstadoBulk] = useState(false);
+  /** Feedback de "recién pareado" al soltar una factura sobre un movimiento
+   * — solo mientras dura la sesión en esta pantalla, no es estado persistente. */
+  const [recientes, setRecientes] = useState<{ id: string; texto: string }[]>([]);
+  const pushReciente = (texto: string) => {
+    const item = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, texto };
+    setRecientes((r) => [item, ...r].slice(0, 5));
+  };
   // Cierre manual de facturas (pagadas sin movimiento bancario).
   const [selCierre, setSelCierre] = useState<string[]>([]);
   const [cierreAbierto, setCierreAbierto] = useState<any[] | null>(null);
@@ -511,24 +684,6 @@ function TableroProveedor() {
   );
   const totalUsdBcvCierreManual = facturasCerradasManual.reduce((s, c) => s + usdBcvFactura(c), 0);
 
-  /** Facturas pendientes marcadas "en espera de movimiento" (subconjunto de facturasSinMov). */
-  const facturasEnEspera = useMemo(
-    () => facturasSinMov.filter((c) => c.en_espera_movimiento),
-    [facturasSinMov],
-  );
-  /** Facturas pendientes "normales" (sin la marca de en espera) — sección separada dentro de la misma tarjeta. */
-  const facturasPendientesNormales = useMemo(
-    () => facturasSinMov.filter((c) => !c.en_espera_movimiento),
-    [facturasSinMov],
-  );
-
-  /** ¿La factura lleva más de 90 días sin movimiento asignado? */
-  const esAntigua = (c: any) => {
-    const em = emisionDeCxp(c) ?? c.fecha_vencimiento;
-    if (!em) return false;
-    return (Date.now() - new Date(`${String(em).slice(0, 10)}T12:00:00`).getTime()) / 86400000 > 90;
-  };
-
   /** "Usuario · fecha" de un cierre manual — usado en la tarjeta y en el Excel. */
   const cierreManualInfo = (c: any) => {
     if (!c?.cierre_manual) return "";
@@ -613,27 +768,35 @@ function TableroProveedor() {
   const movsFiltrados = useMemo(() => {
     const txt = busca.trim().toLowerCase();
     return movsDelProveedor.filter((mv) => {
+      if (!txt) return true;
       const lista = cxpsDeMov(mv.id);
-      const { sinAplicar } = resumenMov(mv);
-      if (filtroEstado === "sin-facturas" && lista.length) return false;
-      if (filtroEstado === "con-facturas" && !lista.length) return false;
-      if (filtroEstado === "con-remanente" && !(sinAplicar > 0.01)) return false;
-      if (txt) {
-        const hay = `${mv.referencia ?? ""} ${mv.notas ?? ""} ${mv.detalle ?? ""} ${lista
-          .map((c) => c.numero_factura ?? "")
-          .join(" ")}`.toLowerCase();
-        if (!hay.includes(txt)) return false;
-      }
-      return true;
+      const hay = `${mv.referencia ?? ""} ${mv.notas ?? ""} ${mv.detalle ?? ""} ${lista
+        .map((c) => c.numero_factura ?? "")
+        .join(" ")}`.toLowerCase();
+      return hay.includes(txt);
     });
-  }, [movsDelProveedor, cxpsPorMov, filtroEstado, busca]);
+  }, [movsDelProveedor, cxpsPorMov, busca]);
 
   const movsSinFacturas = movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).length);
-  const totalSinAplicar = movsDelProveedor.reduce((s, mv) => s + resumenMov(mv).sinAplicar, 0);
   const totalSinAplicarUsd = movsDelProveedor.reduce((s, mv) => s + resumenMov(mv).sinAplicarUsd, 0);
 
   const totalUsdBcvFacturasSinMov = facturasSinMov.reduce((s, c) => s + pendienteUsdBcv(c), 0);
-  const totalUsdBcvMovsSinFactura = movsSinFacturas.reduce((s, mv) => s + usdBcvDeMov(mv), 0);
+
+  /** Movimientos que todavía necesitan trabajo: sin facturas, o con saldo sin aplicar. Van en el tablero. */
+  const movsSinResolver = movsFiltrados.filter((mv) => !cxpsDeMov(mv.id).length || resumenMov(mv).sinAplicar > 0.01);
+  /** Movimientos ya cuadrados del todo (con factura(s) y sin remanente) — van a "Ya conciliado". */
+  const movsResueltos = movsFiltrados.filter((mv) => cxpsDeMov(mv.id).length > 0 && resumenMov(mv).sinAplicar <= 0.01);
+
+  /** Facturas que todavía necesitan trabajo (sin movimiento, o con remanente de pago parcial) — unificadas para el tablero. */
+  const facturasParaTablero = useMemo(() => {
+    const txt = busca.trim().toLowerCase();
+    const base: { cxp: any; remanenteUsd?: number }[] = [
+      ...facturasSinMov.map((cxp) => ({ cxp })),
+      ...facturasConRemanente.map(({ cxp, remanenteUsd }) => ({ cxp, remanenteUsd })),
+    ];
+    if (!txt) return base;
+    return base.filter(({ cxp }) => String(cxp.numero_factura ?? "").toLowerCase().includes(txt));
+  }, [facturasSinMov, facturasConRemanente, busca]);
 
 
   const refrescar = async () => {
@@ -926,6 +1089,10 @@ function TableroProveedor() {
     }
   };
 
+  /** Etiqueta corta "Factura N ↔ fecha · monto" para el feedback de "recién pareados". */
+  const etiquetaPareo = (cxp: any, mov: any) =>
+    `Factura ${cxp.numero_factura ?? "s/n"} ↔ ${fmtDate(mov.fecha)} · ${fmtBs(Math.abs(Number(mov.monto_bs) || 0))}`;
+
   const onDragEnd = (e: DragEndEvent) => {
     const active = String(e.active.id);
     const over = e.over ? String(e.over.id) : null;
@@ -935,7 +1102,12 @@ function TableroProveedor() {
       // movimiento" — soltarlo ahí de nuevo no hace nada. Solo tiene sentido
       // soltarlo sobre otro movimiento, y ahí se AGREGA el vínculo (pago
       // dividido) en vez de reemplazar el que ya tiene.
-      if (over && over.startsWith("mov:")) void agregarFacturaAOtroMovimiento(cxpId, over.slice(4));
+      if (over && over.startsWith("mov:")) {
+        const cxp = (cxps ?? []).find((c) => c.id === cxpId);
+        const mov = movsDelProveedor.find((mv) => mv.id === over.slice(4));
+        if (cxp && mov) pushReciente(etiquetaPareo(cxp, mov));
+        void agregarFacturaAOtroMovimiento(cxpId, over.slice(4));
+      }
       return;
     }
     if (!active.startsWith("cxp:")) return;
@@ -949,20 +1121,10 @@ function TableroProveedor() {
       return;
     }
     if (over === BANDEJA) return void moverFactura(cxpId, null);
-    if (over.startsWith("mov:")) return void moverFactura(cxpId, over.slice(4));
-  };
-  const onResumenClick = (tipo: "movs-sin-factura" | "facturas-sin-mov") => {
-    if (focusResumen === tipo) {
-      setFocusResumen(null);
-      setFiltroEstado("todos");
-    } else {
-      setFocusResumen(tipo);
-      if (tipo === "movs-sin-factura") {
-        setFiltroEstado("sin-facturas");
-      } else {
-        setFiltroEstado("todos");
-        setTimeout(() => document.getElementById("bandeja-facturas")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-      }
+    if (over.startsWith("mov:")) {
+      const mov = movsDelProveedor.find((mv) => mv.id === over.slice(4));
+      if (cxp && mov) pushReciente(etiquetaPareo(cxp, mov));
+      return void moverFactura(cxpId, over.slice(4));
     }
   };
   const exportar = async () => {
@@ -1042,127 +1204,6 @@ function TableroProveedor() {
     toast.success("Excel generado");
   };
 
-  /** Fila de una factura dentro de "Facturas sin movimiento" — usada tanto en la sección "Pendientes" como en "En espera de movimiento". */
-  const renderFacturaFila = (c: any) => {
-    const antigua = esAntigua(c);
-    return (
-      <div
-        key={c.id}
-        className={`space-y-1 ${antigua ? "border border-amber-500/50 bg-amber-500/5 rounded-md p-1.5" : ""}`}
-      >
-        <div className="flex items-start gap-1.5">
-          {isAdmin && (
-            <Checkbox
-              className="mt-1.5"
-              checked={selCierre.includes(c.id)}
-              onCheckedChange={(v) =>
-                setSelCierre((s) => (v ? [...s, c.id] : s.filter((x) => x !== c.id)))
-              }
-            />
-          )}
-          <div className="flex-1 min-w-0 space-y-1">
-            <FacturaChip cxp={c} emision={emisionDeCxp(c)} disabled={busy} onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined} />
-            {antigua && (
-              <div className="flex items-center gap-1 text-[10px] text-amber-600">
-                <AlertTriangle className="h-3 w-3" />Más de 90 días sin movimiento — candidata a cierre manual
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Select onValueChange={(v) => moverFactura(c.id, v)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Asignar a movimiento…" />
-            </SelectTrigger>
-            <SelectContent>
-              {movsDelProveedor.map((mv) => (
-                <SelectItem key={mv.id} value={mv.id}>
-                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={c.tercero_id ?? "none"}
-            onValueChange={(v) => cambiarProveedorFactura(c, v === "none" ? null : v)}
-          >
-            <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="Proveedor" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Sin proveedor</SelectItem>
-              {(terceros ?? []).map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {isAdmin && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs"
-              disabled={busy}
-              onClick={() => abrirCierre([c])}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como pagada (sin movimiento)
-            </Button>
-          )}
-          {isAdmin && (
-            <Button
-              size="sm"
-              variant={c.en_espera_movimiento ? "secondary" : "outline"}
-              className="h-8 text-xs"
-              disabled={busy}
-              onClick={() => toggleEnEspera(c)}
-            >
-              <Clock className="h-3.5 w-3.5 mr-1" />
-              {c.en_espera_movimiento ? "Quitar espera de movimiento" : "En espera de movimiento"}
-            </Button>
-          )}
-        </div>
-        <div className="text-[11px] text-muted-foreground">
-          Pendiente {fmtBs(pendienteBsHistorico(c))} · {fmtUsd(pendienteUsdBcv(c))} USD BCV
-        </div>
-      </div>
-    );
-  };
-
-  /**
-   * Fila de una factura que ya está pareada con uno o más movimientos pero
-   * a la que le falta cubrir un remanente (pago parcial). Se muestra también
-   * en "Facturas sin movimiento" para poder terminarla de cuadrar contra otro
-   * movimiento — arrastrarla o usar el selector AGREGA el vínculo (no
-   * reemplaza el que ya tiene, es "dividir pago").
-   */
-  const renderFacturaRemanente = (c: any, remanenteUsd: number) => {
-    const movsDisponibles = movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).some((x) => x.id === c.id));
-    return (
-      <div key={c.id} className="space-y-1">
-        <FacturaChip
-          cxp={c}
-          emision={emisionDeCxp(c)}
-          remanenteUsd={remanenteUsd}
-          movimientosCount={movimientosPorFactura.get(c.id)}
-          disabled={busy}
-          dragIdPrefix="cxp-remanente"
-          onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
-        />
-        {movsDisponibles.length > 0 && (
-          <Select onValueChange={(v) => agregarFacturaAOtroMovimiento(c.id, v)}>
-            <SelectTrigger className="h-8 text-xs w-64">
-              <SelectValue placeholder="Agregar el remanente a otro movimiento…" />
-            </SelectTrigger>
-            <SelectContent>
-              {movsDisponibles.map((mv) => (
-                <SelectItem key={mv.id} value={mv.id}>
-                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1221,23 +1262,15 @@ function TableroProveedor() {
         </Card>
       )}
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-            <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos ({movsDelProveedor.length})</SelectItem>
-              <SelectItem value="sin-facturas">Sin facturas ({movsSinFacturas.length})</SelectItem>
-              <SelectItem value="con-facturas">
-                Con facturas ({movsDelProveedor.length - movsSinFacturas.length})
-              </SelectItem>
-              <SelectItem value="con-remanente">Con remanente sin aplicar</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input
-            placeholder="Buscar movimiento o factura…"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="w-56"
-          />
+          <div className="relative">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Buscar movimiento o factura…"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="w-64 pl-8"
+            />
+          </div>
           <Button variant="outline" size="sm" onClick={parearEvidentes} disabled={busy}>
             <Wand2 className="h-4 w-4 mr-1" />Parear lo evidente
           </Button>
@@ -1292,8 +1325,8 @@ function TableroProveedor() {
             </CardContent>
           </Card>
           <Card
-            className={`cursor-pointer transition-colors ${focusResumen === "facturas-sin-mov" ? "ring-2 ring-primary" : ""}`}
-            onClick={() => onResumenClick("facturas-sin-mov")}
+            className="cursor-pointer hover:bg-muted/30 transition-colors"
+            onClick={() => document.getElementById("bandeja-facturas")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           >
             <CardContent className="p-3">
               <div className="text-xs text-muted-foreground">Facturas sin movimiento (USD BCV)</div>
@@ -1310,17 +1343,102 @@ function TableroProveedor() {
         </div>
       )}
 
-      <p className="text-sm text-muted-foreground">
-        Arrastra una factura al movimiento bancario que la paga. Un movimiento puede tener varias facturas; arrastra la
-        factura a la bandeja de la derecha para liberarla.
-      </p>
+      <div className="text-xs bg-primary/5 border border-primary/20 rounded-md px-3 py-2 text-foreground/80">
+        💡 Arrastra una factura sobre un movimiento para parearlos — o usa el selector de la tarjeta si prefieres no arrastrar.
+        Marca varias con los checks para resolverlas de una vez.
+      </div>
+
+      {recientes.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-xs font-semibold text-emerald-600 flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5" />Pareados ahora mismo
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {recientes.map((r) => (
+              <div
+                key={r.id}
+                className="rounded-lg border border-emerald-600/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-800 flex items-center justify-between gap-2"
+              >
+                <span>{r.texto} — pareo guardado</span>
+                <button
+                  className="text-emerald-700/60 hover:text-emerald-800 shrink-0"
+                  onClick={() => setRecientes((rs) => rs.filter((x) => x.id !== r.id))}
+                  title="Ocultar"
+                >
+                  <Ban className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="grid gap-4 lg:grid-cols-[2fr_1fr] items-start">
+        <div className="grid gap-4 lg:grid-cols-2 items-start">
+          {/* Columna: facturas que todavía necesitan un movimiento (o les falta remanente por cubrir). */}
+          <Card id="bandeja-facturas">
+            <CardHeader className="pb-2 space-y-2">
+              <CardTitle className="text-lg">
+                Facturas sin resolver <Badge variant="destructive">{facturasParaTablero.length}</Badge>
+              </CardTitle>
+              {isAdmin && selCierre.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-xs bg-muted/50 rounded-md px-2 py-1.5">
+                  <span>{selCierre.length} factura(s) seleccionada(s)</span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7"
+                    onClick={() => abrirCierre(facturasSinMov.filter((c) => selCierre.includes(c.id)))}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como pagadas (sin movimiento)
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setSelCierre([])}>
+                    Cancelar selección
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-lg p-2">
+                {facturasParaTablero.length === 0 && (
+                  <p className="text-xs text-muted-foreground p-2">Todas las facturas tienen movimiento asignado.</p>
+                )}
+                {facturasParaTablero.map(({ cxp: c, remanenteUsd }) => (
+                  <FacturaBoardCard
+                    key={c.id}
+                    cxp={c}
+                    emision={emisionDeCxp(c)}
+                    remanenteUsd={remanenteUsd}
+                    disabled={busy}
+                    isAdmin={isAdmin}
+                    checked={selCierre.includes(c.id)}
+                    onToggleCheck={(v) => setSelCierre((s) => (v ? [...s, c.id] : s.filter((x) => x !== c.id)))}
+                    onMarkPaid={() => abrirCierre([c])}
+                    onToggleEspera={() => toggleEnEspera(c)}
+                    movimientosCount={movimientosPorFactura.get(c.id)}
+                    onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
+                    puedeEditarFacturas={puedeEditarFacturas}
+                    movsDisponibles={
+                      typeof remanenteUsd === "number"
+                        ? movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).some((x) => x.id === c.id))
+                        : movsDelProveedor
+                    }
+                    onAsignar={(movId) =>
+                      typeof remanenteUsd === "number" ? agregarFacturaAOtroMovimiento(c.id, movId) : moverFactura(c.id, movId)
+                    }
+                    terceros={terceros ?? []}
+                    onCambiarProveedor={(nuevo) => cambiarProveedorFactura(c, nuevo)}
+                  />
+                ))}
+              </Zona>
+            </CardContent>
+          </Card>
+
+          {/* Columna: movimientos sin factura, o con saldo sin aplicar. */}
           <Card>
             <CardHeader className="pb-2 space-y-2">
               <CardTitle className="text-lg">
-                Movimientos bancarios <Badge variant="secondary">{movsFiltrados.length}</Badge>
+                Movimientos sin resolver <Badge variant="secondary">{movsSinResolver.length}</Badge>
               </CardTitle>
               {selMovManual.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 text-xs bg-muted/50 rounded-md px-2 py-1.5">
@@ -1342,11 +1460,11 @@ function TableroProveedor() {
                 </div>
               )}
             </CardHeader>
-            <CardContent className="space-y-3">
-              {movsFiltrados.length === 0 && (
-                <p className="text-sm text-muted-foreground">Sin movimientos para este filtro.</p>
+            <CardContent className="space-y-2">
+              {movsSinResolver.length === 0 && (
+                <p className="text-sm text-muted-foreground">No hay movimientos pendientes por resolver.</p>
               )}
-              {movsFiltrados.map((mv) => {
+              {movsSinResolver.map((mv) => {
                 const { lista, montoMov, aplicado, sinAplicar, aplicadoUsd, sinAplicarUsd, aplicadoPorCxp } = resumenMov(mv);
                 const asignables = facturasSinMov.filter((c) => c.transaccion_id);
                 // Facturas que YA están en otro movimiento de este proveedor,
@@ -1361,7 +1479,7 @@ function TableroProveedor() {
                     movsDelProveedor.some((m) => m.id !== mv.id && cxpsDeMov(m.id).some((x) => x.id === c.id)),
                 );
                 return (
-                  <Zona key={mv.id} id={`mov:${mv.id}`} className="border rounded-md p-3 hover:bg-muted/20">
+                  <Zona key={mv.id} id={`mov:${mv.id}`} className="rounded-xl border-2 border-border p-3 hover:border-primary/40 transition-colors">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="flex items-start gap-1.5 text-sm">
                         {lista.length === 0 && (
@@ -1399,52 +1517,31 @@ function TableroProveedor() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Badge
-                          variant={!lista.length ? "destructive" : sinAplicar > 0.01 ? "default" : "secondary"}
-                        >
-                          {!lista.length ? "Sin facturas" : sinAplicar > 0.01 ? "Parcial" : "Pareado"}
+                      <div className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Badge variant={!lista.length ? "destructive" : "default"}>
+                          {!lista.length ? "Sin facturas" : "Parcial"}
                         </Badge>
-                        <Select
-                          value={mv.tercero_id ?? "none"}
-                          onValueChange={(v) => cambiarProveedorMov(mv.id, v === "none" ? null : v)}
-                        >
-                          <SelectTrigger className="w-52 h-8 text-xs"><SelectValue placeholder="Proveedor" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sin proveedor</SelectItem>
-                            {(terceros ?? []).map((t) => (
-                              <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {lista.length > 0 && (
-                          <Button variant="ghost" size="sm" onClick={() => liberarMov(mv)} disabled={busy}>
-                            <Link2Off className="h-3.5 w-3.5 mr-1" />Liberar todo
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="sm" onClick={() => setEditandoMov(mv)}>
-                          <Pencil className="h-3.5 w-3.5 mr-1" />Editar
-                        </Button>
-                        {lista.length === 0 ? (
-                          <Select
-                            value={estadoManualDeMov(mv.id) ?? "auto"}
-                            onValueChange={(v) => cambiarEstadoManual(mv.id, v === "auto" ? null : (v as EstadoManual))}
-                          >
-                            <SelectTrigger className="h-7 w-[190px] text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="auto">Automático (sugerido)</SelectItem>
-                              {(Object.keys(ESTADO_MANUAL_LABEL) as EstadoManual[]).map((k) => (
-                                <SelectItem key={k} value={k}>{ESTADO_MANUAL_LABEL[k]}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground">Para cambiar el estado a mano, primero quita el pareo.</span>
-                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setEditandoMov(mv)}>
+                              <Pencil className="h-3.5 w-3.5 mr-2" />Editar movimiento
+                            </DropdownMenuItem>
+                            {lista.length > 0 && (
+                              <DropdownMenuItem onClick={() => liberarMov(mv)}>
+                                <Link2Off className="h-3.5 w-3.5 mr-2" />Liberar todo
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
 
-                    <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="mt-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
                       {lista.length === 0 ? (
                         <p className="text-xs text-muted-foreground italic">
                           Sin facturas asignadas — suelta aquí una factura…
@@ -1463,104 +1560,76 @@ function TableroProveedor() {
                           />
                         ))
                       )}
-                      {(asignables.length > 0 || facturasParaDividir.length > 0) && (
-                        <Select
-                          onValueChange={(v) => {
-                            const [accion, id] = v.split(":");
-                            if (accion === "dividir") agregarFacturaAOtroMovimiento(id, mv.id);
-                            else moverFactura(id, mv.id);
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs w-64 mt-1">
-                            <SelectValue placeholder="Agregar factura…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {asignables.map((c) => (
-                              <SelectItem key={c.id} value={`mover:${c.id}`}>
-                                {c.numero_factura ?? "s/n"} · {fmtBs(pendienteBsHistorico(c))}
-                              </SelectItem>
-                            ))}
-                            {facturasParaDividir.length > 0 && (
-                              <>
-                                <div className="px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wide">
-                                  Dividir pago (ya asignadas a otro movimiento)
-                                </div>
-                                {facturasParaDividir.map((c) => (
-                                  <SelectItem key={`div-${c.id}`} value={`dividir:${c.id}`}>
-                                    {c.numero_factura ?? "s/n"} · {fmtUsd(pendienteUsdBcv(c))} USD BCV pendiente
-                                  </SelectItem>
-                                ))}
-                              </>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(asignables.length > 0 || facturasParaDividir.length > 0) && (
+                          <Select
+                            onValueChange={(v) => {
+                              const [accion, id] = v.split(":");
+                              if (accion === "dividir") agregarFacturaAOtroMovimiento(id, mv.id);
+                              else moverFactura(id, mv.id);
+                            }}
+                          >
+                            <SelectTrigger className="h-7 text-[11px] w-64">
+                              <SelectValue placeholder="…o agrega una factura aquí" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {asignables.map((c) => (
+                                <SelectItem key={c.id} value={`mover:${c.id}`}>
+                                  {c.numero_factura ?? "s/n"} · {fmtBs(pendienteBsHistorico(c))}
+                                </SelectItem>
+                              ))}
+                              {facturasParaDividir.length > 0 && (
+                                <>
+                                  <div className="px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wide">
+                                    Dividir pago (ya asignadas a otro movimiento)
+                                  </div>
+                                  {facturasParaDividir.map((c) => (
+                                    <SelectItem key={`div-${c.id}`} value={`dividir:${c.id}`}>
+                                      {c.numero_factura ?? "s/n"} · {fmtUsd(pendienteUsdBcv(c))} USD BCV pendiente
+                                    </SelectItem>
+                                  ))}
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {lista.length === 0 ? (
+                          <Select
+                            value={estadoManualDeMov(mv.id) ?? "auto"}
+                            onValueChange={(v) => cambiarEstadoManual(mv.id, v === "auto" ? null : (v as EstadoManual))}
+                          >
+                            <SelectTrigger className="h-7 w-[190px] text-[11px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">Automático (sugerido)</SelectItem>
+                              {(Object.keys(ESTADO_MANUAL_LABEL) as EstadoManual[]).map((k) => (
+                                <SelectItem key={k} value={k}>{ESTADO_MANUAL_LABEL[k]}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Select
+                            value={mv.tercero_id ?? "none"}
+                            onValueChange={(v) => cambiarProveedorMov(mv.id, v === "none" ? null : v)}
+                          >
+                            <SelectTrigger className="w-44 h-7 text-[11px]"><SelectValue placeholder="Proveedor" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sin proveedor</SelectItem>
+                              {(terceros ?? []).map((t) => (
+                                <SelectItem key={t.id} value={t.id}>{t.nombre_comercial || t.razon_social}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
                     </div>
                   </Zona>
                 );
               })}
             </CardContent>
           </Card>
-
-          <Card id="bandeja-facturas">
-            <CardHeader className="pb-2 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-lg">
-                  Facturas sin movimiento <Badge variant="destructive">{facturasSinMov.length}</Badge>
-                </CardTitle>
-              </div>
-              {isAdmin && selCierre.length > 0 && (
-                <div className="flex items-center gap-2 text-xs bg-muted/50 rounded-md px-2 py-1.5">
-                  <span>{selCierre.length} factura(s) seleccionada(s)</span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-7"
-                    onClick={() => abrirCierre(facturasSinMov.filter((c) => selCierre.includes(c.id)))}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar seleccionadas como pagadas (sin movimiento)
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setSelCierre([])}>
-                    Cancelar selección
-                  </Button>
-                </div>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Zona id={BANDEJA} className="space-y-3 min-h-24 border border-dashed rounded-md p-2">
-                  <div className="space-y-2">
-                    <p className="text-sm font-bold text-sky-600 uppercase tracking-wide flex items-center gap-1.5">
-                      <ListChecks className="h-4 w-4" />Por asignar ({facturasPendientesNormales.length})
-                    </p>
-                    {facturasPendientesNormales.length === 0 && (
-                      <p className="text-xs text-muted-foreground">Todas las facturas tienen movimiento asignado.</p>
-                    )}
-                    {facturasPendientesNormales.map((c) => renderFacturaFila(c))}
-                  </div>
-
-                  <div className="space-y-2 pt-2 border-t">
-                    <p className="text-sm font-bold text-amber-600 uppercase tracking-wide flex items-center gap-1.5">
-                      <Clock className="h-4 w-4" />En espera de movimiento ({facturasEnEspera.length})
-                    </p>
-                    {facturasEnEspera.length === 0 && (
-                      <p className="text-xs text-muted-foreground">No hay facturas marcadas en espera de movimiento.</p>
-                    )}
-                    {facturasEnEspera.map((c) => renderFacturaFila(c))}
-                  </div>
-
-                  {facturasConRemanente.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t">
-                      <p className="text-sm font-bold text-orange-600 uppercase tracking-wide flex items-center gap-1.5">
-                        <Scissors className="h-4 w-4" />Remanente de pago parcial ({facturasConRemanente.length})
-                      </p>
-                      {facturasConRemanente.map(({ cxp: c, remanenteUsd }) => renderFacturaRemanente(c, remanenteUsd))}
-                    </div>
-                  )}
-                </Zona>
-            </CardContent>
-          </Card>
         </div>
 
+        {/* Ya conciliado / archivado — colapsado por defecto, para que no ocupe espacio todo el tiempo. */}
         <Card id="pagadas-sin-movimiento" className="mt-4">
           <CardHeader
             className="pb-2 cursor-pointer select-none"
@@ -1568,52 +1637,101 @@ function TableroProveedor() {
           >
             <CardTitle className="text-lg flex items-center gap-1.5">
               {pagadasAbierto ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-              Pagadas sin movimiento <Badge variant="secondary">{facturasCerradasManual.length}</Badge>
+              Ya conciliado / archivado <Badge variant="secondary">{movsResueltos.length + facturasCerradasManual.length}</Badge>
             </CardTitle>
-            {!pagadasAbierto && facturasCerradasManual.length > 0 && (
+            {!pagadasAbierto && (movsResueltos.length + facturasCerradasManual.length) > 0 && (
               <p className="text-[11px] text-muted-foreground pl-5">
-                {fmtUsd(totalUsdBcvCierreManual)} en total — clic para ver el detalle.
+                {movsResueltos.length} movimiento(s) pareado(s) · {fmtUsd(totalUsdBcvCierreManual)} pagado(s) sin movimiento — clic para ver el detalle.
               </p>
             )}
           </CardHeader>
           {pagadasAbierto && (
-            <CardContent className="space-y-2">
-              <p className="text-[11px] text-muted-foreground">
-                Arrastra una factura de aquí hacia "Facturas sin movimiento" o hacia un movimiento para actualizar su estado.
-              </p>
-              {facturasCerradasManual.length === 0 && (
-                <p className="text-xs text-muted-foreground">No hay facturas cerradas a mano.</p>
-              )}
-              {facturasCerradasManual.map((c) => (
-                <div key={c.id} className="space-y-1">
-                  <FacturaChip
-                    cxp={c}
-                    emision={emisionDeCxp(c)}
-                    disabled={busy || !isAdmin}
-                    onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{cierreManualInfo(c)}</span>
-                    {isAdmin && (
-                      <>
-                        <Select onValueChange={(v) => moverFacturaCerradaAMovimiento(c, v)}>
-                          <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Asignar a movimiento…" /></SelectTrigger>
-                          <SelectContent>
-                            {movsDelProveedor.map((mv) => (
-                              <SelectItem key={mv.id} value={mv.id}>
-                                {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button size="sm" variant="ghost" className="h-7" disabled={busy} onClick={() => deshacerCierre(c)}>
-                          <RotateCcw className="h-3.5 w-3.5 mr-1" />Deshacer cierre manual
-                        </Button>
-                      </>
-                    )}
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
+                  Movimientos pareados ({movsResueltos.length})
+                </p>
+                {movsResueltos.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No hay movimientos completamente pareados todavía.</p>
+                )}
+                {movsResueltos.map((mv) => {
+                  const { lista, montoMov, aplicadoPorCxp } = resumenMov(mv);
+                  return (
+                    <div key={mv.id} className="border rounded-md p-2.5 space-y-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-xs">
+                          <span className="font-medium">{fmtDate(mv.fecha)}</span>{" "}
+                          <span className="text-muted-foreground">{bancoDeReferencia(mv.referencia) || "banco"}</span>{" "}
+                          <span className="mono">{fmtBs(montoMov)}</span>{" "}
+                          <span className="mono text-muted-foreground">{fmtUsd(usdBcvDeMov(mv))} USD BCV</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => liberarMov(mv)} disabled={busy}>
+                            <Link2Off className="h-3 w-3 mr-1" />Liberar
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => setEditandoMov(mv)}>
+                            <Pencil className="h-3 w-3 mr-1" />Editar
+                          </Button>
+                        </div>
+                      </div>
+                      {lista.map((c) => (
+                        <FacturaChip
+                          key={c.id}
+                          cxp={c}
+                          emision={emisionDeCxp(c)}
+                          aplicadoBs={aplicadoPorCxp.get(c.id)}
+                          disabled={busy}
+                          onQuitar={() => moverFactura(c.id, null)}
+                          onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
+                          movimientosCount={movimientosPorFactura.get(c.id)}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
+                  Pagadas sin movimiento ({facturasCerradasManual.length})
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Arrastra una factura de aquí hacia "Facturas sin resolver" o hacia un movimiento para actualizar su estado.
+                </p>
+                {facturasCerradasManual.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No hay facturas cerradas a mano.</p>
+                )}
+                {facturasCerradasManual.map((c) => (
+                  <div key={c.id} className="space-y-1">
+                    <FacturaChip
+                      cxp={c}
+                      emision={emisionDeCxp(c)}
+                      disabled={busy || !isAdmin}
+                      onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground flex-1 min-w-0 truncate">{cierreManualInfo(c)}</span>
+                      {isAdmin && (
+                        <>
+                          <Select onValueChange={(v) => moverFacturaCerradaAMovimiento(c, v)}>
+                            <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Asignar a movimiento…" /></SelectTrigger>
+                            <SelectContent>
+                              {movsDelProveedor.map((mv) => (
+                                <SelectItem key={mv.id} value={mv.id}>
+                                  {fmtDate(mv.fecha)} · {fmtBs(Math.abs(Number(mv.monto_bs) || 0))}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button size="sm" variant="ghost" className="h-7" disabled={busy} onClick={() => deshacerCierre(c)}>
+                            <RotateCcw className="h-3.5 w-3.5 mr-1" />Deshacer cierre manual
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </CardContent>
           )}
         </Card>
