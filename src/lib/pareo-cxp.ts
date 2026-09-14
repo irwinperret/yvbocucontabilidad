@@ -361,7 +361,7 @@ function usdBcvDelPago(mov: any): number {
 }
 
 /** Devuelve saldo a una CxP (al liberar un pago). */
-async function restaurarCxp(c: any, usdRestaurar: number) {
+export async function restaurarCxp(c: any, usdRestaurar: number) {
   const totalUsd = Number(c?.usd_bcv_factura ?? c?.monto_usd ?? 0) || 0;
   const pend = Number(c?.monto_pendiente_usd_bcv ?? 0) || 0;
   const nuevoUsd = +Math.min(totalUsd || pend + usdRestaurar, pend + usdRestaurar).toFixed(2);

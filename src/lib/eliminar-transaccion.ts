@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
+import { CUENTA_PAGO_CXP, restaurarCxp } from "@/lib/pareo-cxp";
 
 export type TxRef = {
   id: string;
@@ -24,10 +25,22 @@ export type CxpRef = {
   monto_usd: number;
 };
 
+/**
+ * CxP cuyo saldo hay que RESTITUIR (no borrar) porque lo que se está
+ * eliminando es un PAGO (transacción 8.2), no la factura original. La
+ * factura sigue viva; solo se "des-paga" el monto que este pago aplicó.
+ */
+export type CxpRevertRef = {
+  id: string;
+  proveedor: string;
+  usdAplicado: number;
+};
+
 export type DeletePlan = {
   transacciones: TxRef[];
   cxc: CxcRef[];
   cxp: CxpRef[];
+  cxpARevertir: CxpRevertRef[];
   propinasCount: number;
   conciliacionCount: number;
   bloqueoMesCerrado: string | null;
@@ -51,6 +64,7 @@ export async function analizarBorradoTransaccion(t: any): Promise<DeletePlan> {
     ],
     cxc: [],
     cxp: [],
+    cxpARevertir: [],
     propinasCount: 0,
     conciliacionCount: 0,
     bloqueoMesCerrado: null,
@@ -138,6 +152,62 @@ export async function analizarBorradoTransaccion(t: any): Promise<DeletePlan> {
     for (const h of hermanos ?? []) addTx(h, "mismo grupo");
   }
 
+  // 5b) Pagos de CxP (8.2) entre las transacciones a eliminar. A diferencia
+  // de borrar la factura original (paso 2, donde sí corresponde borrar su
+  // CxP entera), borrar solo el PAGO no debe borrar la deuda — hay que
+  // restituirle el saldo que ese pago había aplicado. `cuentas_por_pagar
+  // .transaccion_id` siempre apunta a la transacción de COMPRA (2.1), nunca
+  // a la del pago, así que la factura se ubica por el grupo_transaccion_id
+  // compartido. Si no se puede ubicar (vínculo roto / pago suelto), no se
+  // adivina — se avisa para que se revise a mano en vez de corromper otra CxP.
+  const cxpYaCubiertas = new Set(plan.cxp.map((c) => c.id));
+  for (const tx of plan.transacciones) {
+    if (tx.cuenta_codigo !== CUENTA_PAGO_CXP) continue;
+    const { data: full } = await supabase
+      .from("transacciones")
+      .select("id, grupo_transaccion_id, monto_bs, tasa_bcv, notas")
+      .eq("id", tx.id)
+      .maybeSingle();
+    const grupoId = full?.grupo_transaccion_id ?? null;
+
+    let candidatos: string[] = [];
+    if (grupoId) {
+      const { data: hermanosGrupo } = await supabase
+        .from("transacciones")
+        .select("id")
+        .eq("grupo_transaccion_id", grupoId);
+      candidatos = (hermanosGrupo ?? []).map((h: any) => h.id).filter((id: string) => id !== tx.id);
+    }
+
+    let cxpMatches: any[] = [];
+    if (candidatos.length) {
+      const { data } = await supabase
+        .from("cuentas_por_pagar")
+        .select("*")
+        .in("transaccion_id", candidatos);
+      cxpMatches = data ?? [];
+    }
+
+    if (cxpMatches.length === 1 && !cxpYaCubiertas.has(cxpMatches[0].id)) {
+      const cxpRow = cxpMatches[0];
+      const tasa = Number(full?.tasa_bcv) || 0;
+      const monto = Number(full?.monto_bs) || 0;
+      const usdAplicado = tasa > 0 ? +(monto / tasa).toFixed(2) : 0;
+      if (usdAplicado > 0.01) {
+        plan.cxpARevertir.push({ id: cxpRow.id, proveedor: cxpRow.proveedor ?? "—", usdAplicado });
+        cxpYaCubiertas.add(cxpRow.id);
+      }
+    } else if (cxpMatches.length > 1) {
+      plan.advertencias.push(
+        `La transacción "${full?.notas ?? tx.notas ?? tx.id}" (pago de CxP) tiene más de una cuenta por pagar candidata en su grupo — no se revirtió ninguna automáticamente. Revisa el saldo del proveedor manualmente después de borrar.`,
+      );
+    } else if (cxpMatches.length === 0) {
+      plan.advertencias.push(
+        `La transacción "${full?.notas ?? tx.notas ?? tx.id}" es un pago de cuenta por pagar (8.2) pero no se pudo ubicar automáticamente su factura (posible vínculo roto). Se eliminará sin revertir ninguna CxP — revisa el saldo del proveedor manualmente después de borrar.`,
+      );
+    }
+  }
+
   // 6) Propinas vinculadas a cualquier transacción del plan
   const ids = plan.transacciones.map((x) => x.id);
   if (ids.length) {
@@ -222,6 +292,24 @@ export async function ejecutarBorradoTransaccion(plan: DeletePlan): Promise<{ ok
       .delete()
       .in("id", plan.cxp.map((c) => c.id));
     if (error) return { ok: false, error: `Error eliminando CxP: ${error.message}` };
+  }
+
+  // 2b) CxP a revertir: se está borrando un PAGO (8.2), no la factura — se
+  // restituye el saldo que ese pago había aplicado en vez de borrar la CxP.
+  for (const c of plan.cxpARevertir) {
+    const { data: cxpFresh } = await supabase.from("cuentas_por_pagar").select("*").eq("id", c.id).maybeSingle();
+    if (!cxpFresh) continue;
+    const antes = {
+      estado: cxpFresh.estado,
+      monto_pendiente_bs: cxpFresh.monto_pendiente_bs,
+      monto_pendiente_usd_bcv: cxpFresh.monto_pendiente_usd_bcv,
+      pagada_at: cxpFresh.pagada_at,
+    };
+    await restaurarCxp(cxpFresh, c.usdAplicado);
+    await logAudit("cuentas_por_pagar", "UPDATE", c.id, antes, {
+      ...antes,
+      _nota: `Revertido $${c.usdAplicado.toFixed(2)} USD BCV por borrado de pago`,
+    });
   }
 
   // 3) Propinas

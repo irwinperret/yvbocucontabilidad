@@ -55,6 +55,7 @@ export function EliminarTransaccionDialog({ open, transaccion, onClose, onDelete
     const extras: string[] = [];
     if (plan.cxc.length) extras.push(`${plan.cxc.length} CxC`);
     if (plan.cxp.length) extras.push(`${plan.cxp.length} CxP`);
+    if (plan.cxpARevertir.length) extras.push(`${plan.cxpARevertir.length} CxP revertida(s)`);
     if (plan.propinasCount) extras.push(`${plan.propinasCount} propina(s)`);
     toast.success(
       `${plan.transacciones.length} transacción(es) eliminada(s)${extras.length ? " + " + extras.join(", ") : ""}`,
@@ -117,6 +118,28 @@ export function EliminarTransaccionDialog({ open, transaccion, onClose, onDelete
                       ))}
                       <div className="mt-1 text-xs text-muted-foreground">
                         Se eliminarán también la(s) CxC/CxP relacionadas y, si existe, la transacción contraparte.
+                      </div>
+                    </div>
+                  )}
+
+                  {plan.cxpARevertir.length > 0 && (
+                    <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-foreground">
+                      {plan.cxpARevertir.map((c) => (
+                        <div key={c.id}>
+                          Esto es un <b>pago</b> de la cuenta por pagar de <b>{c.proveedor}</b>. Al eliminarlo se
+                          restituirán <b>{fmtUsd(c.usdAplicado)}</b> a su saldo pendiente (la factura NO se borra).
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {plan.advertencias.length > 0 && (
+                    <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-destructive flex gap-2">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <div className="space-y-1">
+                        {plan.advertencias.map((a, i) => (
+                          <div key={i}>{a}</div>
+                        ))}
                       </div>
                     </div>
                   )}

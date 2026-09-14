@@ -421,9 +421,15 @@ export function PagoModal({ cxp, userId, onClose, onDone }: { cxp: any; userId: 
     if (aplicaciones.length === 0 && total <= 0) return toast.error("Indica un monto a pagar o aplica un anticipo");
     setBusy(true);
 
+    // OJO: NO filtrar por standby aquí. Esto solo lee el grupo_transaccion_id
+    // de la factura original para enlazar el pago con ella — si la factura
+    // quedó en standby, igual hay que heredar su grupo; si se excluye, el
+    // pago nace con un grupo_transaccion_id nuevo y desconectado, y al
+    // borrarlo después no hay forma de encontrar la CxP para revertirla
+    // (la CxP queda "pagada" para siempre, sin rastro del pago).
     const { data: txOrig } = await supabase
       .from("transacciones")
-      .select("cuenta_codigo, centro_costo, grupo_transaccion_id, monto_bs, monto_base_bs, iva_bs").neq("standby", true)
+      .select("cuenta_codigo, centro_costo, grupo_transaccion_id, monto_bs, monto_base_bs, iva_bs")
       .eq("id", cxp.transaccion_id).maybeSingle();
     const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
 
