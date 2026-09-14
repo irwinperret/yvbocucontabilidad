@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
-import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle, Clock, ListChecks, Scissors } from "lucide-react";
+import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, AlertTriangle, Clock, ListChecks, Scissors, ChevronDown, ChevronRight } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { FacturaDetalleDialog } from "@/components/factura-detalle-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
@@ -45,7 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia } from "@/lib/cxp-saldo";
+import { pendienteBsHistorico, pendienteUsdBcv, dentroDeTolerancia, tasaBcvFactura } from "@/lib/cxp-saldo";
 import { bancoDeReferencia } from "@/lib/conciliacion-matching";
 import { CUENTA_CAMBIO } from "@/lib/operaciones-cambio";
 import { marcarEstadoConciliacion, normalizarEstadoManual, ESTADO_MANUAL_LABEL, type EstadoManual } from "@/lib/conciliacion";
@@ -84,6 +84,12 @@ function usdBcvDeMov(mov: any): number {
 
 function usdBcvFactura(c: any): number {
   return Number(c?.usd_bcv_factura ?? c?.monto_usd ?? 0) || 0;
+}
+
+/** Formato corto de una tasa BCV: "Bs 187,42/$". */
+function fmtTasa(n: number): string {
+  if (!(n > 0)) return "—";
+  return "Bs " + new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + "/$";
 }
 
 /** Chip arrastrable de factura. */
@@ -136,6 +142,7 @@ function FacturaChip({
         <span className="text-muted-foreground">emisión {emision ? fmtDate(emision) : "—"}</span>
         <span className="mono">{fmtBs(Number(cxp.monto_bs) || 0)}</span>
         <span className="mono text-muted-foreground">{fmtUsd(usdBcvTotal)} BCV</span>
+        <span className="mono text-[10px] text-primary font-medium">tasa {fmtTasa(tasaBcvFactura(cxp))}</span>
         {typeof aplicadoUsd === "number" && (
           <span className="mono text-muted-foreground">aplicado {fmtUsd(aplicadoUsd)} USD BCV</span>
         )}
@@ -198,6 +205,17 @@ function TableroProveedor() {
   const [focusResumen, setFocusResumen] = useState<null | "movs-sin-factura" | "facturas-sin-mov">(null);
   const [busy, setBusy] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Cabecera consolidada: un solo número de deuda arriba, detalle (las 6
+  // métricas de antes) oculto por defecto para no abrumar la pantalla.
+  const [detalleAbierto, setDetalleAbierto] = useState(false);
+  // "Pagadas sin movimiento" colapsada por defecto — ya no ocupa su propia
+  // columna todo el tiempo, es una sección que se abre cuando hace falta.
+  const [pagadasAbierto, setPagadasAbierto] = useState(false);
+  // Selección múltiple de movimientos sin factura, para marcar varios de una
+  // vez con el mismo estado manual (p. ej. "Sin pareo (revisado)").
+  const [selMovManual, setSelMovManual] = useState<string[]>([]);
+  const [estadoBulk, setEstadoBulk] = useState<EstadoManual>("sin_pareo");
+  const [aplicandoEstadoBulk, setAplicandoEstadoBulk] = useState(false);
   // Cierre manual de facturas (pagadas sin movimiento bancario).
   const [selCierre, setSelCierre] = useState<string[]>([]);
   const [cierreAbierto, setCierreAbierto] = useState<any[] | null>(null);
@@ -707,6 +725,25 @@ function TableroProveedor() {
     await refrescar();
   };
 
+  /** Aplica el mismo estado manual (p. ej. "Sin pareo") a varios movimientos sin factura de una vez. */
+  const aplicarEstadoManualBulk = async () => {
+    if (!selMovManual.length) return;
+    setAplicandoEstadoBulk(true);
+    try {
+      for (const movId of selMovManual) {
+        const r = await marcarEstadoConciliacion({ movimientoId: movId, estado: estadoBulk, userId: user?.id ?? null });
+        if (!r.ok) throw new Error(r.error);
+      }
+      toast.success(`${selMovManual.length} movimiento(s) marcado(s) como ${ESTADO_MANUAL_LABEL[estadoBulk]}`);
+      setSelMovManual([]);
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo aplicar el estado");
+    } finally {
+      setAplicandoEstadoBulk(false);
+    }
+  };
+
   /** Deja el movimiento con exactamente el conjunto de facturas indicado. */
   const aplicarConjunto = async (mov: any, nuevas: any[]) => {
     if (!user) throw new Error("Sesión no disponible");
@@ -1209,50 +1246,69 @@ function TableroProveedor() {
           </Button>
         </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Movimientos</div>
-            <div className="text-lg font-semibold">{movsDelProveedor.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Sin facturas asignadas</div>
-            <div className="text-lg font-semibold">{movsSinFacturas.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Facturas sin movimiento</div>
-            <div className="text-lg font-semibold">{facturasSinMov.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Saldo pendiente de movimientos (USD BCV)</div>
-            <div className="text-lg font-semibold mono">{fmtUsd(totalSinAplicarUsd)}</div>
-          </CardContent>
-        </Card>
-        <Card
-          className={`cursor-pointer transition-colors ${focusResumen === "facturas-sin-mov" ? "ring-2 ring-primary" : ""}`}
-          onClick={() => onResumenClick("facturas-sin-mov")}
-        >
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Facturas sin movimiento (USD BCV)</div>
-            <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvFacturasSinMov)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">Cerradas a mano — sin movimiento (USD BCV)</div>
-            <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvCierreManual)}</div>
-            <div className="text-[10px] text-muted-foreground">{facturasCerradasManual.length} factura(s)</div>
-          </CardContent>
-        </Card>
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-muted-foreground">Deuda real pendiente (facturas sin movimiento, USD BCV)</div>
+            <div className="text-2xl font-bold mono">{fmtUsd(totalUsdBcvFacturasSinMov)}</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-muted-foreground text-right">
+              {movsDelProveedor.length} movimiento(s) · {facturasSinMov.length} factura(s) sin movimiento
+              {facturasCerradasManual.length > 0 && <> · {facturasCerradasManual.length} pagada(s) sin movimiento</>}
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setDetalleAbierto((v) => !v)}>
+              {detalleAbierto ? <ChevronDown className="h-3.5 w-3.5 mr-1" /> : <ChevronRight className="h-3.5 w-3.5 mr-1" />}
+              {detalleAbierto ? "Ocultar detalle" : "Ver detalle"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-      </div>
-
+      {detalleAbierto && (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Movimientos</div>
+              <div className="text-lg font-semibold">{movsDelProveedor.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Sin facturas asignadas</div>
+              <div className="text-lg font-semibold">{movsSinFacturas.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Facturas sin movimiento</div>
+              <div className="text-lg font-semibold">{facturasSinMov.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Saldo pendiente de movimientos (USD BCV)</div>
+              <div className="text-lg font-semibold mono">{fmtUsd(totalSinAplicarUsd)}</div>
+            </CardContent>
+          </Card>
+          <Card
+            className={`cursor-pointer transition-colors ${focusResumen === "facturas-sin-mov" ? "ring-2 ring-primary" : ""}`}
+            onClick={() => onResumenClick("facturas-sin-mov")}
+          >
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Facturas sin movimiento (USD BCV)</div>
+              <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvFacturasSinMov)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Cerradas a mano — sin movimiento (USD BCV)</div>
+              <div className="text-lg font-semibold mono">{fmtUsd(totalUsdBcvCierreManual)}</div>
+              <div className="text-[10px] text-muted-foreground">{facturasCerradasManual.length} factura(s)</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <p className="text-sm text-muted-foreground">
         Arrastra una factura al movimiento bancario que la paga. Un movimiento puede tener varias facturas; arrastra la
@@ -1260,12 +1316,31 @@ function TableroProveedor() {
       </p>
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="grid gap-4 lg:grid-cols-[2fr_1fr_1fr] items-start">
+        <div className="grid gap-4 lg:grid-cols-[2fr_1fr] items-start">
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 space-y-2">
               <CardTitle className="text-lg">
                 Movimientos bancarios <Badge variant="secondary">{movsFiltrados.length}</Badge>
               </CardTitle>
+              {selMovManual.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-xs bg-muted/50 rounded-md px-2 py-1.5">
+                  <span>{selMovManual.length} movimiento(s) seleccionado(s)</span>
+                  <Select value={estadoBulk} onValueChange={(v) => setEstadoBulk(v as EstadoManual)}>
+                    <SelectTrigger className="h-7 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(ESTADO_MANUAL_LABEL) as EstadoManual[]).map((k) => (
+                        <SelectItem key={k} value={k}>{ESTADO_MANUAL_LABEL[k]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="secondary" className="h-7" disabled={aplicandoEstadoBulk} onClick={aplicarEstadoManualBulk}>
+                    Aplicar a seleccionados
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setSelMovManual([])}>
+                    Cancelar selección
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {movsFiltrados.length === 0 && (
@@ -1288,24 +1363,39 @@ function TableroProveedor() {
                 return (
                   <Zona key={mv.id} id={`mov:${mv.id}`} className="border rounded-md p-3 hover:bg-muted/20">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="text-sm">
-                        <span className="font-medium">{fmtDate(mv.fecha)}</span>{" "}
-                        <span className="text-muted-foreground">{bancoDeReferencia(mv.referencia) || "banco"}</span>
-                        <div className="text-xs">
-                          <span className="mono font-medium">{fmtBs(montoMov)}</span>{" "}
-                          <span className="mono text-muted-foreground">{fmtUsd(usdBcvDeMov(mv))} USD BCV</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Aplicado {fmtUsd(aplicadoUsd)} USD BCV ·{" "}
-                          {sinAplicarUsd > 0.01 ? (
-                            <span className="font-bold text-foreground">Sin aplicar {fmtUsd(sinAplicarUsd)} USD BCV</span>
-                          ) : (
-                            <>Sin aplicar {fmtUsd(sinAplicarUsd)} USD BCV</>
-                          )}{" "}
-                          · {lista.length} factura(s)
-                        </div>
-                        <div className="text-xs text-muted-foreground break-words">
-                          {mv.notas ?? mv.detalle ?? ""}
+                      <div className="flex items-start gap-1.5 text-sm">
+                        {lista.length === 0 && (
+                          <Checkbox
+                            className="mt-1"
+                            checked={selMovManual.includes(mv.id)}
+                            onCheckedChange={(v) =>
+                              setSelMovManual((s) => (v ? [...s, mv.id] : s.filter((x) => x !== mv.id)))
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        )}
+                        <div>
+                          <span className="font-medium">{fmtDate(mv.fecha)}</span>{" "}
+                          <span className="text-muted-foreground">{bancoDeReferencia(mv.referencia) || "banco"}</span>
+                          <div className="text-xs">
+                            <span className="mono font-medium">{fmtBs(montoMov)}</span>{" "}
+                            <span className="mono text-muted-foreground">{fmtUsd(usdBcvDeMov(mv))} USD BCV</span>{" "}
+                            <span className="mono text-[10px] text-primary font-medium">tasa {fmtTasa(Number(mv.tasa_bcv) || 0)}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Aplicado {fmtUsd(aplicadoUsd)} USD BCV ·{" "}
+                            {sinAplicarUsd > 0.01 ? (
+                              <span className="font-bold text-foreground">Sin aplicar {fmtUsd(sinAplicarUsd)} USD BCV</span>
+                            ) : (
+                              <>Sin aplicar {fmtUsd(sinAplicarUsd)} USD BCV</>
+                            )}{" "}
+                            · {lista.length} factura(s)
+                          </div>
+                          {(mv.notas ?? mv.detalle) && (
+                            <div className="text-xs font-medium text-foreground/80 break-words mt-0.5">
+                              {mv.notas ?? mv.detalle}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1469,17 +1559,28 @@ function TableroProveedor() {
                 </Zona>
             </CardContent>
           </Card>
+        </div>
 
-          <Card id="pagadas-sin-movimiento">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">
-                Pagadas sin movimiento <Badge variant="secondary">{facturasCerradasManual.length}</Badge>
-              </CardTitle>
+        <Card id="pagadas-sin-movimiento" className="mt-4">
+          <CardHeader
+            className="pb-2 cursor-pointer select-none"
+            onClick={() => setPagadasAbierto((v) => !v)}
+          >
+            <CardTitle className="text-lg flex items-center gap-1.5">
+              {pagadasAbierto ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+              Pagadas sin movimiento <Badge variant="secondary">{facturasCerradasManual.length}</Badge>
+            </CardTitle>
+            {!pagadasAbierto && facturasCerradasManual.length > 0 && (
+              <p className="text-[11px] text-muted-foreground pl-5">
+                {fmtUsd(totalUsdBcvCierreManual)} en total — clic para ver el detalle.
+              </p>
+            )}
+          </CardHeader>
+          {pagadasAbierto && (
+            <CardContent className="space-y-2">
               <p className="text-[11px] text-muted-foreground">
                 Arrastra una factura de aquí hacia "Facturas sin movimiento" o hacia un movimiento para actualizar su estado.
               </p>
-            </CardHeader>
-            <CardContent className="space-y-2">
               {facturasCerradasManual.length === 0 && (
                 <p className="text-xs text-muted-foreground">No hay facturas cerradas a mano.</p>
               )}
@@ -1514,8 +1615,8 @@ function TableroProveedor() {
                 </div>
               ))}
             </CardContent>
-          </Card>
-        </div>
+          )}
+        </Card>
       </DndContext>
       {editandoFactura && (
         <FacturaDetalleDialog
