@@ -9,7 +9,7 @@ import { fmtUsd } from "@/lib/format";
 import { MESES, ordenarPorCodigo } from "@/lib/account-helpers";
 import { useAuth } from "@/lib/auth-context";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
-import { useUsdView, mensualView } from "@/lib/usd-view-context";
+import { useUsdView, mensualView, usdVisual } from "@/lib/usd-view-context";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
 import { NotasResumenMensual } from "@/components/notas-resumen-mensual";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
@@ -111,7 +111,7 @@ function ResumenEjecutivoMensualPage() {
     queryKey: ["rie-mensual-inventario", anio],
     queryFn: async () => {
       const { data, error } = await supabase.from("inventario_snapshots")
-        .select("periodo, tipo, monto_usd")
+        .select("periodo, tipo, monto_usd, monto_bs, tasa_bcv, tasa_paralela")
         .gte("periodo", `${anio}-01`)
         .lte("periodo", `${anio}-12`)
         .eq("tipo", "final")
@@ -121,13 +121,18 @@ function ResumenEjecutivoMensualPage() {
     },
   });
 
+  // Igual que el resto de los montos del resumen: revaluado según el modo
+  // (BCV o paralelo) con usdVisual, no el monto_usd crudo guardado en el
+  // snapshot — antes el gráfico de inventario no se movía al cambiar de modo.
   const serieInventario = useMemo(() => {
-    const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
+    const porPeriodo = new Map(
+      (inventarioSnapshots ?? []).map((s: any) => [s.periodo, usdVisual(s, mode) ?? 0]),
+    );
     return Array.from({ length: mes }, (_, i) => {
       const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
       return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
     });
-  }, [inventarioSnapshots, anio, mes]);
+  }, [inventarioSnapshots, anio, mes, mode]);
 
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 

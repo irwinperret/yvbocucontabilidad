@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fmtUsd } from "@/lib/format";
 import { MESES, ordenarPorCodigo } from "@/lib/account-helpers";
 import { useAuth } from "@/lib/auth-context";
-import { mensualView } from "@/lib/usd-view-context";
+import { mensualView, usdVisual } from "@/lib/usd-view-context";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, ReferenceLine } from "recharts";
 import { Wrench } from "lucide-react";
@@ -108,7 +108,7 @@ function ReporteMensualImprimirPage() {
     queryKey: ["rie-print-inventario", anio],
     queryFn: async () => {
       const { data, error } = await supabase.from("inventario_snapshots")
-        .select("periodo, tipo, monto_usd")
+        .select("periodo, tipo, monto_usd, monto_bs, tasa_bcv, tasa_paralela")
         .gte("periodo", `${anio}-01`)
         .lte("periodo", `${anio}-12`)
         .eq("tipo", "final")
@@ -135,13 +135,18 @@ function ReporteMensualImprimirPage() {
     },
   });
 
+  // Igual que el resto de los montos del reporte: revaluado según el modo
+  // (BCV o paralelo) con usdVisual, no el monto_usd crudo del snapshot —
+  // antes el gráfico de inventario salía igual sin importar el modo elegido.
   const serieInventario = useMemo(() => {
-    const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
+    const porPeriodo = new Map(
+      (inventarioSnapshots ?? []).map((s: any) => [s.periodo, usdVisual(s, mode) ?? 0]),
+    );
     return Array.from({ length: mes }, (_, i) => {
       const periodo = `${anio}-${String(i + 1).padStart(2, "0")}`;
       return { mesLabel: MESES[i].slice(0, 3), inventario: porPeriodo.get(periodo) ?? null };
     });
-  }, [inventarioSnapshots, anio, mes]);
+  }, [inventarioSnapshots, anio, mes, mode]);
 
   const cargando =
     !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !inventarioSnapshots ||
