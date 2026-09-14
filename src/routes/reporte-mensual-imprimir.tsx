@@ -38,6 +38,27 @@ function ConNegritas({ children }: { children: string }) {
   );
 }
 
+/**
+ * Igual que en las tarjetas de "Puntos adicionales" (notas-resumen-mensual.tsx):
+ * **negrita**, *cursiva*, __subrayado__ como marcadores de texto plano. Se
+ * implementa acá en vez de reusar el componente de pantalla (rich-text.tsx)
+ * porque esa pieza depende de estado de edición que no aplica en la vista de
+ * impresión — esto es solo el renderizado de lectura.
+ */
+function TextoConFormato({ children }: { children: string }) {
+  const partes = children.split(/(\*\*.+?\*\*|__.+?__|\*.+?\*)/g);
+  return (
+    <>
+      {partes.map((p, i) => {
+        if (p.startsWith("**") && p.endsWith("**")) return <b key={i}>{p.slice(2, -2)}</b>;
+        if (p.startsWith("__") && p.endsWith("__")) return <u key={i}>{p.slice(2, -2)}</u>;
+        if (p.startsWith("*") && p.endsWith("*")) return <i key={i}>{p.slice(1, -1)}</i>;
+        return <Fragment key={i}>{p}</Fragment>;
+      })}
+    </>
+  );
+}
+
 /** Celda de tabla histórica: "—" para meses sin actividad real (en vez de $0.00). */
 function celdaHistorica(v: number) {
   return Math.abs(v) < 0.005 ? "—" : fmtUsdContable(fmtUsd, v);
@@ -97,6 +118,23 @@ function ReporteMensualImprimirPage() {
     },
   });
 
+  const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
+  // "Puntos adicionales" (notas-resumen-mensual.tsx): el PDF no los incluía
+  // — se agregan acá para que "Imprimir / PDF" saque lo mismo que se ve en
+  // pantalla.
+  const { data: puntosAdicionales } = useQuery({
+    queryKey: ["rie-print-notas", periodo],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from as any)("resumen_mensual_notas")
+        .select("id, texto, orden, created_at")
+        .eq("periodo", periodo)
+        .order("orden", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as { id: string; texto: string }[];
+    },
+  });
+
   const serieInventario = useMemo(() => {
     const porPeriodo = new Map((inventarioSnapshots ?? []).map((s: any) => [s.periodo, Number(s.monto_usd) || 0]));
     return Array.from({ length: mes }, (_, i) => {
@@ -105,7 +143,9 @@ function ReporteMensualImprimirPage() {
     });
   }, [inventarioSnapshots, anio, mes]);
 
-  const cargando = !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !inventarioSnapshots;
+  const cargando =
+    !cuentas || !rowsAnio || !rowsPrev || !cogsEstimadoPorMes || !cogsEstimadoPrev || !inventarioSnapshots ||
+    !puntosAdicionales;
 
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
@@ -317,6 +357,23 @@ function ReporteMensualImprimirPage() {
           )}
         </div>
       </section>
+
+      {/* 4b. Puntos adicionales — mismos puntos manuales que se ven en pantalla
+          debajo del resumen (notas-resumen-mensual.tsx), ausentes del PDF hasta
+          ahora. Se omite la sección entera si el mes no tiene ninguno cargado. */}
+      {puntosAdicionales.length > 0 && (
+        <section className="rounded-md border p-3 mb-3" style={{ backgroundColor: "#F7F8FA", borderColor: "#E2E5EA", breakInside: "avoid" }}>
+          <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Puntos adicionales</p>
+          <div className="space-y-1">
+            {puntosAdicionales.map((n) => (
+              <div key={n.id} className="flex items-start gap-1.5 text-[13px] leading-relaxed">
+                <span className="text-gray-400 mt-0.5">●</span>
+                <p className="flex-1 whitespace-pre-wrap"><TextoConFormato>{n.texto}</TextoConFormato></p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 5. Desglose mensual histórico — Enero al mes de corte */}
       <section className="mb-3">
