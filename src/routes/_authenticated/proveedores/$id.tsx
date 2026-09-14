@@ -1375,65 +1375,6 @@ function TableroProveedor() {
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
         <div className="grid gap-4 lg:grid-cols-2 items-start">
-          {/* Columna: facturas que todavía necesitan un movimiento (o les falta remanente por cubrir). */}
-          <Card id="bandeja-facturas">
-            <CardHeader className="pb-2 space-y-2">
-              <CardTitle className="text-lg">
-                Facturas sin resolver <Badge variant="destructive">{facturasParaTablero.length}</Badge>
-              </CardTitle>
-              {isAdmin && selCierre.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 text-xs bg-muted/50 rounded-md px-2 py-1.5">
-                  <span>{selCierre.length} factura(s) seleccionada(s)</span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-7"
-                    onClick={() => abrirCierre(facturasSinMov.filter((c) => selCierre.includes(c.id)))}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como pagadas (sin movimiento)
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setSelCierre([])}>
-                    Cancelar selección
-                  </Button>
-                </div>
-              )}
-            </CardHeader>
-            <CardContent>
-              <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-lg p-2">
-                {facturasParaTablero.length === 0 && (
-                  <p className="text-xs text-muted-foreground p-2">Todas las facturas tienen movimiento asignado.</p>
-                )}
-                {facturasParaTablero.map(({ cxp: c, remanenteUsd }) => (
-                  <FacturaBoardCard
-                    key={c.id}
-                    cxp={c}
-                    emision={emisionDeCxp(c)}
-                    remanenteUsd={remanenteUsd}
-                    disabled={busy}
-                    isAdmin={isAdmin}
-                    checked={selCierre.includes(c.id)}
-                    onToggleCheck={(v) => setSelCierre((s) => (v ? [...s, c.id] : s.filter((x) => x !== c.id)))}
-                    onMarkPaid={() => abrirCierre([c])}
-                    onToggleEspera={() => toggleEnEspera(c)}
-                    movimientosCount={movimientosPorFactura.get(c.id)}
-                    onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
-                    puedeEditarFacturas={puedeEditarFacturas}
-                    movsDisponibles={
-                      typeof remanenteUsd === "number"
-                        ? movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).some((x) => x.id === c.id))
-                        : movsDelProveedor
-                    }
-                    onAsignar={(movId) =>
-                      typeof remanenteUsd === "number" ? agregarFacturaAOtroMovimiento(c.id, movId) : moverFactura(c.id, movId)
-                    }
-                    terceros={terceros ?? []}
-                    onCambiarProveedor={(nuevo) => cambiarProveedorFactura(c, nuevo)}
-                  />
-                ))}
-              </Zona>
-            </CardContent>
-          </Card>
-
           {/* Columna: movimientos sin factura, o con saldo sin aplicar. */}
           <Card>
             <CardHeader className="pb-2 space-y-2">
@@ -1625,6 +1566,65 @@ function TableroProveedor() {
                   </Zona>
                 );
               })}
+            </CardContent>
+          </Card>
+
+          {/* Columna: facturas que todavía necesitan un movimiento (o les falta remanente por cubrir). */}
+          <Card id="bandeja-facturas">
+            <CardHeader className="pb-2 space-y-2">
+              <CardTitle className="text-lg">
+                Facturas sin resolver <Badge variant="destructive">{facturasParaTablero.length}</Badge>
+              </CardTitle>
+              {isAdmin && selCierre.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-xs bg-muted/50 rounded-md px-2 py-1.5">
+                  <span>{selCierre.length} factura(s) seleccionada(s)</span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7"
+                    onClick={() => abrirCierre(facturasSinMov.filter((c) => selCierre.includes(c.id)))}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como pagadas (sin movimiento)
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setSelCierre([])}>
+                    Cancelar selección
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              <Zona id={BANDEJA} className="space-y-2 min-h-24 border border-dashed rounded-lg p-2">
+                {facturasParaTablero.length === 0 && (
+                  <p className="text-xs text-muted-foreground p-2">Todas las facturas tienen movimiento asignado.</p>
+                )}
+                {facturasParaTablero.map(({ cxp: c, remanenteUsd }) => (
+                  <FacturaBoardCard
+                    key={c.id}
+                    cxp={c}
+                    emision={emisionDeCxp(c)}
+                    remanenteUsd={remanenteUsd}
+                    disabled={busy}
+                    isAdmin={isAdmin}
+                    checked={selCierre.includes(c.id)}
+                    onToggleCheck={(v) => setSelCierre((s) => (v ? [...s, c.id] : s.filter((x) => x !== c.id)))}
+                    onMarkPaid={() => abrirCierre([c])}
+                    onToggleEspera={() => toggleEnEspera(c)}
+                    movimientosCount={movimientosPorFactura.get(c.id)}
+                    onEditar={puedeEditarFacturas ? () => setEditandoFactura(c) : undefined}
+                    puedeEditarFacturas={puedeEditarFacturas}
+                    movsDisponibles={
+                      typeof remanenteUsd === "number"
+                        ? movsDelProveedor.filter((mv) => !cxpsDeMov(mv.id).some((x) => x.id === c.id))
+                        : movsDelProveedor
+                    }
+                    onAsignar={(movId) =>
+                      typeof remanenteUsd === "number" ? agregarFacturaAOtroMovimiento(c.id, movId) : moverFactura(c.id, movId)
+                    }
+                    terceros={terceros ?? []}
+                    onCambiarProveedor={(nuevo) => cambiarProveedorFactura(c, nuevo)}
+                  />
+                ))}
+              </Zona>
             </CardContent>
           </Card>
         </div>
