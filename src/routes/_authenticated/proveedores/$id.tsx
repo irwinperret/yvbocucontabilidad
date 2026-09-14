@@ -495,7 +495,7 @@ function TableroProveedor() {
     qc.invalidateQueries({ queryKey: ["terceros-tablero"] });
   };
 
-  const { data: cxps } = useQuery({
+  const { data: cxpsRaw } = useQuery({
     queryKey: ["tablero-cxp", id],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
@@ -535,11 +535,11 @@ function TableroProveedor() {
   });
 
   const facturaIds = useMemo(
-    () => new Set((cxps ?? []).map((c) => c.transaccion_id).filter(Boolean) as string[]),
-    [cxps],
+    () => new Set((cxpsRaw ?? []).map((c) => c.transaccion_id).filter(Boolean) as string[]),
+    [cxpsRaw],
   );
 
-  /** Transacciones de las facturas (para conocer su grupo contable y su fecha). */
+  /** Transacciones de las facturas (para conocer su grupo contable, fecha y si está en standby). */
   const { data: facturasTx } = useQuery({
     queryKey: ["tablero-facturas-tx", id, [...facturaIds].sort().join(",")],
     enabled: facturaIds.size > 0,
@@ -549,13 +549,34 @@ function TableroProveedor() {
       for (let i = 0; i < ids.length; i += 200) {
         const { data } = await supabase
           .from("transacciones")
-          .select("id, grupo_transaccion_id, fecha")
+          .select("id, grupo_transaccion_id, fecha, standby")
           .in("id", ids.slice(i, i + 200));
         out.push(...(data ?? []));
       }
       return out;
     },
   });
+
+  /**
+   * Facturas cuya transacción original está en standby (el "papelero"
+   * reversible de la app): no deben aparecer en ninguna pestaña de
+   * conciliación por proveedor — igual que ya están ocultas en el buscador
+   * de Transacciones. Si el usuario las restaura desde Standby, vuelven a
+   * aparecer aquí automáticamente.
+   */
+  const facturasEnStandby = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of facturasTx ?? []) {
+      if (t.standby === true) s.add(t.id);
+    }
+    return s;
+  }, [facturasTx]);
+
+  /** CxP visibles en este tablero: se excluyen las que están en standby. */
+  const cxps = useMemo(
+    () => (cxpsRaw ?? []).filter((c) => !c.transaccion_id || !facturasEnStandby.has(c.transaccion_id)),
+    [cxpsRaw, facturasEnStandby],
+  );
 
   /** grupo_transaccion_id -> transaccion_factura_id */
   const grupoAFactura = useMemo(() => {
