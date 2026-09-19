@@ -1076,7 +1076,22 @@ function TableroProveedor() {
       .eq("id", cxp.id);
     if (error) return toast.error(error.message);
     if (cxp.transaccion_id) {
-      await supabase.from("transacciones").update({ tercero_id: nuevo } as any).eq("id", cxp.transaccion_id);
+      const { data: txPrincipal } = await supabase
+        .from("transacciones")
+        .update({ tercero_id: nuevo } as any)
+        .eq("id", cxp.transaccion_id)
+        .select("grupo_transaccion_id")
+        .maybeSingle();
+      // Si la compra tiene una pierna de IVA (7.4) enlazada por grupo_transaccion_id,
+      // actualizamos también su proveedor para que quede consistente.
+      const grupoId = (txPrincipal as any)?.grupo_transaccion_id;
+      if (grupoId) {
+        await supabase
+          .from("transacciones")
+          .update({ tercero_id: nuevo } as any)
+          .eq("grupo_transaccion_id", grupoId)
+          .eq("cuenta_codigo", "7.4");
+      }
     }
     toast.success("Proveedor de la factura actualizado");
     await refrescar();
