@@ -273,6 +273,14 @@ function ImportarComprasInner() {
         return { status: "fail", motivo: `No hay tasa paralela registrada para ${r.fecha} (proveedor factura en USD paralelo)` };
       }
       const tasaFactura = enParalelo ? tasas.paralela : tasas.bcv;
+      // Para proveedores en USD paralelo, la factura NUNCA tuvo una versión
+      // "a tasa BCV" real: el precio siempre fue en paralelo. Por eso, además
+      // de calcular los bolívares con la tasa paralela (tasaFactura arriba),
+      // también guardamos la tasa paralela en los campos "tasa_bcv"/"tasa_bcv_factura".
+      // Así el monto en USD que se ve en cualquier pantalla (modo BCV o modo
+      // paralelo) es siempre el mismo monto real ($100), en vez de que el modo
+      // BCV recalcule un "USD BCV" inflado y ficticio (bolívares / tasa BCV real).
+      const tasaBcvGuardada = enParalelo ? tasas.paralela : tasas.bcv;
 
       const ivaAplica = r.iva_usd > 0;
       const baseUsd = ivaAplica ? Math.max(0, r.total_usd - r.iva_usd) : r.total_usd;
@@ -301,7 +309,7 @@ function ImportarComprasInner() {
           iva_aplica: false,
           tipo_iva: null,
           monto_usd: usdParalela,
-          tasa_bcv: tasas!.bcv || null,
+          tasa_bcv: tasaBcvGuardada || null,
           tasa_paralela: tasas!.paralela || null,
           metodo_pago: "pendiente" as any,
           tercero_id: terceroId,
@@ -323,7 +331,7 @@ function ImportarComprasInner() {
             modo: offBal ? "off_balance" : "on_balance",
             monto_bs_iva: ivaBs,
             monto_usd_iva: ivaUsdParalela,
-            tasa_bcv: tasas!.bcv || null,
+            tasa_bcv: tasaBcvGuardada || null,
             tasa_paralela: tasas!.paralela || null,
             tercero_id: terceroId,
             numero_factura: r.numero_factura,
@@ -341,7 +349,7 @@ function ImportarComprasInner() {
 
         // Crear CxP pendiente vinculada a la compra 2.1 (solo si es on-balance)
         if (!offBal) {
-          const usdBcvTotal = tasas!.bcv > 0 ? +(totalBs / tasas!.bcv).toFixed(2) : r.total_usd;
+          const usdBcvTotal = tasaBcvGuardada > 0 ? +(totalBs / tasaBcvGuardada).toFixed(2) : r.total_usd;
           const usdParTotal = tasas!.paralela > 0 ? +(totalBs / tasas!.paralela).toFixed(2) : r.total_usd;
           const { error: eCxp } = await supabase.from("cuentas_por_pagar").insert({
             proveedor: r.proveedor,
@@ -354,7 +362,7 @@ function ImportarComprasInner() {
             monto_pendiente_usd_bcv: usdBcvTotal,
             usd_bcv_factura: usdBcvTotal,
             usd_paralelo_factura: usdParTotal,
-            tasa_bcv_factura: tasas!.bcv || null,
+            tasa_bcv_factura: tasaBcvGuardada || null,
             tasa_paralela_factura: tasas!.paralela || null,
             fecha_vencimiento: null,
             estado: "pendiente",
