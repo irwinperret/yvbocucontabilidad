@@ -208,7 +208,7 @@ function ProveedoresPage() {
                 </thead>
                 <tbody>
                   {filtrados.map((t: any) => (
-                    <tr key={t.id} className={`border-b last:border-0 ${t.factura_en_usd_paralelo ? "bg-red-500/10" : ""}`}>
+                    <tr key={t.id} className={`border-b last:border-0 ${t.factura_en_usd_paralelo ? "bg-blue-500/10" : ""}`}>
                       <td className="py-2 px-2">
                         {editandoNombreId === t.id ? (
                           <div className="flex items-center gap-1">
@@ -232,8 +232,8 @@ function ProveedoresPage() {
                               {t.razon_social}
                             </Link>
                             {t.factura_en_usd_paralelo && (
-                              <Badge variant="outline" className="ml-2 text-[10px] text-red-600 border-red-600/40">
-                                Facturas Xetux en USD paralelo (no BCV)
+                              <Badge variant="outline" className="ml-2 text-[10px] text-blue-700 border-blue-600/40 dark:text-blue-400">
+                                Factura en USD paralelo
                               </Badge>
                             )}
                             {t.estado_registro === "candidato" && (
@@ -298,7 +298,7 @@ function ProveedoresPage() {
                       <td className="py-2 px-2 text-right whitespace-nowrap">
                         <Button
                           size="sm"
-                          variant={t.factura_en_usd_paralelo ? "destructive" : "outline"}
+                          variant={t.factura_en_usd_paralelo ? "secondary" : "outline"}
                           className="h-7 px-2 mr-1 text-xs"
                           title="Marca si las facturas Xetux de este proveedor vienen en dólares paralelo en lugar de BCV"
                           onClick={() => toggleParalelo(t)}
