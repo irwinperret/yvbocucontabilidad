@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtDate, fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
-import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, Info, Clock, ChevronDown, ChevronRight, MoreHorizontal, Search, Ban } from "lucide-react";
+import { ArrowLeft, GripVertical, Link2Off, Wand2, Download, Pencil, CheckCircle2, RotateCcw, Clock, ChevronDown, ChevronRight, MoreHorizontal, Search, Ban } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1260,12 +1260,6 @@ function TableroProveedor() {
           <Button size="sm" variant="outline" onClick={abrirRegistro}>Registrar oficialmente</Button>
         )}
       </div>
-      {proveedorActual?.factura_en_usd_paralelo && (
-        <div className="flex items-center gap-2 rounded-md border border-blue-600/30 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-400">
-          <Info className="h-4 w-4 shrink-0" />
-          Este proveedor factura en USD paralelo, no BCV — el sistema ya ajusta los montos automáticamente en todas las pantallas.
-        </div>
-      )}
       {proveedorActual?.estado_registro === "candidato" && registrando && (
         <Card>
           <CardContent className="pt-4 flex flex-wrap items-end gap-3">

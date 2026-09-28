@@ -264,23 +264,10 @@ function ImportarComprasInner() {
         .limit(1);
       const cxpExiste = cxpDup && cxpDup.length > 0 ? cxpDup[0] : null;
 
-      // Proveedores marcados con `factura_en_usd_paralelo`: el monto en dólares
-      // que reporta Xetux es USD paralelo, no USD BCV. Para ellos los bolívares
-      // se calculan con la tasa paralela y el USD BCV queda como derivado.
-      const enParalelo =
-        terceroByRif.get(`${r.tipo_rif}-${r.rif}`)?.factura_en_usd_paralelo === true;
-      if (enParalelo && !tasas.paralela) {
-        return { status: "fail", motivo: `No hay tasa paralela registrada para ${r.fecha} (proveedor factura en USD paralelo)` };
-      }
-      const tasaFactura = enParalelo ? tasas.paralela : tasas.bcv;
-      // Para proveedores en USD paralelo, la factura NUNCA tuvo una versión
-      // "a tasa BCV" real: el precio siempre fue en paralelo. Por eso, además
-      // de calcular los bolívares con la tasa paralela (tasaFactura arriba),
-      // también guardamos la tasa paralela en los campos "tasa_bcv"/"tasa_bcv_factura".
-      // Así el monto en USD que se ve en cualquier pantalla (modo BCV o modo
-      // paralelo) es siempre el mismo monto real ($100), en vez de que el modo
-      // BCV recalcule un "USD BCV" inflado y ficticio (bolívares / tasa BCV real).
-      const tasaBcvGuardada = enParalelo ? tasas.paralela : tasas.bcv;
+      // Todas las facturas se registran igual, en USD BCV — incluidas Di-Vino
+      // e Iregua. Ya no existe una regla especial de "factura en USD paralelo".
+      const tasaFactura = tasas.bcv;
+      const tasaBcvGuardada = tasas.bcv;
 
       const ivaAplica = r.iva_usd > 0;
       const baseUsd = ivaAplica ? Math.max(0, r.total_usd - r.iva_usd) : r.total_usd;
