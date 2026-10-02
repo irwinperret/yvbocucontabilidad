@@ -51,7 +51,21 @@ const MESES_ES: Record<string, string> = {
   noviembre: "11", dic: "12", diciembre: "12",
 };
 
-/** Parse common date formats from Xetux: Date objects, "18-may-2026 0:00:00", "2026-05-18", etc. */
+function diasEnMes(mes: number, anio: number): number {
+  return new Date(anio, mes, 0).getDate();
+}
+
+/** Parse common date formats from Xetux: Date objects, "18-may-2026 0:00:00", "2026-05-18", etc.
+ *
+ * Para fechas puramente numéricas y ambiguas (p.ej. "03/04/2026", sin nombre de
+ * mes) NO se delega en `new Date(s)`: ese parser nativo asume el formato
+ * estadounidense MM/DD/AAAA, lo cual invierte día y mes en silencio para
+ * cualquier archivo bancario venezolano en DD/MM/AAAA. En vez de eso, se
+ * prueban las dos lecturas posibles (día-primero y mes-primero) más abajo:
+ *   - si solo una da un mes 1-12 válido, se usa esa (p.ej. "02-25-2026" solo
+ *     tiene sentido como 25 de febrero, porque "mes 25" no existe);
+ *   - si ambas son válidas (ambigüedad real), se asume día-primero;
+ *   - si ninguna es válida, se cae a `new Date(s)` como último recurso. */
 export function parseDateCell(v: any): string {
   if (v == null || v === "") return "";
   if (v instanceof Date) {
@@ -73,6 +87,26 @@ export function parseDateCell(v: any): string {
     let anio = m[3];
     if (anio.length === 2) anio = "20" + anio;
     if (mes) return `${anio}-${mes}-${dia}`;
+  }
+  const mNum = s.match(/^(\d{1,2})[\-\/](\d{1,2})[\-\/](\d{2,4})\b/);
+  if (mNum) {
+    const a = parseInt(mNum[1], 10);
+    const b = parseInt(mNum[2], 10);
+    let anioStr = mNum[3];
+    if (anioStr.length === 2) anioStr = "20" + anioStr;
+    const anio = parseInt(anioStr, 10);
+    const validoDiaMes = (dia: number, mes: number) =>
+      mes >= 1 && mes <= 12 && dia >= 1 && dia <= diasEnMes(mes, anio);
+    const diaPrimero = validoDiaMes(a, b);   // a = día, b = mes (DD/MM, convención venezolana)
+    const mesPrimero = validoDiaMes(b, a);   // b = día, a = mes (MM/DD, convención EEUU)
+    let dia: number | null = null;
+    let mes2: number | null = null;
+    if (diaPrimero && !mesPrimero) { dia = a; mes2 = b; }
+    else if (mesPrimero && !diaPrimero) { dia = b; mes2 = a; }
+    else if (diaPrimero && mesPrimero) { dia = a; mes2 = b; } // ambiguo → día-primero por defecto
+    if (dia != null && mes2 != null) {
+      return `${anio}-${String(mes2).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+    }
   }
   const d = new Date(s);
   return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);

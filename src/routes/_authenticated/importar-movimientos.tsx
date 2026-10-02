@@ -78,6 +78,13 @@ const requiereCxP = (categoria: string | null | undefined) =>
 type BankRow = {
   id: string;
   fecha: string;
+  /** true si el día-del-mes de `fecha` coincide con el de otras filas cercanas
+   * en el archivo pero en meses distintos — patrón típico de una fecha mal
+   * tecleada o de día/mes invertidos (ver `detectarFechasSospechosas`). */
+  fechaSospechosa?: boolean;
+  /** Fecha alterna (día y mes intercambiados) sugerida cuando `fechaSospechosa`
+   * es true, para que el usuario la compare contra el Excel antes de importar. */
+  fechaAlterna?: string;
   mes: string;
   bancoRaw: string;
   banco: string;
@@ -236,6 +243,43 @@ function ImportarMovimientosInner() {
     return byBank ?? null;
   };
 
+  /** Marca filas cuya fecha podría tener el día y el mes invertidos: si el
+   * día-del-mes de una fila coincide con el de otras filas cercanas (dentro
+   * de VENTANA_FECHA_SOSPECHOSA posiciones en el archivo) pero en meses
+   * distintos al suyo, es sospechosa — los movimientos de un banco suelen
+   * venir casi en orden cronológico, así que ver "el 9" de abril, mayo, julio
+   * y agosto seguidos es más probable que sea un día corrido por error que
+   * una coincidencia real. Solo aplica cuando el día también podría leerse
+   * como mes (1-12): si no, `parseDateCell` ya la resolvió sin ambigüedad.
+   * Es solo una advertencia para la vista previa — nunca se corrige sola, el
+   * usuario decide tras comparar con el Excel. */
+  const VENTANA_FECHA_SOSPECHOSA = 8;
+  const UMBRAL_MESES_DISTINTOS = 2;
+  const detectarFechasSospechosas = (parsed: BankRow[]) => {
+    for (let i = 0; i < parsed.length; i++) {
+      const fecha = parsed[i].fecha;
+      if (!fecha) continue;
+      const dia = Number(fecha.slice(8, 10));
+      const mes = fecha.slice(5, 7);
+      if (dia < 1 || dia > 12) continue;
+      const start = Math.max(0, i - VENTANA_FECHA_SOSPECHOSA);
+      const end = Math.min(parsed.length, i + VENTANA_FECHA_SOSPECHOSA + 1);
+      const mesesConMismoDia = new Set<string>();
+      for (let j = start; j < end; j++) {
+        if (j === i || !parsed[j].fecha) continue;
+        const diaJ = Number(parsed[j].fecha.slice(8, 10));
+        const mesJ = parsed[j].fecha.slice(5, 7);
+        if (diaJ === dia && mesJ !== mes) mesesConMismoDia.add(mesJ);
+      }
+      if (mesesConMismoDia.size >= UMBRAL_MESES_DISTINTOS) {
+        parsed[i].fechaSospechosa = true;
+        const anio = fecha.slice(0, 4);
+        const diaStr = fecha.slice(8, 10);
+        parsed[i].fechaAlterna = `${anio}-${diaStr}-${mes}`;
+      }
+    }
+  };
+
   const extractInvoiceNumbers = (text: string) => {
     const clean = String(text).replace(/[^A-Za-z0-9\-]/g, " ");
     // Common patterns: 001-123456, A12345, INV123, etc.
@@ -346,6 +390,13 @@ function ImportarMovimientosInner() {
           huella: huellaBancaria({ banco, fecha, referencia, monto: Math.abs(monto) }),
         });
 
+      }
+      detectarFechasSospechosas(parsed);
+      const nSospechosas = parsed.filter((r) => r.fechaSospechosa).length;
+      if (nSospechosas > 0) {
+        toast.warning(
+          `${nSospechosas} fecha${nSospechosas === 1 ? "" : "s"} con patrón sospechoso de día/mes invertido — revisa el ícono ⚠ junto a la fecha antes de importar.`
+        );
       }
       setRows(parsed);
 
@@ -1441,7 +1492,19 @@ function ImportarMovimientosInner() {
                           }
                         />
                       </td>
-                      <td className="p-2">{fmtDate(m.bankRow.fecha)}</td>
+                      <td className="p-2">
+                        <div className="flex items-center gap-1">
+                          {fmtDate(m.bankRow.fecha)}
+                          {m.bankRow.fechaSospechosa && (
+                            <span
+                              title={`Patrón sospechoso de día/mes invertido: otras filas cercanas en el archivo usan el mismo día (${m.bankRow.fecha.slice(8, 10)}) en meses distintos. Verifica contra el Excel — si está mal, la fecha correcta sería ${fmtDate(m.bankRow.fechaAlterna ?? "")}.`}
+                              className="text-amber-600 dark:text-amber-400 cursor-help select-none"
+                            >
+                              ⚠
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-2">
                         <div className="font-medium">{m.bankRow.banco}</div>
                         <div className="text-[10px] text-muted-foreground">{m.bankRow.bancoRaw}</div>
