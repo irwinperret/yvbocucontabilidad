@@ -356,6 +356,7 @@ function ResumenEjecutivoMensualPage() {
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="mesLabel" fontSize={11} />
                 <YAxis tickFormatter={(v) => `${v}%`} fontSize={11} width={45} />
+                <ReferenceLine y={0} stroke="#000000" strokeDasharray="4 4" strokeWidth={1} />
                 <Tooltip formatter={(v: number) => `${v}%`} />
                 <Legend />
                 <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls />

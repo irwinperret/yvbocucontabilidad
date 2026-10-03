@@ -312,6 +312,7 @@ function ReporteMensualImprimirPage() {
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="mesLabel" fontSize={10} />
             <YAxis tickFormatter={(v) => `${v}%`} fontSize={10} width={40} />
+            <ReferenceLine y={0} stroke="#000000" strokeDasharray="4 4" strokeWidth={1} />
             <Tooltip formatter={(v: number) => `${v}%`} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
             <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
