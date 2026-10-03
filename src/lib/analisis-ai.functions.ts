@@ -9,8 +9,8 @@ const InputSchema = z.object({
 });
 
 const MODELOS = {
-  rapido: "claude-haiku-4-5-20251001",
-  profundo: "claude-sonnet-5",
+  rapido: "google/gemini-3.7-flash",
+  profundo: "openai/gpt-5.5",
 } as const;
 
 export const generarAnalisisAI = createServerFn({ method: "POST" })
@@ -114,23 +114,23 @@ IMPORTANTE - NO incluyas en tu análisis:
 - NO compares los ingresos de YV vs Bocú ni hagas recomendaciones basadas en la diferencia entre ambas unidades de negocio (por ejemplo: "equilibrar", "cerrar la brecha", "Bocú vende menos que YV", "impulsar Bocú al nivel de YV"). Son unidades de escala y modelo distintos por diseño; trátalas como negocios independientes.
 Estos campos son puramente informativos y no representan señales de problema en este negocio.`;
 
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (!key) throw new Error("Falta ANTHROPIC_API_KEY");
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("Falta LOVABLE_API_KEY");
 
     const model = MODELOS[modelo];
+    const esOpenAI = model.startsWith("openai/");
     const limiteSalida = modelo === "profundo" ? 1200 : 800;
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
+        "Lovable-API-Key": key,
       },
       body: JSON.stringify({
         model,
-        max_tokens: limiteSalida,
         messages: [{ role: "user", content: prompt }],
+        ...(esOpenAI ? { max_completion_tokens: limiteSalida } : { max_tokens: limiteSalida }),
       }),
     });
 
@@ -139,11 +139,11 @@ Estos campos son puramente informativos y no representan señales de problema en
       if (res.status === 429) throw new Error("Límite de uso alcanzado, intenta más tarde.");
       if (res.status === 402) throw new Error("SIN_CREDITOS");
       if (res.status === 403) throw new Error("SIN_CREDITOS");
-      throw new Error(`Anthropic API error ${res.status}: ${text.slice(0, 200)}`);
+      throw new Error(`Gateway error ${res.status}: ${text.slice(0, 200)}`);
     }
 
     const json: any = await res.json();
-    const texto = json?.content?.[0]?.text ?? "";
+    const texto = json?.choices?.[0]?.message?.content ?? "";
 
     return {
       empty: false as const,
