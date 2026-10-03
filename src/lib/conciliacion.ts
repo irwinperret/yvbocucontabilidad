@@ -259,6 +259,67 @@ export function buscarTerceroPorNombre<T extends { nombre: string }>(
   return terceros.find((t) => normalizarNombreCompacto(t.nombre) === clave) ?? null;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Proveedores que la DATA dice que siempre son stand-alone
+// ─────────────────────────────────────────────────────────────
+
+/** Una fila de historial de conciliación de un movimiento bancario ya
+ * importado, usada para "aprender" el patrón de un proveedor. */
+export type HistorialConciliacion = {
+  tercero_id: string | null;
+  estado: string | null;
+  transaccion_factura_id: string | null;
+};
+
+/** Mínimo de movimientos confirmados como "gasto directo" que debe tener un
+ * proveedor antes de confiar en el patrón — una sola vez no basta. */
+export const UMBRAL_HISTORICO_STAND_ALONE = 2;
+
+/**
+ * A partir del historial de conciliación bancaria (todas las filas con
+ * tercero_id de `transacciones` cruzadas con su estado en
+ * `conciliacion_bancaria`), calcula qué proveedores SIEMPRE han terminado
+ * como "Gasto Stand-Alone (sin factura)" — nunca se han pareado con una
+ * factura real y, de los movimientos que sí llegaron a revisarse, el 100%
+ * quedó marcado gasto_directo (ni uno quedó como sin_pareo/pendiente, que
+ * sería señal de que alguna vez SÍ se esperó pareo con factura).
+ *
+ * Esto reemplaza tener que mantener a mano NOMBRES_GASTO_DIRECTO_FORZADO
+ * para cada proveedor nuevo: el sistema aprende el patrón de la data real en
+ * vez de depender de que alguien lo agregue al código. NOMBRES_GASTO_DIRECTO_FORZADO
+ * se conserva como respaldo para casos nuevos que todavía no acumulan
+ * suficiente historial, o para forzar un caso puntual sin esperar a que se
+ * acumule.
+ */
+export function calcularProveedoresSiempreStandAlone(
+  historial: HistorialConciliacion[],
+  umbral: number = UMBRAL_HISTORICO_STAND_ALONE,
+): Set<string> {
+  type Agregado = { gastoDirecto: number; pareadoAFactura: number; otroEstado: number };
+  const porProveedor = new Map<string, Agregado>();
+  for (const h of historial) {
+    if (!h.tercero_id) continue;
+    const agg = porProveedor.get(h.tercero_id) ?? { gastoDirecto: 0, pareadoAFactura: 0, otroEstado: 0 };
+    if (h.transaccion_factura_id) {
+      agg.pareadoAFactura++;
+    } else if (h.estado === "gasto_directo") {
+      agg.gastoDirecto++;
+    } else if (h.estado) {
+      // sin_pareo, pendiente_revision, no_contable, etc.: alguna vez se marcó
+      // algo distinto de "gasto directo" — no se asume el patrón.
+      agg.otroEstado++;
+    }
+    porProveedor.set(h.tercero_id, agg);
+  }
+  const resultado = new Set<string>();
+  for (const [terceroId, agg] of porProveedor) {
+    if (agg.pareadoAFactura === 0 && agg.otroEstado === 0 && agg.gastoDirecto >= umbral) {
+      resultado.add(terceroId);
+    }
+  }
+  return resultado;
+}
+
 /** ¿Esta cuenta nunca va a tener una factura comercial asociada? */
 export function cuentaSinFactura(codigo?: string | null): boolean {
   const c = String(codigo ?? "").trim();

@@ -28,6 +28,7 @@ import {
   memoEsGastoDirectoForzado,
   proveedorAliasDeMemo,
   buscarTerceroPorNombre,
+  calcularProveedoresSiempreStandAlone,
   monedaBase,
   limpiarReferencia,
   marcarEstadoConciliacion,
@@ -877,6 +878,28 @@ function ImportarMovimientosInner() {
     // que ser un gasto genuinamente sin soporte.
     const { data: cxpProveedores } = await supabase.from("cuentas_por_pagar").select("tercero_id").not("tercero_id", "is", null);
     const proveedoresConFactura = new Set((cxpProveedores ?? []).map((c: any) => c.tercero_id));
+
+    // Proveedores que, según la DATA (no una lista a mano), SIEMPRE han
+    // terminado como "Gasto Stand-Alone (sin factura)": se aprende del
+    // historial real de conciliación en vez de depender de mantener
+    // NOMBRES_GASTO_DIRECTO_FORZADO al día cada vez que aparece un proveedor
+    // nuevo con ese mismo patrón. Ver calcularProveedoresSiempreStandAlone.
+    const { fetchAllRows: fetchAllRowsHistorial } = await import("@/lib/fetch-all");
+    const [bankTxConProveedor, estadosConciliacion] = await Promise.all([
+      fetchAllRowsHistorial<any>((from, to) =>
+        supabase.from("transacciones").select("id, tercero_id").not("tercero_id", "is", null).like("referencia", "BANK:%").range(from, to),
+      ),
+      fetchAllRowsHistorial<any>((from, to) =>
+        (supabase.from as any)("conciliacion_bancaria").select("transaccion_bancaria_id, estado, transaccion_factura_id").range(from, to),
+      ),
+    ]);
+    const estadoPorTx = new Map((estadosConciliacion ?? []).map((e: any) => [e.transaccion_bancaria_id, e]));
+    const historialConciliacion = (bankTxConProveedor ?? []).map((t: any) => {
+      const e = estadoPorTx.get(t.id);
+      return { tercero_id: t.tercero_id, estado: e?.estado ?? null, transaccion_factura_id: e?.transaccion_factura_id ?? null };
+    });
+    const proveedoresSiempreStandAlone = calcularProveedoresSiempreStandAlone(historialConciliacion);
+
     const facturaDeMemo = (texto: string) => {
       const t = String(texto ?? "").toUpperCase();
       // Con la palabra explícita de factura: separador flexible, número desde 1 dígito/letra.
@@ -1121,7 +1144,11 @@ function ImportarMovimientosInner() {
           // siempre se marcan como gasto directo, incluso si ya tienen
           // facturas/CxP registradas o la cuenta no está en la lista automática.
           const esGastoDirectoForzado = memoEsGastoDirectoForzado(bankRow.concepto);
-          if (tx && (esGastoDirectoForzado || (!proveedorTieneFacturas && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)))) {
+          // Igual que esGastoDirectoForzado, pero aprendido de la data: este
+          // proveedor nunca se ha pareado con una factura real y todo su
+          // historial confirmado quedó como gasto directo.
+          const esProveedorSiempreStandAlone = !!provAdivinado && proveedoresSiempreStandAlone.has(provAdivinado.id);
+          if (tx && (esGastoDirectoForzado || esProveedorSiempreStandAlone || (!proveedorTieneFacturas && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)))) {
             await marcarEstadoConciliacion({
               movimientoId: (tx as any).id,
               estado: esCuentaNoConciliable(m.cuentaCodigo) ? "no_contable" : "gasto_directo",
