@@ -13,11 +13,13 @@ import { useUsdView } from "@/lib/usd-view-context";
 import {
   Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
 } from "recharts";
-import { TrendingUp, SlidersHorizontal, Receipt, Wallet } from "lucide-react";
+import { TrendingUp, SlidersHorizontal, Receipt, Wallet, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   construirSerieIngresos, construirDesgloseIngresos, calcularTotalesIngresosMes,
   type RowIngresoRaw, type CuentaIngreso,
 } from "@/lib/ingresos-detalle-calc";
+import { exportIngresosDetalle } from "@/lib/export-ingresos";
 
 export const Route = createFileRoute("/_authenticated/ingresos-detalle")({
   component: IngresosDetallePage,
@@ -159,7 +161,7 @@ function IngresosDetallePage() {
       return await fetchAllRows<RowIngresoRaw>(async (from, to) =>
         await (supabase as any)
           .from("transacciones")
-          .select("fecha,cuenta_codigo,modo,referencia,notas,monto_bs,monto_base_bs,monto_usd,tasa_bcv")
+          .select("fecha,cuenta_codigo,centro_costo,modo,referencia,notas,monto_bs,monto_base_bs,monto_usd,tasa_bcv,tasa_paralela")
           .like("cuenta_codigo", "1.%")
           .neq("standby", true)
           .gte("fecha", `${anio}-01-01`)
@@ -212,6 +214,12 @@ function IngresosDetallePage() {
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportIngresosDetalle({ anio, rows: rowsAnio ?? [], cuentas: cuentas ?? [] })}
+          >
+            <Download className="h-4 w-4 mr-2" /> Exportar a Excel
+          </Button>
           <UsdViewToggle />
           <div className="flex items-center gap-2 border rounded-md px-3 h-10">
             <Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="off" />

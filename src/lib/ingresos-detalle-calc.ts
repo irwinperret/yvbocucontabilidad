@@ -7,6 +7,7 @@ import type { UsdViewMode } from "@/lib/usd-view-context";
 export type RowIngresoRaw = {
   fecha: string;
   cuenta_codigo: string;
+  centro_costo?: string | null;
   modo: "on_balance" | "off_balance";
   referencia: string | null;
   notas: string | null;
@@ -14,6 +15,7 @@ export type RowIngresoRaw = {
   monto_base_bs: number | null;
   monto_usd: number | null;
   tasa_bcv: number | null;
+  tasa_paralela?: number | null;
 };
 
 /** Referencia que usa "Importar ajustes ventas" (importar-ajustes.tsx) al
@@ -56,6 +58,18 @@ export function baseUsdFila(r: RowIngresoRaw, mode: UsdViewMode): number {
 
 export function esAjusteVentaLista(r: RowIngresoRaw): boolean {
   return r.referencia === REF_AJUSTE_VENTA_LISTA && CUENTAS_AJUSTE_INGRESO.includes(r.cuenta_codigo);
+}
+
+export type TipoIngreso = "Ventas comunes" | "Ajuste de venta lista" | "Ingresos por IVA" | "Otro";
+
+/** Clasifica una fila cruda en el mismo esquema de 3 tipos que usan los KPIs
+ * y el gráfico de esta pantalla — para exportes que necesitan la fila cruda
+ * (con su `referencia`), no el agregado mensual. */
+export function tipoIngresoFila(r: RowIngresoRaw): TipoIngreso {
+  if (esAjusteVentaLista(r)) return "Ajuste de venta lista";
+  if (CUENTAS_VENTAS_COMUNES.includes(r.cuenta_codigo)) return "Ventas comunes";
+  if (CUENTAS_IVA_INGRESO.includes(r.cuenta_codigo)) return "Ingresos por IVA";
+  return "Otro";
 }
 
 function filasDelMes(rows: RowIngresoRaw[], mes: number, incluirOff: boolean) {
