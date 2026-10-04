@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   Wrench,
   PieChart,
+  TrendingDown,
 
 } from "lucide-react";
 import { History as HistoryIcon } from "lucide-react";
@@ -96,6 +97,7 @@ const analisisEnConstruccion = [
 
 const analisisDetalles = [
   { title: "Ingresos en Detalle", url: "/ingresos-detalle", icon: PieChart },
+  { title: "Egresos en Detalle", url: "/egresos-detalle", icon: TrendingDown },
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Ajustes off-balance", url: "/ajustes-off-balance", icon: Layers },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
