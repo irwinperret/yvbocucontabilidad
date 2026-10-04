@@ -303,7 +303,7 @@ function ReporteMensualImprimirPage() {
             {categoriasConDatos.map((c) => (
               <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} isAnimationActive={false} />
             ))}
-            <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} isAnimationActive={false} />
+            <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#111827" strokeWidth={2} dot={{ r: 3, fill: "#111827" }} isAnimationActive={false} />
           </ComposedChart>
         </div>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
