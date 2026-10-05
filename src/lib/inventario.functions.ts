@@ -195,6 +195,14 @@ async function recalcCierreForPeriod(
   // Regenerar transacción 2.2
   await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
   if (Math.abs(cogsBs) > 0.01) {
+    // Misma corrección que en calcularYGuardarCierre (cierre-mes.ts): la tasa_bcv
+    // guardada aquí tiene que ser la tasa "efectiva" (cogsBs ÷ cogsUsd), no el
+    // promedio del mes, porque v_transacciones_mensual_bcv recalcula base_usd
+    // como monto_base_bs / tasa_bcv al leer esta fila -- con tasaBcvProm ese
+    // recálculo no reproducía cogsUsd (el número correcto, calculado directo en
+    // USD), y por eso un mes recién cerrado mostraba una utilidad distinta a la
+    // que mostraba el mismo mes mientras estaba abierto.
+    const tasaBcvEfectiva = cogsUsd && Math.abs(cogsUsd) > 0.01 ? cogsBs / cogsUsd : (tasaBcvProm || null);
     await supabase.from("transacciones").insert({
       fecha: to,
       cuenta_codigo: "2.2",
@@ -202,7 +210,7 @@ async function recalcCierreForPeriod(
       monto_bs: cogsBs,
       monto_base_bs: cogsBs,
       iva_bs: 0,
-      tasa_bcv: tasaBcvProm || null,
+      tasa_bcv: tasaBcvEfectiva,
       tasa_paralela: paralelaProm || null,
       monto_usd: cogsUsdParalelo,
       metodo_pago: "transferencia" as any,

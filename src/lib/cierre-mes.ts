@@ -216,7 +216,27 @@ export async function calcularYGuardarCierre(
       monto_bs: r.cogsBs,
       monto_base_bs: r.cogsBs,
       iva_bs: 0,
-      tasa_bcv: r.tasaBcvPromedio,
+      // OJO: aquí NO se puede guardar tasaBcvPromedio como la tasa_bcv de
+      // esta transacción. v_transacciones_mensual_bcv (la vista que lee
+      // Resumen IPA Mensual y G&P para meses YA cerrados) recalcula su
+      // propio base_usd como monto_base_bs / tasa_bcv -- NO usa la columna
+      // monto_usd para nada en esa vista. Como cogsBs se calculó mezclando
+      // la tasa BCV del día 1 (para el inventario inicial) con la del
+      // último día (para el final) -- cada una distinta porque el BCV sube
+      // todos los días -- dividir cogsBs entre el promedio del mes NO
+      // reproduce cogsUsdBcv (el número correcto, calculado directo en
+      // USD, que es el mismo que usa estimarCogsMesesAbiertos() para el
+      // mes abierto). Esa era la causa real de que la utilidad neta diera
+      // distinto en Resumen Mensual/G&P entre "mes abierto" y "mes recién
+      // cerrado": el mes abierto mostraba cogsUsdBcv tal cual, pero el mes
+      // cerrado mostraba cogsBs/tasaBcvPromedio después de pasar por la
+      // vista -- dos cuentas distintas para lo que debía ser el mismo
+      // número. La solución: guardar como tasa_bcv una tasa "efectiva"
+      // (cogsBs ÷ cogsUsdBcv) elegida justo para que, al dividir de vuelta
+      // en la vista, dé exactamente cogsUsdBcv. monto_bs sigue reflejando
+      // los bolívares reales (eso no cambia), solo cambia qué tasa se
+      // guarda junto a ellos.
+      tasa_bcv: r.cogsUsdBcv && Math.abs(r.cogsUsdBcv) > 0.01 ? r.cogsBs / r.cogsUsdBcv : r.tasaBcvPromedio,
       tasa_paralela: r.paralelaPromedio || null,
       monto_usd: r.cogsUsdParalelo,
       metodo_pago: "transferencia" as any,
