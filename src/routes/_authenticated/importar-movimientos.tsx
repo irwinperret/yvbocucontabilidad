@@ -26,6 +26,7 @@ import {
   cuentaServicio,
   esGastoDirectoAuto,
   memoEsGastoDirectoForzado,
+  memoEsPagoGobiernoForzado,
   proveedorAliasDeMemo,
   buscarTerceroPorNombre,
   calcularProveedoresSiempreStandAlone,
@@ -1144,11 +1145,15 @@ function ImportarMovimientosInner() {
           // siempre se marcan como gasto directo, incluso si ya tienen
           // facturas/CxP registradas o la cuenta no está en la lista automática.
           const esGastoDirectoForzado = memoEsGastoDirectoForzado(bankRow.concepto);
+          // Pagos a entes del Estado (IVSS, SENIAT, Banco del Tesoro,
+          // permisología municipal/sanitaria, etc.) — nunca llevan factura,
+          // sin importar la cuenta ni si el "proveedor" ya tiene CxP.
+          const esPagoGobierno = memoEsPagoGobiernoForzado(bankRow.concepto);
           // Igual que esGastoDirectoForzado, pero aprendido de la data: este
           // proveedor nunca se ha pareado con una factura real y todo su
           // historial confirmado quedó como gasto directo.
           const esProveedorSiempreStandAlone = !!provAdivinado && proveedoresSiempreStandAlone.has(provAdivinado.id);
-          if (tx && (esGastoDirectoForzado || esProveedorSiempreStandAlone || (!proveedorTieneFacturas && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)))) {
+          if (tx && (esGastoDirectoForzado || esPagoGobierno || esProveedorSiempreStandAlone || (!proveedorTieneFacturas && (esGastoDirectoAuto(m.cuentaCodigo) || esCuentaNoConciliable(m.cuentaCodigo) || esBono)))) {
             await marcarEstadoConciliacion({
               movimientoId: (tx as any).id,
               estado: esCuentaNoConciliable(m.cuentaCodigo) ? "no_contable" : "gasto_directo",

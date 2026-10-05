@@ -163,6 +163,8 @@ export const CUENTAS_GASTO_DIRECTO_AUTO = new Set([
   "8.1", // Propinas — pago de pasivo ya devengado en ventas, nunca lleva factura
   "9.1", // Préstamos al personal
   "9.3", // Anticipos de nómina
+  "7.1", // Pago IVA al SENIAT
+  "7.2", // ISLR
 ]);
 
 /** ¿Esta cuenta se concilia automáticamente como gasto directo sin factura? */
@@ -206,6 +208,43 @@ export function memoEsGastoDirectoForzado(memo: string | null | undefined): bool
   if (!texto) return false;
   for (const nombre of NOMBRES_GASTO_DIRECTO_FORZADO) {
     const tokens = nombre.split(" ").filter(Boolean);
+    if (tokens.length && tokens.every((t) => texto.includes(t))) return true;
+  }
+  return false;
+}
+
+/**
+ * Pagos a entes del Estado (seguridad social, impuestos, permisología
+ * municipal/sanitaria, etc.) — por su naturaleza NUNCA llevan una factura de
+ * Xetux asociada, sin importar qué cuenta contable les haya tocado o si el
+ * "proveedor" (el ente público) ya tiene CxP registradas. Se detectan por el
+ * texto del memo bancario, igual que NOMBRES_GASTO_DIRECTO_FORZADO, porque la
+ * cuenta sugerida al importar no siempre es confiable para estos casos.
+ * Agregar aquí cualquier otro ente/trámite similar.
+ */
+export const PALABRAS_GASTO_DIRECTO_GOBIERNO = new Set([
+  "IVSS",
+  "INCES",
+  "FAOV",
+  "PARO FORZOSO",
+  "BANCO DEL TESORO",
+  "SENIAT",
+  "ISLR",
+  "ALCALDIA",
+  "PATENTE DE INDUSTRIA",
+  "BOMBEROS",
+  "SANIDAD",
+  "PERMISOLOGIA",
+  "PERMISO SANITARIO",
+]);
+
+/** ¿El memo (concepto) del movimiento bancario corresponde a un pago a un
+ * ente del Estado (IVSS, SENIAT, Banco del Tesoro, permisología, etc.)? */
+export function memoEsPagoGobiernoForzado(memo: string | null | undefined): boolean {
+  const texto = normalizarTextoMemo(memo);
+  if (!texto) return false;
+  for (const frase of PALABRAS_GASTO_DIRECTO_GOBIERNO) {
+    const tokens = frase.split(" ").filter(Boolean);
     if (tokens.length && tokens.every((t) => texto.includes(t))) return true;
   }
   return false;
