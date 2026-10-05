@@ -328,12 +328,24 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
     if (cerrados.has(periodo)) continue; // cerrado: usar el valor real, no estimar
 
     const e = porPeriodo.get(periodo);
-    // Inicial: el registrado a mano si existe; si no, el último nivel de
-    // inventario conocido (mes anterior, o el que corresponda retrocediendo)
-    // — mismo criterio que ya se usaba para el FINAL cuando no se había
-    // cargado (asumir que no hubo cambio, no que el inventario es cero).
-    const iniUsd = e?.inicial ?? inventarioAlCierreDe(mesAnteriorDe(periodo));
-    if (iniUsd == null) continue; // ni este mes ni ninguno anterior tiene inventario cargado: no se puede estimar
+    // Inicial: SIEMPRE el nivel de inventario conocido al cierre del mes
+    // anterior (mes anterior, o el que corresponda retrocediendo si ese mes
+    // tampoco tiene nada cargado) — la misma convención de "Registrar" y de
+    // Cierres de Mes ("Inventario inicial = final del mes anterior"). Antes
+    // esto priorizaba el inicial cargado A MANO para el propio mes (e?.inicial)
+    // por encima del heredado, pero el botón real de "Cerrar" en Cierres de
+    // Mes NUNCA usa ese valor manual: siempre encadena desde el final del mes
+    // anterior. Si el inicial cargado a mano para este mes no coincidía con el
+    // final real del mes anterior (por ejemplo, alguien lo editó sin usar el
+    // checkbox de "cascada"), el estimado de "mes abierto" quedaba calculado
+    // con un número que el cierre real iba a ignorar — y por eso la utilidad
+    // neta "estimada" no coincidía con la que salía al darle al botón de
+    // cerrar. Ahora se usa el mismo criterio en los dos lados: el inicial
+    // cargado a mano para el propio mes (e?.inicial) solo se usa como último
+    // recurso, cuando ni este mes ni ninguno anterior tiene un final cargado
+    // del que heredar (típicamente el primer mes de operación del negocio).
+    const iniUsd = inventarioAlCierreDe(mesAnteriorDe(periodo)) ?? e?.inicial;
+    if (iniUsd == null) continue; // ni el mes anterior ni este mes tienen inventario cargado: no se puede estimar
 
     const finUsd = e?.final ?? iniUsd;
 
