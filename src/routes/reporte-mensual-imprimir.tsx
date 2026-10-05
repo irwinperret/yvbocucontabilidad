@@ -25,7 +25,7 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
     // Opcional: solo se ve en el PDF si viene marcado desde la pantalla de
     // Resumen IPA Mensual (checkbox "Incluir préstamos/dividendos en el PDF").
     // Por defecto NO se incluye.
-    incluirPrestamosDividendos: search.incluirPrestamosDividendos === "1",
+    incluirPrestamosDividendos: Number(search.incluirPrestamosDividendos) === 1,
   }),
 });
 
@@ -254,7 +254,7 @@ function ReporteMensualImprimirPage() {
   const modoDotClass = mode === "bcv" ? "bg-blue-500" : "bg-emerald-500";
 
   return (
-    <div className="reporte-print bg-white text-[#1a1a2e]" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <div className="reporte-print bg-white text-[#1a1a2e]" style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "10mm" }}>
       {/* 1. Encabezado */}
       <header className="flex items-baseline justify-between border-b-2 pb-2 mb-3" style={{ borderColor: "#1e3a5f" }}>
         <div>

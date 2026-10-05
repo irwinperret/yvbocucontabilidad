@@ -19,7 +19,12 @@
    selector CSS frágil sobre la vista interactiva — construye su propio
    layout de impresión desde cero. */
 @media print {
-  @page { size: landscape; margin: 10mm; }
+  /* margin: 0 (en vez de 10mm) -- Chrome reserva el espacio de encabezado/pie
+     (fecha, URL, N° de página) a partir del margen de @page; en 0 no queda
+     espacio para esos textos y no aparecen. El respiro visual del reporte
+     ahora lo da el padding interno de .reporte-print (ver reporte-mensual-
+     imprimir.tsx), no este margen. */
+  @page { size: landscape; margin: 0; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   /* El sticker "Edit with Lovable" (<aside id="lovable-badge">, inyectado por
      Lovable fuera de este repo) queda montado sobre el contenido al imprimir
