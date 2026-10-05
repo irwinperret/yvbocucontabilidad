@@ -8,7 +8,6 @@ import { useAuth } from "@/lib/auth-context";
 import { mensualView, usdVisual } from "@/lib/usd-view-context";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, ReferenceLine } from "recharts";
-import { Wrench } from "lucide-react";
 import {
   CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
   mesSinOperaciones, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
@@ -212,31 +211,21 @@ function ReporteMensualImprimirPage() {
   // El navegador usa document.title como nombre sugerido al "Guardar como PDF",
   // así que lo fijamos con el mes y el modo de USD (BCV/paralelo) del reporte.
   useEffect(() => {
-    if (cargando || !autorizado) return;
+    if (cargando) return;
     const modoArchivo = mode === "bcv" ? "USD BCV" : "USD paralelo";
     document.title = `Resumen IPA Mensual - ${MESES[mes - 1]} ${anio} - ${modoArchivo}`;
-  }, [cargando, autorizado, mes, anio, mode]);
+  }, [cargando, mes, anio, mode]);
 
   // Auto-imprimir una vez que los datos ya cargaron y los gráficos (tamaño
   // fijo, sin ResponsiveContainer) ya tuvieron tiempo de pintarse.
   useEffect(() => {
-    if (cargando || !autorizado) return;
+    if (cargando) return;
     const t = setTimeout(() => {
       setListoParaImprimir(true);
       window.print();
     }, 400);
     return () => clearTimeout(t);
-  }, [cargando, autorizado]);
-
-  if (!autorizado) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center gap-3 font-sans">
-        <Wrench className="h-10 w-10 text-muted-foreground/40" />
-        <p className="font-medium">En Construcción</p>
-        <p className="text-sm text-muted-foreground max-w-sm">Esta pantalla todavía no está disponible.</p>
-      </div>
-    );
-  }
+  }, [cargando]);
 
   if (cargando) {
     return <div className="p-10 text-center text-sm text-muted-foreground font-sans">Preparando el reporte para imprimir…</div>;
@@ -355,7 +344,7 @@ function ReporteMensualImprimirPage() {
                 La utilidad neta del mes fue de <b>{fmtUsdContable(fmtUsd, utilidadNeta)}</b>
                 {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
               </p>
-              {incluirPrestamosDividendos && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
+              {autorizado && incluirPrestamosDividendos && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
                 <p className="text-gray-600">
                   Además, en {labelMes}
                   {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}

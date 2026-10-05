@@ -17,7 +17,7 @@ import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import {
   Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
 } from "recharts";
-import { Wrench, TrendingUp, TrendingDown, Wallet, Printer } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
@@ -208,16 +208,10 @@ function ResumenEjecutivoMensualPage() {
   // si el usuario lo marca acá antes de imprimir.
   const [incluirPrestamosDividendos, setIncluirPrestamosDividendos] = useState(false);
 
+  // La pantalla ya es visible para cualquier usuario autenticado. Esta lista
+  // ahora solo controla quién puede ver/incluir préstamos y dividendos (dato
+  // sensible), acá y en la versión imprimible.
   const autorizado = !!user?.email && PERMITIDOS_RESUMEN_MENSUAL.includes(user.email.toLowerCase());
-  if (!autorizado) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
-        <Wrench className="h-10 w-10 text-muted-foreground/40" />
-        <p className="font-medium">En Construcción</p>
-        <p className="text-sm text-muted-foreground max-w-sm">Esta pantalla todavía no está disponible.</p>
-      </div>
-    );
-  }
 
   const labelMes = `${MESES[mes - 1]} ${anio}`;
   const labelMesAnt = `${MESES[mesAnterior - 1]} ${anioMesAnterior}`;
@@ -264,7 +258,7 @@ function ResumenEjecutivoMensualPage() {
               <SelectContent>{[2024, 2025, 2026, 2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          {(pagoPrestamos > 0.01 || dividendos > 0.01) && (
+          {autorizado && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
             <label className="flex items-center gap-1.5 self-end pb-2 text-xs text-muted-foreground cursor-pointer">
               <Checkbox
                 checked={incluirPrestamosDividendos}
@@ -318,7 +312,7 @@ function ResumenEjecutivoMensualPage() {
             La utilidad neta del mes fue de <b>{fmtUsd(utilidadNeta)}</b>
             {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
           </p>
-          {(pagoPrestamos > 0.01 || dividendos > 0.01) && (
+          {autorizado && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
             <p className="text-muted-foreground">
               Además, en {labelMes}
               {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
