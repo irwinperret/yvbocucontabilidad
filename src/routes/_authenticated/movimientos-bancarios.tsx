@@ -619,7 +619,7 @@ function MovimientosBancariosPage() {
       filename: `movimientos-bancarios-${new Date().toISOString().slice(0, 10)}.xlsx`,
       sheetName: "Movimientos bancarios",
       columns: [
-        { header: "Fecha", key: "fecha", width: 12 },
+        { header: "Fecha", key: "fecha", width: 12, fmt: "date" },
         { header: "Banco", key: "banco", width: 20 },
         { header: "Referencia bancaria", key: "ref", width: 22 },
         { header: "Monto Bs", key: "bs", width: 16, fmt: "bs" },

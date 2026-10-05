@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { MESES } from "./account-helpers";
 import { baseUsdFila, type RowIngresoRaw } from "./ingresos-detalle-calc";
+import { parseFechaLocal } from "./format";
 import { CATEGORIAS_EGRESO, type CategoriaEgreso, type CuentaEgreso } from "./egresos-detalle-calc";
 
 // Mismo enfoque que export-ingresos.ts (ver ese archivo para el porqué de no
@@ -72,7 +73,7 @@ export function exportEgresosDetalle(opts: { anio: number; rows: RowEgresoRaw[];
   filas.forEach((r) => {
     const mes = Number(r.fecha.slice(5, 7));
     const row = wsDatos.addRow([
-      r.fecha,
+      parseFechaLocal(r.fecha),
       Number(r.fecha.slice(0, 4)),
       mes,
       r.cuenta_codigo,

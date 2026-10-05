@@ -35,5 +35,18 @@ export const fmtDate = (d: string | Date) => {
  * Movimientos bancarios. */
 export const fmtDateMDY = fmtDate;
 
+/**
+ * Convierte un string de fecha ("YYYY-MM-DD", con o sin hora) a un objeto
+ * Date en medianoche LOCAL (mismo truco que fmtDate) -- para que los
+ * exportadores de Excel escriban una celda de fecha REAL (serial numérico +
+ * numFmt) en vez de texto. Devuelve null si no hay fecha o no es válida,
+ * para que el llamador decida qué poner en la celda (ej. dejarla en blanco).
+ */
+export function parseFechaLocal(d: string | Date | null | undefined): Date | null {
+  if (d == null || d === "") return null;
+  const dt = typeof d === "string" ? new Date(d.includes("T") ? d : `${d}T00:00:00`) : d;
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 export const currentPeriod = () => new Date().toISOString().slice(0, 7); // YYYY-MM

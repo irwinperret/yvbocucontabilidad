@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { parseFechaLocal } from "./format";
 
 export type TasaExportRow = {
   fecha: string;
@@ -49,7 +50,7 @@ export function exportTasasToExcel(opts: {
   headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F2937" } };
 
   rows.forEach((r) => {
-    const cells: (string | number | null)[] = [r.fecha, r.tasa];
+    const cells: (string | number | Date | null)[] = [parseFechaLocal(r.fecha), r.tasa];
     if (incluyeParalela) {
       cells.push(r.tasaParalela ?? null, r.diferencial ?? null, r.diferencial != null && r.bcv ? (r.diferencial / r.bcv) : null);
     }

@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { MESES } from "./account-helpers";
 import { baseUsdFila, tipoIngresoFila, type RowIngresoRaw, type CuentaIngreso } from "./ingresos-detalle-calc";
+import { parseFechaLocal } from "./format";
 
 // ExcelJS (versión instalada en este proyecto) todavía no tiene soporte
 // estable para generar una Tabla Dinámica NATIVA de Excel: esa función solo
@@ -69,7 +70,7 @@ export function exportIngresosDetalle(opts: { anio: number; rows: RowIngresoRaw[
   filas.forEach((r) => {
     const mes = Number(r.fecha.slice(5, 7));
     const row = wsDatos.addRow([
-      r.fecha,
+      parseFechaLocal(r.fecha),
       Number(r.fecha.slice(0, 4)),
       mes,
       r.cuenta_codigo,

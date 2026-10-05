@@ -1168,7 +1168,7 @@ function TableroProveedor() {
       const { lista, montoMov, aplicado, sinAplicar } = resumenMov(mv);
       return {
         tipo: "Movimiento",
-        fecha: fmtDate(mv.fecha),
+        fecha: mv.fecha,
         banco: bancoDeReferencia(mv.referencia) || "—",
         referencia: String(mv.referencia ?? ""),
         concepto: String(mv.notas ?? mv.detalle ?? ""),
@@ -1187,7 +1187,7 @@ function TableroProveedor() {
     });
     const sinMov = facturasSinMov.map((c) => ({
       tipo: "Factura sin movimiento",
-      fecha: emisionDeCxp(c) ? fmtDate(emisionDeCxp(c) as string) : "—",
+      fecha: emisionDeCxp(c) ?? "",
       banco: "—",
       referencia: c.numero_factura ?? "s/n",
       concepto: c.proveedor ?? "",
@@ -1202,7 +1202,7 @@ function TableroProveedor() {
     }));
     const cerradasManual = facturasCerradasManual.map((c) => ({
       tipo: "Pagada sin movimiento",
-      fecha: emisionDeCxp(c) ? fmtDate(emisionDeCxp(c) as string) : "—",
+      fecha: emisionDeCxp(c) ?? "",
       banco: "—",
       referencia: c.numero_factura ?? "s/n",
       concepto: c.proveedor ?? "",
@@ -1221,7 +1221,7 @@ function TableroProveedor() {
       sheetName: "Conciliación",
       columns: [
         { header: "Tipo", key: "tipo", width: 22 },
-        { header: "Fecha", key: "fecha", width: 12 },
+        { header: "Fecha", key: "fecha", width: 12, fmt: "date" },
         { header: "Banco", key: "banco", width: 14 },
         { header: "Referencia / N° factura", key: "referencia", width: 28 },
         { header: "Concepto", key: "concepto", width: 40 },

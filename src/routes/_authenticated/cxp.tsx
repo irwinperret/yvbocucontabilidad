@@ -306,7 +306,7 @@ function CxPAnalisisPage() {
           { header: "Bs histórico", key: "bsHistorico", width: 16, fmt: "bs" },
           { header: "Pendiente hoy Bs", key: "bs", width: 18, fmt: "bs" },
           { header: "Pendiente USD BCV", key: "usd", width: 18, fmt: "usd" },
-          { header: "Vence", key: "vence", width: 12 },
+          { header: "Vence", key: "vence", width: 12, fmt: "date" },
           { header: "Estado de pareo", key: "estPareo", width: 18 },
           { header: "Movimientos pareados", key: "movs", width: 46 },
           { header: "Total pareado Bs", key: "totalPareado", width: 16, fmt: "bs" },

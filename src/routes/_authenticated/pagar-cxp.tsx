@@ -129,7 +129,7 @@ function PagarCxPPage() {
         { header: "Proveedor", key: "proveedor", width: 32 },
         { header: "RIF", key: "rif", width: 16 },
         { header: "N° factura", key: "factura", width: 18 },
-        { header: "Fecha vencimiento", key: "vence", width: 16 },
+        { header: "Fecha vencimiento", key: "vence", width: 16, fmt: "date" },
         { header: "Monto original Bs", key: "origBs", width: 18, fmt: "bs" },
         { header: "Monto pendiente Bs", key: "pendBs", width: 18, fmt: "bs" },
         { header: "Monto pendiente USD (BCV)", key: "pendUsd", width: 22, fmt: "usd" },

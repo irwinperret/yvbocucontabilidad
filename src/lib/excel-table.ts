@@ -1,17 +1,19 @@
 import ExcelJS from "exceljs";
+import { parseFechaLocal } from "./format";
 
 export type ExcelCol = {
   header: string;
   key: string;
   width?: number;
-  /** "bs" | "usd" | "rate" | "text" */
-  fmt?: "bs" | "usd" | "rate" | "text";
+  /** "bs" | "usd" | "rate" | "date" | "text" */
+  fmt?: "bs" | "usd" | "rate" | "date" | "text";
 };
 
 const NUM_FMT: Record<string, string> = {
   bs: "#,##0.00",
   usd: '"$"#,##0.00',
   rate: "#,##0.0000",
+  date: "dd/mm/yyyy",
 };
 
 /**
@@ -40,6 +42,19 @@ export async function exportTableToExcel(opts: {
     for (const c of columns) {
       if (!c.fmt || c.fmt === "text") continue;
       const cell = r.getCell(c.key as any);
+      if (c.fmt === "date") {
+        // El valor llega como string "YYYY-MM-DD" (o vacío/null) -- lo
+        // convertimos a un Date real para que Excel lo trate como fecha
+        // numérica (celda alineada a la derecha, ordenable, con formato de
+        // fecha) en vez de texto. Si no hay fecha válida, se deja la celda
+        // como vino (en blanco).
+        const dt = parseFechaLocal(cell.value as any);
+        if (dt) {
+          cell.value = dt;
+          cell.numFmt = NUM_FMT.date;
+        }
+        continue;
+      }
       if (typeof cell.value === "number") cell.numFmt = NUM_FMT[c.fmt];
     }
   }

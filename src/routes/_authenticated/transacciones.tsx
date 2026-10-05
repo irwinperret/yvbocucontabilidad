@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { Pencil, Download, Trash2, Filter, ArrowUp, ArrowDown, X, PauseCircle } from "lucide-react";
 import { toast } from "sonner";
-import { fmtBs, fmtUsd, todayISO, fmtDateMDY } from "@/lib/format";
+import { fmtBs, fmtUsd, todayISO, fmtDateMDY, parseFechaLocal } from "@/lib/format";
 import { EliminarTransaccionDialog } from "@/components/eliminar-transaccion-dialog";
 import { logAudit, isPeriodClosed } from "@/lib/audit";
 import { CENTROS, METODOS, CAPEX_CATEGORIAS, ordenarPorCodigo, type Centro } from "@/lib/account-helpers";
@@ -598,6 +598,11 @@ function TransaccionesPage() {
           registradoPor: emailById[t.created_by] ?? t.created_by ?? "",
           via: viaRegistro(t).label,
         });
+        const fechaDt = parseFechaLocal(t.fecha);
+        if (fechaDt) {
+          r.getCell("fecha" as any).value = fechaDt;
+          r.getCell("fecha" as any).numFmt = "dd/mm/yyyy";
+        }
         ["bs", "base", "iva"].forEach((k) => { r.getCell(k as any).numFmt = '#,##0.00'; });
         r.getCell("tasa" as any).numFmt = '#,##0.0000';
         if (tieneParalela) {

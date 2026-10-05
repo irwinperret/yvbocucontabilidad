@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { MESES } from "./account-helpers";
+import { parseFechaLocal } from "./format";
 
 type Cuenta = { codigo: string; nombre: string; grupo: string };
 type RowGyP = { mes: number; cuenta_codigo: string; base_usd: number };
@@ -477,6 +478,11 @@ export function exportCapEx(opts: {
   styleHeader(ws3.getRow(1));
   detalle.forEach((r) => {
     const row = ws3.addRow(r);
+    const fechaDt = parseFechaLocal(r.fecha);
+    if (fechaDt) {
+      row.getCell("fecha").value = fechaDt;
+      row.getCell("fecha").numFmt = "dd/mm/yyyy";
+    }
     const bsCell = row.getCell("montoBs");
     if (typeof bsCell.value === "number") bsCell.numFmt = BS_FMT;
     const usdCell = row.getCell("montoUsd");
@@ -544,6 +550,11 @@ export function exportCogsPorMes(opts: { resumen: RowResumenCogs[]; detalle: Row
   styleHeader(ws2.getRow(1));
   detalle.forEach((r) => {
     const row = ws2.addRow(r);
+    const fechaDt = parseFechaLocal(r.fecha);
+    if (fechaDt) {
+      row.getCell("fecha").value = fechaDt;
+      row.getCell("fecha").numFmt = "dd/mm/yyyy";
+    }
     const bsCell = row.getCell("montoBs");
     if (typeof bsCell.value === "number") bsCell.numFmt = BS_FMT;
     const usdCell = row.getCell("montoUsdBcv");
