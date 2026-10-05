@@ -22,6 +22,10 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
     anio: Number(search.anio) || new Date().getFullYear(),
     mes: Number(search.mes) || new Date().getMonth() + 1,
     modo: search.modo === "paralela" ? ("paralela" as const) : ("bcv" as const),
+    // Opcional: solo se ve en el PDF si viene marcado desde la pantalla de
+    // Resumen IPA Mensual (checkbox "Incluir préstamos/dividendos en el PDF").
+    // Por defecto NO se incluye.
+    incluirPrestamosDividendos: search.incluirPrestamosDividendos === "1",
   }),
 });
 
@@ -66,7 +70,7 @@ function celdaHistorica(v: number) {
 
 function ReporteMensualImprimirPage() {
   const { user } = useAuth();
-  const { anio, mes, modo } = Route.useSearch();
+  const { anio, mes, modo, incluirPrestamosDividendos } = Route.useSearch();
   const mode = modo;
   const [listoParaImprimir, setListoParaImprimir] = useState(false);
 
@@ -351,7 +355,7 @@ function ReporteMensualImprimirPage() {
                 La utilidad neta del mes fue de <b>{fmtUsdContable(fmtUsd, utilidadNeta)}</b>
                 {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
               </p>
-              {(pagoPrestamos > 0.01 || dividendos > 0.01) && (
+              {incluirPrestamosDividendos && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
                 <p className="text-gray-600">
                   Además, en {labelMes}
                   {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}

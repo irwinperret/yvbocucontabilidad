@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtUsd } from "@/lib/format";
 import { MESES, ordenarPorCodigo } from "@/lib/account-helpers";
@@ -203,6 +204,9 @@ function ResumenEjecutivoMensualPage() {
     () => calcularPrestamosYDividendos(rowsAnio ?? [], mes),
     [rowsAnio, mes],
   );
+  // Opcional y apagado por defecto: el PDF solo menciona préstamos/dividendos
+  // si el usuario lo marca acá antes de imprimir.
+  const [incluirPrestamosDividendos, setIncluirPrestamosDividendos] = useState(false);
 
   const autorizado = !!user?.email && PERMITIDOS_RESUMEN_MENSUAL.includes(user.email.toLowerCase());
   if (!autorizado) {
@@ -220,7 +224,12 @@ function ResumenEjecutivoMensualPage() {
   const labelAnioAnt = `${MESES[mes - 1]} ${anio - 1}`;
 
   const abrirImpresion = () => {
-    const params = new URLSearchParams({ anio: String(anio), mes: String(mes), modo: mode });
+    const params = new URLSearchParams({
+      anio: String(anio),
+      mes: String(mes),
+      modo: mode,
+      incluirPrestamosDividendos: incluirPrestamosDividendos ? "1" : "0",
+    });
     window.open(`/reporte-mensual-imprimir?${params.toString()}`, "_blank");
   };
 
@@ -255,6 +264,15 @@ function ResumenEjecutivoMensualPage() {
               <SelectContent>{[2024, 2025, 2026, 2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          {(pagoPrestamos > 0.01 || dividendos > 0.01) && (
+            <label className="flex items-center gap-1.5 self-end pb-2 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox
+                checked={incluirPrestamosDividendos}
+                onCheckedChange={(v) => setIncluirPrestamosDividendos(v === true)}
+              />
+              Incluir préstamos/dividendos en el PDF
+            </label>
+          )}
           <Button variant="outline" onClick={abrirImpresion} className="self-end">
             <Printer className="h-4 w-4 mr-2" />
             Imprimir / PDF
