@@ -15,7 +15,7 @@ import {
 import { fmtUsd } from "@/lib/format";
 import { toast } from "sonner";
 import { Lock, LockOpen, Pencil, Loader2, Info } from "lucide-react";
-import { calcularYGuardarCierre, reabrirMes } from "@/lib/cierre-mes";
+import { calcularYGuardarCierre, reabrirMes, inventarioInicialSugerido } from "@/lib/cierre-mes";
 import { editarInventarioSnapshot } from "@/lib/inventario.functions";
 
 export const Route = createFileRoute("/_authenticated/cierres-de-mes")({ component: CierresDeMesPage });
@@ -175,9 +175,10 @@ function CierresDeMesPage() {
     if (!cerrando || !user) return;
     const invFinUsd = Number(invFinUsdStr);
     if (!Number.isFinite(invFinUsd) || invFinUsd < 0) return toast.error("Ingresa un monto válido en USD");
-    // Inventario inicial = final del mes anterior (misma convención que Registrar).
-    const filaAnterior = filas.find((f) => f.periodo === shiftPeriodo(cerrando.periodo, -1));
-    const invIniUsd = filaAnterior?.invFinUsd ?? 0;
+    // Inventario inicial = nivel de inventario conocido al cierre del mes
+    // anterior (misma función que usa el estimado de "mes abierto" y el
+    // prefill de Registrar — ver inventarioInicialSugerido en cierre-mes.ts).
+    const invIniUsd = (await inventarioInicialSugerido(cerrando.periodo)) ?? 0;
     setBusy(true);
     try {
       const r = await calcularYGuardarCierre(cerrando.periodo, invIniUsd, invFinUsd, user.id);
@@ -249,8 +250,7 @@ function CierresDeMesPage() {
         });
       } else {
         // No existía todavía: crear vía cierre completo del mes con este valor.
-        const filaAnterior = filas.find((f) => f.periodo === shiftPeriodo(editando.periodo, -1));
-        const invIniUsd = filaAnterior?.invFinUsd ?? 0;
+        const invIniUsd = (await inventarioInicialSugerido(editando.periodo)) ?? 0;
         await calcularYGuardarCierre(editando.periodo, invIniUsd, nuevoValor, user.id);
       }
       toast.success("Inventario final actualizado");

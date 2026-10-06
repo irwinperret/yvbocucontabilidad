@@ -4011,27 +4011,22 @@ function CierreForm() {
     },
   });
 
-  // Inventario final del mes anterior — para prefill del inventario inicial actual
-  const { data: prevMonthFinal } = useQuery({
-    queryKey: ["inv-snapshot-final", periodoAnterior],
+  // Inventario inicial sugerido para el período actual: el nivel de
+  // inventario conocido al cierre del mes anterior (normalmente su final
+  // registrado; si ese mes no tiene nada cargado, retrocede más meses).
+  // Misma función que usa el botón "Cerrar" de Cierres de Mes y el
+  // estimado de "mes abierto" (inventarioInicialSugerido en cierre-mes.ts)
+  // — antes esta pantalla tenía su propio query que solo miraba el final
+  // del mes INMEDIATO anterior, así que si ese mes no tenía nada cargado
+  // el campo quedaba vacío en vez de heredar de más atrás, y en teoría
+  // podía sugerir un número distinto al que el cierre real iba a usar.
+  const { data: prevFinalUsd } = useQuery({
+    queryKey: ["inventario-inicial-sugerido", periodo],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("inventario_snapshots")
-        .select("id, monto_bs, monto_usd, tasa_bcv")
-        .eq("periodo", periodoAnterior)
-        .eq("tipo", "final")
-        .maybeSingle();
-      return data;
+      const { inventarioInicialSugerido } = await import("@/lib/cierre-mes");
+      return await inventarioInicialSugerido(periodo);
     },
   });
-  const prevFinalUsd = useMemo(() => {
-    if (!prevMonthFinal) return null;
-    const usd = Number((prevMonthFinal as any).monto_usd);
-    if (Number.isFinite(usd) && usd > 0) return usd;
-    const bs = Number((prevMonthFinal as any).monto_bs) || 0;
-    const tasa = Number((prevMonthFinal as any).tasa_bcv) || 0;
-    return tasa > 0 ? +(bs / tasa).toFixed(2) : null;
-  }, [prevMonthFinal]);
 
   // Inventario final ya registrado del período actual (pestaña Inventarios)
   const { data: currMonthFinal } = useQuery({

@@ -289,6 +289,71 @@ export async function reabrirMes(periodo: string) {
 
 export type CogsEstimado = { cogsBs: number; cogsUsdBcv: number; cogsUsdParalelo: number; iniUsd: number; finUsd: number };
 
+export type NivelInventarioPorPeriodo = Map<string, { inicial?: number; final?: number }>;
+
+/** Período anterior a `periodo` ("2026-01" → "2025-12"). */
+export function mesAnteriorDe(periodo: string): string | null {
+  const [y, m] = periodo.split("-").map(Number);
+  if (!y || !m || y < 2000) return null; // corte de seguridad, no retroceder indefinidamente
+  const mm = m === 1 ? 12 : m - 1;
+  const yy = m === 1 ? y - 1 : y;
+  return `${yy}-${String(mm).padStart(2, "0")}`;
+}
+
+/** Arma el mapa periodo → {inicial, final} a partir de filas crudas de inventario_snapshots. */
+export function construirNivelInventarioPorPeriodo(snaps: { periodo: string; tipo: string; monto_usd: number | string | null }[]): NivelInventarioPorPeriodo {
+  const porPeriodo: NivelInventarioPorPeriodo = new Map();
+  for (const s of snaps ?? []) {
+    const e = porPeriodo.get(s.periodo) ?? {};
+    if (s.tipo === "inicial") e.inicial = Number(s.monto_usd) || 0;
+    if (s.tipo === "final") e.final = Number(s.monto_usd) || 0;
+    porPeriodo.set(s.periodo, e);
+  }
+  return porPeriodo;
+}
+
+/**
+ * Nivel de inventario "conocido" al cierre de un período: el final
+ * registrado de ese período si existe; si no, su inicial (asumiendo que no
+ * hubo cambio); si tampoco hay inicial, se sigue retrocediendo un mes más —
+ * así un mes recién abierto sin nada cargado hereda el último nivel de
+ * inventario conocido en vez de tratarse como si el inventario fuera cero.
+ *
+ * ÚNICA función para esta regla en toda la app — la usan por igual el
+ * estimado de "mes abierto" (estimarCogsMesesAbiertos, abajo), el botón
+ * "Cerrar" de Cierres de Mes, y el prefill de inventario inicial en
+ * Registrar. Antes cada uno tenía su propia versión (una heredaba de varios
+ * meses atrás, otra solo miraba un mes atrás y caía a 0, otra usaba lo
+ * cargado a mano para el propio mes) y podían dar números distintos para el
+ * mismo período — eso era lo que hacía que "mes abierto" y "recién cerrado"
+ * no coincidieran. Con una sola función, coinciden siempre.
+ */
+export function inventarioAlCierreDe(periodo: string | null, porPeriodo: NivelInventarioPorPeriodo): number | null {
+  if (!periodo) return null;
+  const e = porPeriodo.get(periodo);
+  if (e?.final != null) return e.final;
+  if (e?.inicial != null) return e.inicial;
+  return inventarioAlCierreDe(mesAnteriorDe(periodo), porPeriodo);
+}
+
+/**
+ * Inventario inicial sugerido para cerrar `periodo`: el nivel conocido al
+ * cierre del mes anterior (ver inventarioAlCierreDe). Trae su propio
+ * historial de inventario_snapshots, así que puede llamarse directo desde
+ * cualquier pantalla (Cierres de Mes, Registrar) sin que cada una arme su
+ * propio query. Devuelve null si no hay nada de qué heredar (primer mes de
+ * operación del negocio) — ahí la pantalla debe pedir el valor a mano.
+ */
+export async function inventarioInicialSugerido(periodo: string): Promise<number | null> {
+  const anterior = mesAnteriorDe(periodo);
+  if (!anterior) return null;
+  const { data: snaps } = await supabase
+    .from("inventario_snapshots")
+    .select("periodo, tipo, monto_usd")
+    .lte("periodo", anterior);
+  return inventarioAlCierreDe(anterior, construirNivelInventarioPorPeriodo((snaps ?? []) as any));
+}
+
 /**
  * Para meses ABIERTOS (sin cierre formal) donde ya se cargó el inventario
  * inicial y final, calcula un COGS estimado con la MISMA fórmula del cierre
@@ -298,14 +363,6 @@ export type CogsEstimado = { cogsBs: number; cogsUsdBcv: number; cogsUsdParalelo
  * Los meses YA cerrados no aparecen en el resultado — para esos se debe
  * seguir usando el valor real (la transacción 2.2 que ya existe).
  */
-function mesAnteriorDe(periodo: string): string | null {
-  const [y, m] = periodo.split("-").map(Number);
-  if (!y || !m || y < 2000) return null; // corte de seguridad, no retroceder indefinidamente
-  const mm = m === 1 ? 12 : m - 1;
-  const yy = m === 1 ? y - 1 : y;
-  return `${yy}-${String(mm).padStart(2, "0")}`;
-}
-
 export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string, CogsEstimado>> {
   // Sin límite inferior: para poder "arrastrar" el inventario desde el
   // último mes con dato cargado, sin importar cuántos meses atrás quede
@@ -316,31 +373,7 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
     supabase.from("inventario_snapshots").select("periodo, tipo, monto_usd").lte("periodo", `${anio}-12`),
   ]);
   const cerrados = new Set((cierres ?? []).map((c: any) => c.periodo));
-
-  const porPeriodo = new Map<string, { inicial?: number; final?: number }>();
-  for (const s of (snaps ?? []) as any[]) {
-    const e = porPeriodo.get(s.periodo) ?? {};
-    if (s.tipo === "inicial") e.inicial = Number(s.monto_usd) || 0;
-    if (s.tipo === "final") e.final = Number(s.monto_usd) || 0;
-    porPeriodo.set(s.periodo, e);
-  }
-
-  /**
-   * Nivel de inventario "conocido" al cierre de un período (para usarlo
-   * como inicial del mes siguiente cuando ese mes no tiene su propio
-   * inventario inicial cargado): el final registrado de ese período si
-   * existe; si no, su inicial (asumiendo que no hubo cambio); si tampoco
-   * hay inicial, se sigue retrocediendo un mes más — así un mes recién
-   * abierto sin nada cargado hereda el último nivel de inventario conocido
-   * en vez de tratarse como si el inventario fuera cero.
-   */
-  function inventarioAlCierreDe(periodo: string | null): number | null {
-    if (!periodo) return null;
-    const e = porPeriodo.get(periodo);
-    if (e?.final != null) return e.final;
-    if (e?.inicial != null) return e.inicial;
-    return inventarioAlCierreDe(mesAnteriorDe(periodo));
-  }
+  const porPeriodo = construirNivelInventarioPorPeriodo((snaps ?? []) as any);
 
   const resultado = new Map<string, CogsEstimado>();
   for (let mes = 1; mes <= 12; mes++) {
@@ -364,7 +397,7 @@ export async function estimarCogsMesesAbiertos(anio: number): Promise<Map<string
     // cargado a mano para el propio mes (e?.inicial) solo se usa como último
     // recurso, cuando ni este mes ni ninguno anterior tiene un final cargado
     // del que heredar (típicamente el primer mes de operación del negocio).
-    const iniUsd = inventarioAlCierreDe(mesAnteriorDe(periodo)) ?? e?.inicial;
+    const iniUsd = inventarioAlCierreDe(mesAnteriorDe(periodo), porPeriodo) ?? e?.inicial;
     if (iniUsd == null) continue; // ni el mes anterior ni este mes tienen inventario cargado: no se puede estimar
 
     const finUsd = e?.final ?? iniUsd;
