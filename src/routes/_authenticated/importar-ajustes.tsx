@@ -264,7 +264,7 @@ function ImportarAjustesPage() {
         <AlertTriangle className="h-4 w-4 text-amber-600" />
         <AlertDescription className="text-sm leading-relaxed text-amber-900">
           Los montos del archivo (Venta Lista, IVA Lista, Servicio Lista) se interpretan como <strong>USD paralelo</strong>, no USD BCV.
-          La conversión a bolívares usa la tasa paralela del día — si falta esa tasa, la fecha no se podrá importar.
+          La conversión a bolívares usa la tasa paralela de ese día; si no hay una registrada exactamente para esa fecha, se usa automáticamente la más reciente de los días anteriores. Solo se bloquea la fila si no hay ninguna tasa paralela cargada en o antes de esa fecha (por ejemplo, fechas de antes de empezar a registrar tasas paralelas).
         </AlertDescription>
       </Alert>
 
