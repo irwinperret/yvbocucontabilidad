@@ -8,6 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -104,6 +113,8 @@ function ImportarAjustesPage() {
   const [cargando, setCargando] = useState(false);
   const [importando, setImportando] = useState(false);
   const [resumen, setResumen] = useState<{ registradas: number; omitidas: number; totalBs: number; totalUsd: number } | null>(null);
+  const [doneOpen, setDoneOpen] = useState(false);
+  const [inputKey, setInputKey] = useState(0);
 
   const onFile = async (f: File | null) => {
     setFile(f);
@@ -238,16 +249,17 @@ function ImportarAjustesPage() {
       });
 
       setResumen({ registradas, omitidas: filas.length - registradas, totalBs, totalUsd });
-      toast.success(`${registradas} fecha(s) registradas`);
-      await onFileRefresh();
+      // No se vuelve a leer el archivo: eso hacía reaparecer la vista previa
+      // con las mismas filas marcadas "Ya registrada", lo cual confundía
+      // (parecía que faltaba importar). Se limpia todo y se avisa con un
+      // modal que la importación ya terminó.
+      setFile(null);
+      setFilas([]);
+      setInputKey((k) => k + 1);
+      setDoneOpen(true);
     } finally {
       setImportando(false);
     }
-  };
-
-  // Re-evalúa estados (duplicados) tras importar, sin volver a pedir el archivo.
-  const onFileRefresh = async () => {
-    if (file) await onFile(file);
   };
 
   return (
@@ -276,6 +288,7 @@ function ImportarAjustesPage() {
         <CardHeader><CardTitle className="text-base">1 · Archivo</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           <Input
+            key={inputKey}
             type="file"
             accept=".xlsx,.xls"
             onChange={(e) => onFile(e.target.files?.[0] ?? null)}
@@ -366,6 +379,31 @@ function ImportarAjustesPage() {
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={doneOpen} onOpenChange={setDoneOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Importación completada</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-1 text-sm">
+                <p>Ya se terminó de importar el archivo.</p>
+                {resumen && (
+                  <>
+                    <div>Fechas registradas: <b>{resumen.registradas}</b></div>
+                    <div>Fechas omitidas: <b>{resumen.omitidas}</b></div>
+                    <div>
+                      Total: <b>Bs {resumen.totalBs.toLocaleString("es-VE", { maximumFractionDigits: 2 })}</b> · {fmtUsd(resumen.totalUsd)}
+                    </div>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setDoneOpen(false)}>Entendido</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

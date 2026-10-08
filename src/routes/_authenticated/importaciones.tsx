@@ -24,6 +24,7 @@ import {
   analizarReversion,
   ejecutarReversion,
   purgarRevertidas,
+  purgarImportacionRevertida,
   listarResiduos,
   purgarResiduos,
   ORIGEN_LABEL,
@@ -59,6 +60,8 @@ function ImportacionesPage() {
   const [purging, setPurging] = useState(false);
   const [residuosOpen, setResiduosOpen] = useState(false);
   const [purgingResiduos, setPurgingResiduos] = useState(false);
+  const [purgeTarget, setPurgeTarget] = useState<ImportBatch | null>(null);
+  const [purgingOne, setPurgingOne] = useState(false);
 
 
   const { data: isAdmin = false } = useQuery({
@@ -128,6 +131,17 @@ function ImportacionesPage() {
         : "Cargas revertidas borradas"
     );
     setPurgeOpen(false);
+    qc.invalidateQueries();
+  };
+
+  const confirmarPurgaUna = async () => {
+    if (!purgeTarget) return;
+    setPurgingOne(true);
+    const res = await purgarImportacionRevertida(purgeTarget.id);
+    setPurgingOne(false);
+    if (!res.ok) return toast.error(res.error ?? "No se pudo borrar la carga");
+    toast.success("Carga borrada definitivamente del historial");
+    setPurgeTarget(null);
     qc.invalidateQueries();
   };
 
@@ -243,6 +257,16 @@ function ImportacionesPage() {
                         )}
                       </Button>
                     )}
+                    {b.estado === "revertida" && isAdmin && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setPurgeTarget(b)}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" /> Borrar
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -352,6 +376,38 @@ function ImportacionesPage() {
               }}
             >
               {reverting ? "Revirtiendo…" : "Sí, revertir todo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!purgeTarget} onOpenChange={(o) => !o && setPurgeTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Borrar esta carga revertida</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  {purgeTarget ? `${TIPO_LABEL[purgeTarget.tipo] ?? purgeTarget.tipo} · ${purgeTarget.archivo_nombre}` : ""}
+                </p>
+                <p>
+                  Se eliminará del historial esta carga ya revertida, junto con cualquier resto que hubiera
+                  quedado asociado (transacciones, cuentas por pagar/cobrar, propinas y conciliaciones).
+                </p>
+                <p className="text-muted-foreground">Esta acción no se puede deshacer.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={purgingOne}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={purgingOne}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmarPurgaUna();
+              }}
+            >
+              {purgingOne ? "Borrando…" : "Sí, borrar definitivamente"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

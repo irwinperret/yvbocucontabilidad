@@ -199,6 +199,17 @@ export async function purgarRevertidas(): Promise<{
   return { ok: true, resumen: (data ?? undefined) as any };
 }
 
+/** Borra definitivamente UNA sola carga ya revertida (y cualquier resto asociado). */
+export async function purgarImportacionRevertida(batchId: string): Promise<{
+  ok: boolean;
+  error?: string;
+  resumen?: { transacciones: number; cxp: number; cxc: number; propinas: number; conciliaciones: number; cxp_restauradas: number };
+}> {
+  const { data, error } = await supabase.rpc("purgar_importacion_revertida" as any, { p_batch: batchId } as any);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, resumen: (data ?? undefined) as any };
+}
+
 // ─────────────────────────────────────────────────────────────
 // Residuos: transacciones de origen importado que quedaron sin lote
 // (importación interrumpida, o el lote se borró del historial).
