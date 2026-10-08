@@ -42,7 +42,7 @@ export function RichTextToolbar({
   value,
   onChange,
 }: {
-  textareaRef: RefObject<HTMLTextAreaElement>;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
   value: string;
   onChange: (v: string) => void;
 }) {

@@ -41,7 +41,7 @@ export async function distribuirBonoPropinaCombinado(args: {
   montoUsd: number;
   tasaBcv: number | null;
   tasaParalela: number | null;
-  cuentaBancariaId: string;
+  cuentaBancariaId: string | null;
   userId: string;
   /** Huella de dedupe del banco — solo aplica cuando viene de una importación. */
   referenciaBanco?: string | null;
