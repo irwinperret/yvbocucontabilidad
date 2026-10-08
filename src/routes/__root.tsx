@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet, Link, createRootRouteWithContext, useRouter, HeadContent, Scripts,
 } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
 import { ModeProvider } from "@/lib/mode-context";
