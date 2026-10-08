@@ -30,6 +30,7 @@ import { Route as AuthenticatedMovimientosBancariosRouteImport } from './routes/
 import { Route as AuthenticatedLiquidacionesRouteImport } from './routes/_authenticated/liquidaciones'
 import { Route as AuthenticatedInventariosRouteImport } from './routes/_authenticated/inventarios'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
+import { Route as AuthenticatedIngresosDetalleRouteImport } from './routes/_authenticated/ingresos-detalle'
 import { Route as AuthenticatedImpuestosRouteImport } from './routes/_authenticated/impuestos'
 import { Route as AuthenticatedImportarVentasRouteImport } from './routes/_authenticated/importar-ventas'
 import { Route as AuthenticatedImportarMovimientosRouteImport } from './routes/_authenticated/importar-movimientos'
@@ -38,6 +39,7 @@ import { Route as AuthenticatedImportarAjustesRouteImport } from './routes/_auth
 import { Route as AuthenticatedImportacionesRouteImport } from './routes/_authenticated/importaciones'
 import { Route as AuthenticatedGypRouteImport } from './routes/_authenticated/gyp'
 import { Route as AuthenticatedFcRouteImport } from './routes/_authenticated/fc'
+import { Route as AuthenticatedEgresosDetalleRouteImport } from './routes/_authenticated/egresos-detalle'
 import { Route as AuthenticatedDiferencialCambiarioRouteImport } from './routes/_authenticated/diferencial-cambiario'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
@@ -174,6 +176,12 @@ const AuthenticatedInicioRoute = AuthenticatedInicioRouteImport.update({
   path: '/inicio',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedIngresosDetalleRoute =
+  AuthenticatedIngresosDetalleRouteImport.update({
+    id: '/ingresos-detalle',
+    path: '/ingresos-detalle',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedImpuestosRoute = AuthenticatedImpuestosRouteImport.update({
   id: '/impuestos',
   path: '/impuestos',
@@ -219,6 +227,12 @@ const AuthenticatedFcRoute = AuthenticatedFcRouteImport.update({
   path: '/fc',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedEgresosDetalleRoute =
+  AuthenticatedEgresosDetalleRouteImport.update({
+    id: '/egresos-detalle',
+    path: '/egresos-detalle',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedDiferencialCambiarioRoute =
   AuthenticatedDiferencialCambiarioRouteImport.update({
     id: '/diferencial-cambiario',
@@ -355,6 +369,7 @@ export interface FileRoutesByFullPath {
   '/cxp': typeof AuthenticatedCxpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
+  '/egresos-detalle': typeof AuthenticatedEgresosDetalleRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
   '/importaciones': typeof AuthenticatedImportacionesRoute
@@ -363,6 +378,7 @@ export interface FileRoutesByFullPath {
   '/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/impuestos': typeof AuthenticatedImpuestosRoute
+  '/ingresos-detalle': typeof AuthenticatedIngresosDetalleRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/inventarios': typeof AuthenticatedInventariosRoute
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
@@ -406,6 +422,7 @@ export interface FileRoutesByTo {
   '/cxp': typeof AuthenticatedCxpRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
+  '/egresos-detalle': typeof AuthenticatedEgresosDetalleRoute
   '/fc': typeof AuthenticatedFcRoute
   '/gyp': typeof AuthenticatedGypRoute
   '/importaciones': typeof AuthenticatedImportacionesRoute
@@ -414,6 +431,7 @@ export interface FileRoutesByTo {
   '/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/impuestos': typeof AuthenticatedImpuestosRoute
+  '/ingresos-detalle': typeof AuthenticatedIngresosDetalleRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/inventarios': typeof AuthenticatedInventariosRoute
   '/liquidaciones': typeof AuthenticatedLiquidacionesRoute
@@ -459,6 +477,7 @@ export interface FileRoutesById {
   '/_authenticated/cxp': typeof AuthenticatedCxpRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/diferencial-cambiario': typeof AuthenticatedDiferencialCambiarioRoute
+  '/_authenticated/egresos-detalle': typeof AuthenticatedEgresosDetalleRoute
   '/_authenticated/fc': typeof AuthenticatedFcRoute
   '/_authenticated/gyp': typeof AuthenticatedGypRoute
   '/_authenticated/importaciones': typeof AuthenticatedImportacionesRoute
@@ -467,6 +486,7 @@ export interface FileRoutesById {
   '/_authenticated/importar-movimientos': typeof AuthenticatedImportarMovimientosRoute
   '/_authenticated/importar-ventas': typeof AuthenticatedImportarVentasRoute
   '/_authenticated/impuestos': typeof AuthenticatedImpuestosRoute
+  '/_authenticated/ingresos-detalle': typeof AuthenticatedIngresosDetalleRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/inventarios': typeof AuthenticatedInventariosRoute
   '/_authenticated/liquidaciones': typeof AuthenticatedLiquidacionesRoute
@@ -512,6 +532,7 @@ export interface FileRouteTypes {
     | '/cxp'
     | '/dashboard'
     | '/diferencial-cambiario'
+    | '/egresos-detalle'
     | '/fc'
     | '/gyp'
     | '/importaciones'
@@ -520,6 +541,7 @@ export interface FileRouteTypes {
     | '/importar-movimientos'
     | '/importar-ventas'
     | '/impuestos'
+    | '/ingresos-detalle'
     | '/inicio'
     | '/inventarios'
     | '/liquidaciones'
@@ -563,6 +585,7 @@ export interface FileRouteTypes {
     | '/cxp'
     | '/dashboard'
     | '/diferencial-cambiario'
+    | '/egresos-detalle'
     | '/fc'
     | '/gyp'
     | '/importaciones'
@@ -571,6 +594,7 @@ export interface FileRouteTypes {
     | '/importar-movimientos'
     | '/importar-ventas'
     | '/impuestos'
+    | '/ingresos-detalle'
     | '/inicio'
     | '/inventarios'
     | '/liquidaciones'
@@ -615,6 +639,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxp'
     | '/_authenticated/dashboard'
     | '/_authenticated/diferencial-cambiario'
+    | '/_authenticated/egresos-detalle'
     | '/_authenticated/fc'
     | '/_authenticated/gyp'
     | '/_authenticated/importaciones'
@@ -623,6 +648,7 @@ export interface FileRouteTypes {
     | '/_authenticated/importar-movimientos'
     | '/_authenticated/importar-ventas'
     | '/_authenticated/impuestos'
+    | '/_authenticated/ingresos-detalle'
     | '/_authenticated/inicio'
     | '/_authenticated/inventarios'
     | '/_authenticated/liquidaciones'
@@ -807,6 +833,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInicioRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/ingresos-detalle': {
+      id: '/_authenticated/ingresos-detalle'
+      path: '/ingresos-detalle'
+      fullPath: '/ingresos-detalle'
+      preLoaderRoute: typeof AuthenticatedIngresosDetalleRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/impuestos': {
       id: '/_authenticated/impuestos'
       path: '/impuestos'
@@ -861,6 +894,13 @@ declare module '@tanstack/react-router' {
       path: '/fc'
       fullPath: '/fc'
       preLoaderRoute: typeof AuthenticatedFcRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/egresos-detalle': {
+      id: '/_authenticated/egresos-detalle'
+      path: '/egresos-detalle'
+      fullPath: '/egresos-detalle'
+      preLoaderRoute: typeof AuthenticatedEgresosDetalleRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/diferencial-cambiario': {
@@ -1028,6 +1068,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCxpRoute: typeof AuthenticatedCxpRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDiferencialCambiarioRoute: typeof AuthenticatedDiferencialCambiarioRoute
+  AuthenticatedEgresosDetalleRoute: typeof AuthenticatedEgresosDetalleRoute
   AuthenticatedFcRoute: typeof AuthenticatedFcRoute
   AuthenticatedGypRoute: typeof AuthenticatedGypRoute
   AuthenticatedImportacionesRoute: typeof AuthenticatedImportacionesRoute
@@ -1036,6 +1077,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedImportarMovimientosRoute: typeof AuthenticatedImportarMovimientosRoute
   AuthenticatedImportarVentasRoute: typeof AuthenticatedImportarVentasRoute
   AuthenticatedImpuestosRoute: typeof AuthenticatedImpuestosRoute
+  AuthenticatedIngresosDetalleRoute: typeof AuthenticatedIngresosDetalleRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedInventariosRoute: typeof AuthenticatedInventariosRoute
   AuthenticatedLiquidacionesRoute: typeof AuthenticatedLiquidacionesRoute
@@ -1077,6 +1119,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDiferencialCambiarioRoute:
     AuthenticatedDiferencialCambiarioRoute,
+  AuthenticatedEgresosDetalleRoute: AuthenticatedEgresosDetalleRoute,
   AuthenticatedFcRoute: AuthenticatedFcRoute,
   AuthenticatedGypRoute: AuthenticatedGypRoute,
   AuthenticatedImportacionesRoute: AuthenticatedImportacionesRoute,
@@ -1085,6 +1128,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedImportarMovimientosRoute: AuthenticatedImportarMovimientosRoute,
   AuthenticatedImportarVentasRoute: AuthenticatedImportarVentasRoute,
   AuthenticatedImpuestosRoute: AuthenticatedImpuestosRoute,
+  AuthenticatedIngresosDetalleRoute: AuthenticatedIngresosDetalleRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedInventariosRoute: AuthenticatedInventariosRoute,
   AuthenticatedLiquidacionesRoute: AuthenticatedLiquidacionesRoute,
