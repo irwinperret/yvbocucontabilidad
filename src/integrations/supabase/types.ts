@@ -1011,6 +1011,36 @@ export type Database = {
         }
         Relationships: []
       }
+      resumen_mensual_notas: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          orden: number
+          periodo: string
+          texto: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          orden?: number
+          periodo: string
+          texto?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          orden?: number
+          periodo?: string
+          texto?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tasas_bcv: {
         Row: {
           created_at: string
@@ -1555,6 +1585,7 @@ export type Database = {
       }
       periodo_cerrado: { Args: { _fecha: string }; Returns: boolean }
       purgar_filas_importacion: { Args: { p_batch: string }; Returns: Json }
+      purgar_importacion_revertida: { Args: { p_batch: string }; Returns: Json }
       purgar_importaciones_revertidas: { Args: never; Returns: Json }
       purgar_todo_importado: { Args: never; Returns: Json }
       purgar_transacciones_huerfanas: {
