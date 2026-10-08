@@ -73,6 +73,8 @@ export const CUENTA = {
   PRESTAMOS_PERSONAL: "9.1",
   ANTICIPO_PROVEEDOR: "9.2",
   ANTICIPO_NOMINA: "9.3",
+  RETENCION_IVA: "9.4", // Retención de IVA que hace el banco/adquirente en pagos con tarjeta
+  RETENCION_ISLR: "9.5", // Retención de ISLR que hace el banco sobre intereses/rendimientos
 } as const;
 
 /** Equivalencias del plan viejo al vigente (referencia y migraciones puntuales). */

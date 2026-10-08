@@ -131,6 +131,9 @@ function RegistrarPage() {
           <TabsTrigger value="retencion-iva" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
             Retención de IVA
           </TabsTrigger>
+          <TabsTrigger value="retencion-islr" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
+            Retención de ISLR
+          </TabsTrigger>
           <TabsTrigger value="financiamiento" className="text-xs sm:text-sm whitespace-normal h-auto py-1.5">
             Financiamiento
           </TabsTrigger>
@@ -158,6 +161,9 @@ function RegistrarPage() {
         </TabsContent>
         <TabsContent value="retencion-iva">
           <RetencionIvaForm />
+        </TabsContent>
+        <TabsContent value="retencion-islr">
+          <RetencionIslrForm />
         </TabsContent>
         <TabsContent value="financiamiento">
           <FinanciamientoForm />
@@ -3137,6 +3143,155 @@ function RetencionIvaForm() {
           <div className="md:col-span-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
             Se registra como activo transitorio (9.4) — no crea gasto ni afecta el IVA débito/crédito.
             Se resta del IVA a pagar en la pantalla de Impuestos · IVA.
+          </div>
+          <div className="md:col-span-2">
+            <Label>Notas</Label>
+            <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} />
+          </div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="submit" disabled={busy}>
+              {busy ? "Guardando…" : "Registrar retención"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ---------------- RETENCIÓN DE ISLR (banco, sobre intereses/rendimientos) ---------------- */
+const CUENTA_RETENCION_ISLR = "9.5";
+
+/**
+ * Cuando el banco paga intereses/rendimientos sobre los saldos en cuenta,
+ * actúa como agente de retención del SENIAT y descuenta un % por ISLR antes
+ * de abonarlos. Igual que la retención de IVA (9.4), ese monto no es un
+ * gasto: es un anticipo acreditable contra la declaración de ISLR de la
+ * empresa. Se registra como activo transitorio (9.5), el mismo patrón que
+ * 9.1/9.3/9.4, para no mezclarlo con comisiones bancarias reales (4.8).
+ */
+function RetencionIslrForm() {
+  const { user } = useAuth();
+  const ensurePeriodoAbierto = useMesCerradoGuard();
+  const qc = useQueryClient();
+  const [fecha, setFecha] = useState(todayISO());
+  const [centro, setCentro] = useState<Centro>("Compartido");
+  const [cuentaBancariaId, setCuentaBancariaId] = useState("");
+  const [montoBs, setMontoBs] = useState("");
+  const [tasa, setTasa] = useState("");
+  const [comprobante, setComprobante] = useState("");
+  const [notas, setNotas] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const { data: tasaSugerida } = useTasaForDate(fecha);
+  useEffect(() => {
+    if (tasaSugerida?.tasa) setTasa(String(tasaSugerida.tasa));
+  }, [tasaSugerida?.tasa]);
+
+  const montoBsN = Number(montoBs) || 0;
+  const tasaN = Number(tasa) || 0;
+  const montoUsd = tasaN > 0 ? montoBsN / tasaN : 0;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!(await ensurePeriodoAbierto(fecha))) return;
+    if (!montoBsN) return toast.error("Falta el monto retenido en Bs");
+    if (!tasaN) return toast.error("Falta la tasa BCV");
+    if (!cuentaBancariaId) return toast.error("Selecciona la cuenta bancaria donde llegó el abono neto");
+    setBusy(true);
+    const notaCompleta = `Retención de ISLR (banco) · comprobante ${comprobante.trim() || "s/n"}${notas.trim() ? ` · ${notas.trim()}` : ""}`;
+    const { data: tx, error } = await supabase
+      .from("transacciones")
+      .insert({
+        fecha,
+        cuenta_codigo: CUENTA_RETENCION_ISLR,
+        centro_costo: centro as any,
+        monto_bs: montoBsN,
+        monto_base_bs: montoBsN,
+        iva_bs: 0,
+        iva_aplica: false,
+        tipo_iva: null,
+        tasa_bcv: tasaN,
+        tasa_paralela: null,
+        monto_usd: +montoUsd.toFixed(2),
+        metodo_pago: "transferencia" as any,
+        cuenta_bancaria_id: cuentaBancariaId,
+        referencia: comprobante.trim() || null,
+        notas: notaCompleta,
+        modo: "on_balance" as any,
+        created_by: user.id,
+      } as any)
+      .select()
+      .single();
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    if (tx) await logAudit("transacciones", "INSERT", tx.id, null, tx);
+    toast.success("Retención de ISLR registrada");
+    setMontoBs("");
+    setComprobante("");
+    setNotas("");
+    qc.invalidateQueries();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Retención de ISLR (banco)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label>Fecha</Label>
+            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
+          </div>
+          <div>
+            <Label>Centro de costo</Label>
+            <Select value={centro} onValueChange={(v) => setCentro(v as Centro)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CENTROS.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <BankAccountSelect value={cuentaBancariaId} onChange={setCuentaBancariaId} required />
+          </div>
+          <div>
+            <Label>Monto retenido (Bs)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={montoBs}
+              onChange={(e) => setMontoBs(e.target.value)}
+              required
+              className="mono"
+            />
+          </div>
+          <div>
+            <Label>Tasa BCV</Label>
+            <Input
+              type="number"
+              step="0.0001"
+              value={tasa}
+              onChange={(e) => setTasa(e.target.value)}
+              required
+              className="mono"
+            />
+          </div>
+          <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
+            <span className="text-xs text-muted-foreground">USD BCV</span>
+            <span className="text-base font-bold mono">{fmtUsd(montoUsd)}</span>
+          </div>
+          <div>
+            <Label>N° de comprobante de retención</Label>
+            <Input value={comprobante} onChange={(e) => setComprobante(e.target.value)} placeholder="Opcional" />
+          </div>
+          <div className="md:col-span-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+            Se registra como activo transitorio (9.5) — no crea gasto ni afecta la utilidad del mes.
+            Es un anticipo acreditable contra la declaración de ISLR de la empresa.
           </div>
           <div className="md:col-span-2">
             <Label>Notas</Label>
