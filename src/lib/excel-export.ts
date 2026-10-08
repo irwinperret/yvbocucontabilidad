@@ -592,6 +592,9 @@ export type LineasFCMes = {
    * tarjeta/POS (cuenta 9.4) — se resta del efectivo operativo, igual que
    * en la pantalla de Flujo de Caja (src/lib/flujo-caja.ts). */
   retencionIva: number;
+  /** Retenciones de ISLR que el banco descuenta al liquidar ciertos pagos
+   * (cuenta 9.5) — mismo tratamiento que retencionIva. */
+  retencionIslr: number;
   compraInmuebles: number;
   compraEquipos: number;
   aumentoCapital: number;
@@ -607,7 +610,8 @@ const FILAS_FC_EXPORT: { label: string; get: (l: LineasFCMes) => number; bold?: 
   { label: "Cambios Inventario (Almacenado)", get: (l) => l.cambioInventario },
   { label: "Cambios en Cuentas por pagar", get: (l) => l.cambioCxP },
   { label: "Retenciones de IVA (banco)", get: (l) => -l.retencionIva },
-  { label: "Total Flujo de Caja de Actividades Operativas", get: (l) => l.ebitda + l.cambioCxC + l.cambioInventario + l.cambioCxP - l.retencionIva, bold: true },
+  { label: "Retenciones de ISLR (banco)", get: (l) => -l.retencionIslr },
+  { label: "Total Flujo de Caja de Actividades Operativas", get: (l) => l.ebitda + l.cambioCxC + l.cambioInventario + l.cambioCxP - l.retencionIva - l.retencionIslr, bold: true },
   { label: "Compra de Inmuebles", get: (l) => -l.compraInmuebles },
   { label: "Compra de Equipos", get: (l) => -l.compraEquipos },
   { label: "Total Flujo de Caja de Actividades de Inversión", get: (l) => -l.compraInmuebles - l.compraEquipos, bold: true },
@@ -617,7 +621,7 @@ const FILAS_FC_EXPORT: { label: string; get: (l: LineasFCMes) => number; bold?: 
   { label: "Gasto en Impuestos", get: (l) => -l.gastoImpuestos },
   { label: "Gasto en Dividendos", get: (l) => -l.gastoDividendos },
   { label: "Total Flujo de Caja de Actividades Financieras", get: (l) => l.aumentoCapital + l.aumentoPrestamos - l.gastoIntereses - l.gastoImpuestos - l.gastoDividendos, bold: true },
-  { label: "VARIACIÓN NETA DE CAJA", get: (l) => l.ebitda + l.cambioCxC + l.cambioInventario + l.cambioCxP - l.retencionIva - l.compraInmuebles - l.compraEquipos + l.aumentoCapital + l.aumentoPrestamos - l.gastoIntereses - l.gastoImpuestos - l.gastoDividendos, bold: true },
+  { label: "VARIACIÓN NETA DE CAJA", get: (l) => l.ebitda + l.cambioCxC + l.cambioInventario + l.cambioCxP - l.retencionIva - l.retencionIslr - l.compraInmuebles - l.compraEquipos + l.aumentoCapital + l.aumentoPrestamos - l.gastoIntereses - l.gastoImpuestos - l.gastoDividendos, bold: true },
 ];
 
 function sumarLineasFC(lista: LineasFCMes[]): LineasFCMes {
@@ -626,12 +630,13 @@ function sumarLineasFC(lista: LineasFCMes[]): LineasFCMes {
       ebitda: acc.ebitda + l.ebitda, cambioCxC: acc.cambioCxC + l.cambioCxC,
       cambioInventario: acc.cambioInventario + l.cambioInventario, cambioCxP: acc.cambioCxP + l.cambioCxP,
       retencionIva: acc.retencionIva + l.retencionIva,
+      retencionIslr: acc.retencionIslr + l.retencionIslr,
       compraInmuebles: acc.compraInmuebles + l.compraInmuebles, compraEquipos: acc.compraEquipos + l.compraEquipos,
       aumentoCapital: acc.aumentoCapital + l.aumentoCapital, aumentoPrestamos: acc.aumentoPrestamos + l.aumentoPrestamos,
       gastoIntereses: acc.gastoIntereses + l.gastoIntereses, gastoImpuestos: acc.gastoImpuestos + l.gastoImpuestos,
       gastoDividendos: acc.gastoDividendos + l.gastoDividendos,
     }),
-    { ebitda: 0, cambioCxC: 0, cambioInventario: 0, cambioCxP: 0, retencionIva: 0, compraInmuebles: 0, compraEquipos: 0, aumentoCapital: 0, aumentoPrestamos: 0, gastoIntereses: 0, gastoImpuestos: 0, gastoDividendos: 0 },
+    { ebitda: 0, cambioCxC: 0, cambioInventario: 0, cambioCxP: 0, retencionIva: 0, retencionIslr: 0, compraInmuebles: 0, compraEquipos: 0, aumentoCapital: 0, aumentoPrestamos: 0, gastoIntereses: 0, gastoImpuestos: 0, gastoDividendos: 0 },
   );
 }
 
