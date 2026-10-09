@@ -7,7 +7,7 @@ import { Loader2, Save } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { fmtUsd } from "@/lib/format";
 import { tasaBcvQuery } from "@/lib/tasas";
-import { periodoActual } from "@/lib/home-checklist";
+import { periodoActual, rangoDePeriodo } from "@/lib/home-checklist";
 import { fetchReclasificacionDelPeriodo, guardarReclasificacionIslr } from "@/lib/retencion-islr-reclass";
 
 /**
@@ -40,14 +40,18 @@ export function RetencionIslrQuickEntry() {
     if (!user) return toast.error("Sin sesión");
     setGuardando(true);
     try {
-      const hoy = new Date().toISOString().slice(0, 10);
-      const { data: tasaRow } = await tasaBcvQuery(hoy);
+      // Se registra al último día del mes (no "hoy"): si ese día todavía no
+      // tiene tasa BCV publicada (mes en curso), tasaBcvQuery cae a la más
+      // reciente disponible -- se actualizará sola cuando se publique la
+      // del cierre real del mes.
+      const { ultimo } = rangoDePeriodo(periodo);
+      const { data: tasaRow } = await tasaBcvQuery(ultimo);
       const tasa = Number(tasaRow?.tasa) || 0;
-      if (!tasa) { toast.error("No hay tasa BCV para hoy"); return; }
+      if (!tasa) { toast.error("No hay tasa BCV disponible para este mes"); return; }
       await guardarReclasificacionIslr({
         grupoId: existente?.grupoId ?? null,
         ids: existente?.id48 ? { id95: existente.id95, id48: existente.id48 } : null,
-        fecha: existente?.fecha ?? hoy,
+        fecha: ultimo,
         montoUsd,
         tasaBcv: tasa,
         userId: user.id,
@@ -67,7 +71,7 @@ export function RetencionIslrQuickEntry() {
 
   return (
     <div className="pl-9 pr-3 pb-2 -mt-1 flex items-center gap-2">
-      <span className="text-xs text-muted-foreground whitespace-nowrap">↳ Retención ISLR ({periodo}) — USD retenido este mes:</span>
+      <span className="text-xs text-muted-foreground whitespace-nowrap">↳ Retención ISLR ({periodo}) — USD a tasa BCV del último día del mes:</span>
       <Input
         type="number"
         step="0.01"
