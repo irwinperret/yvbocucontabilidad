@@ -5,6 +5,9 @@ import {
   TIPOS_IMPORTACION,
   fetchImportacionesActivas,
   fetchPeriodosCerrados,
+  fetchInventarioFinalPeriodos,
+  fetchVentaIvaPeriodos,
+  fetchRetencionIslrPeriodos,
   periodosParaHistorial,
   tipoImportadoEnPeriodo,
   type TipoImportacion,
@@ -18,26 +21,49 @@ function celda(ok: boolean) {
   );
 }
 
+// Columnas extra del historial que no vienen de la tabla `importaciones`
+// (son entradas manuales mensuales): Inventario, Venta de IVA, Retención
+// ISLR. Cada una se resuelve contra el Set de períodos que ya tiene algo
+// cargado, que se trae junto con las importaciones.
+const COLUMNAS_MANUALES = [
+  { key: "inventario" as const, label: "Inventario" },
+  { key: "ventaIva" as const, label: "Venta de IVA" },
+  { key: "retencionIslr" as const, label: "Retención ISLR" },
+];
+
 export function HistorialImportacionesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data } = useQuery({
     queryKey: ["historial-importaciones"],
     enabled: open,
     queryFn: async () => {
-      const [imports, cerrados] = await Promise.all([fetchImportacionesActivas(), fetchPeriodosCerrados()]);
-      return { imports, cerrados, periodos: periodosParaHistorial(imports, cerrados) };
+      const [imports, cerrados, inventario, ventaIva, retencionIslr] = await Promise.all([
+        fetchImportacionesActivas(),
+        fetchPeriodosCerrados(),
+        fetchInventarioFinalPeriodos(),
+        fetchVentaIvaPeriodos(),
+        fetchRetencionIslrPeriodos(),
+      ]);
+      return {
+        imports,
+        cerrados,
+        inventario,
+        ventaIva,
+        retencionIslr,
+        periodos: periodosParaHistorial(imports, cerrados, inventario, ventaIva, retencionIslr),
+      };
     },
   });
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Historial de importaciones y cierres por mes</DialogTitle>
+          <DialogTitle>Historial de entradas y cierres por mes</DialogTitle>
         </DialogHeader>
         {!data ? (
           <p className="text-sm text-muted-foreground py-6 text-center">Cargando…</p>
         ) : data.periodos.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">Todavía no hay ninguna importación registrada.</p>
+          <p className="text-sm text-muted-foreground py-6 text-center">Todavía no hay ninguna entrada registrada.</p>
         ) : (
           <div className="overflow-auto">
             <table className="w-full text-sm">
@@ -49,6 +75,9 @@ export function HistorialImportacionesDialog({ open, onClose }: { open: boolean;
                       {t.label.replace("Importar ", "")}
                     </th>
                   ))}
+                  {COLUMNAS_MANUALES.map((c) => (
+                    <th key={c.key} className="py-2 px-2 text-center font-medium">{c.label}</th>
+                  ))}
                   <th className="py-2 px-2 text-center font-medium">Cierre</th>
                 </tr>
               </thead>
@@ -59,6 +88,11 @@ export function HistorialImportacionesDialog({ open, onClose }: { open: boolean;
                     {TIPOS_IMPORTACION.map((t) => (
                       <td key={t.tipo} className="py-2 px-2 text-center">
                         {celda(tipoImportadoEnPeriodo(data.imports, t.tipo as TipoImportacion, periodo))}
+                      </td>
+                    ))}
+                    {COLUMNAS_MANUALES.map((c) => (
+                      <td key={c.key} className="py-2 px-2 text-center">
+                        {celda(data[c.key].has(periodo))}
                       </td>
                     ))}
                     <td className="py-2 px-2 text-center">{celda(data.cerrados.has(periodo))}</td>

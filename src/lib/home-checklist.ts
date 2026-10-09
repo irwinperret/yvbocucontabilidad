@@ -81,9 +81,17 @@ export async function fetchPeriodosCerrados(): Promise<Set<string>> {
  * todos los meses tocados por alguna importación o cierre, más reciente
  * primero, limitado a los últimos 24 para no crecer sin límite.
  */
-export function periodosParaHistorial(imports: ImportacionRow[], cerrados: Set<string>): string[] {
+export function periodosParaHistorial(
+  imports: ImportacionRow[],
+  cerrados: Set<string>,
+  /** Otros períodos a incluir aunque no tengan importación ni cierre todavía
+   * (p. ej. meses que solo tienen Inventario, Venta de IVA o Retención
+   * ISLR cargados). */
+  ...otrosPeriodos: Set<string>[]
+): string[] {
   const set = new Set<string>();
   for (const p of cerrados) set.add(p);
+  for (const otros of otrosPeriodos) for (const p of otros) set.add(p);
   for (const imp of imports) {
     if (!imp.fecha_desde || !imp.fecha_hasta) continue;
     let [y, m] = imp.fecha_desde.split("-").map(Number);
