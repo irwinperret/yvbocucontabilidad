@@ -8,12 +8,17 @@ import {
   TIPOS_IMPORTACION,
   fetchImportacionesActivas,
   fetchPeriodosCerrados,
+  fetchInventarioFinalPeriodos,
+  fetchVentaIvaPeriodos,
+  fetchRetencionIslrPeriodos,
   periodoActual,
   tipoImportadoEnPeriodo,
   type TipoImportacion,
 } from "@/lib/home-checklist";
 import { HistorialImportacionesDialog } from "@/components/historial-importaciones-dialog";
 import { InventarioFinalQuickEntry } from "@/components/inventario-final-quick-entry";
+import { VentaIvaQuickEntry } from "@/components/venta-iva-quick-entry";
+import { RetencionIslrQuickEntry } from "@/components/retencion-islr-quick-entry";
 
 type Paso = { label: string; ruta: string; hecho: boolean; nota?: string };
 
@@ -39,11 +44,20 @@ export function ChecklistMensualCard() {
     queryKey: ["home-checklist-mes", periodo],
     staleTime: 60_000,
     queryFn: async () => {
-      const [imports, cerrados] = await Promise.all([fetchImportacionesActivas(), fetchPeriodosCerrados()]);
-      return { imports, cerrados };
+      const [imports, cerrados, inventarios, ventaIva, retencionIslr] = await Promise.all([
+        fetchImportacionesActivas(),
+        fetchPeriodosCerrados(),
+        fetchInventarioFinalPeriodos(),
+        fetchVentaIvaPeriodos(),
+        fetchRetencionIslrPeriodos(),
+      ]);
+      return { imports, cerrados, inventarios, ventaIva, retencionIslr };
     },
   });
 
+  // Las 7 entradas mensuales, en orden lógico: 4 imports de Excel (1-4),
+  // Inventario final (5), Venta de IVA (6) y Retención ISLR (7). Cerrar el
+  // mes (COGS) es la acción final que viene DESPUÉS de las 7, no una de ellas.
   const pasos: Paso[] = data
     ? [
         ...TIPOS_IMPORTACION.map((t) => ({
@@ -52,16 +66,38 @@ export function ChecklistMensualCard() {
           hecho: tipoImportadoEnPeriodo(data.imports, t.tipo as TipoImportacion, periodo),
         })),
         {
-          label: "Cerrar el mes (COGS e Inventario)",
+          label: "Inventario final",
+          ruta: "/inventarios",
+          hecho: data.inventarios.has(periodo),
+        },
+        {
+          label: "Venta de IVA",
+          ruta: "/venta-iva",
+          hecho: data.ventaIva.has(periodo),
+        },
+        {
+          label: "Retención ISLR",
+          ruta: "/retencion-islr",
+          hecho: data.retencionIslr.has(periodo),
+        },
+        {
+          label: "Cerrar el mes (COGS)",
           ruta: "/registrar?tab=cierre",
           hecho: data.cerrados.has(periodo),
-          nota: "Acuérdate de anotar el inventario final antes de cerrar",
+          nota: "Hazlo después de completar los 7 pasos anteriores",
         },
       ]
     : [];
 
   const siguienteIdx = pasos.findIndex((p) => !p.hecho);
   const [rutaCierre, searchCierre] = ["/registrar", { tab: "cierre" }];
+
+  const quickEntryDePaso = (label: string) => {
+    if (label === "Inventario final") return <InventarioFinalQuickEntry />;
+    if (label === "Venta de IVA") return <VentaIvaQuickEntry />;
+    if (label === "Retención ISLR") return <RetencionIslrQuickEntry />;
+    return null;
+  };
 
   return (
     <>
@@ -110,17 +146,20 @@ export function ChecklistMensualCard() {
                   )}
                 </div>
               );
+              const quickEntry = quickEntryDePaso(p.label);
               return p.label.startsWith("Cerrar el mes") ? (
                 <div key={p.label}>
                   <Link to={rutaCierre} search={searchCierre as any} className="block">
                     {contenido}
                   </Link>
-                  {!p.hecho && <InventarioFinalQuickEntry />}
                 </div>
               ) : (
-                <Link key={p.label} to={p.ruta as any} className="block">
-                  {contenido}
-                </Link>
+                <div key={p.label}>
+                  <Link to={p.ruta as any} className="block">
+                    {contenido}
+                  </Link>
+                  {!p.hecho && quickEntry}
+                </div>
               );
             })
           )}

@@ -96,3 +96,21 @@ export function periodosParaHistorial(imports: ImportacionRow[], cerrados: Set<s
   }
   return [...set].sort().reverse().slice(0, 24);
 }
+
+/** Períodos (YYYY-MM) que ya tienen inventario FINAL registrado. */
+export async function fetchInventarioFinalPeriodos(): Promise<Set<string>> {
+  const { data } = await supabase.from("inventario_snapshots").select("periodo").eq("tipo", "final");
+  return new Set((data ?? []).map((r: any) => r.periodo as string));
+}
+
+/** Períodos (YYYY-MM) que ya tienen un registro de Venta de IVA (cuenta 1.8). */
+export async function fetchVentaIvaPeriodos(): Promise<Set<string>> {
+  const { data } = await supabase.from("transacciones").select("fecha").eq("cuenta_codigo", "1.8");
+  return new Set((data ?? []).map((r: any) => (r.fecha as string).slice(0, 7)));
+}
+
+/** Períodos (YYYY-MM) que ya tienen una reclasificación de Retención ISLR (cuenta 9.5). */
+export async function fetchRetencionIslrPeriodos(): Promise<Set<string>> {
+  const { data } = await supabase.from("transacciones").select("fecha").eq("cuenta_codigo", "9.5");
+  return new Set((data ?? []).map((r: any) => (r.fecha as string).slice(0, 7)));
+}

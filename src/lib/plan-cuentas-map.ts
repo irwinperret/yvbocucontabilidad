@@ -16,6 +16,7 @@ export const CUENTA = {
   COBRO_CREDITO: "1.5",
   DESCUENTOS: "1.6",
   DEVOLUCIONES: "1.7",
+  VENTA_IVA: "1.8", // Ingresos (Neto) Ops IVA — ingreso mensual manual, ver src/lib/venta-iva.ts
 
   // COGS
   COMPRAS: "2.1",

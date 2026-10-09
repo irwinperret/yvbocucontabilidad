@@ -52,11 +52,17 @@ import { useMode } from "@/lib/mode-context";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 
+// Las 7 entradas mensuales del cierre, en orden lógico (ver checklist de
+// Inicio): 4 imports de Excel, luego Inventario, Venta de IVA y Retención
+// ISLR -- estas 3 últimas antes vivían sueltas en otros grupos del menú.
 const registroImportar = [
   { title: "Importar ventas (Xetux)", url: "/importar-ventas", icon: Upload },
   { title: "Importar compras (Xetux)", url: "/importar-compras", icon: Upload },
   { title: "Importar movimientos bancarios", url: "/importar-movimientos", icon: Landmark },
   { title: "Importar ajustes ventas", url: "/importar-ajustes", icon: Upload },
+  { title: "Inventarios", url: "/inventarios", icon: BookOpen },
+  { title: "Venta de IVA", url: "/venta-iva", icon: DollarSign },
+  { title: "Retención ISLR", url: "/retencion-islr", icon: Receipt },
   { title: "Historial de importaciones", url: "/importaciones", icon: HistoryIcon },
   { title: "Cierres de Mes", url: "/cierres-de-mes", icon: Lock },
 ];
@@ -71,7 +77,6 @@ const registroGestion = [
   { title: "Cuentas por pagar", url: "/pagar-cxp", icon: FileOutput },
   { title: "Proveedores", url: "/proveedores", icon: Users },
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
-  { title: "Inventarios", url: "/inventarios", icon: BookOpen },
 ];
 
 const registroGestionEnConstruccion = [
@@ -179,7 +184,7 @@ export function AppSidebar() {
                       <Upload className="h-4 w-4" />
                       {!collapsed && (
                         <>
-                          <span className="flex-1 text-left font-bold">Importar Archivos</span>
+                          <span className="flex-1 text-left font-bold">Entradas del mes</span>
                           {importarOpen ? (
                             <ChevronDown className="h-3.5 w-3.5" />
                           ) : (
