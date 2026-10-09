@@ -256,6 +256,7 @@ function ResumenEjecutivoMensualPage() {
       mes: String(mes),
       modo: mode,
       incluirPrestamosDividendos: incluirPrestamosDividendos ? "1" : "0",
+      incluirIva: incluirIva ? "1" : "0",
     });
     window.open(`/reporte-mensual-imprimir?${params.toString()}`, "_blank");
   };

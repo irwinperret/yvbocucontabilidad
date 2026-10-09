@@ -7,6 +7,7 @@ import { MESES, ordenarPorCodigo } from "@/lib/account-helpers";
 import { useAuth } from "@/lib/auth-context";
 import { mensualView, usdVisual } from "@/lib/usd-view-context";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
+import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, ReferenceLine } from "recharts";
 import {
   CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
@@ -25,6 +26,10 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
     // Resumen IPA Mensual (checkbox "Incluir préstamos/dividendos en el PDF").
     // Por defecto NO se incluye.
     incluirPrestamosDividendos: Number(search.incluirPrestamosDividendos) === 1,
+    // Refleja el switch "Incluir Ingresos IVA" de la pantalla -- a diferencia
+    // de incluirPrestamosDividendos, acá el default es SI (igual que en
+    // pantalla), y solo se apaga si llega explícitamente incluirIva=0.
+    incluirIva: search.incluirIva === undefined ? true : Number(search.incluirIva) === 1,
   }),
 });
 
@@ -69,7 +74,7 @@ function celdaHistorica(v: number) {
 
 function ReporteMensualImprimirPage() {
   const { user } = useAuth();
-  const { anio, mes, modo, incluirPrestamosDividendos } = Route.useSearch();
+  const { anio, mes, modo, incluirPrestamosDividendos, incluirIva } = Route.useSearch();
   const mode = modo;
   const [listoParaImprimir, setListoParaImprimir] = useState(false);
 
@@ -97,6 +102,17 @@ function ReporteMensualImprimirPage() {
       return (data ?? []) as Row[];
     },
   });
+
+  // Mismo filtro que en pantalla: sin la cuenta 1.8 (Ingresos IVA) cuando el
+  // switch "Incluir Ingresos IVA" viene apagado desde la URL.
+  const rowsAnioFiltrado = useMemo(
+    () => (incluirIva ? (rowsAnio ?? []) : (rowsAnio ?? []).filter((r) => r.cuenta_codigo !== CUENTA_VENTA_IVA)),
+    [rowsAnio, incluirIva],
+  );
+  const rowsPrevFiltrado = useMemo(
+    () => (incluirIva ? (rowsPrev ?? []) : (rowsPrev ?? []).filter((r) => r.cuenta_codigo !== CUENTA_VENTA_IVA)),
+    [rowsPrev, incluirIva],
+  );
 
   const { data: cogsEstimadoPorMes } = useQuery({
     queryKey: ["rie-print-cogs-est", anio],
@@ -158,45 +174,45 @@ function ReporteMensualImprimirPage() {
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
   const actual = useMemo(
-    () => calcularTotalesMes(rowsAnio ?? [], grupoDe, mes, cogsEstimadoPorMes, anio, mode),
-    [grupoDe, rowsAnio, mes, cogsEstimadoPorMes, anio],
+    () => calcularTotalesMes(rowsAnioFiltrado, grupoDe, mes, cogsEstimadoPorMes, anio, mode),
+    [grupoDe, rowsAnioFiltrado, mes, cogsEstimadoPorMes, anio],
   );
   const mesAnterior = mes === 1 ? 12 : mes - 1;
   const anioMesAnterior = mes === 1 ? anio - 1 : anio;
   const anterior = useMemo(
     () => calcularTotalesMes(
-      mes === 1 ? (rowsPrev ?? []) : (rowsAnio ?? []),
+      mes === 1 ? rowsPrevFiltrado : rowsAnioFiltrado,
       grupoDe,
       mesAnterior,
       mes === 1 ? cogsEstimadoPrev : cogsEstimadoPorMes,
       anioMesAnterior,
       mode,
     ),
-    [grupoDe, rowsAnio, rowsPrev, mes, mesAnterior, anioMesAnterior, cogsEstimadoPorMes, cogsEstimadoPrev],
+    [grupoDe, rowsAnioFiltrado, rowsPrevFiltrado, mes, mesAnterior, anioMesAnterior, cogsEstimadoPorMes, cogsEstimadoPrev],
   );
   const anioPasado = useMemo(
-    () => calcularTotalesMes(rowsPrev ?? [], grupoDe, mes, cogsEstimadoPrev, anio - 1, mode),
-    [grupoDe, rowsPrev, mes, cogsEstimadoPrev, anio],
+    () => calcularTotalesMes(rowsPrevFiltrado, grupoDe, mes, cogsEstimadoPrev, anio - 1, mode),
+    [grupoDe, rowsPrevFiltrado, mes, cogsEstimadoPrev, anio],
   );
   const hayAnioPasado = (rowsPrev ?? []).some((r) => r.mes === mes);
 
   const comparativoMensual = useMemo(
-    () => construirComparativoMensual(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
-    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+    () => construirComparativoMensual(rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes, mode),
+    [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
   const serie = useMemo(
-    () => construirSerieCategorias(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
-    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+    () => construirSerieCategorias(rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes, mode),
+    [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
   const categoriasConDatos = CATEGORIAS.filter((c) => serie.some((s: any) => Math.abs(s[c]) > 0.009));
   const desglose = useMemo(
-    () => construirDesglose(rowsAnio ?? [], cuentas, mes, actual),
-    [rowsAnio, cuentas, mes, actual],
+    () => construirDesglose(rowsAnioFiltrado, cuentas, mes, actual),
+    [rowsAnioFiltrado, cuentas, mes, actual],
   );
   const categoriasComparativo = CATEGORIAS.filter((cat) => comparativoMensual.some((c) => Math.abs(c.t[cat]) > 0.009));
   const serieMargenes = useMemo(
-    () => construirSerieMargenes(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
-    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+    () => construirSerieMargenes(rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes, mode),
+    [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
 
   const ingresos = actual.t["Ingresos"] ?? 0;
@@ -204,6 +220,18 @@ function ReporteMensualImprimirPage() {
   const gastosTotales = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + (actual.t[c] ?? 0), 0);
   const margenBruto = ingresos - cogs;
   const utilidadNeta = ingresos - gastosTotales;
+  // Igual que en pantalla: siempre sobre las filas SIN filtrar, porque es
+  // justo el monto de esa cuenta lo que queremos mostrar.
+  const ingresosIvaActual = useMemo(
+    () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && r.mes === mes).reduce((s, r) => s + r.base_usd, 0),
+    [rowsAnio, mes],
+  );
+  const ingresosIvaAnterior = useMemo(
+    () => (mes === 1 ? (rowsPrev ?? []) : (rowsAnio ?? []))
+      .filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && r.mes === mesAnterior)
+      .reduce((s, r) => s + r.base_usd, 0),
+    [rowsAnio, rowsPrev, mes, mesAnterior],
+  );
   const { pagoPrestamos, dividendos } = useMemo(() => calcularPrestamosYDividendos(rowsAnio ?? [], mes), [rowsAnio, mes]);
   const sinOperaciones = mesSinOperaciones(actual.t);
   const autorizado = !!user?.email && PERMITIDOS_RESUMEN_MENSUAL.includes(user.email.toLowerCase());
@@ -337,6 +365,9 @@ function ReporteMensualImprimirPage() {
                 Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
               </p>
               <p><ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+              {incluirIva && (
+                <p><ConNegritas>{frase("De eso, Operaciones de IVA representaron", ingresosIvaActual, ingresosIvaAnterior, labelMesAnt, null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+              )}
               <p><ConNegritas>{frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
               <p><ConNegritas>{frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
               <p><ConNegritas>{frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
