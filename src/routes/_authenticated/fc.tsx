@@ -16,6 +16,7 @@ import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { exportFCIndirecto } from "@/lib/excel-export";
 import { calcularLineasFC, fetchInsumosFC, type LineasFCMes } from "@/lib/flujo-caja";
+import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
@@ -30,6 +31,7 @@ function FCPage() {
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(true);
+  const [incluirIva, setIncluirIva] = useState(true);
   const [mesSel, setMesSel] = useState(new Date().getMonth() + 1);
   const [hastaMes, setHastaMes] = useState(new Date().getMonth() + 1);
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("todas");
@@ -39,7 +41,7 @@ function FCPage() {
   const modoFiltro = incluirOff ? undefined : "on_balance";
 
   const { data: rows } = useQuery({
-    queryKey: ["fc-rows", anio, centro, modoFiltro, mode, cuentaBancariaId],
+    queryKey: ["fc-rows", anio, centro, modoFiltro, mode, cuentaBancariaId, incluirIva],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
       if (cuentaBancariaId !== "todas") {
@@ -49,6 +51,7 @@ function FCPage() {
             .eq("cuenta_bancaria_id" as any, cuentaBancariaId).range(from, to);
           if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
           if (modoFiltro) q = q.eq("modo", modoFiltro as any);
+          if (!incluirIva) q = q.neq("cuenta_codigo", CUENTA_VENTA_IVA);
           return await q;
         });
         const map = new Map<string, Row>();
@@ -67,6 +70,7 @@ function FCPage() {
       let q = (supabase as any).from(mensualView(mode)).select("*").eq("anio", anio);
       if (centro !== "Consolidado") q = q.eq("centro_costo", centro);
       if (modoFiltro) q = q.eq("modo", modoFiltro);
+      if (!incluirIva) q = q.neq("cuenta_codigo", CUENTA_VENTA_IVA);
       return await fetchAllRows<Row>(async (from, to) => (q as any).range(from, to));
     },
   });
@@ -128,6 +132,7 @@ function FCPage() {
           <div><Label className="text-xs">Año</Label><Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}><SelectTrigger className="w-24"><SelectValue /></SelectTrigger><SelectContent>{[2024,2025,2026,2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></div>
           <div><Label className="text-xs">Centro de costo</Label><Select value={centro} onValueChange={setCentro}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Consolidado">Consolidado</SelectItem>{CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
           <div className="flex items-center gap-2"><Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="off" /><Label htmlFor="off" className="text-xs">Incluir off-balance</Label></div>
+          <div className="flex items-center gap-2"><Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="iva" /><Label htmlFor="iva" className="text-xs">Incluir Ingresos IVA</Label></div>
           <div><Label className="text-xs">Cuenta bancaria</Label>
             <Select value={cuentaBancariaId} onValueChange={setCuentaBancariaId}>
               <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>

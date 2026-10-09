@@ -16,6 +16,7 @@ import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { GyPCharts } from "@/components/gyp-charts";
 import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
+import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
@@ -42,6 +43,7 @@ function GyPPage() {
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(true);
+  const [incluirIva, setIncluirIva] = useState(true);
   const [mesSel, setMesSel] = useState(new Date().getMonth() + 1);
   const [hastaMes, setHastaMes] = useState(new Date().getMonth() + 1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -65,13 +67,14 @@ function GyPPage() {
   });
 
   const { data: rows } = useQuery({
-    queryKey: ["gyp-rows", anio, centro, incluirOff, mode],
+    queryKey: ["gyp-rows", anio, centro, incluirOff, incluirIva, mode],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
       return await fetchAllRows<Row>(async (from, to) => {
         let q = (supabase as any).from(mensualView(mode)).select("*").eq("anio", anio).range(from, to);
         if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
         if (!incluirOff) q = q.eq("modo", "on_balance");
+        if (!incluirIva) q = q.neq("cuenta_codigo", CUENTA_VENTA_IVA);
         return await q;
       });
     },
@@ -123,6 +126,7 @@ function GyPPage() {
           <div><Label className="text-xs">Año</Label><Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}><SelectTrigger className="w-24"><SelectValue /></SelectTrigger><SelectContent>{[2024,2025,2026,2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select></div>
           <div><Label className="text-xs">Centro de costo</Label><Select value={centro} onValueChange={setCentro}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Consolidado">Consolidado</SelectItem>{CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
           <div className="flex items-center gap-2"><Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="off" /><Label htmlFor="off" className="text-xs">Incluir off-balance</Label></div>
+          <div className="flex items-center gap-2"><Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="iva" /><Label htmlFor="iva" className="text-xs">Incluir Ingresos IVA</Label></div>
         </CardContent>
       </Card>
 
@@ -144,7 +148,7 @@ function GyPPage() {
             </div>
             <div className="flex items-center gap-2">
               <ExpandControls />
-              <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "mes", anio, mes: mesSel, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+              <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "mes", anio, mes: mesSel, centro, incluirOff, incluirIva, rows: rows ?? [], cuentas: cuentas ?? [] })}>
                 <Download className="h-4 w-4 mr-2" /> Exportar a Excel
               </Button>
             </div>
@@ -164,7 +168,7 @@ function GyPPage() {
             </div>
             <div className="flex items-center gap-2">
               <ExpandControls />
-              <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "ytd", anio, hastaMes, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+              <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "ytd", anio, hastaMes, centro, incluirOff, incluirIva, rows: rows ?? [], cuentas: cuentas ?? [] })}>
                 <Download className="h-4 w-4 mr-2" /> Exportar a Excel
               </Button>
             </div>
@@ -175,7 +179,7 @@ function GyPPage() {
         <TabsContent value="comp">
           <div className="mb-3 flex justify-end gap-2">
             <ExpandControls />
-            <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "comp", anio, centro, incluirOff, rows: rows ?? [], cuentas: cuentas ?? [] })}>
+            <Button size="sm" variant="outline" onClick={() => exportGyP({ tab: "comp", anio, centro, incluirOff, incluirIva, rows: rows ?? [], cuentas: cuentas ?? [] })}>
               <Download className="h-4 w-4 mr-2" /> Exportar a Excel
             </Button>
           </div>

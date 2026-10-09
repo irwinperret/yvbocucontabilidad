@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtUsd } from "@/lib/format";
 import { MESES, ordenarPorCodigo } from "@/lib/account-helpers";
@@ -14,6 +15,7 @@ import { useUsdView, mensualView, usdVisual } from "@/lib/usd-view-context";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
 import { NotasResumenMensual } from "@/components/notas-resumen-mensual";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
+import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import {
   Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
 } from "recharts";
@@ -99,6 +101,21 @@ function ResumenEjecutivoMensualPage() {
     },
   });
 
+  const [incluirIva, setIncluirIva] = useState(true);
+
+  // Filas sin la cuenta 1.8 (Ingresos IVA) cuando el toggle está apagado --
+  // se usan en todos los totales/series/gráficos de la página, para que
+  // apagar el toggle afecte consistentemente todo el informe, no solo el
+  // resumen de arriba.
+  const rowsAnioFiltrado = useMemo(
+    () => (incluirIva ? (rowsAnio ?? []) : (rowsAnio ?? []).filter((r) => r.cuenta_codigo !== CUENTA_VENTA_IVA)),
+    [rowsAnio, incluirIva],
+  );
+  const rowsPrevFiltrado = useMemo(
+    () => (incluirIva ? (rowsPrev ?? []) : (rowsPrev ?? []).filter((r) => r.cuenta_codigo !== CUENTA_VENTA_IVA)),
+    [rowsPrev, incluirIva],
+  );
+
   const { data: cogsEstimadoPorMes } = useQuery({
     queryKey: ["rie-mensual-cogs-est", anio],
     queryFn: () => estimarCogsMesesAbiertos(anio),
@@ -138,43 +155,43 @@ function ResumenEjecutivoMensualPage() {
   const grupoDe = useMemo(() => grupoDeCuentas(cuentas), [cuentas]);
 
   const actual = useMemo(
-    () => calcularTotalesMes(rowsAnio ?? [], grupoDe, mes, cogsEstimadoPorMes, anio, mode),
-    [grupoDe, rowsAnio, mes, cogsEstimadoPorMes, anio],
+    () => calcularTotalesMes(rowsAnioFiltrado, grupoDe, mes, cogsEstimadoPorMes, anio, mode),
+    [grupoDe, rowsAnioFiltrado, mes, cogsEstimadoPorMes, anio],
   );
   const mesAnterior = mes === 1 ? 12 : mes - 1;
   const anioMesAnterior = mes === 1 ? anio - 1 : anio;
   const anterior = useMemo(
     () => calcularTotalesMes(
-      mes === 1 ? (rowsPrev ?? []) : (rowsAnio ?? []),
+      mes === 1 ? rowsPrevFiltrado : rowsAnioFiltrado,
       grupoDe,
       mesAnterior,
       mes === 1 ? cogsEstimadoPrev : cogsEstimadoPorMes,
       anioMesAnterior,
       mode,
     ),
-    [grupoDe, rowsAnio, rowsPrev, mes, mesAnterior, anioMesAnterior, cogsEstimadoPorMes, cogsEstimadoPrev],
+    [grupoDe, rowsAnioFiltrado, rowsPrevFiltrado, mes, mesAnterior, anioMesAnterior, cogsEstimadoPorMes, cogsEstimadoPrev],
   );
   const anioPasado = useMemo(
-    () => calcularTotalesMes(rowsPrev ?? [], grupoDe, mes, cogsEstimadoPrev, anio - 1, mode),
-    [grupoDe, rowsPrev, mes, cogsEstimadoPrev, anio],
+    () => calcularTotalesMes(rowsPrevFiltrado, grupoDe, mes, cogsEstimadoPrev, anio - 1, mode),
+    [grupoDe, rowsPrevFiltrado, mes, cogsEstimadoPrev, anio],
   );
   const hayAnioPasado = (rowsPrev ?? []).some((r) => r.mes === mes);
 
   const comparativoMensual = useMemo(
-    () => construirComparativoMensual(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
-    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+    () => construirComparativoMensual(rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes, mode),
+    [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
 
   const serie = useMemo(
-    () => construirSerieCategorias(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
-    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+    () => construirSerieCategorias(rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes, mode),
+    [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
 
   const categoriasConDatos = CATEGORIAS.filter((c) => serie.some((s: any) => Math.abs(s[c]) > 0.009));
 
   const desglose = useMemo(
-    () => construirDesglose(rowsAnio ?? [], cuentas, mes, actual),
-    [rowsAnio, cuentas, mes, actual],
+    () => construirDesglose(rowsAnioFiltrado, cuentas, mes, actual),
+    [rowsAnioFiltrado, cuentas, mes, actual],
   );
 
   const categoriasComparativo = CATEGORIAS.filter((cat) => comparativoMensual.some((c) => Math.abs(c.t[cat]) > 0.009));
@@ -190,8 +207,8 @@ function ResumenEjecutivoMensualPage() {
   const seleccionGp = useExcelCellSelection(valoresGpSeleccion);
 
   const serieMargenes = useMemo(
-    () => construirSerieMargenes(rowsAnio ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
-    [rowsAnio, grupoDe, cogsEstimadoPorMes, anio, mes],
+    () => construirSerieMargenes(rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes, mode),
+    [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
 
   const ingresos = actual.t["Ingresos"] ?? 0;
@@ -199,6 +216,22 @@ function ResumenEjecutivoMensualPage() {
   const gastosTotales = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + (actual.t[c] ?? 0), 0);
   const margenBruto = ingresos - cogs;
   const utilidadNeta = ingresos - gastosTotales;
+
+  // Cuanto de los ingresos del mes corresponde a Operaciones de IVA (cuenta
+  // 1.8), para la frase comparativa en el analisis -- se calcula siempre
+  // sobre las filas SIN filtrar, porque el monto que queremos mostrar es
+  // justamente el de esa cuenta, sin importar si el toggle esta prendido o
+  // apagado.
+  const ingresosIvaActual = useMemo(
+    () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && r.mes === mes).reduce((s, r) => s + r.base_usd, 0),
+    [rowsAnio, mes],
+  );
+  const ingresosIvaAnterior = useMemo(
+    () => (mes === 1 ? (rowsPrev ?? []) : (rowsAnio ?? []))
+      .filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && r.mes === mesAnterior)
+      .reduce((s, r) => s + r.base_usd, 0),
+    [rowsAnio, rowsPrev, mes, mesAnterior],
+  );
 
   const { pagoPrestamos, dividendos } = useMemo(
     () => calcularPrestamosYDividendos(rowsAnio ?? [], mes),
@@ -258,6 +291,10 @@ function ResumenEjecutivoMensualPage() {
               <SelectContent>{[2024, 2025, 2026, 2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <label className="flex items-center gap-1.5 self-end pb-2 text-xs text-muted-foreground cursor-pointer">
+            <Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="incluir-iva" />
+            Incluir Ingresos IVA
+          </label>
           {autorizado && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
             <label className="flex items-center gap-1.5 self-end pb-2 text-xs text-muted-foreground cursor-pointer">
               <Checkbox
@@ -299,6 +336,11 @@ function ResumenEjecutivoMensualPage() {
           <p>
             <ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
+          {incluirIva && (
+            <p>
+              <ConNegritas>{frase("De eso, Operaciones de IVA representaron", ingresosIvaActual, ingresosIvaAnterior, labelMesAnt, null, labelAnioAnt, fmtUsd)}</ConNegritas>
+            </p>
+          )}
           <p>
             <ConNegritas>{frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>

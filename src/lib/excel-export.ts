@@ -43,20 +43,21 @@ export function exportGyP(opts: {
   hastaMes?: number;
   centro: string;
   incluirOff: boolean;
+  incluirIva?: boolean;
   rows: RowGyP[];
   cuentas: Cuenta[];
 }) {
-  const { tab, anio, mes, hastaMes, centro, incluirOff, rows, cuentas } = opts;
+  const { tab, anio, mes, hastaMes, centro, incluirOff, incluirIva = true, rows, cuentas } = opts;
   const wb = new ExcelJS.Workbook();
   wb.creator = "Yvbocu Contabilidad";
   wb.created = new Date();
 
   if (tab === "comp") {
-    buildGyPComparativo(wb, { anio, centro, incluirOff, rows, cuentas });
+    buildGyPComparativo(wb, { anio, centro, incluirOff, incluirIva, rows, cuentas });
   } else {
     const filtro = tab === "mes" ? (r: RowGyP) => r.mes === mes : (r: RowGyP) => r.mes <= (hastaMes ?? 12);
     const label = tab === "mes" ? `Mes ${MESES[(mes ?? 1) - 1]}` : `YTD Ene-${MESES[(hastaMes ?? 1) - 1]}`;
-    buildGyPSingle(wb, { titulo: `G&P · ${label} ${anio}`, centro, incluirOff, rows: rows.filter(filtro), cuentas });
+    buildGyPSingle(wb, { titulo: `G&P · ${label} ${anio}`, centro, incluirOff, incluirIva, rows: rows.filter(filtro), cuentas });
   }
 
   wb.xlsx.writeBuffer().then((buf) => {
@@ -67,7 +68,7 @@ export function exportGyP(opts: {
 
 function buildGyPSingle(
   wb: ExcelJS.Workbook,
-  { titulo, centro, incluirOff, rows, cuentas }: { titulo: string; centro: string; incluirOff: boolean; rows: RowGyP[]; cuentas: Cuenta[] }
+  { titulo, centro, incluirOff, incluirIva = true, rows, cuentas }: { titulo: string; centro: string; incluirOff: boolean; incluirIva?: boolean; rows: RowGyP[]; cuentas: Cuenta[] }
 ) {
   const ws = wb.addWorksheet("G&P");
   ws.columns = [
@@ -79,7 +80,7 @@ function buildGyPSingle(
   ws.mergeCells("A1:C1");
   ws.getCell("A1").value = titulo;
   ws.getCell("A1").font = { bold: true, size: 14 };
-  ws.addRow([`Centro: ${centro}`, "", incluirOff ? "Incluye off-balance" : "Solo on-balance"]);
+  ws.addRow([`Centro: ${centro}`, "", `${incluirOff ? "Incluye off-balance" : "Solo on-balance"} · ${incluirIva ? "incluye Ingresos IVA" : "sin Ingresos IVA"}`]);
   ws.addRow([]);
   styleHeader(ws.addRow(["Código", "Cuenta", "Monto USD"]));
 
@@ -130,13 +131,13 @@ function buildGyPSingle(
 
 function buildGyPComparativo(
   wb: ExcelJS.Workbook,
-  { anio, centro, incluirOff, rows, cuentas }: { anio: number; centro: string; incluirOff: boolean; rows: RowGyP[]; cuentas: Cuenta[] }
+  { anio, centro, incluirOff, incluirIva = true, rows, cuentas }: { anio: number; centro: string; incluirOff: boolean; incluirIva?: boolean; rows: RowGyP[]; cuentas: Cuenta[] }
 ) {
   const ws = wb.addWorksheet("G&P comparativo");
   const cuentasActivas = cuentas.filter((c) => rows.some((r) => r.cuenta_codigo === c.codigo));
 
   ws.mergeCells("A1:O1");
-  ws.getCell("A1").value = `G&P comparativo mensual · ${anio} · ${centro} · ${incluirOff ? "incluye off-balance" : "on-balance"}`;
+  ws.getCell("A1").value = `G&P comparativo mensual · ${anio} · ${centro} · ${incluirOff ? "incluye off-balance" : "on-balance"} · ${incluirIva ? "incluye IVA" : "sin IVA"}`;
   ws.getCell("A1").font = { bold: true, size: 14 };
   ws.addRow([]);
 

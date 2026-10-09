@@ -72,8 +72,12 @@ export function tipoIngresoFila(r: RowIngresoRaw): TipoIngreso {
   return "Otro";
 }
 
-function filasDelMes(rows: RowIngresoRaw[], mes: number, incluirOff: boolean) {
-  return rows.filter((r) => mesDeFecha(r.fecha) === mes && (incluirOff || r.modo === "on_balance"));
+function filasDelMes(rows: RowIngresoRaw[], mes: number, incluirOff: boolean, incluirIva: boolean = true) {
+  return rows.filter((r) =>
+    mesDeFecha(r.fecha) === mes &&
+    (incluirOff || r.modo === "on_balance") &&
+    (incluirIva || !CUENTAS_IVA_INGRESO.includes(r.cuenta_codigo))
+  );
 }
 
 export type TotalesIngresosMes = {
@@ -88,9 +92,10 @@ export function calcularTotalesIngresosMes(
   mes: number,
   mode: UsdViewMode,
   incluirOff: boolean,
+  incluirIva: boolean = true,
 ): TotalesIngresosMes {
   let ventasComunes = 0, ajustes = 0, ingresosIva = 0;
-  for (const r of filasDelMes(rowsAnio, mes, incluirOff)) {
+  for (const r of filasDelMes(rowsAnio, mes, incluirOff, incluirIva)) {
     const v = baseUsdFila(r, mode);
     if (esAjusteVentaLista(r)) ajustes += v;
     else if (CUENTAS_VENTAS_COMUNES.includes(r.cuenta_codigo)) ventasComunes += v;
@@ -110,9 +115,10 @@ export function construirSerieIngresos(
   mesCorte: number,
   mode: UsdViewMode,
   incluirOff: boolean,
+  incluirIva: boolean = true,
 ) {
   return Array.from({ length: mesCorte }, (_, i) => {
-    const t = calcularTotalesIngresosMes(rowsAnio, i + 1, mode, incluirOff);
+    const t = calcularTotalesIngresosMes(rowsAnio, i + 1, mode, incluirOff, incluirIva);
     return { mesLabel: MESES[i], ...t };
   });
 }
@@ -130,10 +136,11 @@ export function construirDesgloseIngresos(
   mes: number,
   mode: UsdViewMode,
   incluirOff: boolean,
+  incluirIva: boolean = true,
 ): FilaDesglose[] {
   const porCuenta = new Map<string, number>();
   let ajustes = 0;
-  for (const r of filasDelMes(rowsAnio, mes, incluirOff)) {
+  for (const r of filasDelMes(rowsAnio, mes, incluirOff, incluirIva)) {
     const v = baseUsdFila(r, mode);
     if (esAjusteVentaLista(r)) { ajustes += v; continue; }
     porCuenta.set(r.cuenta_codigo, (porCuenta.get(r.cuenta_codigo) ?? 0) + v);

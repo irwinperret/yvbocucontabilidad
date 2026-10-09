@@ -19,6 +19,8 @@ import {
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView, usdVisual } from "@/lib/usd-view-context";
 import { TrendingUp, Wallet, HandCoins, Target, PencilLine, Wrench } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 
 export const Route = createFileRoute("/_authenticated/resumen-ejecutivo")({ component: ResumenEjecutivoPage });
 
@@ -50,6 +52,7 @@ function ResumenEjecutivoPage() {
   const { user } = useAuth();
   const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState(anioActual);
+  const [incluirIva, setIncluirIva] = useState(true);
   const [proyDialog, setProyDialog] = useState<{ periodo: string; ingresos: string; margen: string; notas: string } | null>(null);
 
   // ---------- Capital / financiamiento / dividendos (histórico completo, todas las fechas) ----------
@@ -120,14 +123,16 @@ function ResumenEjecutivoPage() {
 
   // ---------- Vista mensual (misma que usa G&P) ----------
   const { data: rows } = useQuery({
-    queryKey: ["resumen-ejecutivo-mensual", anio, mode],
+    queryKey: ["resumen-ejecutivo-mensual", anio, mode, incluirIva],
     queryFn: async () => {
       const view = mensualView(mode);
-      const { data } = await (supabase as any)
+      let q = (supabase as any)
         .from(view)
         .select("periodo,anio,mes,cuenta_codigo,modo,base_usd")
         .eq("anio", anio)
         .eq("modo", "on_balance");
+      if (!incluirIva) q = q.neq("cuenta_codigo", CUENTA_VENTA_IVA);
+      const { data } = await q;
       return (data ?? []) as Row[];
     },
   });
@@ -250,6 +255,10 @@ function ResumenEjecutivoPage() {
             <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
             <SelectContent>{anios.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
           </Select>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+            <Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="rie-iva" />
+            Incluir Ingresos IVA
+          </label>
         </div>
       </div>
 

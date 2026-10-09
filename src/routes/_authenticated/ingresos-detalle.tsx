@@ -36,6 +36,7 @@ function IngresosDetallePage() {
   const [anio, setAnio] = useState(mesAnteriorD.getFullYear());
   const [mes, setMes] = useState(mesAnteriorD.getMonth() + 1);
   const [incluirOff, setIncluirOff] = useState(true);
+  const [incluirIva, setIncluirIva] = useState(true);
 
   const { data: cuentas } = useQuery({
     queryKey: ["ingresos-detalle-cuentas"],
@@ -66,9 +67,9 @@ function IngresosDetallePage() {
     },
   });
 
-  const serie = useMemo(() => construirSerieIngresos(rowsAnio ?? [], mes, mode, incluirOff), [rowsAnio, mes, mode, incluirOff]);
-  const actual = useMemo(() => calcularTotalesIngresosMes(rowsAnio ?? [], mes, mode, incluirOff), [rowsAnio, mes, mode, incluirOff]);
-  const desglose = useMemo(() => construirDesgloseIngresos(rowsAnio ?? [], cuentas, mes, mode, incluirOff), [rowsAnio, cuentas, mes, mode, incluirOff]);
+  const serie = useMemo(() => construirSerieIngresos(rowsAnio ?? [], mes, mode, incluirOff, incluirIva), [rowsAnio, mes, mode, incluirOff, incluirIva]);
+  const actual = useMemo(() => calcularTotalesIngresosMes(rowsAnio ?? [], mes, mode, incluirOff, incluirIva), [rowsAnio, mes, mode, incluirOff, incluirIva]);
+  const desglose = useMemo(() => construirDesgloseIngresos(rowsAnio ?? [], cuentas, mes, mode, incluirOff, incluirIva), [rowsAnio, cuentas, mes, mode, incluirOff, incluirIva]);
 
   const labelMes = `${MESES[mes - 1]} ${anio}`;
   const currencyBannerClass = mode === "bcv"
@@ -119,6 +120,10 @@ function IngresosDetallePage() {
           <div className="flex items-center gap-2 border rounded-md px-3 h-10">
             <Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="off" />
             <Label htmlFor="off" className="text-xs whitespace-nowrap">Incluir off-balance</Label>
+          </div>
+          <div className="flex items-center gap-2 border rounded-md px-3 h-10">
+            <Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="iva" />
+            <Label htmlFor="iva" className="text-xs whitespace-nowrap">Incluir Ingresos IVA</Label>
           </div>
           <div>
             <Label className="text-xs">Mes</Label>

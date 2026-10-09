@@ -11,6 +11,7 @@ import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { CENTROS, MESES } from "@/lib/account-helpers";
 import { calcularLineasFC, fetchInsumosFC, totalFCMes } from "@/lib/flujo-caja";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
+import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
   Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -29,6 +30,7 @@ export function DashboardCharts() {
   const [anio, setAnio] = useState(anioActual);
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(true);
+  const [incluirIva, setIncluirIva] = useState(true);
   const { mode } = useUsdView();
 
   const { data: cuentas } = useQuery({
@@ -40,11 +42,12 @@ export function DashboardCharts() {
   });
 
   const { data: rows } = useQuery({
-    queryKey: ["dash-rows", anio, centro, incluirOff, mode],
+    queryKey: ["dash-rows", anio, centro, incluirOff, incluirIva, mode],
     queryFn: async () => {
       let q = supabase.from(mensualView(mode) as any).select("*").eq("anio", anio);
       if (centro !== "Consolidado") q = q.eq("centro_costo", centro as any);
       if (!incluirOff) q = q.eq("modo", "on_balance");
+      if (!incluirIva) q = q.neq("cuenta_codigo", CUENTA_VENTA_IVA as any);
       const { data } = await q;
       return (data ?? []) as unknown as Row[];
     },
@@ -211,6 +214,10 @@ export function DashboardCharts() {
           <div className="flex items-center gap-2">
             <Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="dash-off" />
             <Label htmlFor="dash-off" className="text-xs">Incluir off-balance</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="dash-iva" />
+            <Label htmlFor="dash-iva" className="text-xs">Incluir Ingresos IVA</Label>
           </div>
         </CardContent>
       </Card>
