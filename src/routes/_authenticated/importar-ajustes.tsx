@@ -146,7 +146,7 @@ function ImportarAjustesPage() {
         let estado: Fila["estado"] = "nueva";
         if (dup?.data) estado = "duplicada";
         else if (cerrado) estado = "mes_cerrado";
-        else if (!tasaBcv) estado = "sin_tasa";
+        else if (!tasaBcv || !tasaParalela) estado = "sin_tasa";
 
         out.push({
           fecha,
@@ -193,13 +193,9 @@ function ImportarAjustesPage() {
 
       for (const f of nuevas) {
         // Los valores del archivo (Venta Lista, IVA Lista, Servicio Lista) vienen
-        // en USD BCV, no paralelo — la conversión a Bs usa la tasa BCV de ese
-        // día. El monto_usd que se guarda es el equivalente en USD paralelo
-        // (Bs / tasa paralela), igual que en importar-ventas.tsx, para que
-        // el toggle BCV/paralelo del resto del sistema funcione bien.
-        if (!f.tasaBcv) { toast.error(`Falta tasa BCV para ${f.fecha}, se omite`); continue; }
-        const tasaBcv = f.tasaBcv;
-        const tasaPar = f.tasaParalela || f.tasaBcv;
+        // en USD paralelo, no BCV — la conversión a Bs debe usar la tasa paralela.
+        if (!f.tasaParalela) { toast.error(`Falta tasa paralela para ${f.fecha}, se omite`); continue; }
+        const tasaPar = f.tasaParalela;
         const legs: { cuenta: string; centro: "YV" | "Bocu" | "Compartido"; valorLista: number; metodo: string; nota: string }[] = [];
         if (f.yv > 0) legs.push({ cuenta: "1.1", centro: "YV", valorLista: f.yv, metodo: "efectivo_bs", nota: "Ajuste ventas lista (20% YV)" });
         if (f.bocu > 0) legs.push({ cuenta: "1.2", centro: "Bocu", valorLista: f.bocu, metodo: "efectivo_bs", nota: "Ajuste ventas lista (80% Bocú)" });
@@ -208,7 +204,7 @@ function ImportarAjustesPage() {
 
         const grupo = crypto.randomUUID();
         const payloads = legs.map((l) => {
-          const bs = +(l.valorLista * tasaBcv).toFixed(2);
+          const bs = +(l.valorLista * tasaPar).toFixed(2);
           const usd = +(bs / tasaPar).toFixed(2);
           totalBs += bs;
           totalUsd += usd;
@@ -268,7 +264,7 @@ function ImportarAjustesPage() {
         <div>
           <h1 className="text-xl font-bold">Importar ajustes ventas</h1>
           <p className="text-sm text-muted-foreground">
-            Ajustes de ventas (Venta Lista + IVA Lista) y bonos de servicio. Valores en USD BCV.
+            Ajustes de ventas (Venta Lista + IVA Lista) y bonos de servicio. Valores en USD paralelo.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -279,8 +275,8 @@ function ImportarAjustesPage() {
       <Alert className="border-amber-500/50 bg-amber-500/10">
         <AlertTriangle className="h-4 w-4 text-amber-600" />
         <AlertDescription className="text-sm leading-relaxed text-amber-900">
-          Los montos del archivo (Venta Lista, IVA Lista, Servicio Lista) se interpretan como <strong>USD BCV</strong>, no USD paralelo.
-          La conversión a bolívares usa la tasa BCV de ese día (o la más cercana disponible, hacia adelante y si no hacia atrás). La tasa paralela también se guarda, para poder ver estos montos en USD paralelo desde el resto del sistema. Solo se bloquea la fila si no hay ninguna tasa BCV disponible para esa fecha.
+          Los montos del archivo (Venta Lista, IVA Lista, Servicio Lista) se interpretan como <strong>USD paralelo</strong>, no USD BCV.
+          La conversión a bolívares usa la tasa paralela de ese día; si no hay una registrada exactamente para esa fecha, se usa automáticamente la más reciente de los días anteriores. Solo se bloquea la fila si no hay ninguna tasa paralela cargada en o antes de esa fecha (por ejemplo, fechas de antes de empezar a registrar tasas paralelas).
         </AlertDescription>
       </Alert>
 
@@ -348,7 +344,7 @@ function ImportarAjustesPage() {
                 <tbody>
                   {filas.map((f) => {
                     const totalValorLista = f.ajusteVentas + f.servicioLista;
-                    const bs = totalValorLista * f.tasaBcv;
+                    const bs = totalValorLista * f.tasaParalela;
                     return (
                       <tr key={f.fecha} className="border-b [&>td]:py-1.5 [&>td]:px-2 whitespace-nowrap">
                         <td className="font-mono">{fmtDate(f.fecha)}</td>
@@ -364,7 +360,7 @@ function ImportarAjustesPage() {
                         <td>
                           {f.estado === "nueva" && <Badge variant="secondary">Nueva</Badge>}
                           {f.estado === "duplicada" && <Badge variant="outline">Ya registrada</Badge>}
-                          {f.estado === "sin_tasa" && <Badge variant="destructive">Falta tasa BCV</Badge>}
+                          {f.estado === "sin_tasa" && <Badge variant="destructive">Falta tasa BCV o paralela</Badge>}
                           {f.estado === "mes_cerrado" && <Badge variant="destructive">Mes cerrado</Badge>}
                         </td>
                       </tr>
