@@ -39,3 +39,21 @@ export async function tasaBcvParaFecha(fecha: string, client?: any): Promise<num
   const { data } = await tasaBcvQuery(fecha, "tasa", client);
   return Number(data?.tasa) || 0;
 }
+
+/**
+ * Tasa paralela aplicable a una fecha: la última publicada en o antes de esa
+ * fecha (mismo criterio "lte + desc + limit 1" que se usa en el resto de la
+ * app -- transaccion-edit-dialog, bono-propina, cxc, pagar-cxp, etc. -- a
+ * diferencia de tasaBcvParaFecha, que sí mira hacia adelante). Devuelve 0 si
+ * no hay ninguna tasa paralela publicada todavía a esa fecha.
+ */
+export async function tasaParalelaParaFecha(fecha: string, client: any = defaultClient): Promise<number> {
+  const { data } = await client
+    .from("tasas_paralela")
+    .select("tasa")
+    .lte("fecha", fecha)
+    .order("fecha", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return Number(data?.tasa) || 0;
+}

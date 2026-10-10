@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import {
   listarVentaIva, guardarVentaIva, borrarVentaIva, periodoDeFecha,
   type VentaIvaRow,
 } from "@/lib/venta-iva";
-import { tasaBcvParaFecha } from "@/lib/tasas";
+import { tasaBcvParaFecha, tasaParalelaParaFecha } from "@/lib/tasas";
 
 export const Route = createFileRoute("/_authenticated/venta-iva")({
   component: VentaIvaPage,
@@ -61,6 +61,21 @@ function VentaIvaPage() {
   const [tasa, setTasa] = useState("");
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tasaParalela, setTasaParalela] = useState<number | null>(null);
+
+  // Tasa paralela de referencia para la fecha seleccionada -- solo para
+  // mostrar el equivalente en USD paralelo en la ventana; no se guarda en el
+  // registro (Venta de IVA se registra en USD BCV, igual que antes). Se
+  // recalcula cada vez que cambia la fecha mientras la ventana está abierta.
+  useEffect(() => {
+    if (editing === null) return;
+    let activo = true;
+    (async () => {
+      const t = await tasaParalelaParaFecha(fecha);
+      if (activo) setTasaParalela(t || null);
+    })();
+    return () => { activo = false; };
+  }, [fecha, editing]);
 
   // Trae la tasa BCV de una fecha puntual y la aplica al campo Tasa BCV de
   // la ventana -- se usa tanto al abrir "Nuevo mes" como cada vez que se
@@ -223,6 +238,12 @@ function VentaIvaPage() {
             <div className="rounded-md bg-muted p-3 flex flex-col justify-center">
               <span className="text-xs text-muted-foreground">Bs</span>
               <span className="text-base font-bold mono">{fmtBs(montoBs)}</span>
+            </div>
+            <div className="col-span-2 rounded-md bg-muted/50 border p-3 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                Equivalente en USD paralelo{tasaParalela ? ` (tasa ${tasaParalela})` : ""}
+              </span>
+              <span className="text-base font-bold mono">{tasaParalela ? fmtUsd(montoBs / tasaParalela) : "—"}</span>
             </div>
             <div className="col-span-2">
               <Label>Notas</Label>
