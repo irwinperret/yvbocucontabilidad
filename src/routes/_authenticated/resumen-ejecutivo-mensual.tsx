@@ -410,15 +410,13 @@ function ResumenEjecutivoMensualPage() {
                   <ReferenceLine y={0} stroke="#111827" strokeWidth={1} />
                   <Tooltip formatter={(v: number) => fmtUsd(v)} />
                   {categoriasConDatos.includes("Ingresos") && (
-                    <>
-                      <Bar dataKey="ingresosConvencional" name="Ingresos convencionales" stackId="a" fill={COLOR_INGRESOS.convencional} />
-                      {serie.some((s: any) => Math.abs(s.ingresosOffBalance) > 0.009) && (
-                        <Bar dataKey="ingresosOffBalance" name="Ingresos off-balance (ajuste)" stackId="a" fill={COLOR_INGRESOS.offBalance} />
-                      )}
-                      {serie.some((s: any) => Math.abs(s.ingresosIva) > 0.009) && (
-                        <Bar dataKey="ingresosIva" name="Ingresos Venta de IVA" stackId="a" fill={COLOR_INGRESOS.iva} />
-                      )}
-                    </>
+                    <Bar dataKey="ingresosConvencional" name="Ingresos convencionales" stackId="a" fill={COLOR_INGRESOS.convencional} />
+                  )}
+                  {categoriasConDatos.includes("Ingresos") && serie.some((s: any) => Math.abs(s.ingresosOffBalance) > 0.009) && (
+                    <Bar dataKey="ingresosOffBalance" name="Ingresos off-balance (ajuste)" stackId="a" fill={COLOR_INGRESOS.offBalance} />
+                  )}
+                  {categoriasConDatos.includes("Ingresos") && serie.some((s: any) => Math.abs(s.ingresosIva) > 0.009) && (
+                    <Bar dataKey="ingresosIva" name="Ingresos Venta de IVA" stackId="a" fill={COLOR_INGRESOS.iva} />
                   )}
                   {categoriasConDatos.filter((c) => c !== "Ingresos").map((c) => (
                     <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} />
