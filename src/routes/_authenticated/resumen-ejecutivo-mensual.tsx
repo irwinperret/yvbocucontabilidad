@@ -25,7 +25,7 @@ import { TrendingUp, TrendingDown, Wallet, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CATEGORIAS, COLOR_CAT, COLOR_INGRESOS, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
-  pct, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
+  calcularTotalesRango, pct, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
   construirDesglose, calcularPrestamosYDividendos,
 } from "@/lib/resumen-mensual-calc";
 
@@ -76,6 +76,9 @@ function ResumenEjecutivoMensualPage() {
   const mesAnteriorD = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
   const [anio, setAnio] = useState(mesAnteriorD.getFullYear());
   const [mes, setMes] = useState(mesAnteriorD.getMonth() + 1);
+  // Ver acumulado (YTD): Enero hasta el mes de corte, en vez del mes solo.
+  const [ytd, setYtd] = useState(false);
+  const mesesYtd = useMemo(() => Array.from({ length: mes }, (_, i) => i + 1), [mes]);
 
   const { data: cuentas } = useQuery({
     queryKey: ["rie-mensual-cuentas"],
@@ -124,6 +127,10 @@ function ResumenEjecutivoMensualPage() {
   const islrRetenidoMes = useMemo(
     () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_RETENCION_ISLR && r.mes === mes).reduce((s, r) => s + (Number(r.base_usd) || 0), 0),
     [rowsAnio, mes],
+  );
+  const islrRetenidoYtd = useMemo(
+    () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_RETENCION_ISLR && mesesYtd.includes(r.mes)).reduce((s, r) => s + (Number(r.base_usd) || 0), 0),
+    [rowsAnio, mesesYtd],
   );
 
   const { data: cogsEstimadoPorMes } = useQuery({
@@ -187,6 +194,24 @@ function ResumenEjecutivoMensualPage() {
   );
   const hayAnioPasado = (rowsPrev ?? []).some((r) => r.mes === mes);
 
+  // Variantes YTD (Enero hasta el mes de corte) de los totales de arriba --
+  // se usan en vez de `actual`/`anioPasado` cuando el switch "Ver acumulado
+  // (YTD)" esta prendido. En YTD solo se compara contra el mismo rango del
+  // anio anterior (no existe un "mes anterior" para un rango).
+  const actualYtd = useMemo(
+    () => calcularTotalesRango(rowsAnioFiltrado, grupoDe, mesesYtd, cogsEstimadoPorMes, anio, mode),
+    [rowsAnioFiltrado, grupoDe, mesesYtd, cogsEstimadoPorMes, anio, mode],
+  );
+  const anioPasadoYtd = useMemo(
+    () => calcularTotalesRango(rowsPrevFiltrado, grupoDe, mesesYtd, cogsEstimadoPrev, anio - 1, mode),
+    [rowsPrevFiltrado, grupoDe, mesesYtd, cogsEstimadoPrev, anio, mode],
+  );
+  const hayAnioPasadoYtd = useMemo(
+    () => mesesYtd.some((m) => (rowsPrev ?? []).some((r) => r.mes === m)),
+    [rowsPrev, mesesYtd],
+  );
+  const totalesActual = ytd ? actualYtd : actual;
+
   const comparativoMensual = useMemo(
     () => construirComparativoMensual(rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes, mode),
     [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
@@ -204,8 +229,8 @@ function ResumenEjecutivoMensualPage() {
   );
 
   const desglose = useMemo(
-    () => construirDesglose(rowsAnioFiltrado, cuentas, mes, actual),
-    [rowsAnioFiltrado, cuentas, mes, actual],
+    () => construirDesglose(rowsAnioFiltrado, cuentas, ytd ? mesesYtd : [mes], totalesActual),
+    [rowsAnioFiltrado, cuentas, ytd, mesesYtd, mes, totalesActual],
   );
 
   const categoriasComparativo = CATEGORIAS.filter((cat) => comparativoMensual.some((c) => Math.abs(c.t[cat]) > 0.009));
@@ -225,9 +250,9 @@ function ResumenEjecutivoMensualPage() {
     [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
 
-  const ingresos = actual.t["Ingresos"] ?? 0;
-  const cogs = actual.t["COGS"] ?? 0;
-  const gastosTotales = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + (actual.t[c] ?? 0), 0);
+  const ingresos = totalesActual.t["Ingresos"] ?? 0;
+  const cogs = totalesActual.t["COGS"] ?? 0;
+  const gastosTotales = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + (totalesActual.t[c] ?? 0), 0);
   const margenBruto = ingresos - cogs;
   const utilidadNeta = ingresos - gastosTotales;
 
@@ -246,10 +271,20 @@ function ResumenEjecutivoMensualPage() {
       .reduce((s, r) => s + r.base_usd, 0),
     [rowsAnio, rowsPrev, mes, mesAnterior],
   );
+  // Mismas cifras pero acumuladas Enero-hasta-el-mes-de-corte, para la frase
+  // comparativa cuando el switch YTD esta prendido.
+  const ingresosIvaActualYtd = useMemo(
+    () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && mesesYtd.includes(r.mes)).reduce((s, r) => s + r.base_usd, 0),
+    [rowsAnio, mesesYtd],
+  );
+  const ingresosIvaAnioPasadoYtd = useMemo(
+    () => (rowsPrev ?? []).filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && mesesYtd.includes(r.mes)).reduce((s, r) => s + r.base_usd, 0),
+    [rowsPrev, mesesYtd],
+  );
 
   const { pagoPrestamos, dividendos } = useMemo(
-    () => calcularPrestamosYDividendos(rowsAnio ?? [], mes),
-    [rowsAnio, mes],
+    () => calcularPrestamosYDividendos(rowsAnio ?? [], ytd ? mesesYtd : mes),
+    [rowsAnio, mes, ytd, mesesYtd],
   );
   // Opcional y apagado por defecto: el PDF solo menciona préstamos/dividendos
   // si el usuario lo marca acá antes de imprimir.
@@ -263,6 +298,9 @@ function ResumenEjecutivoMensualPage() {
   const labelMes = `${MESES[mes - 1]} ${anio}`;
   const labelMesAnt = `${MESES[mesAnterior - 1]} ${anioMesAnterior}`;
   const labelAnioAnt = `${MESES[mes - 1]} ${anio - 1}`;
+  const labelYtd = `Ene–${MESES[mes - 1]} ${anio}`;
+  const labelAnioAntYtd = `Ene–${MESES[mes - 1]} ${anio - 1}`;
+  const labelPeriodo = ytd ? labelYtd : labelMes;
 
   const abrirImpresion = () => {
     const params = new URLSearchParams({
@@ -271,6 +309,7 @@ function ResumenEjecutivoMensualPage() {
       modo: mode,
       incluirPrestamosDividendos: incluirPrestamosDividendos ? "1" : "0",
       incluirIva: incluirIva ? "1" : "0",
+      ytd: ytd ? "1" : "0",
     });
     window.open(`/reporte-mensual-imprimir?${params.toString()}`, "_blank");
   };
@@ -307,6 +346,10 @@ function ResumenEjecutivoMensualPage() {
             </Select>
           </div>
           <label className="flex items-center gap-1.5 self-end pb-2 text-xs text-muted-foreground cursor-pointer">
+            <Switch checked={ytd} onCheckedChange={setYtd} id="ver-ytd" />
+            Ver acumulado (YTD)
+          </label>
+          <label className="flex items-center gap-1.5 self-end pb-2 text-xs text-muted-foreground cursor-pointer">
             <Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="incluir-iva" />
             Incluir Ingresos IVA
           </label>
@@ -326,9 +369,9 @@ function ResumenEjecutivoMensualPage() {
         </div>
       </div>
 
-      {actual.estimado && (
+      {totalesActual.estimado && (
         <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5">
-          ⚠ El COGS de {labelMes} es <b>estimado</b> — el mes sigue abierto (sin cierre formal). Se calculó con el inventario y las compras ya cargados.
+          ⚠ El COGS de {totalesActual.mesesEstimados.map((m: number) => MESES[m - 1]).join(", ")} es <b>estimado</b> — {totalesActual.mesesEstimados.length > 1 ? "esos meses siguen abiertos" : "el mes sigue abierto"} (sin cierre formal). Se calculó con el inventario y las compras ya cargados.
         </div>
       )}
 
@@ -346,13 +389,13 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
-      {islrRetenidoMes > 0.01 ? (
+      {(ytd ? islrRetenidoYtd : islrRetenidoMes) > 0.01 ? (
         <div className="text-xs bg-red-50 text-red-700 border border-red-300 rounded px-2 py-1.5 font-medium">
-          ⚠ El banco retuvo <b>{fmtUsd(islrRetenidoMes)}</b> por ISLR en {labelMes} (5% de las transacciones con tarjeta de crédito).
+          ⚠ El banco retuvo <b>{fmtUsd(ytd ? islrRetenidoYtd : islrRetenidoMes)}</b> por ISLR en {labelPeriodo} (5% de las transacciones con tarjeta de crédito).
         </div>
       ) : (
         <div className="text-xs bg-slate-100 text-slate-600 border border-slate-300 rounded px-2 py-1.5">
-          ℹ Retención ISLR en {labelMes}: <b>$0.00</b> — todavía no se ha registrado este mes (no significa que el banco no haya retenido nada).
+          ℹ Retención ISLR en {labelPeriodo}: <b>$0.00</b> — todavía no se ha registrado {ytd ? "en este rango" : "este mes"} (no significa que el banco no haya retenido nada).
         </div>
       )}
 
@@ -366,32 +409,46 @@ function ResumenEjecutivoMensualPage() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm leading-relaxed">
           <p className="text-muted-foreground">
-            Así se comportó el negocio en {labelMes} <b>(en {label})</b>, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
+            {ytd ? (
+              <>Así se comportó el negocio acumulado de {labelYtd} <b>(en {label})</b>{hayAnioPasadoYtd ? `, comparado con ${labelAnioAntYtd}` : ""}:</>
+            ) : (
+              <>Así se comportó el negocio en {labelMes} <b>(en {label})</b>, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:</>
+            )}
           </p>
           <p>
-            <ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
+            <ConNegritas>{ytd
+              ? frase("Los ingresos acumulados fueron", ingresos, hayAnioPasadoYtd ? anioPasadoYtd.t["Ingresos"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+              : frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
           {incluirIva && (
             <p>
-              <ConNegritas>{frase("De eso, Operaciones de IVA representaron", ingresosIvaActual, ingresosIvaAnterior, labelMesAnt, null, labelAnioAnt, fmtUsd)}</ConNegritas>
+              <ConNegritas>{ytd
+                ? frase("De eso, Operaciones de IVA representaron", ingresosIvaActualYtd, hayAnioPasadoYtd ? ingresosIvaAnioPasadoYtd : 0, labelAnioAntYtd, null, "", fmtUsd)
+                : frase("De eso, Operaciones de IVA representaron", ingresosIvaActual, ingresosIvaAnterior, labelMesAnt, null, labelAnioAnt, fmtUsd)}</ConNegritas>
             </p>
           )}
           <p>
-            <ConNegritas>{frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
+            <ConNegritas>{ytd
+              ? frase("El COGS fue", cogs, hayAnioPasadoYtd ? anioPasadoYtd.t["COGS"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+              : frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
           <p>
-            <ConNegritas>{frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
+            <ConNegritas>{ytd
+              ? frase("Los costos fijos fueron", totalesActual.t["Costos Fijos"] ?? 0, hayAnioPasadoYtd ? anioPasadoYtd.t["Costos Fijos"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+              : frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
           <p>
-            <ConNegritas>{frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
+            <ConNegritas>{ytd
+              ? frase("Los costos variables (operativos) fueron", totalesActual.t["Costos Variables (operativos)"] ?? 0, hayAnioPasadoYtd ? anioPasadoYtd.t["Costos Variables (operativos)"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+              : frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas>
           </p>
           <p className="text-muted-foreground">
-            La utilidad neta del mes fue de <b>{fmtUsd(utilidadNeta)}</b>
+            La utilidad neta {ytd ? "acumulada" : "del mes"} fue de <b>{fmtUsd(utilidadNeta)}</b>
             {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
           </p>
           {autorizado && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
             <p className="text-muted-foreground">
-              Además, en {labelMes}
+              Además, en {ytd ? labelYtd : labelMes}
               {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
               {pagoPrestamos > 0.01 && dividendos > 0.01 && " y"}
               {dividendos > 0.01 && <> se repartieron <b>{fmtUsd(dividendos)}</b> en dividendos</>}.
@@ -409,8 +466,8 @@ function ResumenEjecutivoMensualPage() {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={`${labelMes} · ${label}`} />
-        <KpiCard icon={TrendingDown} label="COGS" value={fmtUsd(cogs)} sub={actual.estimado ? `Estimado (mes abierto) · ${label}` : label} />
+        <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={`${labelPeriodo} · ${label}`} />
+        <KpiCard icon={TrendingDown} label="COGS" value={fmtUsd(cogs)} sub={totalesActual.estimado ? `Estimado (${ytd ? "meses abiertos" : "mes abierto"}) · ${label}` : label} />
         <KpiCard icon={TrendingUp} label="Margen bruto" value={fmtUsd(margenBruto)} sub={ingresos > 0 ? `${((margenBruto / ingresos) * 100).toFixed(1)}% de ingresos · ${label}` : label} />
         <KpiCard
           icon={Wallet}
@@ -550,7 +607,7 @@ function ResumenEjecutivoMensualPage() {
 
       {/* Desglose G&P del mes */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelMes} · {label}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Desglose G&P — {labelPeriodo} · {label}</CardTitle></CardHeader>
         <CardContent className="select-none">
           <table className="w-full text-sm">
             <tbody>

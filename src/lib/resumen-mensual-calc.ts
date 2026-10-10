@@ -45,6 +45,30 @@ export function grupoDeCuentas(cuentas: Cuenta[] | undefined) {
   return m;
 }
 
+/** Totales por categoría grande para un RANGO de meses (ej. YTD: Enero hasta
+ * el mes de corte), con COGS estimado para cada mes del rango que esté
+ * abierto. `calcularTotalesMes` es el caso particular de un solo mes. */
+export function calcularTotalesRango(
+  rows: Row[],
+  grupoDe: Map<string, string>,
+  meses: number[],
+  estimados: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }> | undefined,
+  y: number,
+  moneda: "bcv" | "paralela" = "bcv",
+) {
+  const mesesSet = new Set(meses);
+  const t: Record<string, number> = {};
+  CATEGORIAS.forEach((c) => (t[c] = 0));
+  rows.filter((r) => mesesSet.has(r.mes)).forEach((r) => {
+    const g = grupoDe.get(r.cuenta_codigo);
+    if (!g || !(g in t)) return;
+    t[g] += Number(r.base_usd) || 0;
+  });
+  const { ajuste, mesesEstimados } = ajusteCogsEstimado(rows, estimados, y, meses, moneda);
+  t["COGS"] += ajuste;
+  return { t, estimado: mesesEstimados.length > 0, mesesEstimados };
+}
+
 /** Totales por categoría grande para un mes dado, con COGS estimado si el mes está abierto. */
 export function calcularTotalesMes(
   rows: Row[],
@@ -54,16 +78,7 @@ export function calcularTotalesMes(
   y: number,
   moneda: "bcv" | "paralela" = "bcv",
 ) {
-  const t: Record<string, number> = {};
-  CATEGORIAS.forEach((c) => (t[c] = 0));
-  rows.filter((r) => r.mes === m).forEach((r) => {
-    const g = grupoDe.get(r.cuenta_codigo);
-    if (!g || !(g in t)) return;
-    t[g] += Number(r.base_usd) || 0;
-  });
-  const { ajuste, mesesEstimados } = ajusteCogsEstimado(rows, estimados, y, [m], moneda);
-  t["COGS"] += ajuste;
-  return { t, estimado: mesesEstimados.length > 0 };
+  return calcularTotalesRango(rows, grupoDe, [m], estimados, y, moneda);
 }
 
 /** ¿Este mes no tuvo ninguna operación registrada (todas las categorías en 0)? */
@@ -143,10 +158,12 @@ export function construirComparativoMensual(rowsAnio: Row[], grupoDe: Map<string
   });
 }
 
-/** Desglose G&P del mes por cuenta dentro de cada categoría. */
-export function construirDesglose(rowsAnio: Row[], cuentas: Cuenta[] | undefined, mes: number, actual: { t: Record<string, number>; estimado: boolean }) {
+/** Desglose G&P por cuenta dentro de cada categoría, para un mes o un rango
+ * de meses (YTD: pasar [1..mesCorte]). */
+export function construirDesglose(rowsAnio: Row[], cuentas: Cuenta[] | undefined, meses: number[], actual: { t: Record<string, number>; estimado: boolean }) {
+  const mesesSet = new Set(meses);
   const porCuenta = new Map<string, number>();
-  rowsAnio.filter((r) => r.mes === mes).forEach((r) => {
+  rowsAnio.filter((r) => mesesSet.has(r.mes)).forEach((r) => {
     porCuenta.set(r.cuenta_codigo, (porCuenta.get(r.cuenta_codigo) ?? 0) + (Number(r.base_usd) || 0));
   });
   return CATEGORIAS.map((cat) => {
@@ -180,13 +197,15 @@ export function calcularCxpSaldos(cxp: any[] | undefined, anio: number, mes: num
 }
 
 /** Pago de préstamos (capital + intereses juntos, sin desglosar) y
- * dividendos repartidos en el mes — cuentas 5.2/5.3 y 5.4 específicamente. */
-export function calcularPrestamosYDividendos(rowsAnio: Row[], mes: number) {
+ * dividendos repartidos en un mes o rango de meses (YTD) — cuentas 5.2/5.3 y
+ * 5.4 específicamente. */
+export function calcularPrestamosYDividendos(rowsAnio: Row[], meses: number | number[]) {
+  const mesesSet = new Set(Array.isArray(meses) ? meses : [meses]);
   const pagoPrestamos = rowsAnio
-    .filter((r) => r.mes === mes && (r.cuenta_codigo === "5.2" || r.cuenta_codigo === "5.3"))
+    .filter((r) => mesesSet.has(r.mes) && (r.cuenta_codigo === "5.2" || r.cuenta_codigo === "5.3"))
     .reduce((s, r) => s + (Number(r.base_usd) || 0), 0);
   const dividendos = rowsAnio
-    .filter((r) => r.mes === mes && r.cuenta_codigo === "5.4")
+    .filter((r) => mesesSet.has(r.mes) && r.cuenta_codigo === "5.4")
     .reduce((s, r) => s + (Number(r.base_usd) || 0), 0);
   return { pagoPrestamos, dividendos };
 }

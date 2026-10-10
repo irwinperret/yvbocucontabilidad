@@ -13,7 +13,7 @@ import { LeyendaUtilidadMensual, construirLeyendaUtilidadMensual } from "@/compo
 import { Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, ReferenceLine } from "recharts";
 import {
   CATEGORIAS, COLOR_CAT, COLOR_INGRESOS, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
-  mesSinOperaciones, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
+  calcularTotalesRango, mesSinOperaciones, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
   construirDesglose, calcularPrestamosYDividendos, fmtUsdContable,
 } from "@/lib/resumen-mensual-calc";
 import { PERMITIDOS_RESUMEN_MENSUAL } from "@/routes/_authenticated/resumen-ejecutivo-mensual";
@@ -32,6 +32,9 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
     // de incluirPrestamosDividendos, acá el default es SI (igual que en
     // pantalla), y solo se apaga si llega explícitamente incluirIva=0.
     incluirIva: search.incluirIva === undefined ? true : Number(search.incluirIva) === 1,
+    // Refleja el switch "Ver acumulado (YTD)" de la pantalla -- default NO,
+    // solo se activa si llega explicitamente ytd=1 (igual que incluirPrestamosDividendos).
+    ytd: Number(search.ytd) === 1,
   }),
 });
 
@@ -76,7 +79,7 @@ function celdaHistorica(v: number) {
 
 function ReporteMensualImprimirPage() {
   const { user } = useAuth();
-  const { anio, mes, modo, incluirPrestamosDividendos, incluirIva } = Route.useSearch();
+  const { anio, mes, modo, incluirPrestamosDividendos, incluirIva, ytd } = Route.useSearch();
   const mode = modo;
   const [listoParaImprimir, setListoParaImprimir] = useState(false);
 
@@ -105,6 +108,9 @@ function ReporteMensualImprimirPage() {
     },
   });
 
+  // Enero hasta el mes de corte, para el modo "Ver acumulado (YTD)".
+  const mesesYtd = useMemo(() => Array.from({ length: mes }, (_, i) => i + 1), [mes]);
+
   // Mismo filtro que en pantalla: sin la cuenta 1.8 (Ingresos IVA) cuando el
   // switch "Incluir Ingresos IVA" viene apagado desde la URL.
   const rowsAnioFiltrado = useMemo(
@@ -121,6 +127,10 @@ function ReporteMensualImprimirPage() {
   const islrRetenidoMes = useMemo(
     () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_RETENCION_ISLR && r.mes === mes).reduce((s, r) => s + (Number(r.base_usd) || 0), 0),
     [rowsAnio, mes],
+  );
+  const islrRetenidoYtd = useMemo(
+    () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_RETENCION_ISLR && mesesYtd.includes(r.mes)).reduce((s, r) => s + (Number(r.base_usd) || 0), 0),
+    [rowsAnio, mesesYtd],
   );
 
   const { data: cogsEstimadoPorMes } = useQuery({
@@ -205,6 +215,21 @@ function ReporteMensualImprimirPage() {
   );
   const hayAnioPasado = (rowsPrev ?? []).some((r) => r.mes === mes);
 
+  // Variantes YTD (Enero hasta el mes de corte), igual que en pantalla.
+  const actualYtd = useMemo(
+    () => calcularTotalesRango(rowsAnioFiltrado, grupoDe, mesesYtd, cogsEstimadoPorMes, anio, mode),
+    [rowsAnioFiltrado, grupoDe, mesesYtd, cogsEstimadoPorMes, anio, mode],
+  );
+  const anioPasadoYtd = useMemo(
+    () => calcularTotalesRango(rowsPrevFiltrado, grupoDe, mesesYtd, cogsEstimadoPrev, anio - 1, mode),
+    [rowsPrevFiltrado, grupoDe, mesesYtd, cogsEstimadoPrev, anio, mode],
+  );
+  const hayAnioPasadoYtd = useMemo(
+    () => mesesYtd.some((m) => (rowsPrev ?? []).some((r) => r.mes === m)),
+    [rowsPrev, mesesYtd],
+  );
+  const totalesActual = ytd ? actualYtd : actual;
+
   const comparativoMensual = useMemo(
     () => construirComparativoMensual(rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes, mode),
     [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
@@ -219,8 +244,8 @@ function ReporteMensualImprimirPage() {
     [categoriasConDatos, serie],
   );
   const desglose = useMemo(
-    () => construirDesglose(rowsAnioFiltrado, cuentas, mes, actual),
-    [rowsAnioFiltrado, cuentas, mes, actual],
+    () => construirDesglose(rowsAnioFiltrado, cuentas, ytd ? mesesYtd : [mes], totalesActual),
+    [rowsAnioFiltrado, cuentas, ytd, mesesYtd, mes, totalesActual],
   );
   const categoriasComparativo = CATEGORIAS.filter((cat) => comparativoMensual.some((c) => Math.abs(c.t[cat]) > 0.009));
   const serieMargenes = useMemo(
@@ -228,9 +253,9 @@ function ReporteMensualImprimirPage() {
     [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
 
-  const ingresos = actual.t["Ingresos"] ?? 0;
-  const cogs = actual.t["COGS"] ?? 0;
-  const gastosTotales = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + (actual.t[c] ?? 0), 0);
+  const ingresos = totalesActual.t["Ingresos"] ?? 0;
+  const cogs = totalesActual.t["COGS"] ?? 0;
+  const gastosTotales = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + (totalesActual.t[c] ?? 0), 0);
   const margenBruto = ingresos - cogs;
   const utilidadNeta = ingresos - gastosTotales;
   // Igual que en pantalla: siempre sobre las filas SIN filtrar, porque es
@@ -245,8 +270,21 @@ function ReporteMensualImprimirPage() {
       .reduce((s, r) => s + r.base_usd, 0),
     [rowsAnio, rowsPrev, mes, mesAnterior],
   );
-  const { pagoPrestamos, dividendos } = useMemo(() => calcularPrestamosYDividendos(rowsAnio ?? [], mes), [rowsAnio, mes]);
-  const sinOperaciones = mesSinOperaciones(actual.t);
+  // Mismas cifras pero acumuladas Enero-hasta-el-mes-de-corte, para la frase
+  // comparativa cuando viene ytd=1 desde la URL.
+  const ingresosIvaActualYtd = useMemo(
+    () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && mesesYtd.includes(r.mes)).reduce((s, r) => s + r.base_usd, 0),
+    [rowsAnio, mesesYtd],
+  );
+  const ingresosIvaAnioPasadoYtd = useMemo(
+    () => (rowsPrev ?? []).filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && mesesYtd.includes(r.mes)).reduce((s, r) => s + r.base_usd, 0),
+    [rowsPrev, mesesYtd],
+  );
+  const { pagoPrestamos, dividendos } = useMemo(
+    () => calcularPrestamosYDividendos(rowsAnio ?? [], ytd ? mesesYtd : mes),
+    [rowsAnio, mes, ytd, mesesYtd],
+  );
+  const sinOperaciones = mesSinOperaciones(totalesActual.t);
   const autorizado = !!user?.email && PERMITIDOS_RESUMEN_MENSUAL.includes(user.email.toLowerCase());
 
   // El navegador usa document.title como nombre sugerido al "Guardar como PDF",
@@ -255,8 +293,9 @@ function ReporteMensualImprimirPage() {
     if (cargando) return;
     const modoArchivo = mode === "bcv" ? "USD BCV" : "USD paralelo";
     const ivaArchivo = incluirIva ? "con IVA" : "sin IVA";
-    document.title = `Resumen IPA Mensual - ${MESES[mes - 1]} ${anio} - ${modoArchivo} - ${ivaArchivo}`;
-  }, [cargando, mes, anio, mode, incluirIva]);
+    const ytdArchivo = ytd ? " - YTD" : "";
+    document.title = `Resumen IPA Mensual - ${MESES[mes - 1]} ${anio} - ${modoArchivo} - ${ivaArchivo}${ytdArchivo}`;
+  }, [cargando, mes, anio, mode, incluirIva, ytd]);
 
   // Auto-imprimir una vez que los datos ya cargaron y los gráficos (tamaño
   // fijo, sin ResponsiveContainer) ya tuvieron tiempo de pintarse.
@@ -276,6 +315,9 @@ function ReporteMensualImprimirPage() {
   const labelMes = `${MESES[mes - 1]} ${anio}`;
   const labelMesAnt = `${MESES[mesAnterior - 1]} ${anioMesAnterior}`;
   const labelAnioAnt = `${MESES[mes - 1]} ${anio - 1}`;
+  const labelYtd = `Ene–${MESES[mes - 1]} ${anio}`;
+  const labelAnioAntYtd = `Ene–${MESES[mes - 1]} ${anio - 1}`;
+  const labelPeriodo = ytd ? labelYtd : labelMes;
   const modoLabel = mode === "bcv" ? "USD BCV" : "USD paralelo";
   // Mismo criterio de color que el banner de BCV/paralelo en la vista en pantalla
   // (resumen-ejecutivo-mensual.tsx): azul para BCV, verde para paralelo.
@@ -297,9 +339,9 @@ function ReporteMensualImprimirPage() {
           </div>
         </div>
         <div className="flex flex-col gap-1 items-end">
-          {actual.estimado && (
+          {totalesActual.estimado && (
             <div className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 rounded px-2 py-1 max-w-[260px]">
-              ⚠ COGS estimado — mes abierto, sin cierre formal.
+              ⚠ COGS estimado — {ytd ? "meses abiertos" : "mes abierto"}, sin cierre formal.
             </div>
           )}
           <div className="text-[10px] bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-1 max-w-[260px]">
@@ -314,13 +356,13 @@ function ReporteMensualImprimirPage() {
               ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).
             </div>
           )}
-          {islrRetenidoMes > 0.01 ? (
+          {(ytd ? islrRetenidoYtd : islrRetenidoMes) > 0.01 ? (
             <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
-              ⚠ Banco retuvo {fmtUsd(islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).
+              ⚠ Banco retuvo {fmtUsd(ytd ? islrRetenidoYtd : islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).
             </div>
           ) : (
             <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
-              ℹ Retención ISLR: $0.00 — aún no se registra este mes.
+              ℹ Retención ISLR: $0.00 — aún no se registra {ytd ? "en este rango" : "este mes"}.
             </div>
           )}
         </div>
@@ -337,8 +379,8 @@ function ReporteMensualImprimirPage() {
       {/* 2. KPIs */}
       <section className="grid grid-cols-4 gap-3 mb-3">
         {[
-          { label: "Ingresos", value: fmtUsdContable(fmtUsd, ingresos), sub: labelMes },
-          { label: "COGS", value: fmtUsdContable(fmtUsd, cogs), sub: actual.estimado ? "Estimado (mes abierto)" : undefined },
+          { label: "Ingresos", value: fmtUsdContable(fmtUsd, ingresos), sub: labelPeriodo },
+          { label: "COGS", value: fmtUsdContable(fmtUsd, cogs), sub: totalesActual.estimado ? `Estimado (${ytd ? "meses abiertos" : "mes abierto"})` : undefined },
           { label: "Margen bruto", value: fmtUsdContable(fmtUsd, margenBruto), sub: ingresos > 0 ? `${((margenBruto / ingresos) * 100).toFixed(1)}% de ingresos` : undefined },
           { label: "Utilidad neta", value: fmtUsdContable(fmtUsd, utilidadNeta), sub: ingresos > 0 ? `${((utilidadNeta / ingresos) * 100).toFixed(1)}% de ingresos` : undefined, neg: utilidadNeta < 0 },
         ].map((k) => (
@@ -413,26 +455,40 @@ function ReporteMensualImprimirPage() {
         <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Análisis del mes</p>
         <div className="text-[13px] leading-relaxed space-y-1.5">
           {sinOperaciones ? (
-            <p className="font-medium">{labelMes} no registra operaciones a la fecha.</p>
+            <p className="font-medium">{labelPeriodo} no registra operaciones a la fecha.</p>
           ) : (
             <>
               <p className="text-gray-600">
-                Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:
+                {ytd ? (
+                  <>Así se comportó el negocio acumulado de {labelYtd}{hayAnioPasadoYtd ? `, comparado con ${labelAnioAntYtd}` : ""}:</>
+                ) : (
+                  <>Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:</>
+                )}
               </p>
-              <p><ConNegritas>{frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+              <p><ConNegritas>{ytd
+                ? frase("Los ingresos acumulados fueron", ingresos, hayAnioPasadoYtd ? anioPasadoYtd.t["Ingresos"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+                : frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
               {incluirIva && (
-                <p><ConNegritas>{frase("De eso, Operaciones de IVA representaron", ingresosIvaActual, ingresosIvaAnterior, labelMesAnt, null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+                <p><ConNegritas>{ytd
+                  ? frase("De eso, Operaciones de IVA representaron", ingresosIvaActualYtd, hayAnioPasadoYtd ? ingresosIvaAnioPasadoYtd : 0, labelAnioAntYtd, null, "", fmtUsd)
+                  : frase("De eso, Operaciones de IVA representaron", ingresosIvaActual, ingresosIvaAnterior, labelMesAnt, null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
               )}
-              <p><ConNegritas>{frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
-              <p><ConNegritas>{frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
-              <p><ConNegritas>{frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+              <p><ConNegritas>{ytd
+                ? frase("El COGS fue", cogs, hayAnioPasadoYtd ? anioPasadoYtd.t["COGS"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+                : frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+              <p><ConNegritas>{ytd
+                ? frase("Los costos fijos fueron", totalesActual.t["Costos Fijos"] ?? 0, hayAnioPasadoYtd ? anioPasadoYtd.t["Costos Fijos"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+                : frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+              <p><ConNegritas>{ytd
+                ? frase("Los costos variables (operativos) fueron", totalesActual.t["Costos Variables (operativos)"] ?? 0, hayAnioPasadoYtd ? anioPasadoYtd.t["Costos Variables (operativos)"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+                : frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
               <p className="text-gray-600">
-                La utilidad neta del mes fue de <b>{fmtUsdContable(fmtUsd, utilidadNeta)}</b>
+                La utilidad neta {ytd ? "acumulada" : "del mes"} fue de <b>{fmtUsdContable(fmtUsd, utilidadNeta)}</b>
                 {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
               </p>
               {autorizado && incluirPrestamosDividendos && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
                 <p className="text-gray-600">
-                  Además, en {labelMes}
+                  Además, en {ytd ? labelYtd : labelMes}
                   {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
                   {pagoPrestamos > 0.01 && dividendos > 0.01 && " y"}
                   {dividendos > 0.01 && <> se repartieron <b>{fmtUsd(dividendos)}</b> en dividendos</>}.
@@ -500,7 +556,7 @@ function ReporteMensualImprimirPage() {
 
       {/* 6. Desglose G&P — tabla nativa, paginación automática del navegador */}
       <section className="mb-3">
-        <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Desglose G&P — {labelMes}</p>
+        <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Desglose G&P — {labelPeriodo}</p>
         <table className="w-full text-[11px] border-collapse">
           <thead>
             <tr style={{ backgroundColor: "#1e3a5f" }}>
