@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { mensualView, usdVisual } from "@/lib/usd-view-context";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
+import { CUENTA_RETENCION_ISLR } from "@/lib/retencion-islr-reclass";
 import { LeyendaUtilidadMensual, construirLeyendaUtilidadMensual } from "@/components/leyenda-utilidad-mensual";
 import { Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, ReferenceLine } from "recharts";
 import {
@@ -113,6 +114,13 @@ function ReporteMensualImprimirPage() {
   const rowsPrevFiltrado = useMemo(
     () => (incluirIva ? (rowsPrev ?? []) : (rowsPrev ?? []).filter((r) => r.cuenta_codigo !== CUENTA_VENTA_IVA)),
     [rowsPrev, incluirIva],
+  );
+
+  // Monto retenido por el banco por ISLR en el mes (cuenta 9.5) -- igual que
+  // en pantalla, siempre sobre las filas sin filtrar por el toggle de IVA.
+  const islrRetenidoMes = useMemo(
+    () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_RETENCION_ISLR && r.mes === mes).reduce((s, r) => s + (Number(r.base_usd) || 0), 0),
+    [rowsAnio, mes],
   );
 
   const { data: cogsEstimadoPorMes } = useQuery({
@@ -306,8 +314,21 @@ function ReporteMensualImprimirPage() {
               ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).
             </div>
           )}
+          {islrRetenidoMes > 0.01 && (
+            <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
+              ⚠ Banco retuvo {fmtUsd(islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).
+            </div>
+          )}
         </div>
       </header>
+
+      {/* Recordatorio justo antes de los KPIs, para que no pase inadvertido al
+          leer los números de Ingresos/COGS/Margen bruto/Utilidad neta. */}
+      <p className={`text-[12px] font-bold text-center mb-2 ${incluirIva ? "text-red-700" : "text-gray-600"}`}>
+        {incluirIva
+          ? "⚠ Los números de abajo SÍ incluyen Ingresos por Venta de IVA."
+          : "ℹ Los números de abajo NO incluyen Ingresos por Venta de IVA."}
+      </p>
 
       {/* 2. KPIs */}
       <section className="grid grid-cols-4 gap-3 mb-3">

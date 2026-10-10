@@ -17,6 +17,7 @@ import { NotasResumenMensual } from "@/components/notas-resumen-mensual";
 import { LeyendaUtilidadMensual, construirLeyendaUtilidadMensual } from "@/components/leyenda-utilidad-mensual";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
+import { CUENTA_RETENCION_ISLR } from "@/lib/retencion-islr-reclass";
 import {
   Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart, ReferenceLine,
 } from "recharts";
@@ -115,6 +116,14 @@ function ResumenEjecutivoMensualPage() {
   const rowsPrevFiltrado = useMemo(
     () => (incluirIva ? (rowsPrev ?? []) : (rowsPrev ?? []).filter((r) => r.cuenta_codigo !== CUENTA_VENTA_IVA)),
     [rowsPrev, incluirIva],
+  );
+
+  // Monto retenido por el banco por ISLR en el mes (cuenta 9.5) -- siempre
+  // sobre las filas SIN filtrar por el toggle de IVA, ya que no tiene nada
+  // que ver con la cuenta 1.8.
+  const islrRetenidoMes = useMemo(
+    () => (rowsAnio ?? []).filter((r) => r.cuenta_codigo === CUENTA_RETENCION_ISLR && r.mes === mes).reduce((s, r) => s + (Number(r.base_usd) || 0), 0),
+    [rowsAnio, mes],
   );
 
   const { data: cogsEstimadoPorMes } = useQuery({
@@ -337,6 +346,12 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
+      {islrRetenidoMes > 0.01 && (
+        <div className="text-xs bg-red-50 text-red-700 border border-red-300 rounded px-2 py-1.5 font-medium">
+          ⚠ El banco retuvo <b>{fmtUsd(islrRetenidoMes)}</b> por ISLR en {labelMes} (5% de las transacciones con tarjeta de crédito).
+        </div>
+      )}
+
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
       <Card>
         <CardHeader>
@@ -382,6 +397,12 @@ function ResumenEjecutivoMensualPage() {
       </Card>
 
       <NotasResumenMensual periodo={`${anio}-${String(mes).padStart(2, "0")}`} />
+
+      <p className={`text-sm font-bold text-center ${incluirIva ? "text-red-700" : "text-slate-600"}`}>
+        {incluirIva
+          ? "⚠ Los números de abajo SÍ incluyen Ingresos por Venta de IVA."
+          : "ℹ Los números de abajo NO incluyen Ingresos por Venta de IVA."}
+      </p>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <KpiCard icon={TrendingUp} label="Ingresos" value={fmtUsd(ingresos)} sub={`${labelMes} · ${label}`} />
