@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,40 @@ function VentaIvaPage() {
     queryKey: ["venta-iva"],
     queryFn: listarVentaIva,
   });
+
+  const maxFechaVentaIva = useMemo(() => {
+    const fechas = (rows ?? []).map((r) => r.fecha).filter(Boolean);
+    return fechas.length ? fechas.reduce((a, b) => (b > a ? b : a)) : null;
+  }, [rows]);
+
+  const { data: paralelasHist } = useQuery({
+    queryKey: ["tasas-paralela-hist-venta-iva", maxFechaVentaIva],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasas_paralela")
+        .select("fecha, tasa")
+        .lte("fecha", maxFechaVentaIva as string)
+        .order("fecha", { ascending: true });
+      return (data ?? []) as { fecha: string; tasa: number }[];
+    },
+    enabled: !!maxFechaVentaIva,
+  });
+
+  const paralelaOnOrBefore = (fecha: string): number => {
+    let tasa = 0;
+    for (const p of paralelasHist ?? []) {
+      if (p.fecha > fecha) break;
+      tasa = Number(p.tasa) || tasa;
+    }
+    return tasa;
+  };
+
+  /** Equivalente en USD paralelo de un registro, usando la tasa paralela de
+   * su fecha (null si todavía no hay ninguna tasa paralela publicada). */
+  const usdParalelo = (r: VentaIvaRow): number | null => {
+    const tp = paralelaOnOrBefore(r.fecha);
+    return tp > 0 ? (Number(r.monto_bs) || 0) / tp : null;
+  };
 
   const porPeriodo = useMemo(() => {
     const m = new Map<string, VentaIvaRow>();
@@ -187,6 +222,7 @@ function VentaIvaPage() {
                     <th className="py-2 pr-4 text-right">USD</th>
                     <th className="py-2 pr-4 text-right">Bs</th>
                     <th className="py-2 pr-4 text-right">Tasa BCV</th>
+                    <th className="py-2 pr-4 text-right">USD paralelo</th>
                     <th className="py-2 pr-4">Notas</th>
                     <th className="py-2 pr-2 text-right">Acciones</th>
                   </tr>
@@ -199,6 +235,7 @@ function VentaIvaPage() {
                       <td className="py-2 pr-4 text-right mono font-semibold">{fmtUsd(Number(r.monto_usd) || 0)}</td>
                       <td className="py-2 pr-4 text-right mono text-muted-foreground">{fmtBs(Number(r.monto_bs) || 0)}</td>
                       <td className="py-2 pr-4 text-right mono text-muted-foreground">{Number(r.tasa_bcv) || 0}</td>
+                      <td className="py-2 pr-4 text-right mono text-muted-foreground">{usdParalelo(r) != null ? fmtUsd(usdParalelo(r) as number) : "—"}</td>
                       <td className="py-2 pr-4 text-muted-foreground max-w-[220px] truncate">{r.notas}</td>
                       <td className="py-2 pr-2 text-right whitespace-nowrap">
                         <Button size="sm" variant="ghost" onClick={() => openEdit(r)}>
