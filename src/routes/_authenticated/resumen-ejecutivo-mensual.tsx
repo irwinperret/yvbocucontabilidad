@@ -346,9 +346,13 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
-      {islrRetenidoMes > 0.01 && (
+      {islrRetenidoMes > 0.01 ? (
         <div className="text-xs bg-red-50 text-red-700 border border-red-300 rounded px-2 py-1.5 font-medium">
           ⚠ El banco retuvo <b>{fmtUsd(islrRetenidoMes)}</b> por ISLR en {labelMes} (5% de las transacciones con tarjeta de crédito).
+        </div>
+      ) : (
+        <div className="text-xs bg-slate-100 text-slate-600 border border-slate-300 rounded px-2 py-1.5">
+          ℹ Retención ISLR en {labelMes}: <b>$0.00</b> — todavía no se ha registrado este mes (no significa que el banco no haya retenido nada).
         </div>
       )}
 

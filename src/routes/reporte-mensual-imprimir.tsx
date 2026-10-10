@@ -314,9 +314,13 @@ function ReporteMensualImprimirPage() {
               ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).
             </div>
           )}
-          {islrRetenidoMes > 0.01 && (
+          {islrRetenidoMes > 0.01 ? (
             <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
               ⚠ Banco retuvo {fmtUsd(islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).
+            </div>
+          ) : (
+            <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
+              ℹ Retención ISLR: $0.00 — aún no se registra este mes.
             </div>
           )}
         </div>
