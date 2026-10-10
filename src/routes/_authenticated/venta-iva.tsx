@@ -18,7 +18,7 @@ import {
   listarVentaIva, guardarVentaIva, borrarVentaIva, periodoDeFecha,
   type VentaIvaRow,
 } from "@/lib/venta-iva";
-import { tasaBcvQuery } from "@/lib/tasas";
+import { tasaBcvParaFecha } from "@/lib/tasas";
 
 export const Route = createFileRoute("/_authenticated/venta-iva")({
   component: VentaIvaPage,
@@ -31,16 +31,6 @@ function periodoLabel(periodo: string) {
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function useTasaForDate(fecha: string) {
-  return useQuery({
-    queryKey: ["tasa-for", fecha],
-    queryFn: async () => {
-      const { data } = await tasaBcvQuery(fecha, "*");
-      return data;
-    },
-  });
 }
 
 function VentaIvaPage() {
@@ -72,14 +62,28 @@ function VentaIvaPage() {
   const [notas, setNotas] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const { data: tasaSugerida } = useTasaForDate(fecha);
+  // Trae la tasa BCV de una fecha puntual y la aplica al campo Tasa BCV de
+  // la ventana -- se usa tanto al abrir "Nuevo mes" como cada vez que se
+  // cambia la fecha dentro de la ventana (nuevo registro o edición), para
+  // que la tasa siempre corresponda a la fecha que está seleccionada.
+  const actualizarTasaParaFecha = async (f: string) => {
+    const t = await tasaBcvParaFecha(f);
+    if (t) setTasa(String(t));
+  };
 
-  const openNuevo = () => {
+  const openNuevo = async () => {
+    const hoy = todayISO();
     setEditing("nuevo");
-    setFecha(todayISO());
+    setFecha(hoy);
     setMontoUsd("");
-    setTasa(tasaSugerida?.tasa ? String(tasaSugerida.tasa) : "");
+    setTasa("");
     setNotas("");
+    await actualizarTasaParaFecha(hoy);
+  };
+
+  const cambiarFecha = (f: string) => {
+    setFecha(f);
+    actualizarTasaParaFecha(f);
   };
 
   const openEdit = (r: VentaIvaRow) => {
@@ -206,7 +210,7 @@ function VentaIvaPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Fecha</Label>
-              <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              <Input type="date" value={fecha} onChange={(e) => cambiarFecha(e.target.value)} />
             </div>
             <div>
               <Label>Tasa BCV</Label>

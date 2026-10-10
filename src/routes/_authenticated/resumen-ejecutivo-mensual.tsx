@@ -322,6 +322,16 @@ function ResumenEjecutivoMensualPage() {
         ℹ Los ingresos <b>no incluyen</b> el 10% de servicio ni la propina — ambos se registran como pasivo por pagar al personal, no como venta.
       </div>
 
+      {incluirIva ? (
+        <div className="text-xs bg-red-50 text-red-700 border border-red-300 rounded px-2 py-1.5 font-medium">
+          ⚠ Estas cifras <b>SÍ incluyen</b> las operaciones de Venta de IVA (cuenta 1.8).
+        </div>
+      ) : (
+        <div className="text-xs bg-slate-100 text-slate-600 border border-slate-300 rounded px-2 py-1.5">
+          ℹ Estas cifras <b>no incluyen</b> las operaciones de Venta de IVA (cuenta 1.8).
+        </div>
+      )}
+
       {/* Análisis del mes — primero lo que se lee, antes de los números en detalle */}
       <Card>
         <CardHeader>

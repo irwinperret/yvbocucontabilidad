@@ -262,6 +262,16 @@ function ResumenEjecutivoPage() {
         </div>
       </div>
 
+      {incluirIva ? (
+        <div className="text-xs bg-red-50 text-red-700 border border-red-300 rounded px-2 py-1.5 font-medium">
+          ⚠ Estas cifras <b>SÍ incluyen</b> las operaciones de Venta de IVA (cuenta 1.8).
+        </div>
+      ) : (
+        <div className="text-xs bg-slate-100 text-slate-600 border border-slate-300 rounded px-2 py-1.5">
+          ℹ Estas cifras <b>no incluyen</b> las operaciones de Venta de IVA (cuenta 1.8).
+        </div>
+      )}
+
       {/* KPIs principales */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <KpiCard icon={Wallet} label="Capital aportado (histórico)" value={fmtUsd(capitalTotal)} sub={`${porAportante.length} aportante${porAportante.length === 1 ? "" : "s"}`} />

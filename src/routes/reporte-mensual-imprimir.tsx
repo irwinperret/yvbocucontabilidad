@@ -241,8 +241,9 @@ function ReporteMensualImprimirPage() {
   useEffect(() => {
     if (cargando) return;
     const modoArchivo = mode === "bcv" ? "USD BCV" : "USD paralelo";
-    document.title = `Resumen IPA Mensual - ${MESES[mes - 1]} ${anio} - ${modoArchivo}`;
-  }, [cargando, mes, anio, mode]);
+    const ivaArchivo = incluirIva ? "con IVA" : "sin IVA";
+    document.title = `Resumen IPA Mensual - ${MESES[mes - 1]} ${anio} - ${modoArchivo} - ${ivaArchivo}`;
+  }, [cargando, mes, anio, mode, incluirIva]);
 
   // Auto-imprimir una vez que los datos ya cargaron y los gráficos (tamaño
   // fijo, sin ResponsiveContainer) ya tuvieron tiempo de pintarse.
@@ -291,6 +292,15 @@ function ReporteMensualImprimirPage() {
           <div className="text-[10px] bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-1 max-w-[260px]">
             ℹ Ingresos no incluyen servicio (10%) ni propina.
           </div>
+          {incluirIva ? (
+            <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
+              ⚠ Incluye operaciones de Venta de IVA (cuenta 1.8).
+            </div>
+          ) : (
+            <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
+              ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).
+            </div>
+          )}
         </div>
       </header>
 
