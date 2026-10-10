@@ -1,5 +1,6 @@
 import { MESES } from "@/lib/account-helpers";
 import { ajusteCogsEstimado } from "@/lib/cierre-mes";
+import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 
 export type Cuenta = { codigo: string; nombre: string; grupo: string };
 export type Row = { periodo: string; anio: number; mes: number; cuenta_codigo: string; modo: string; base_usd: number };
@@ -25,6 +26,17 @@ export const COLOR_CAT: Record<string, string> = {
   Financiamiento: "#EF4444",
   Otros: "#F87171",
   Impuestos: "#FCA5A5",
+};
+
+// Desglose de "Ingresos" en tres tonos de verde para el gráfico de utilidad
+// mensual: el mismo verde oscuro que antes para lo convencional, uno más
+// claro para los ajustes off-balance y uno pastel para Venta de IVA -- así
+// se distingue de un vistazo qué parte del ingreso es "normal" vs. ajustes
+// vs. el ingreso de IVA (cuenta 1.8).
+export const COLOR_INGRESOS = {
+  convencional: "#0F6E56",
+  offBalance: "#34D399",
+  iva: "#A7F3D0",
 };
 
 export function grupoDeCuentas(cuentas: Cuenta[] | undefined) {
@@ -74,14 +86,34 @@ export function frase(nombre: string, actual: number, prevMes: number, labelPrev
 
 type Estimados = Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }> | undefined;
 
+/** Desglosa los Ingresos de un mes en tres partes: convencional (on-balance,
+ * sin Venta de IVA), off-balance (ajustes) y Venta de IVA (cuenta 1.8). */
+function desglosarIngresosMes(rows: Row[], grupoDe: Map<string, string>, mes: number) {
+  let convencional = 0, offBalance = 0, iva = 0;
+  rows.filter((r) => r.mes === mes).forEach((r) => {
+    if (grupoDe.get(r.cuenta_codigo) !== "Ingresos") return;
+    const v = Number(r.base_usd) || 0;
+    if (r.cuenta_codigo === CUENTA_VENTA_IVA) iva += v;
+    else if (r.modo === "off_balance") offBalance += v;
+    else convencional += v;
+  });
+  return { convencional, offBalance, iva };
+}
+
 /** Serie mensual del año para el gráfico de categorías — nunca más allá del mes de corte. */
 export function construirSerieCategorias(rowsAnio: Row[], grupoDe: Map<string, string>, cogsEstimadoPorMes: Estimados, anio: number, mesCorte: number, moneda: "bcv" | "paralela" = "bcv") {
   return Array.from({ length: mesCorte }, (_, i) => {
     const { t } = calcularTotalesMes(rowsAnio, grupoDe, i + 1, cogsEstimadoPorMes, anio, moneda);
     const gastos = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + t[c], 0);
+    const { convencional, offBalance, iva } = desglosarIngresosMes(rowsAnio, grupoDe, i + 1);
     return {
       mesLabel: MESES[i],
       ...Object.fromEntries(CATEGORIAS.map((c) => [c, Number((c === "Ingresos" ? t[c] : -t[c]).toFixed(2))])),
+      // Mismo total que el campo "Ingresos" de arriba, repartido en las tres
+      // partes que pinta el gráfico de utilidad mensual por categorías.
+      ingresosConvencional: Number(convencional.toFixed(2)),
+      ingresosOffBalance: Number(offBalance.toFixed(2)),
+      ingresosIva: Number(iva.toFixed(2)),
       utilidad: Number((t["Ingresos"] - gastos).toFixed(2)),
     } as any;
   });

@@ -8,9 +8,10 @@ import { useAuth } from "@/lib/auth-context";
 import { mensualView, usdVisual } from "@/lib/usd-view-context";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
+import { LeyendaUtilidadMensual, construirLeyendaUtilidadMensual } from "@/components/leyenda-utilidad-mensual";
 import { Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, ReferenceLine } from "recharts";
 import {
-  CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
+  CATEGORIAS, COLOR_CAT, COLOR_INGRESOS, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
   mesSinOperaciones, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
   construirDesglose, calcularPrestamosYDividendos, fmtUsdContable,
 } from "@/lib/resumen-mensual-calc";
@@ -205,6 +206,10 @@ function ReporteMensualImprimirPage() {
     [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
   const categoriasConDatos = CATEGORIAS.filter((c) => serie.some((s: any) => Math.abs(s[c]) > 0.009));
+  const leyendaUtilidadMensual = useMemo(
+    () => construirLeyendaUtilidadMensual(categoriasConDatos, serie, COLOR_INGRESOS, COLOR_CAT),
+    [categoriasConDatos, serie],
+  );
   const desglose = useMemo(
     () => construirDesglose(rowsAnioFiltrado, cuentas, mes, actual),
     [rowsAnioFiltrado, cuentas, mes, actual],
@@ -324,18 +329,35 @@ function ReporteMensualImprimirPage() {
       <section className="flex gap-3 mb-3" style={{ breakInside: "avoid" }}>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</p>
-          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serie} stackOffset="sign">
+          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO - 34} data={serie} stackOffset="sign">
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="mesLabel" fontSize={10} />
             <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} />
             <ReferenceLine y={0} stroke="#1e3a5f" strokeWidth={1} />
             <Tooltip formatter={(v: number) => fmtUsd(v)} />
-            <Legend wrapperStyle={{ fontSize: 10 }} />
-            {categoriasConDatos.map((c) => (
+            {categoriasConDatos.includes("Ingresos") && (
+              <>
+                <Bar dataKey="ingresosConvencional" name="Ingresos convencionales" stackId="a" fill={COLOR_INGRESOS.convencional} isAnimationActive={false} />
+                {serie.some((s: any) => Math.abs(s.ingresosOffBalance) > 0.009) && (
+                  <Bar dataKey="ingresosOffBalance" name="Ingresos off-balance (ajuste)" stackId="a" fill={COLOR_INGRESOS.offBalance} isAnimationActive={false} />
+                )}
+                {serie.some((s: any) => Math.abs(s.ingresosIva) > 0.009) && (
+                  <Bar dataKey="ingresosIva" name="Ingresos Venta de IVA" stackId="a" fill={COLOR_INGRESOS.iva} isAnimationActive={false} />
+                )}
+              </>
+            )}
+            {categoriasConDatos.filter((c) => c !== "Ingresos").map((c) => (
               <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} isAnimationActive={false} />
             ))}
             <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#111827" strokeWidth={2} dot={{ r: 3, fill: "#111827" }} isAnimationActive={false} />
           </ComposedChart>
+          <LeyendaUtilidadMensual
+            ingresos={leyendaUtilidadMensual.ingresos}
+            egresos={leyendaUtilidadMensual.egresos}
+            textClassName="text-[9px] text-gray-600"
+            swatchSize="h-2 w-2"
+            gapClassName="gap-4"
+          />
         </div>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</p>

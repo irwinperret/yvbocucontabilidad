@@ -14,6 +14,7 @@ import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView, usdVisual } from "@/lib/usd-view-context";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
 import { NotasResumenMensual } from "@/components/notas-resumen-mensual";
+import { LeyendaUtilidadMensual, construirLeyendaUtilidadMensual } from "@/components/leyenda-utilidad-mensual";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import {
@@ -22,7 +23,7 @@ import {
 import { TrendingUp, TrendingDown, Wallet, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  CATEGORIAS, COLOR_CAT, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
+  CATEGORIAS, COLOR_CAT, COLOR_INGRESOS, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
   pct, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
   construirDesglose, calcularPrestamosYDividendos,
 } from "@/lib/resumen-mensual-calc";
@@ -188,6 +189,10 @@ function ResumenEjecutivoMensualPage() {
   );
 
   const categoriasConDatos = CATEGORIAS.filter((c) => serie.some((s: any) => Math.abs(s[c]) > 0.009));
+  const leyendaUtilidadMensual = useMemo(
+    () => construirLeyendaUtilidadMensual(categoriasConDatos, serie, COLOR_INGRESOS, COLOR_CAT),
+    [categoriasConDatos, serie],
+  );
 
   const desglose = useMemo(
     () => construirDesglose(rowsAnioFiltrado, cuentas, mes, actual),
@@ -395,21 +400,34 @@ function ResumenEjecutivoMensualPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader><CardTitle className="text-lg">Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
-          <CardContent className="h-[360px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={serie} stackOffset="sign">
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="mesLabel" fontSize={11} />
-                <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
-                <ReferenceLine y={0} stroke="#111827" strokeWidth={1} />
-                <Tooltip formatter={(v: number) => fmtUsd(v)} />
-                <Legend />
-                {categoriasConDatos.map((c) => (
-                  <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} />
-                ))}
-                <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+          <CardContent className="h-[400px] flex flex-col">
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={serie} stackOffset="sign">
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="mesLabel" fontSize={11} />
+                  <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
+                  <ReferenceLine y={0} stroke="#111827" strokeWidth={1} />
+                  <Tooltip formatter={(v: number) => fmtUsd(v)} />
+                  {categoriasConDatos.includes("Ingresos") && (
+                    <>
+                      <Bar dataKey="ingresosConvencional" name="Ingresos convencionales" stackId="a" fill={COLOR_INGRESOS.convencional} />
+                      {serie.some((s: any) => Math.abs(s.ingresosOffBalance) > 0.009) && (
+                        <Bar dataKey="ingresosOffBalance" name="Ingresos off-balance (ajuste)" stackId="a" fill={COLOR_INGRESOS.offBalance} />
+                      )}
+                      {serie.some((s: any) => Math.abs(s.ingresosIva) > 0.009) && (
+                        <Bar dataKey="ingresosIva" name="Ingresos Venta de IVA" stackId="a" fill={COLOR_INGRESOS.iva} />
+                      )}
+                    </>
+                  )}
+                  {categoriasConDatos.filter((c) => c !== "Ingresos").map((c) => (
+                    <Bar key={c} dataKey={c} name={c} stackId="a" fill={COLOR_CAT[c]} />
+                  ))}
+                  <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            <LeyendaUtilidadMensual ingresos={leyendaUtilidadMensual.ingresos} egresos={leyendaUtilidadMensual.egresos} />
           </CardContent>
         </Card>
 
