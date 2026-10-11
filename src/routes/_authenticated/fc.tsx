@@ -18,6 +18,7 @@ import { exportFCIndirecto } from "@/lib/excel-export";
 import { calcularLineasFC, fetchInsumosFC, type LineasFCMes } from "@/lib/flujo-caja";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
+import { useExcelCellSelection } from "@/components/excel-cell-selection";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
 
@@ -227,9 +228,19 @@ function ReporteFCIndirecto({ lineas: l }: { lineas: LineasMes }) {
   const flujoFin = l.aumentoCapital + l.aumentoPrestamos - l.gastoIntereses - l.gastoImpuestos - l.gastoDividendos;
   const neto = flujoOp + flujoInv + flujoFin;
 
+  // Selección de celdas tipo Excel (clic y arrastra), igual que en G&P y en
+  // el Comparativo mensual de esta misma pantalla. Esta pestaña no tiene
+  // filas colapsables (siempre son las mismas 17), así que se reutiliza
+  // directamente FILAS_COMPARATIVO -- ya enumera cada fila en el mismo orden
+  // exacto en que se renderiza más abajo -- y se le pasa a cada <Linea>/<Total>
+  // su índice fijo (0-16) en vez de un indexRef dinámico.
+  const valoresSeleccion = useMemo(() => FILAS_COMPARATIVO.map((f) => [f.get(l)]), [l]);
+  const seleccion = useExcelCellSelection(valoresSeleccion);
+
   return (
+    <>
     <Card>
-      <CardContent className="pt-4 space-y-1">
+      <CardContent className="pt-4 space-y-1 select-none">
         {l.cogsEsEstimado && (
           <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 mb-2">
             ⚠ El EBITDA incluye un COGS <b>estimado</b> — al menos un mes de este período sigue abierto (sin cierre formal). Se calculó con el inventario y las compras ya cargados para ese mes, pero puede cambiar cuando cierres el mes de verdad.
@@ -239,33 +250,43 @@ function ReporteFCIndirecto({ lineas: l }: { lineas: LineasMes }) {
           ℹ El EBITDA (ingresos) <b>no incluye</b> el 10% de servicio ni la propina — ambos se registran como pasivo por pagar al personal, no como venta.
         </div>
         <Seccion titulo="Flujo de Caja de Actividades Operativas">
-          <Linea label="EBITDA" v={l.ebitda} />
-          <Linea label="Cambios en Cuentas por cobrar" v={l.cambioCxC} />
-          <Linea label="Cambios Inventario (Almacenado)" v={l.cambioInventario} />
-          <Linea label="Cambios en Cuentas por pagar" v={l.cambioCxP} />
-          <Linea label="Retenciones de IVA (banco)" v={-l.retencionIva} />
-          <Linea label="Retenciones de ISLR (banco)" v={-l.retencionIslr} />
+          <Linea label="EBITDA" v={l.ebitda} r={0} seleccion={seleccion} />
+          <Linea label="Cambios en Cuentas por cobrar" v={l.cambioCxC} r={1} seleccion={seleccion} />
+          <Linea label="Cambios Inventario (Almacenado)" v={l.cambioInventario} r={2} seleccion={seleccion} />
+          <Linea label="Cambios en Cuentas por pagar" v={l.cambioCxP} r={3} seleccion={seleccion} />
+          <Linea label="Retenciones de IVA (banco)" v={-l.retencionIva} r={4} seleccion={seleccion} />
+          <Linea label="Retenciones de ISLR (banco)" v={-l.retencionIslr} r={5} seleccion={seleccion} />
         </Seccion>
-        <Total label="Total Flujo de Caja de Actividades Operativas" v={flujoOp} />
+        <Total label="Total Flujo de Caja de Actividades Operativas" v={flujoOp} r={6} seleccion={seleccion} />
 
         <Seccion titulo="Actividades de Inversión">
-          <Linea label="Compra de Inmuebles" v={-l.compraInmuebles} />
-          <Linea label="Compra de Equipos" v={-l.compraEquipos} />
+          <Linea label="Compra de Inmuebles" v={-l.compraInmuebles} r={7} seleccion={seleccion} />
+          <Linea label="Compra de Equipos" v={-l.compraEquipos} r={8} seleccion={seleccion} />
         </Seccion>
-        <Total label="Total Flujo de Caja de Actividades de Inversión" v={flujoInv} />
+        <Total label="Total Flujo de Caja de Actividades de Inversión" v={flujoInv} r={9} seleccion={seleccion} />
 
         <Seccion titulo="Actividades Financieras">
-          <Linea label="Aumento en el Capital Social" v={l.aumentoCapital} />
-          <Linea label="Aumento en Préstamos por Pagar" v={l.aumentoPrestamos} />
-          <Linea label="Gasto en Intereses" v={-l.gastoIntereses} />
-          <Linea label="Gasto en Impuestos" v={-l.gastoImpuestos} />
-          <Linea label="Gasto en Dividendos" v={-l.gastoDividendos} />
+          <Linea label="Aumento en el Capital Social" v={l.aumentoCapital} r={10} seleccion={seleccion} />
+          <Linea label="Aumento en Préstamos por Pagar" v={l.aumentoPrestamos} r={11} seleccion={seleccion} />
+          <Linea label="Gasto en Intereses" v={-l.gastoIntereses} r={12} seleccion={seleccion} />
+          <Linea label="Gasto en Impuestos" v={-l.gastoImpuestos} r={13} seleccion={seleccion} />
+          <Linea label="Gasto en Dividendos" v={-l.gastoDividendos} r={14} seleccion={seleccion} />
         </Seccion>
-        <Total label="Total Flujo de Caja de Actividades Financieras" v={flujoFin} />
+        <Total label="Total Flujo de Caja de Actividades Financieras" v={flujoFin} r={15} seleccion={seleccion} />
 
-        <Total label="VARIACIÓN NETA DE CAJA" v={neto} big />
+        <Total label="VARIACIÓN NETA DE CAJA" v={neto} big r={16} seleccion={seleccion} />
       </CardContent>
     </Card>
+    {seleccion.selection.count > 0 && (
+      <div className="flex justify-end -mt-4">
+        <div className="bg-foreground text-background text-xs rounded-md shadow-lg px-4 py-2 flex items-center gap-4 mono">
+          <span>Celdas: <b>{seleccion.selection.count}</b></span>
+          <span>Promedio: <b>{fmtUsd(seleccion.selection.average)}</b></span>
+          <span>Suma: <b>{fmtUsd(seleccion.selection.suma)}</b></span>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -278,20 +299,40 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
   );
 }
 
-function Linea({ label, v }: { label: string; v: number }) {
+function Linea({ label, v, r, seleccion }: {
+  label: string; v: number;
+  r: number;
+  seleccion: ReturnType<typeof useExcelCellSelection>;
+}) {
   return (
     <div className="flex justify-between py-1.5 px-2 pl-4 text-sm border-b last:border-0">
       <span>{label}</span>
-      <span className={`mono ${v >= 0 ? "positive" : "negative"}`}>{v >= 0 ? fmtUsd(v) : `(${fmtUsd(Math.abs(v)).replace("$ ", "")})`}</span>
+      <span
+        onMouseDown={seleccion.startSelection(r, 0)}
+        onMouseEnter={seleccion.overSelection(r, 0)}
+        className={`mono cursor-cell rounded px-1 ${v >= 0 ? "positive" : "negative"} ${seleccion.isSelected(r, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+      >
+        {v >= 0 ? fmtUsd(v) : `(${fmtUsd(Math.abs(v)).replace("$ ", "")})`}
+      </span>
     </div>
   );
 }
 
-function Total({ label, v, big }: { label: string; v: number; big?: boolean }) {
+function Total({ label, v, big, r, seleccion }: {
+  label: string; v: number; big?: boolean;
+  r: number;
+  seleccion: ReturnType<typeof useExcelCellSelection>;
+}) {
   return (
     <div className={`flex justify-between py-2 px-2 border-t-2 ${big ? "text-base font-bold bg-muted/30" : "text-sm font-semibold"}`}>
       <span>{label}</span>
-      <span className={`mono ${v >= 0 ? "positive" : "negative"}`}>{v >= 0 ? fmtUsd(v) : `(${fmtUsd(Math.abs(v)).replace("$ ", "")})`}</span>
+      <span
+        onMouseDown={seleccion.startSelection(r, 0)}
+        onMouseEnter={seleccion.overSelection(r, 0)}
+        className={`mono cursor-cell rounded px-1 ${v >= 0 ? "positive" : "negative"} ${seleccion.isSelected(r, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+      >
+        {v >= 0 ? fmtUsd(v) : `(${fmtUsd(Math.abs(v)).replace("$ ", "")})`}
+      </span>
     </div>
   );
 }

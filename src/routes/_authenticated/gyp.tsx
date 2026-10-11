@@ -17,6 +17,7 @@ import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { GyPCharts } from "@/components/gyp-charts";
 import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
+import { useExcelCellSelection } from "@/components/excel-cell-selection";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
@@ -219,6 +220,21 @@ function conAjusteCogs(cogs: GrupoData[], ajuste: number): GrupoData[] {
   return [...cogs, { grupo: "COGS", subtotal: ajuste, items: [{ cuenta: cuentaFicticia, total: ajuste }] }];
 }
 
+/** Valores de una Sección, en el mismo orden en que Seccion los renderiza:
+ * el subtotal de cada grupo y, si el grupo está expandido, el total de cada
+ * cuenta dentro de él. Sirve para armar el arreglo de valores que necesita
+ * useExcelCellSelection -- debe recorrerse exactamente igual que Seccion. */
+function valoresSeccion(grupos: GrupoData[], ctx: ExpandCtx): number[] {
+  const vals: number[] = [];
+  grupos.forEach((g) => {
+    vals.push(g.subtotal);
+    if (ctx.isExpanded(`grp::${g.grupo}`)) {
+      g.items.forEach((i) => vals.push(i.total));
+    }
+  });
+  return vals;
+}
+
 // ---------- Mes individual ----------
 function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[]; mes: number; ctx: ExpandCtx }) {
   const sumFn = (r: Row) => r.mes === mes;
@@ -234,32 +250,59 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
   const uo = mb - totalOp;
   const ut = uo - totalImp;
 
+  // Selección de celdas tipo Excel (clic y arrastra), igual que en el
+  // Desglose G&P de Resumen IPA Mensual: una sola columna, en el mismo orden
+  // en que se renderiza más abajo (debe coincidir exactamente).
+  const valoresSeleccion = useMemo(() => {
+    const vals: number[] = [];
+    vals.push(...valoresSeccion(ing, ctx), totalIng);
+    vals.push(...valoresSeccion(cogs, ctx), -totalCogs);
+    vals.push(mb);
+    vals.push(...valoresSeccion(op, ctx), -totalOp);
+    vals.push(uo);
+    if (imp.length > 0) vals.push(...valoresSeccion(imp, ctx), -totalImp);
+    vals.push(ut);
+    return vals.map((v) => [v]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ing, cogs, op, imp, totalIng, totalCogs, mb, totalOp, uo, totalImp, ut, ctx.expanded]);
+  const seleccion = useExcelCellSelection(valoresSeleccion);
+  const indexRef = { current: -1 };
+
   return (
     <>
     <Card>
-      <CardContent className="pt-4">
+      <CardContent className="pt-4 select-none">
         {mesesEstimados.length > 0 && (
           <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 mb-3">
             ⚠ El COGS de este mes es <b>estimado</b> — sigue abierto (sin cierre formal). Se calculó con el inventario y las compras ya cargados, pero puede cambiar cuando cierres el mes de verdad.
           </div>
         )}
-        <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
-        <Total label="TOTAL INGRESOS" value={totalIng} positive />
-        <Seccion titulo="COGS" grupos={cogs} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} />
-        <Total label="TOTAL COGS" value={-totalCogs} />
-        <Total label={`MARGEN BRUTO · ${totalIng ? ((mb/totalIng)*100).toFixed(1) : "0"}%`} value={mb} bold />
-        <Seccion titulo="Gastos operativos" grupos={op} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} />
-        <Total label="TOTAL GASTOS OPERATIVOS" value={-totalOp} />
-        <Total label={`UTILIDAD OPERATIVA · ${totalIng ? ((uo/totalIng)*100).toFixed(1) : "0"}%`} value={uo} bold />
+        <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
+        <Total label="TOTAL INGRESOS" value={totalIng} positive indexRef={indexRef} seleccion={seleccion} />
+        <Seccion titulo="COGS" grupos={cogs} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
+        <Total label="TOTAL COGS" value={-totalCogs} indexRef={indexRef} seleccion={seleccion} />
+        <Total label={`MARGEN BRUTO · ${totalIng ? ((mb/totalIng)*100).toFixed(1) : "0"}%`} value={mb} bold indexRef={indexRef} seleccion={seleccion} />
+        <Seccion titulo="Gastos operativos" grupos={op} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
+        <Total label="TOTAL GASTOS OPERATIVOS" value={-totalOp} indexRef={indexRef} seleccion={seleccion} />
+        <Total label={`UTILIDAD OPERATIVA · ${totalIng ? ((uo/totalIng)*100).toFixed(1) : "0"}%`} value={uo} bold indexRef={indexRef} seleccion={seleccion} />
         {imp.length > 0 && (
           <>
-            <Seccion titulo="Impuestos" grupos={imp} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} />
-            <Total label="TOTAL IMPUESTOS" value={-totalImp} />
+            <Seccion titulo="Impuestos" grupos={imp} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
+            <Total label="TOTAL IMPUESTOS" value={-totalImp} indexRef={indexRef} seleccion={seleccion} />
           </>
         )}
-        <Total label={`UTILIDAD / PÉRDIDA NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
+        <Total label={`UTILIDAD / PÉRDIDA NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big indexRef={indexRef} seleccion={seleccion} />
       </CardContent>
     </Card>
+    {seleccion.selection.count > 0 && (
+      <div className="flex justify-end -mt-4">
+        <div className="bg-foreground text-background text-xs rounded-md shadow-lg px-4 py-2 flex items-center gap-4 mono">
+          <span>Celdas: <b>{seleccion.selection.count}</b></span>
+          <span>Promedio: <b>{fmtUsd(seleccion.selection.average)}</b></span>
+          <span>Suma: <b>{fmtUsd(seleccion.selection.suma)}</b></span>
+        </div>
+      </div>
+    )}
     <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`${MESES[mes - 1]}`} meses={[mes]} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} moneda={ctx.mode} />
     </>
   );
@@ -278,30 +321,53 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
   const mb = totalIng - totalCogs;
   const uo = mb - totalOp;
   const ut = uo - totalImp;
+
+  const valoresSeleccion = useMemo(() => {
+    const vals: number[] = [];
+    vals.push(...valoresSeccion(ing, ctx), totalIng);
+    vals.push(...valoresSeccion(cogs, ctx), mb);
+    vals.push(...valoresSeccion(op, ctx), uo);
+    if (imp.length > 0) vals.push(...valoresSeccion(imp, ctx), -totalImp);
+    vals.push(ut);
+    return vals.map((v) => [v]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ing, cogs, op, imp, totalIng, mb, uo, totalImp, ut, ctx.expanded]);
+  const seleccion = useExcelCellSelection(valoresSeleccion);
+  const indexRef = { current: -1 };
+
   return (
     <>
     <Card>
-      <CardContent className="pt-4">
+      <CardContent className="pt-4 select-none">
         {mesesEstimados.length > 0 && (
           <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 mb-3">
             ⚠ El COGS de {mesesEstimados.map((m) => MESES[m - 1]).join(", ")} es <b>estimado</b> — {mesesEstimados.length > 1 ? "esos meses siguen" : "ese mes sigue"} abierto(s) (sin cierre formal), calculado con el inventario y las compras ya cargados.
           </div>
         )}
-        <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} />
-        <Total label="TOTAL INGRESOS" value={totalIng} positive />
-        <Seccion titulo="COGS" grupos={cogs} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} />
-        <Total label={`MARGEN BRUTO · ${totalIng ? ((mb/totalIng)*100).toFixed(1) : "0"}%`} value={mb} bold />
-        <Seccion titulo="Gastos operativos" grupos={op} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} />
-        <Total label={`UTILIDAD OPERATIVA · ${totalIng ? ((uo/totalIng)*100).toFixed(1) : "0"}%`} value={uo} bold />
+        <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
+        <Total label="TOTAL INGRESOS" value={totalIng} positive indexRef={indexRef} seleccion={seleccion} />
+        <Seccion titulo="COGS" grupos={cogs} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
+        <Total label={`MARGEN BRUTO · ${totalIng ? ((mb/totalIng)*100).toFixed(1) : "0"}%`} value={mb} bold indexRef={indexRef} seleccion={seleccion} />
+        <Seccion titulo="Gastos operativos" grupos={op} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
+        <Total label={`UTILIDAD OPERATIVA · ${totalIng ? ((uo/totalIng)*100).toFixed(1) : "0"}%`} value={uo} bold indexRef={indexRef} seleccion={seleccion} />
         {imp.length > 0 && (
           <>
-            <Seccion titulo="Impuestos" grupos={imp} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} />
-            <Total label="TOTAL IMPUESTOS" value={-totalImp} />
+            <Seccion titulo="Impuestos" grupos={imp} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
+            <Total label="TOTAL IMPUESTOS" value={-totalImp} indexRef={indexRef} seleccion={seleccion} />
           </>
         )}
-        <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big />
+        <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big indexRef={indexRef} seleccion={seleccion} />
       </CardContent>
     </Card>
+    {seleccion.selection.count > 0 && (
+      <div className="flex justify-end -mt-4">
+        <div className="bg-foreground text-background text-xs rounded-md shadow-lg px-4 py-2 flex items-center gap-4 mono">
+          <span>Celdas: <b>{seleccion.selection.count}</b></span>
+          <span>Promedio: <b>{fmtUsd(seleccion.selection.average)}</b></span>
+          <span>Suma: <b>{fmtUsd(seleccion.selection.suma)}</b></span>
+        </div>
+      </div>
+    )}
     <GyPCharts rows={rows} cuentas={cuentas} sumFn={sumFn} titulo={`Ene–${MESES[hastaMes - 1]}`} meses={mesesYtd} cogsEstimadoPorMes={ctx.cogsEstimadoPorMes} anio={ctx.anio} moneda={ctx.mode} />
     </>
   );
@@ -319,13 +385,15 @@ function pctIng(value: number, totalIng: number) {
   return `${((value / totalIng) * 100).toFixed(1)}%`;
 }
 
-function Seccion({ titulo, grupos, totalIng, negativo, ctx, sumFn }: {
+function Seccion({ titulo, grupos, totalIng, negativo, ctx, sumFn, indexRef, seleccion }: {
   titulo: string;
   grupos: GrupoData[];
   totalIng: number;
   negativo?: boolean;
   ctx: ExpandCtx;
   sumFn: (r: Row) => boolean;
+  indexRef: { current: number };
+  seleccion: ReturnType<typeof useExcelCellSelection>;
 }) {
   if (grupos.length === 0) return null;
   return (
@@ -334,28 +402,36 @@ function Seccion({ titulo, grupos, totalIng, negativo, ctx, sumFn }: {
       {grupos.map((g) => {
         const key = `grp::${g.grupo}`;
         const isOpen = ctx.isExpanded(key);
+        indexRef.current++;
+        const rGrupo = indexRef.current;
         return (
           <div key={g.grupo}>
-            {/* Group header row — siempre visible, colapsable */}
-            <button
-              type="button"
-              onClick={() => ctx.toggle(key)}
-              className="w-full flex items-center justify-between py-1.5 px-2 text-sm border-b last:border-0 bg-muted/20 hover:bg-muted/40 transition-colors"
-            >
-              <span className="flex items-center gap-1.5 font-medium">
+            {/* Group header row — siempre visible, colapsable. El botón solo
+                cubre el ícono+nombre; el monto queda afuera para poder
+                seleccionarlo (clic/arrastre) sin que también colapse el grupo. */}
+            <div className="w-full flex items-center justify-between py-1.5 px-2 text-sm border-b last:border-0 bg-muted/20 hover:bg-muted/40 transition-colors">
+              <button
+                type="button"
+                onClick={() => ctx.toggle(key)}
+                className="flex items-center gap-1.5 font-medium text-left"
+              >
                 {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 {g.grupo}
-              </span>
+              </button>
               <span className="flex items-center gap-3">
                 <span className="text-xs text-muted-foreground mono">{pctIng(g.subtotal, totalIng)}</span>
-                <span className={`mono font-medium ${negativo || g.subtotal < 0 ? "negative" : "positive"}`}>
+                <span
+                  onMouseDown={seleccion.startSelection(rGrupo, 0)}
+                  onMouseEnter={seleccion.overSelection(rGrupo, 0)}
+                  className={`mono font-medium cursor-cell rounded px-1 ${negativo || g.subtotal < 0 ? "negative" : "positive"} ${seleccion.isSelected(rGrupo, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                >
                   {fmtSigned(g.subtotal, negativo)}
                 </span>
               </span>
-            </button>
+            </div>
             {/* Account rows */}
             {isOpen && g.items.map((i) => (
-              <CuentaRow key={i.cuenta.codigo} cuenta={i.cuenta} total={i.total} totalIng={totalIng} negativo={negativo} ctx={ctx} sumFn={sumFn} single={false} />
+              <CuentaRow key={i.cuenta.codigo} cuenta={i.cuenta} total={i.total} totalIng={totalIng} negativo={negativo} ctx={ctx} sumFn={sumFn} single={false} indexRef={indexRef} seleccion={seleccion} />
             ))}
           </div>
         );
@@ -364,8 +440,10 @@ function Seccion({ titulo, grupos, totalIng, negativo, ctx, sumFn }: {
   );
 }
 
-function CuentaRow({ cuenta, total, totalIng, negativo, ctx, sumFn, single }: {
+function CuentaRow({ cuenta, total, totalIng, negativo, ctx, sumFn, single, indexRef, seleccion }: {
   cuenta: Cuenta; total: number; totalIng: number; negativo?: boolean; ctx: ExpandCtx; sumFn: (r: Row) => boolean; single: boolean;
+  indexRef: { current: number };
+  seleccion: ReturnType<typeof useExcelCellSelection>;
 }) {
   // Level 3: centro_costo breakdown available only in Consolidado
   const centrosBreakdown = useMemo(() => {
@@ -381,6 +459,9 @@ function CuentaRow({ cuenta, total, totalIng, negativo, ctx, sumFn, single }: {
   const key = `acc::${cuenta.codigo}`;
   const open = canDrill && ctx.isExpanded(key);
   const indent = single ? "pl-2" : "pl-8";
+
+  indexRef.current++;
+  const r = indexRef.current;
 
   return (
     <div>
@@ -398,7 +479,13 @@ function CuentaRow({ cuenta, total, totalIng, negativo, ctx, sumFn, single }: {
         </span>
         <span className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground mono">{pctIng(total, totalIng)}</span>
-          <span className={`mono ${negativo ? "negative" : ""}`}>{fmtSigned(total, negativo)}</span>
+          <span
+            onMouseDown={seleccion.startSelection(r, 0)}
+            onMouseEnter={seleccion.overSelection(r, 0)}
+            className={`mono cursor-cell rounded px-1 ${negativo ? "negative" : ""} ${seleccion.isSelected(r, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+          >
+            {fmtSigned(total, negativo)}
+          </span>
         </span>
       </div>
       {open && centrosBreakdown.map((b) => (
@@ -603,11 +690,23 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
   );
 }
 
-function Total({ label, value, positive: _positive, bold, big }: { label: string; value: number; positive?: boolean; bold?: boolean; big?: boolean }) {
+function Total({ label, value, positive: _positive, bold, big, indexRef, seleccion }: {
+  label: string; value: number; positive?: boolean; bold?: boolean; big?: boolean;
+  indexRef: { current: number };
+  seleccion: ReturnType<typeof useExcelCellSelection>;
+}) {
+  indexRef.current++;
+  const r = indexRef.current;
   return (
     <div className={`flex justify-between items-center py-2 px-2 border-t-2 ${bold ? "border-foreground bg-muted/30" : ""} ${big ? "text-base font-bold" : "text-sm font-semibold"}`}>
       <span>{label}</span>
-      <span className={`mono ${value >= 0 ? "positive" : "negative"}`}>{value >= 0 ? fmtUsd(value) : `(${fmtUsd(Math.abs(value)).replace("$ ", "")})`}</span>
+      <span
+        onMouseDown={seleccion.startSelection(r, 0)}
+        onMouseEnter={seleccion.overSelection(r, 0)}
+        className={`mono cursor-cell rounded px-1 ${value >= 0 ? "positive" : "negative"} ${seleccion.isSelected(r, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+      >
+        {value >= 0 ? fmtUsd(value) : `(${fmtUsd(Math.abs(value)).replace("$ ", "")})`}
+      </span>
     </div>
   );
 }
