@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { logAudit } from "@/lib/audit";
 import type { Centro } from "@/lib/account-helpers";
+import { tasaParalelaParaFecha } from "@/lib/tasas";
 
 /**
  * "Venta de IVA" (6to input mensual): un ingreso neto puro, registrado una
@@ -87,6 +88,15 @@ export async function guardarVentaIva(args: {
 }): Promise<VentaIvaRow> {
   const { id, fecha, montoUsd, tasaBcv, centro = "Compartido", notas = null, userId } = args;
   const montoBs = +(montoUsd * tasaBcv).toFixed(2);
+  // El resto de la app (Ingresos en Detalle, Resumen IPA Mensual, G&P, Flujo
+  // de Caja) lee `monto_usd` como el equivalente en USD PARALELO -- la cifra
+  // BCV se recalcula aparte, a partir de monto_base_bs/tasa_bcv (ver
+  // baseUsdFila en ingresos-detalle-calc.ts y las vistas v_transacciones_*).
+  // Si aquí se guardara el monto tal cual se tipeó (a tasa BCV) en
+  // `monto_usd`, esas pantallas mostrarían la Venta de IVA con el mismo
+  // número en ambos modos (BCV y paralelo) -- el bug reportado.
+  const tasaParalela = await tasaParalelaParaFecha(fecha);
+  const montoUsdParalelo = tasaParalela > 0 ? montoBs / tasaParalela : montoUsd;
   const payload = {
     fecha,
     cuenta_codigo: CUENTA_VENTA_IVA,
@@ -97,8 +107,8 @@ export async function guardarVentaIva(args: {
     iva_aplica: false,
     tipo_iva: null,
     tasa_bcv: tasaBcv,
-    tasa_paralela: null,
-    monto_usd: +montoUsd.toFixed(2),
+    tasa_paralela: tasaParalela || null,
+    monto_usd: +montoUsdParalelo.toFixed(2),
     metodo_pago: null,
     cuenta_bancaria_id: null,
     referencia: null,

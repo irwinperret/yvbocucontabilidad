@@ -29,7 +29,13 @@ export function VentaIvaQuickEntry() {
     queryFn: () => fetchVentaIvaDelPeriodo(periodo),
   });
 
-  const valorMostrado = tocado ? monto : (existente?.monto_usd != null ? String(existente.monto_usd) : "");
+  // El eco del valor guardado se recalcula desde monto_bs/tasa_bcv (no se
+  // lee monto_usd directo): monto_usd ahora guarda el equivalente en USD
+  // PARALELO, igual convención que el resto de la app -- ver venta-iva.ts.
+  const existenteUsdBcv = existente && Number(existente.tasa_bcv) > 0
+    ? (Number(existente.monto_bs) || 0) / Number(existente.tasa_bcv)
+    : null;
+  const valorMostrado = tocado ? monto : (existenteUsdBcv != null ? String(existenteUsdBcv) : "");
 
   const guardar = async () => {
     const valorTexto = (monto || valorMostrado).trim();

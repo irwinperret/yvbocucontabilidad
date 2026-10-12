@@ -78,6 +78,16 @@ function VentaIvaPage() {
     return tp > 0 ? (Number(r.monto_bs) || 0) / tp : null;
   };
 
+  /** USD a tasa BCV que la persona tipeó originalmente -- se recalcula desde
+   * monto_bs/tasa_bcv en vez de leer monto_usd directo, porque monto_usd
+   * ahora guarda el equivalente en USD PARALELO (igual convención que el
+   * resto de la app: Ingresos en Detalle, Resumen IPA Mensual, G&P, Flujo de
+   * Caja). */
+  const usdBcv = (r: VentaIvaRow): number => {
+    const tb = Number(r.tasa_bcv) || 0;
+    return tb > 0 ? (Number(r.monto_bs) || 0) / tb : 0;
+  };
+
   const porPeriodo = useMemo(() => {
     const m = new Map<string, VentaIvaRow>();
     (rows ?? []).forEach((r) => {
@@ -139,7 +149,7 @@ function VentaIvaPage() {
   const openEdit = (r: VentaIvaRow) => {
     setEditing(r);
     setFecha(r.fecha);
-    setMontoUsd(String(r.monto_usd ?? ""));
+    setMontoUsd(String(usdBcv(r) || ""));
     setTasa(String(r.tasa_bcv ?? ""));
     setNotas(r.notas ?? "");
   };
@@ -177,7 +187,7 @@ function VentaIvaPage() {
   };
 
   const handleDelete = async (r: VentaIvaRow) => {
-    if (!confirm(`¿Borrar la Venta de IVA de ${periodoLabel(periodoDeFecha(r.fecha))} (${fmtUsd(Number(r.monto_usd) || 0)})?`)) return;
+    if (!confirm(`¿Borrar la Venta de IVA de ${periodoLabel(periodoDeFecha(r.fecha))} (${fmtUsd(usdBcv(r))})?`)) return;
     if (!(await ensurePeriodoAbierto(r.fecha))) return;
     try {
       await borrarVentaIva(r.id);
@@ -232,7 +242,7 @@ function VentaIvaPage() {
                     <tr key={periodo} className="border-b last:border-0">
                       <td className="py-2 pr-4 font-medium capitalize">{periodoLabel(periodo)}</td>
                       <td className="py-2 pr-4 text-muted-foreground">{r.fecha}</td>
-                      <td className="py-2 pr-4 text-right mono font-semibold">{fmtUsd(Number(r.monto_usd) || 0)}</td>
+                      <td className="py-2 pr-4 text-right mono font-semibold">{fmtUsd(usdBcv(r))}</td>
                       <td className="py-2 pr-4 text-right mono text-muted-foreground">{fmtBs(Number(r.monto_bs) || 0)}</td>
                       <td className="py-2 pr-4 text-right mono text-muted-foreground">{Number(r.tasa_bcv) || 0}</td>
                       <td className="py-2 pr-4 text-right mono text-muted-foreground">{usdParalelo(r) != null ? fmtUsd(usdParalelo(r) as number) : "—"}</td>
