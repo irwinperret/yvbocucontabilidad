@@ -10,11 +10,11 @@ import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { CUENTA_RETENCION_ISLR } from "@/lib/retencion-islr-reclass";
 import { LeyendaUtilidadMensual, construirLeyendaUtilidadMensual } from "@/components/leyenda-utilidad-mensual";
-import { Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, ReferenceLine } from "recharts";
+import { Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ComposedChart, ReferenceLine, Cell, LabelList } from "recharts";
 import {
   CATEGORIAS, COLOR_CAT, COLOR_INGRESOS, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
   calcularTotalesRango, mesSinOperaciones, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
-  construirDesglose, calcularPrestamosYDividendos, fmtUsdContable,
+  construirDesglose, calcularPrestamosYDividendos, fmtUsdContable, pct,
 } from "@/lib/resumen-mensual-calc";
 import { PERMITIDOS_RESUMEN_MENSUAL } from "@/routes/_authenticated/resumen-ejecutivo-mensual";
 
@@ -35,6 +35,10 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
     // Refleja el switch "Ver acumulado (YTD)" de la pantalla -- default NO,
     // solo se activa si llega explicitamente ytd=1 (igual que incluirPrestamosDividendos).
     ytd: Number(search.ytd) === 1,
+    // Qué versión imprimir: "detallado" (todo lo que ya existía, default) o
+    // "visual" (la versión compacta tipo memo, misma de la pestaña "Resumen
+    // visual" en pantalla).
+    vista: search.vista === "visual" ? ("visual" as const) : ("detallado" as const),
   }),
 });
 
@@ -79,7 +83,7 @@ function celdaHistorica(v: number) {
 
 function ReporteMensualImprimirPage() {
   const { user } = useAuth();
-  const { anio, mes, modo, incluirPrestamosDividendos, incluirIva, ytd } = Route.useSearch();
+  const { anio, mes, modo, incluirPrestamosDividendos, incluirIva, ytd, vista } = Route.useSearch();
   const mode = modo;
   const [listoParaImprimir, setListoParaImprimir] = useState(false);
 
@@ -253,6 +257,31 @@ function ReporteMensualImprimirPage() {
     [rowsAnioFiltrado, grupoDe, cogsEstimadoPorMes, anio, mes],
   );
 
+  // --- Datos derivados solo para la vista "visual" ---
+  const desgloseCostos = useMemo(() => desglose.filter((g) => g.cat !== "Ingresos"), [desglose]);
+  const totalCostos = useMemo(() => desgloseCostos.reduce((s, g) => s + g.subtotal, 0), [desgloseCostos]);
+  const serieTrend = useMemo(
+    () => serie.map((s: any) => ({
+      mesLabel: s.mesLabel,
+      ingresos: Number((s.ingresosConvencional + s.ingresosOffBalance + s.ingresosIva).toFixed(2)),
+      utilidad: s.utilidad,
+    })),
+    [serie],
+  );
+  const desgloseChart = useMemo(
+    () => CATEGORIAS.filter((c) => c !== "Ingresos" && Math.abs(totalesActual.t[c] ?? 0) > 0.009)
+      .map((c) => ({ cat: c, monto: totalesActual.t[c] ?? 0 })),
+    [totalesActual],
+  );
+  const rachaMargenBruto = useMemo(() => {
+    let n = 0;
+    for (let i = serieMargenes.length - 1; i >= 0; i--) {
+      if (serieMargenes[i].margenBrutoPct != null && (serieMargenes[i].margenBrutoPct as number) > 60) n++;
+      else break;
+    }
+    return n;
+  }, [serieMargenes]);
+
   const ingresos = totalesActual.t["Ingresos"] ?? 0;
   const cogs = totalesActual.t["COGS"] ?? 0;
   const gastosTotales = CATEGORIAS.filter((c) => c !== "Ingresos").reduce((s, c) => s + (totalesActual.t[c] ?? 0), 0);
@@ -319,12 +348,239 @@ function ReporteMensualImprimirPage() {
   const labelAnioAntYtd = `Ene–${MESES[mes - 1]} ${anio - 1}`;
   const labelPeriodo = ytd ? labelYtd : labelMes;
   const modoLabel = mode === "bcv" ? "USD BCV" : "USD paralelo";
+
+  // Variación de costos fijos vs. el período comparable anterior, y gastos
+  // financieros bancarios (cuenta 4.8) como % de Costos Variables -- mismo
+  // cálculo que en la pestaña "Resumen visual" en pantalla.
+  const costosFijosPrevLabel = ytd ? labelAnioAntYtd : labelMesAnt;
+  const costosFijosPrevValor = ytd ? (anioPasadoYtd.t["Costos Fijos"] ?? 0) : (anterior.t["Costos Fijos"] ?? 0);
+  const costosFijosPct = pct(totalesActual.t["Costos Fijos"] ?? 0, costosFijosPrevValor);
+  const grupoCostosVariables = desgloseCostos.find((g) => g.cat === "Costos Variables (operativos)");
+  const gastosBancarios = grupoCostosVariables?.items.find((i) => i.codigo === "4.8");
+  const gastosBancariosPct = gastosBancarios && grupoCostosVariables && grupoCostosVariables.subtotal > 0
+    ? (gastosBancarios.total / grupoCostosVariables.subtotal) * 100
+    : null;
   // Mismo criterio de color que el banner de BCV/paralelo en la vista en pantalla
   // (resumen-ejecutivo-mensual.tsx): azul para BCV, verde para paralelo.
   const modoBadgeClass = mode === "bcv"
     ? "bg-blue-50 text-blue-700 border-blue-200"
     : "bg-emerald-50 text-emerald-700 border-emerald-200";
   const modoDotClass = mode === "bcv" ? "bg-blue-500" : "bg-emerald-500";
+
+  if (vista === "visual") {
+    const ANCHO_VISUAL = 440;
+    const ALTO_VISUAL = 230;
+    return (
+      <div className="reporte-print bg-white text-[#1a1a2e]" style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "10mm" }}>
+        {/* 1. Encabezado -- igual al de la vista "detallado" */}
+        <header className="flex items-baseline justify-between border-b-2 pb-2 mb-3" style={{ borderColor: "#1e3a5f" }}>
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: "#1e3a5f" }}>Resumen IPA Mensual</h1>
+            <p className="text-sm text-gray-600 mt-0.5">Resumen visual de <b>{labelMes}</b></p>
+            <div className={`mt-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold ${modoBadgeClass}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${modoDotClass}`} />
+              Montos en <span className="uppercase tracking-wide">{modoLabel}</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 items-end">
+            {totalesActual.estimado && (
+              <div className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 rounded px-2 py-1 max-w-[260px]">
+                ⚠ COGS estimado — {ytd ? "meses abiertos" : "mes abierto"}, sin cierre formal.
+              </div>
+            )}
+            <div className="text-[10px] bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-1 max-w-[260px]">
+              ℹ Ingresos no incluyen servicio (10%) ni propina.
+            </div>
+            {incluirIva ? (
+              <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
+                ⚠ Incluye operaciones de Venta de IVA (cuenta 1.8).
+              </div>
+            ) : (
+              <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
+                ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).
+              </div>
+            )}
+            {(ytd ? islrRetenidoYtd : islrRetenidoMes) > 0.01 ? (
+              <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
+                ⚠ Banco retuvo {fmtUsd(ytd ? islrRetenidoYtd : islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).
+              </div>
+            ) : (
+              <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
+                ℹ Retención ISLR: $0.00 — aún no se registra {ytd ? "en este rango" : "este mes"}.
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* 2. KPIs -- igual al de la vista "detallado" */}
+        <section className="grid grid-cols-4 gap-3 mb-3">
+          {[
+            { label: "Ingresos", value: fmtUsdContable(fmtUsd, ingresos), sub: labelPeriodo },
+            { label: "COGS", value: fmtUsdContable(fmtUsd, cogs), sub: totalesActual.estimado ? `Estimado (${ytd ? "meses abiertos" : "mes abierto"})` : undefined },
+            { label: "Margen bruto", value: fmtUsdContable(fmtUsd, margenBruto), sub: ingresos > 0 ? `${((margenBruto / ingresos) * 100).toFixed(1)}% de ingresos` : undefined },
+            { label: "Utilidad neta", value: fmtUsdContable(fmtUsd, utilidadNeta), sub: ingresos > 0 ? `${((utilidadNeta / ingresos) * 100).toFixed(1)}% de ingresos` : undefined, neg: utilidadNeta < 0 },
+          ].map((k) => (
+            <div key={k.label} className="rounded-md border px-3 py-2" style={{ backgroundColor: "#F7F8FA", borderColor: "#E2E5EA" }}>
+              <p className="text-[9px] uppercase tracking-wide text-gray-500 font-semibold">{k.label}</p>
+              <p className={`text-lg font-bold ${k.neg ? "text-red-700" : ""}`} style={!k.neg ? { color: "#1e3a5f" } : undefined}>{k.value}</p>
+              {k.sub && <p className="text-[9px] text-gray-500">{k.sub}</p>}
+            </div>
+          ))}
+        </section>
+
+        {/* 3. Análisis del mes -- igual al de la vista "detallado" */}
+        <section className="rounded-md border p-3 mb-3" style={{ backgroundColor: "#F7F8FA", borderColor: "#E2E5EA", breakInside: "avoid" }}>
+          <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Análisis del mes</p>
+          <div className="text-[13px] leading-relaxed space-y-1.5">
+            {sinOperaciones ? (
+              <p className="font-medium">{labelPeriodo} no registra operaciones a la fecha.</p>
+            ) : (
+              <>
+                <p className="text-gray-600">
+                  {ytd ? (
+                    <>Así se comportó el negocio acumulado de {labelYtd}{hayAnioPasadoYtd ? `, comparado con ${labelAnioAntYtd}` : ""}:</>
+                  ) : (
+                    <>Así se comportó el negocio en {labelMes}, comparado con {labelMesAnt}{hayAnioPasado ? ` y con ${labelAnioAnt}` : ""}:</>
+                  )}
+                </p>
+                <p><ConNegritas>{ytd
+                  ? frase("Los ingresos acumulados fueron", ingresos, hayAnioPasadoYtd ? anioPasadoYtd.t["Ingresos"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+                  : frase("Los ingresos fueron", ingresos, anterior.t["Ingresos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Ingresos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+                {incluirIva && (
+                  <p><ConNegritas>{ytd
+                    ? frase("De eso, Operaciones de IVA representaron", ingresosIvaActualYtd, hayAnioPasadoYtd ? ingresosIvaAnioPasadoYtd : 0, labelAnioAntYtd, null, "", fmtUsd)
+                    : frase("De eso, Operaciones de IVA representaron", ingresosIvaActual, ingresosIvaAnterior, labelMesAnt, null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+                )}
+                <p><ConNegritas>{ytd
+                  ? frase("El COGS fue", cogs, hayAnioPasadoYtd ? anioPasadoYtd.t["COGS"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+                  : frase("El COGS fue", cogs, anterior.t["COGS"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["COGS"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+                <p><ConNegritas>{ytd
+                  ? frase("Los costos fijos fueron", totalesActual.t["Costos Fijos"] ?? 0, hayAnioPasadoYtd ? anioPasadoYtd.t["Costos Fijos"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+                  : frase("Los costos fijos fueron", actual.t["Costos Fijos"] ?? 0, anterior.t["Costos Fijos"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Fijos"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+                <p><ConNegritas>{ytd
+                  ? frase("Los costos variables (operativos) fueron", totalesActual.t["Costos Variables (operativos)"] ?? 0, hayAnioPasadoYtd ? anioPasadoYtd.t["Costos Variables (operativos)"] ?? 0 : 0, labelAnioAntYtd, null, "", fmtUsd)
+                  : frase("Los costos variables (operativos) fueron", actual.t["Costos Variables (operativos)"] ?? 0, anterior.t["Costos Variables (operativos)"] ?? 0, labelMesAnt, hayAnioPasado ? anioPasado.t["Costos Variables (operativos)"] ?? 0 : null, labelAnioAnt, fmtUsd)}</ConNegritas></p>
+                <p className="text-gray-600">
+                  La utilidad neta {ytd ? "acumulada" : "del mes"} fue de <b>{fmtUsdContable(fmtUsd, utilidadNeta)}</b>
+                  {ingresos > 0 ? ` (${((utilidadNeta / ingresos) * 100).toFixed(1)}% de los ingresos)` : ""}.
+                </p>
+                {autorizado && incluirPrestamosDividendos && (pagoPrestamos > 0.01 || dividendos > 0.01) && (
+                  <p className="text-gray-600">
+                    Además, en {ytd ? labelYtd : labelMes}
+                    {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
+                    {pagoPrestamos > 0.01 && dividendos > 0.01 && " y"}
+                    {dividendos > 0.01 && <> se repartieron <b>{fmtUsd(dividendos)}</b> en dividendos</>}.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+
+        {puntosAdicionales.length > 0 && (
+          <section className="rounded-md border p-3 mb-3" style={{ backgroundColor: "#F7F8FA", borderColor: "#E2E5EA", breakInside: "avoid" }}>
+            <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Puntos adicionales</p>
+            <div className="space-y-1">
+              {puntosAdicionales.map((n) => (
+                <div key={n.id} className="flex items-start gap-1.5 text-[13px] leading-relaxed">
+                  <span className="text-gray-400 mt-0.5">●</span>
+                  <p className="flex-1 whitespace-pre-wrap"><TextoConFormato>{n.texto}</TextoConFormato></p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 4. Dos gráficos: Ingresos vs. utilidad neta, y egresos por categoría */}
+        <section className="flex gap-3 mb-3" style={{ breakInside: "avoid" }}>
+          <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
+            <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Ingresos vs. utilidad neta — Enero a {MESES[mes - 1]} {anio}</p>
+            <ComposedChart width={ANCHO_VISUAL} height={ALTO_VISUAL} data={serieTrend}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="mesLabel" fontSize={10} />
+              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} />
+              <Tooltip formatter={(v: number) => fmtUsd(v)} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Line type="monotone" dataKey="ingresos" name="Ingresos" stroke={COLOR_INGRESOS.convencional} strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+              <Line type="monotone" dataKey="utilidad" name="Utilidad neta" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+            </ComposedChart>
+          </div>
+          <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
+            <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>¿En qué se fue la plata? — {labelPeriodo}</p>
+            <ComposedChart width={ANCHO_VISUAL} height={ALTO_VISUAL} data={desgloseChart} margin={{ top: 20, right: 8, left: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
+              <XAxis dataKey="cat" fontSize={9} interval={0} angle={-12} textAnchor="end" height={55} />
+              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} />
+              <Tooltip formatter={(v: number) => fmtUsd(v)} />
+              <Bar dataKey="monto" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                {desgloseChart.map((d) => <Cell key={d.cat} fill={COLOR_CAT[d.cat]} />)}
+                <LabelList dataKey="monto" position="top" formatter={(v: number) => fmtUsd(v)} fontSize={9} />
+              </Bar>
+            </ComposedChart>
+          </div>
+        </section>
+
+        {/* 5. Desglose de costos -- las mismas cuentas del Desglose G&P, sin Ingresos */}
+        <section className="mb-3">
+          <p className="text-[13px] font-bold mb-1.5" style={{ color: "#1e3a5f" }}>Desglose de costos — {labelPeriodo}</p>
+          <table className="w-full text-[11px] border-collapse">
+            <thead>
+              <tr style={{ backgroundColor: "#1e3a5f" }}>
+                <th className="text-left py-1.5 px-2 text-white font-semibold">Cuenta</th>
+                <th className="text-right py-1.5 px-2 text-white font-semibold">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {desgloseCostos.map((g) => (
+                <Fragment key={g.cat}>
+                  <tr style={{ backgroundColor: "#E2E5EA", breakInside: "avoid" }}>
+                    <td className="py-1 px-2 font-semibold uppercase tracking-wide text-[10px]">{g.cat}</td>
+                    <td className="py-1 px-2 text-right font-semibold mono">{fmtUsdContable(fmtUsd, g.subtotal)}</td>
+                  </tr>
+                  {g.items.map((i, ii) => (
+                    <tr key={`${g.cat}-${i.codigo}`} style={{ breakInside: "avoid", backgroundColor: ii % 2 === 1 ? "#FAFBFC" : "white" }}>
+                      <td className="py-1 px-2 pl-6 text-gray-600 border-b" style={{ borderColor: "#EEE" }}>{i.codigo} · {i.nombre}</td>
+                      <td className="py-1 px-2 text-right mono border-b" style={{ borderColor: "#EEE" }}>{fmtUsdContable(fmtUsd, i.total)}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+              <tr style={{ breakInside: "avoid", borderTop: "2px solid #1e3a5f", backgroundColor: "#F7F8FA" }}>
+                <td className="py-1.5 px-2 font-bold">Total de costos</td>
+                <td className="py-1.5 px-2 text-right font-bold mono">{fmtUsdContable(fmtUsd, totalCostos)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        {/* 6. Lo que vale la pena notar */}
+        {(rachaMargenBruto >= 2 || costosFijosPct != null || gastosBancariosPct != null) && (
+          <section className="flex flex-wrap gap-2 mb-3" style={{ breakInside: "avoid" }}>
+            {rachaMargenBruto >= 2 && (
+              <div className="rounded-full border px-3 py-1 text-[11px]" style={{ borderColor: "#E2E5EA" }}>
+                <span className="text-green-700">●</span> Margen bruto arriba de 60% por {rachaMargenBruto}.º mes seguido
+              </div>
+            )}
+            {costosFijosPct != null && (
+              <div className="rounded-full border px-3 py-1 text-[11px]" style={{ borderColor: "#E2E5EA" }}>
+                <span className={costosFijosPct <= 0 ? "text-green-700" : "text-amber-700"}>●</span>
+                {" "}Costos fijos {costosFijosPct >= 0 ? "+" : "−"}{Math.abs(costosFijosPct).toFixed(1)}% vs {costosFijosPrevLabel}
+              </div>
+            )}
+            {gastosBancariosPct != null && (
+              <div className="rounded-full border px-3 py-1 text-[11px]" style={{ borderColor: "#F0D99A", backgroundColor: "#FFFBF0" }}>
+                <span className="text-amber-700">●</span> Gastos bancarios: {gastosBancariosPct.toFixed(1)}% de costos variables
+              </div>
+            )}
+          </section>
+        )}
+
+        <footer className="text-[9px] text-gray-500 border-t pt-2" style={{ borderColor: "#E2E5EA" }}>
+          Generado automáticamente a partir del plan de cuentas · Montos en {modoLabel} · No incluye servicio (10%) ni propina.
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="reporte-print bg-white text-[#1a1a2e]" style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "10mm" }}>

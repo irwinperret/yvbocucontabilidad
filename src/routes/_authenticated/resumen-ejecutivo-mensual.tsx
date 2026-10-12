@@ -303,6 +303,10 @@ function ResumenEjecutivoMensualPage() {
   const labelAnioAntYtd = `Ene–${MESES[mes - 1]} ${anio - 1}`;
   const labelPeriodo = ytd ? labelYtd : labelMes;
 
+  // Qué pestaña está activa -- así el botón "Imprimir / PDF" manda la misma
+  // versión (detallado o visual) que la persona está viendo en pantalla.
+  const [vistaActiva, setVistaActiva] = useState<"detallado" | "visual">("detallado");
+
   const abrirImpresion = () => {
     const params = new URLSearchParams({
       anio: String(anio),
@@ -311,6 +315,7 @@ function ResumenEjecutivoMensualPage() {
       incluirPrestamosDividendos: incluirPrestamosDividendos ? "1" : "0",
       incluirIva: incluirIva ? "1" : "0",
       ytd: ytd ? "1" : "0",
+      vista: vistaActiva,
     });
     window.open(`/reporte-mensual-imprimir?${params.toString()}`, "_blank");
   };
@@ -418,7 +423,7 @@ function ResumenEjecutivoMensualPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="detallado">
+      <Tabs value={vistaActiva} onValueChange={(v) => setVistaActiva(v as "detallado" | "visual")}>
         <TabsList>
           <TabsTrigger value="detallado">Detallado</TabsTrigger>
           <TabsTrigger value="visual">Resumen visual</TabsTrigger>
