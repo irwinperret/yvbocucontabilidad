@@ -321,7 +321,7 @@ function ReporteMensualImprimirPage() {
   useEffect(() => {
     if (cargando) return;
     const modoArchivo = mode === "bcv" ? "USD BCV" : "USD paralelo";
-    const ivaArchivo = incluirIva ? "con IVA" : "sin IVA";
+    const ivaArchivo = incluirIva ? "con Venta IVA" : "sin Venta IVA";
     const ytdArchivo = ytd ? " - YTD" : "";
     document.title = `Resumen IPA Mensual - ${MESES[mes - 1]} ${anio} - ${modoArchivo} - ${ivaArchivo}${ytdArchivo}`;
   }, [cargando, mes, anio, mode, incluirIva, ytd]);
