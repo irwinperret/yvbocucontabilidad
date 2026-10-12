@@ -330,6 +330,13 @@ function ResumenEjecutivoMensualPage() {
   // Ingresos (esta tabla es solo de costos).
   const desgloseCostos = useMemo(() => desglose.filter((g) => g.cat !== "Ingresos"), [desglose]);
   const totalCostos = useMemo(() => desgloseCostos.reduce((s, g) => s + g.subtotal, 0), [desgloseCostos]);
+  // Seleccion de celdas tipo Excel (clic y arrastra) para "Desglose de
+  // costos" -- mismo patron que seleccionGp en "Desglose G&P".
+  const valoresCostosSeleccion = useMemo(
+    () => desgloseCostos.flatMap((g) => [g.subtotal, ...g.items.map((i) => i.total)]).map((v) => [v]),
+    [desgloseCostos],
+  );
+  const seleccionCostos = useExcelCellSelection(valoresCostosSeleccion);
 
   // Ingresos vs. utilidad neta, mes a mes -- mismos números que el gráfico
   // de categorías de arriba, solo que consolidados en dos líneas.
@@ -864,23 +871,34 @@ function ResumenEjecutivoMensualPage() {
       {/* Desglose de costos -- las mismas cuentas del Desglose G&P, sin Ingresos */}
       <Card>
         <CardHeader><CardTitle className="text-lg">Desglose de costos — {labelPeriodo} · {label}</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="select-none">
           <table className="w-full text-sm">
             <tbody>
-              {desgloseCostos.map((g) => (
+              {desgloseCostos.map((g, gi) => {
+                const rowBase = desgloseCostos.slice(0, gi).reduce((n, x) => n + 1 + x.items.length, 0);
+                return (
                 <Fragment key={g.cat}>
                   <tr className="bg-muted/50">
                     <td className="py-1.5 px-2 text-xs font-semibold uppercase tracking-wide">{g.cat}</td>
-                    <td className="py-1.5 px-2 text-right mono font-semibold">{fmtUsd(g.subtotal)}</td>
+                    <td
+                      onMouseDown={seleccionCostos.startSelection(rowBase, 0)}
+                      onMouseEnter={seleccionCostos.overSelection(rowBase, 0)}
+                      className={`py-1.5 px-2 text-right mono font-semibold cursor-cell select-none ${seleccionCostos.isSelected(rowBase, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                    >{fmtUsd(g.subtotal)}</td>
                   </tr>
-                  {g.items.map((i) => (
+                  {g.items.map((i, ii) => (
                     <tr key={`${g.cat}-${i.codigo}`} className="border-b last:border-0">
                       <td className="py-1 px-2 pl-6 text-muted-foreground">{i.codigo} · {i.nombre}</td>
-                      <td className="py-1 px-2 text-right mono">{fmtUsd(i.total)}</td>
+                      <td
+                        onMouseDown={seleccionCostos.startSelection(rowBase + 1 + ii, 0)}
+                        onMouseEnter={seleccionCostos.overSelection(rowBase + 1 + ii, 0)}
+                        className={`py-1 px-2 text-right mono cursor-cell select-none ${seleccionCostos.isSelected(rowBase + 1 + ii, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                      >{fmtUsd(i.total)}</td>
                     </tr>
                   ))}
                 </Fragment>
-              ))}
+                );
+              })}
               <tr className="border-t-2">
                 <td className="py-2 px-2 font-bold">Total de costos</td>
                 <td className="py-2 px-2 text-right mono font-bold">{fmtUsd(totalCostos)}</td>
@@ -889,6 +907,15 @@ function ResumenEjecutivoMensualPage() {
           </table>
         </CardContent>
       </Card>
+      {seleccionCostos.selection.count > 0 && (
+        <div className="flex justify-end -mt-4">
+          <div className="bg-foreground text-background text-xs rounded-md shadow-lg px-4 py-2 flex items-center gap-4 mono">
+            <span>Celdas: <b>{seleccionCostos.selection.count}</b></span>
+            <span>Promedio: <b>{fmtUsd(seleccionCostos.selection.average)}</b></span>
+            <span>Suma: <b>{fmtUsd(seleccionCostos.selection.suma)}</b></span>
+          </div>
+        </div>
+      )}
 
       {(rachaMargenBruto >= 2 || costosFijosPct != null || gastosBancariosPct != null) && (
         <div className="flex flex-wrap gap-2">
