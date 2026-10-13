@@ -32,6 +32,12 @@ import {
   type ImportBatch,
   type RevertPlan,
 } from "@/lib/import-batches";
+import {
+  MAPEO_PROVEEDORES_2_1,
+  backfillReclasificacionProveedores2_1,
+  resumenBackfillProveedores,
+  type ResultadoBackfillProveedores,
+} from "@/lib/backfill-proveedores-2-1";
 
 export const Route = createFileRoute("/_authenticated/importaciones")({
   component: ImportacionesPage,
@@ -62,6 +68,9 @@ function ImportacionesPage() {
   const [purgingResiduos, setPurgingResiduos] = useState(false);
   const [purgeTarget, setPurgeTarget] = useState<ImportBatch | null>(null);
   const [purgingOne, setPurgingOne] = useState(false);
+  const [backfillOpen, setBackfillOpen] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<ResultadoBackfillProveedores | null>(null);
 
 
   const { data: isAdmin = false } = useQuery({
@@ -165,7 +174,19 @@ function ImportacionesPage() {
     qc.invalidateQueries();
   };
 
-
+  const confirmarBackfill = async () => {
+    setBackfilling(true);
+    try {
+      const res = await backfillReclasificacionProveedores2_1();
+      setBackfillResult(res);
+      toast.success(resumenBackfillProveedores(res));
+      qc.invalidateQueries();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo ejecutar la reclasificación");
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -274,6 +295,32 @@ function ImportacionesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Reclasificación histórica · compras en 2.1</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Corrige retroactivamente la cuenta de las compras de Xetux que quedaron en 2.1 -- Compras de
+                  mercancía, para 5 proveedores ya confirmados, sin tocar los demás ni los meses cerrados.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBackfillResult(null);
+                  setBackfillOpen(true);
+                }}
+              >
+                Reclasificar proveedores
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -472,6 +519,86 @@ function ImportacionesPage() {
             >
               {purgingResiduos ? "Borrando…" : "Sí, borrar residuos"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={backfillOpen}
+        onOpenChange={(o) => {
+          if (backfilling) return;
+          setBackfillOpen(o);
+          if (!o) setBackfillResult(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reclasificación histórica de proveedores (2.1)</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                {!backfillResult ? (
+                  <>
+                    <p>
+                      Se buscarán todas las compras de estos proveedores que sigan en 2.1 -- Compras de
+                      mercancía (en cualquier mes) y se reclasificarán a:
+                    </p>
+                    <ul className="list-disc pl-5">
+                      {MAPEO_PROVEEDORES_2_1.map((m) => (
+                        <li key={m.razonSocial}>
+                          {m.razonSocial} → {m.cuenta} ({m.cuentaLabel})
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-muted-foreground">
+                      Se respetan los meses ya cerrados (se reportan, no se tocan) y cada cambio queda
+                      registrado en auditoría, igual que cualquier otra edición.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>{resumenBackfillProveedores(backfillResult)}</p>
+                    {backfillResult.items.length > 0 && (
+                      <ul className="list-disc pl-5 max-h-48 overflow-y-auto">
+                        {backfillResult.items.map((it) => (
+                          <li key={it.transaccionId}>
+                            {it.proveedor} · {it.fecha} · {it.resultado.status}
+                            {it.resultado.status === "reclasificada" ? ` (${it.resultado.de} → ${it.resultado.a})` : ""}
+                            {it.resultado.status === "mes_cerrado" ? ` (${it.resultado.periodo})` : ""}
+                            {it.resultado.status === "conflicto" ? ` (actual ${it.resultado.actual}, sugerida ${it.resultado.sugerida})` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {!backfillResult ? (
+              <>
+                <AlertDialogCancel disabled={backfilling}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={backfilling}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    confirmarBackfill();
+                  }}
+                >
+                  {backfilling ? "Reclasificando…" : "Sí, reclasificar"}
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  setBackfillOpen(false);
+                  setBackfillResult(null);
+                }}
+              >
+                Cerrar
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
