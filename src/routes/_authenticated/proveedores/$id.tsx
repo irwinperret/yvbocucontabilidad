@@ -33,6 +33,7 @@ import {
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { FacturaDetalleDialog } from "@/components/factura-detalle-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
+import { resumenReclasificaciones } from "@/lib/reclasificar-compra";
 import {
   aplicarPareoCxp,
   quitarPareoCxp,
@@ -949,12 +950,14 @@ function TableroProveedor() {
       if (!r.ok) throw new Error(r.error ?? "No se pudo liberar el movimiento");
     }
     if (ordenadas.length) {
-      await aplicarPareoCxp({
+      const { reclasificaciones } = await aplicarPareoCxp({
         mov,
         terceroId: (ordenadas[0].tercero_id ?? mov.tercero_id ?? null) as string,
         cxps: ordenadas,
         userId: user.id,
       });
+      const resumenReclas = resumenReclasificaciones(reclasificaciones);
+      if (resumenReclas) toast.info(resumenReclas, { duration: 10000 });
     }
   };
 

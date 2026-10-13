@@ -13,6 +13,7 @@ import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { toast } from "sonner";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { aplicarPareoCxp, marcaPareo, quitarPareoCxp } from "@/lib/pareo-cxp";
+import { resumenReclasificaciones } from "@/lib/reclasificar-compra";
 import {
   pendienteBsHistorico,
   pendienteUsdBcv,
@@ -128,7 +129,7 @@ export function PareoManualDialog({
     if (!seleccionadas.length) return toast.error("Selecciona al menos una factura");
     setBusy(true);
     try {
-      const { estadoVinculo, creadas, previos } = await aplicarPareoCxp({
+      const { estadoVinculo, creadas, previos, reclasificaciones } = await aplicarPareoCxp({
         mov,
         terceroId,
         cxps: seleccionadas,
@@ -136,6 +137,8 @@ export function PareoManualDialog({
         userId: user.id,
       });
 
+      const resumenReclas = resumenReclasificaciones(reclasificaciones);
+      if (resumenReclas) toast.info(resumenReclas, { duration: 10000 });
 
       toast.success(
         estadoVinculo === "pareado" ? "Movimiento pareado" : "Pareo parcial guardado",

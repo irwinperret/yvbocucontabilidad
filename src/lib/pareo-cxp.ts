@@ -12,6 +12,11 @@ import {
   dentroDeTolerancia,
   tasaBcvFactura,
 } from "@/lib/cxp-saldo";
+import { fetchPeriodosCerrados } from "@/lib/home-checklist";
+import {
+  reclasificarCompraSegunPareo,
+  type ResultadoReclasificacion,
+} from "@/lib/reclasificar-compra";
 
 export const CUENTA_PAGO_CXP = "8.2";
 export const CUENTA_ANTICIPO = "9.2";
@@ -33,6 +38,8 @@ export type ResultadoPareo = {
   estadoVinculo: "pareado" | "parcial";
   creadas: string[];
   previos: EstadoPrevioCxp[];
+  /** Compras de Xetux (2.1) reclasificadas a la cuenta del movimiento bancario, una por CxP aplicada. */
+  reclasificaciones: ResultadoReclasificacion[];
 };
 
 /**
@@ -141,6 +148,10 @@ export async function aplicarPareoCxp(args: {
   const creadas: string[] = [];
   let restante = montoMov;
   let quedoPendiente = false;
+  // Para reclasificar las compras de Xetux (2.1) hacia la cuenta del
+  // movimiento bancario cuando corresponda -- ver reclasificar-compra.ts.
+  const periodosCerrados = await fetchPeriodosCerrados();
+  const reclasificaciones: ResultadoReclasificacion[] = [];
 
   for (const c of cxps) {
     const pend = pendienteBsAFecha(c, tasaBcv);
@@ -152,9 +163,18 @@ export async function aplicarPareoCxp(args: {
 
     const { data: txOrig } = await supabase
       .from("transacciones")
-      .select("cuenta_codigo, centro_costo, grupo_transaccion_id")
+      .select("cuenta_codigo, centro_costo, grupo_transaccion_id, fecha")
       .eq("id", c.transaccion_id)
       .maybeSingle();
+    reclasificaciones.push(
+      await reclasificarCompraSegunPareo({
+        transaccionId: c.transaccion_id,
+        cuentaOriginal: txOrig?.cuenta_codigo,
+        cuentaSugerida: mov.cuenta_codigo,
+        fecha: txOrig?.fecha ?? fecha,
+        periodosCerrados,
+      }),
+    );
     const grupoId = txOrig?.grupo_transaccion_id ?? crypto.randomUUID();
     if (c.transaccion_id && !txOrig?.grupo_transaccion_id) {
       await supabase
@@ -294,7 +314,7 @@ export async function aplicarPareoCxp(args: {
     if (!r.ok) throw new Error(r.error ?? "No se pudo guardar el vínculo");
   }
 
-  return { estadoVinculo, creadas, previos };
+  return { estadoVinculo, creadas, previos, reclasificaciones };
 }
 
 /**

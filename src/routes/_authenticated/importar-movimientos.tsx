@@ -17,6 +17,12 @@ import { readSheetAOASmart, numFromCell, parseDateCell } from "@/lib/xetux-parse
 import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard";
 import { logAudit } from "@/lib/audit";
 import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
+import { fetchPeriodosCerrados } from "@/lib/home-checklist";
+import {
+  reclasificarCompraSegunPareo,
+  resumenReclasificaciones,
+  type ResultadoReclasificacion,
+} from "@/lib/reclasificar-compra";
 import {
   SIN_FACTURA_PREFIX,
   huellaBancaria,
@@ -865,6 +871,12 @@ function ImportarMovimientosInner() {
     });
     let ok = 0, fail = 0, partial = 0, sinFactura = 0, noAplicaCount = 0, actualizados = 0;
     const importados = new Set<string>();
+    // Reclasificación de compras de Xetux (2.1) hacia la cuenta del
+    // movimiento bancario cuando se cruzan contra una CxP -- ver
+    // reclasificar-compra.ts. Se junta todo el lote y se resume en un solo
+    // toast al final, en vez de interrumpir la importación por cada caso.
+    const periodosCerrados = await fetchPeriodosCerrados();
+    const reclasificacionesLote: ResultadoReclasificacion[] = [];
 
     // Catálogo de proveedores para adivinar el tercero de los movimientos
     // sin factura (evita filas "en blanco" en la tabla de compras del mes).
@@ -1235,6 +1247,23 @@ function ImportarMovimientosInner() {
           const aplicarUsdBcv = Math.min(pendUsdBcv, restanteUsdBcv);
           if (aplicarUsdBcv <= 0.01) continue;
 
+          // La cuenta sugerida la trae el propio Excel de movimientos
+          // (m.cuentaCodigo, llenada a mano) -- nunca una adivinanza.
+          const { data: txCompraOrig } = await supabase
+            .from("transacciones")
+            .select("cuenta_codigo, fecha")
+            .eq("id", cxp.transaccion_id ?? "")
+            .maybeSingle();
+          reclasificacionesLote.push(
+            await reclasificarCompraSegunPareo({
+              transaccionId: cxp.transaccion_id,
+              cuentaOriginal: txCompraOrig?.cuenta_codigo,
+              cuentaSugerida: m.cuentaCodigo,
+              fecha: txCompraOrig?.fecha ?? bankRow.fecha,
+              periodosCerrados,
+            }),
+          );
+
           let nuevoUsdBcv = Math.max(0, +(pendUsdBcv - aplicarUsdBcv).toFixed(2));
           // Diferencia despreciable frente a la deuda revaluada → factura pagada.
           const deudaBs = +(pendUsdBcv * (rates.bcv || 1)).toFixed(2);
@@ -1305,6 +1334,8 @@ function ImportarMovimientosInner() {
         actualizados ? ` · Cuentas actualizadas: ${actualizados}` : ""
       } · Fallidos: ${fail}`
     );
+    const resumenReclas = resumenReclasificaciones(reclasificacionesLote);
+    if (resumenReclas) toast.info(resumenReclas, { duration: 12000 });
     if (sinFactura > 0 || noAplicaCount > 0) {
       toast("Movimientos sin factura identificada", {
         description: "Cuando importes las compras de Xetux, usa “Recalcular pareos” para vincularlos.",
