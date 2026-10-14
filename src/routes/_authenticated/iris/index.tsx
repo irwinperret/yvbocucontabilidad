@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, ArrowLeftRight, ChevronRight, StickyNote } from "lucide-react";
 import { fmtUsd } from "@/lib/format";
 import { pendienteUsdBcv } from "@/lib/cxp-saldo";
+import { fetchMovimientosSinProveedorCount } from "@/lib/iris-checklist";
+import { ChecklistIrisCard } from "@/components/checklist-iris-card";
 
 export const Route = createFileRoute("/_authenticated/iris/")({
   component: IrisPage,
@@ -22,29 +24,7 @@ function IrisPage() {
   // ningún vínculo manual en conciliacion_bancaria todavía).
   const { data: sinProveedorCount } = useQuery({
     queryKey: ["iris-sin-proveedor-count"],
-    queryFn: async () => {
-      const { fetchAllRows } = await import("@/lib/fetch-all");
-      const movs = await fetchAllRows<any>(async (from, to) =>
-        await supabase
-          .from("transacciones")
-          .select("id")
-          .like("referencia", "BANK:%")
-          .neq("standby", true)
-          .is("tercero_id", null)
-          .range(from, to),
-      );
-      if (!movs.length) return 0;
-      const vinculos = await fetchAllRows<any>(async (from, to) =>
-        await (supabase.from as any)("conciliacion_bancaria")
-          .select("transaccion_bancaria_id, origen")
-          .in("transaccion_bancaria_id", movs.map((m) => m.id))
-          .range(from, to),
-      );
-      const yaConfirmados = new Set(
-        vinculos.filter((v: any) => v.origen === "manual").map((v: any) => v.transaccion_bancaria_id),
-      );
-      return movs.filter((m) => !yaConfirmados.has(m.id)).length;
-    },
+    queryFn: fetchMovimientosSinProveedorCount,
   });
 
   // Proveedores con CxP pendiente, ordenados de mayor a menor (USD BCV).
@@ -98,6 +78,8 @@ function IrisPage() {
           Revisión administrativa de la conciliación de cada proveedor. Todos los montos en USD BCV.
         </p>
       </div>
+
+      <ChecklistIrisCard />
 
       <Link to="/iris/notas">
         <Card className="hover:border-primary/60 hover:bg-muted/30 transition-colors cursor-pointer">
