@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, StickyNote, Plus, Check, Pencil, Trash2, GripVertical } from "lucide-react";
+import { ArrowLeft, StickyNote, Plus, Check, Pencil, Trash2, GripVertical, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
@@ -168,6 +168,7 @@ function PendientesCard() {
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [resolviendoId, setResolviendoId] = useState<string | null>(null);
+  const [reabriendoId, setReabriendoId] = useState<string | null>(null);
   const [verResueltas, setVerResueltas] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editTexto, setEditTexto] = useState("");
@@ -246,6 +247,19 @@ function PendientesCard() {
     setResolviendoId(null);
     if (error) return toast.error(error.message || "No se pudo marcar como resuelta");
     toast.success("Marcada como resuelta");
+    qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
+    qc.invalidateQueries({ queryKey: ["iris-pendientes-abiertas-count"] });
+  };
+
+  /** Inverso de resolver(): vuelve una nota resuelta a pendiente, por si se marcó por error. */
+  const reabrir = async (id: string) => {
+    setReabriendoId(id);
+    const { error } = await (supabase.from as any)("iris_pendientes")
+      .update({ estado: "pendiente", resuelta_at: null, resuelta_by: null })
+      .eq("id", id);
+    setReabriendoId(null);
+    if (error) return toast.error(error.message || "No se pudo reabrir la nota");
+    toast.success("Nota reabierta");
     qc.invalidateQueries({ queryKey: ["iris-pendientes"] });
     qc.invalidateQueries({ queryKey: ["iris-pendientes-abiertas-count"] });
   };
@@ -472,20 +486,34 @@ function PendientesCard() {
                             </p>
                           </div>
                         )}
-                        {!enEdicion && esAutor && (
+                        {!enEdicion && (
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
+                            {esAutor && (
+                              <>
+                                <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(p)} title="Editar">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => borrar(p.id)}
+                                  disabled={borrandoId === p.id}
+                                  title="Borrar"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            )}
                             <Button
                               size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => borrar(p.id)}
-                              disabled={borrandoId === p.id}
-                              title="Borrar"
+                              variant="outline"
+                              onClick={() => reabrir(p.id)}
+                              disabled={reabriendoId === p.id}
+                              title="Volver a marcar como pendiente"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Undo2 className="h-3.5 w-3.5 mr-1" />
+                              {reabriendoId === p.id ? "…" : "Reabrir"}
                             </Button>
                           </div>
                         )}
