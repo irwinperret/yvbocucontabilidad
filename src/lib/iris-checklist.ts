@@ -35,6 +35,8 @@ export function nombreMesPeriodo(periodo: string): string {
  * usan la misma query key, React Query solo la pide una vez por carga de
  * página aunque las muestren dos componentes distintos.
  */
+const ESTADOS_RESUELTOS = new Set(["pareado", "parcial", "gasto_directo", "no_contable"]);
+
 export async function fetchMovimientosSinProveedorCount(): Promise<number> {
   const { fetchAllRows } = await import("@/lib/fetch-all");
   const movs = await fetchAllRows<any>(async (from, to) =>
@@ -49,12 +51,20 @@ export async function fetchMovimientosSinProveedorCount(): Promise<number> {
   if (!movs.length) return 0;
   const vinculos = await fetchAllRows<any>(async (from, to) =>
     await (supabase.from as any)("conciliacion_bancaria")
-      .select("transaccion_bancaria_id, origen")
+      .select("transaccion_bancaria_id, estado")
       .in("transaccion_bancaria_id", movs.map((m) => m.id))
       .range(from, to),
   );
+  // "Resuelto" es por estado, no por origen: un vinculo "pareado"/"parcial"
+  // (automatico o manual) ya tiene factura, y "gasto_directo"/"no_contable"
+  // son decisiones finales marcadas a mano. "pendiente_revision" y
+  // "sin_pareo" NO cuentan como resueltos aunque se hayan guardado como
+  // origen "manual" -- son justo lo que todavia le falta confirmar a Iris,
+  // y antes se escondian de esta lista por error.
   const yaConfirmados = new Set(
-    vinculos.filter((v: any) => v.origen === "manual").map((v: any) => v.transaccion_bancaria_id),
+    vinculos
+      .filter((v: any) => ESTADOS_RESUELTOS.has(v.estado))
+      .map((v: any) => v.transaccion_bancaria_id),
   );
   return movs.filter((m) => !yaConfirmados.has(m.id)).length;
 }

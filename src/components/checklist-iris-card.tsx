@@ -63,11 +63,13 @@ export function ChecklistIrisCard() {
     : [];
 
   const siguienteIdx = pasos.findIndex((p) => !p.hecho);
-  const completados = pasos.filter((p) => p.hecho).length;
-  const total = pasos.length;
+  const paso6Cargado = sinProveedorCount !== undefined;
+  const paso6Hecho = sinProveedorCount === 0;
+  const completados = pasos.filter((p) => p.hecho).length + (paso6Hecho ? 1 : 0);
+  const total = pasos.length + 1;
 
   return (
-    <Card>
+    <Card className="border-[#534AB7]/30 bg-[#534AB7]/[0.04] shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -78,7 +80,7 @@ export function ChecklistIrisCard() {
               Lo que falta enviar o revisar del mes pasado para poder cerrarlo
             </p>
           </div>
-          {data && total > 0 && (
+          {data && paso6Cargado && total > 0 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
               <span>
                 {completados} de {total}
@@ -137,8 +139,16 @@ export function ChecklistIrisCard() {
         </div>
 
         <Link to="/iris/movimientos-sin-proveedor" className="block">
-          <div className="flex items-center gap-3 rounded-md px-3 py-2 text-sm bg-amber-500/10">
-            <Circle className="h-4 w-4 shrink-0 text-amber-600" />
+          <div
+            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${
+              paso6Hecho ? "text-muted-foreground" : ""
+            }`}
+          >
+            {paso6Hecho ? (
+              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+            ) : (
+              <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+            )}
             <span className="w-5 text-muted-foreground/60">6.</span>
             <span className="flex-1">
               Confirmar movimientos bancarios
@@ -146,9 +156,11 @@ export function ChecklistIrisCard() {
                 Vincularlos a su factura o marcarlos como gasto directo (sin proveedor)
               </span>
             </span>
-            <span className="text-[11px] font-semibold bg-amber-200/60 text-amber-800 px-2 py-0.5 rounded-full whitespace-nowrap">
-              {sinProveedorCount ?? "…"} pendientes
-            </span>
+            {!paso6Hecho && (
+              <span className="text-[11px] font-semibold bg-muted text-muted-foreground px-2 py-0.5 rounded-full whitespace-nowrap">
+                {sinProveedorCount ?? "…"} pendientes
+              </span>
+            )}
           </div>
         </Link>
       </CardContent>

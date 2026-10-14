@@ -44,12 +44,20 @@ function MovimientosSinProveedorPage() {
       if (!movs.length) return [];
       const vinculos = await fetchAllRows<any>(async (from, to) =>
         await (supabase.from as any)("conciliacion_bancaria")
-          .select("transaccion_bancaria_id, origen")
+          .select("transaccion_bancaria_id, estado")
           .in("transaccion_bancaria_id", movs.map((m) => m.id))
           .range(from, to),
       );
+      // Mismo criterio que fetchMovimientosSinProveedorCount() en
+      // @/lib/iris-checklist: "resuelto" es por estado (pareado/parcial con
+      // factura, o gasto_directo/no_contable decidido a mano), no por
+      // origen -- "pendiente_revision" y "sin_pareo" siguen pendientes
+      // aunque se hayan guardado como origen "manual".
+      const ESTADOS_RESUELTOS = new Set(["pareado", "parcial", "gasto_directo", "no_contable"]);
       const yaConfirmados = new Set(
-        vinculos.filter((v: any) => v.origen === "manual").map((v: any) => v.transaccion_bancaria_id),
+        vinculos
+          .filter((v: any) => ESTADOS_RESUELTOS.has(v.estado))
+          .map((v: any) => v.transaccion_bancaria_id),
       );
       return movs.filter((m) => !yaConfirmados.has(m.id));
     },
