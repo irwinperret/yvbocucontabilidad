@@ -803,6 +803,17 @@ function TableroProveedor() {
 
   const totalUsdBcvFacturasSinMov = facturasSinMov.reduce((s, c) => s + pendienteUsdBcv(c), 0);
 
+  /**
+   * "Deuda neta real": lo que de verdad falta pagarle a este proveedor,
+   * neteando las facturas sin ningun movimiento cruzado contra los pagos
+   * que ya se le hicieron (completos, o el sobrante de uno parcial) pero
+   * todavia no se cruzaron con ninguna factura -- el caso tipico es pagar
+   * algo (ej. una planta) por el banco y no haber entrado todavia a
+   * cruzarlo contra su factura. No bajamos de 0: un sobrante de pagos no
+   * es una deuda negativa, es un anticipo.
+   */
+  const deudaNetaReal = Math.max(0, +(totalUsdBcvFacturasSinMov - totalSinAplicarUsd).toFixed(2));
+
   /** Movimientos que todavía necesitan trabajo: sin facturas, o con saldo sin aplicar. Van en el tablero. */
   const movsSinResolver = movsFiltrados.filter((mv) => !cxpsDeMov(mv.id).length || resumenMov(mv).sinAplicar > 0.01);
   /** Movimientos ya cuadrados del todo (con factura(s) y sin remanente) — van a "Ya conciliado". */
@@ -1263,6 +1274,17 @@ function TableroProveedor() {
           <Button size="sm" variant="outline" onClick={abrirRegistro}>Registrar oficialmente</Button>
         )}
       </div>
+
+      <div className="rounded-lg border-2 border-[#534AB7]/40 bg-gradient-to-br from-[#534AB7]/10 to-transparent p-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-[#534AB7]">Deuda neta real</div>
+          <div className="text-3xl font-extrabold mono text-[#534AB7]">{fmtUsd(deudaNetaReal)}</div>
+        </div>
+        <p className="text-xs text-muted-foreground max-w-xs text-right">
+          Facturas sin movimiento ({fmtUsd(totalUsdBcvFacturasSinMov)}) menos pagos a este proveedor que ya se hicieron y todavía no se cruzaron contra ninguna factura ({fmtUsd(totalSinAplicarUsd)}).
+        </p>
+      </div>
+
       {proveedorActual?.estado_registro === "candidato" && registrando && (
         <Card>
           <CardContent className="pt-4 flex flex-wrap items-end gap-3">

@@ -18,6 +18,7 @@ import { MesCerradoProvider, useMesCerradoGuard } from "@/lib/mes-cerrado-guard"
 import { crearBatch, cerrarBatch, type BatchHandle } from "@/lib/import-batches";
 import { ImportacionFallidasWizard, type FilaFallida } from "@/components/importacion-fallidas-wizard";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { obtenerOCrearCandidato, normalizarNombreCandidato } from "@/lib/proveedores-candidatos";
 
 
 
@@ -40,6 +41,15 @@ type ParsedCompra = {
   idx: number;
   tipo_rif: "V" | "J" | "E" | "G" | "P";
   rif: string;
+  /**
+   * true cuando la celda de RIF del Excel no trajo ningun digito utilizable.
+   * En ese caso tipo_rif/rif son solo un placeholder para mostrar en pantalla
+   * -- NUNCA se usan para buscar/crear el tercero (ver ensureTercero), porque
+   * esa clave RIF vacia terminaria compartida entre proveedores sin relacion
+   * (fue exactamente el bug que fusiono "Mi Gran Tesoro" con compras de
+   * "Distribuidora Imperial 2024, C.A."). En su lugar se matchea por nombre.
+   */
+  sinRif: boolean;
   proveedor: string;
   numero_factura: string;     // No. de Documento
   numero_control: string;
@@ -94,6 +104,22 @@ function ImportarComprasInner() {
     return m;
   }, [terceros]);
 
+  // Candidatos (proveedores sin RIF, creados por nombre) ya existentes --
+  // para las filas sinRif, "existe" se mira por nombre exacto normalizado,
+  // nunca por la clave RIF vacia.
+  const candidatoByNombre = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const t of terceros) {
+      if (t.estado_registro === "candidato") m.set(normalizarNombreCandidato(t.razon_social ?? ""), t);
+    }
+    return m;
+  }, [terceros]);
+
+  const proveedorYaExiste = (r: ParsedCompra) =>
+    r.sinRif
+      ? candidatoByNombre.has(normalizarNombreCandidato(r.proveedor))
+      : terceroByRif.has(`${r.tipo_rif}-${r.rif}`);
+
   const onFile = async (file: File) => {
     setFileName(file.name);
     setFileSize(file.size);
@@ -139,12 +165,19 @@ function ImportarComprasInner() {
       if (!numero_factura) continue;
       if (total <= 0) continue;
 
-      const rifParts = splitRif(rifRaw) ?? { tipo_rif: "J" as const, rif: rifRaw.replace(/\D/g, "") };
+      const rifParts = splitRif(rifRaw);
+      const digitsOnly = rifRaw.replace(/\D/g, "");
+      // Sin RIF utilizable: ni formato V/J/E/G/P-digitos, ni siquiera un
+      // numero suelto. Antes esto caia en una clave "J-" (vacia) compartida
+      // por TODAS las filas sin RIF, sin importar el proveedor real.
+      const sinRif = !rifParts && !digitsOnly;
+      const rifFinal = rifParts ?? { tipo_rif: "J" as const, rif: digitsOnly };
 
       parsed.push({
         idx: i + 1,
-        tipo_rif: rifParts.tipo_rif,
-        rif: rifParts.rif,
+        tipo_rif: rifFinal.tipo_rif,
+        rif: rifFinal.rif,
+        sinRif,
         proveedor: proveedor || rifRaw,
         numero_factura,
         numero_control,
@@ -169,10 +202,10 @@ function ImportarComprasInner() {
   const stats = useMemo(() => {
     const sel = visibles.filter((r) => r.include);
     const totalUsd = sel.reduce((s, r) => s + r.total_usd, 0);
-    const sinProveedor = sel.filter((r) => !terceroByRif.has(`${r.tipo_rif}-${r.rif}`)).length;
+    const sinProveedor = sel.filter((r) => !proveedorYaExiste(r)).length;
     const sinFecha = sel.filter((r) => !r.fecha).length;
     return { count: sel.length, totalUsd, sinProveedor, sinFecha };
-  }, [visibles, terceroByRif]);
+  }, [visibles, terceroByRif, candidatoByNombre]);
 
   const toggleRow = (idx: number, v: boolean) =>
     setRows((all) => all.map((r) => (r.idx === idx ? { ...r, include: v } : r)));
@@ -193,6 +226,17 @@ function ImportarComprasInner() {
   };
 
   const ensureTercero = async (r: ParsedCompra): Promise<string | null> => {
+    if (r.sinRif) {
+      // Sin RIF utilizable en el Excel: matchear por nombre exacto
+      // normalizado (nunca difuso, mismo criterio que proveedores
+      // adivinados de movimientos bancarios) en vez de una clave RIF vacia
+      // que terminaria compartida entre proveedores sin ninguna relacion.
+      // Si no hay match, se crea un candidato nuevo (estado_registro
+      // "candidato") para que se verifique a mano en la ficha del
+      // proveedor, en vez de fusionarlo con cualquier otro al azar.
+      const res = await obtenerOCrearCandidato(r.proveedor);
+      return res?.id ?? null;
+    }
     const k = `${r.tipo_rif}-${r.rif}`;
     const existing = terceroByRif.get(k);
     if (existing) return existing.id;
@@ -247,7 +291,9 @@ function ImportarComprasInner() {
       const tasaParaUsd = tasas.paralela || tasas.bcv;
 
       const terceroId = await ensureTercero(r);
-      if (!terceroId) return { status: "fail", motivo: `No se pudo crear/encontrar el proveedor ${r.proveedor} (${r.tipo_rif}-${r.rif})` };
+      if (!terceroId) return { status: "fail", motivo: r.sinRif
+        ? `No se pudo crear/encontrar el proveedor ${r.proveedor} (sin RIF en el Excel)`
+        : `No se pudo crear/encontrar el proveedor ${r.proveedor} (${r.tipo_rif}-${r.rif})` };
 
       // Dedup por (tercero, numero_factura) sobre transacciones 2.1 y CxP (fuente de verdad)
       const { data: existeArr } = await supabase.from("transacciones")
@@ -631,7 +677,7 @@ function ImportarComprasInner() {
                   </thead>
                   <tbody>
                     {visibles.map((r) => {
-                      const existe = terceroByRif.has(`${r.tipo_rif}-${r.rif}`);
+                      const existe = proveedorYaExiste(r);
                       return (
                         <tr key={r.idx} className="border-t">
                           <td className="p-2">
@@ -639,7 +685,9 @@ function ImportarComprasInner() {
                           </td>
                           <td className="p-2">{r.fecha || <span className="text-destructive">—</span>}</td>
                           <td className="p-2 truncate max-w-[180px]">{r.proveedor}</td>
-                          <td className="p-2 font-mono text-[10px]">{r.tipo_rif}-{r.rif}</td>
+                          <td className="p-2 font-mono text-[10px]">
+                            {r.sinRif ? <span className="text-amber-600">— (sin RIF)</span> : `${r.tipo_rif}-${r.rif}`}
+                          </td>
                           <td className="p-2"><Badge variant="outline" className="text-[10px]">{r.tipo}</Badge></td>
                           <td className="p-2 font-mono">{r.numero_factura}</td>
                           <td className="p-2 text-right mono">{fmtUsd(r.neto_usd)}</td>

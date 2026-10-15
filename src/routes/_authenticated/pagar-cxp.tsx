@@ -20,6 +20,7 @@ import { AnticipoProveedorBanner, type AplicacionSel } from "@/components/antici
 import { aplicarAnticiposContraFactura } from "@/lib/anticipos-proveedor";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { dentroDeTolerancia, pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv as saldoUsdBcv } from "@/lib/cxp-saldo";
+import { fetchDeudaNetaReal } from "@/lib/deuda-neta";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const CUENTA_PAGO_CXP = "8.2";
@@ -50,6 +51,12 @@ function PagarCxPPage() {
       const { data } = await tasaBcvQuery(todayISO(), "tasa");
       return Number(data?.tasa) || 0;
     },
+  });
+
+  const { data: deudaNeta } = useQuery({
+    queryKey: ["deuda-neta-real-total"],
+    staleTime: 60_000,
+    queryFn: fetchDeudaNetaReal,
   });
 
   const badge = (c: any) => {
@@ -189,6 +196,16 @@ function PagarCxPPage() {
           <p className="text-sm text-muted-foreground">Registra el pago de facturas pendientes (genera el movimiento de FC)</p>
         </div>
         <Button variant="outline" onClick={exportarExcel} disabled={!data?.length}>Exportar a Excel</Button>
+      </div>
+
+      <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary">Deuda neta real (toda la empresa)</div>
+          <div className="text-3xl font-extrabold mono text-primary">{deudaNeta ? fmtUsd(deudaNeta.deudaNetaRealUsd) : "…"}</div>
+        </div>
+        <p className="text-xs text-muted-foreground max-w-sm text-right">
+          Facturas sin movimiento ({deudaNeta ? fmtUsd(deudaNeta.facturasSinMovimientoUsd) : "…"}) menos pagos que ya se hicieron a algún proveedor y todavía no se cruzaron contra ninguna factura ({deudaNeta ? fmtUsd(deudaNeta.pagosSinCruzarUsd) : "…"}).
+        </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
