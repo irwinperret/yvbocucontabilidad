@@ -37,7 +37,7 @@ export async function fetchDeudaNetaReal(): Promise<DeudaNetaReal> {
   const movs = await fetchAllRows<any>(async (from, to) =>
     await supabase
       .from("transacciones")
-      .select("id, monto_bs, tasa_bcv, monto_usd")
+      .select("id, monto_bs, tasa_bcv, monto_usd, solventado_manual_usd")
       .like("referencia", "BANK:%")
       .neq("standby", true)
       .not("tercero_id", "is", null)
@@ -77,7 +77,11 @@ export async function fetchDeudaNetaReal(): Promise<DeudaNetaReal> {
       const tasa = Number(m.tasa_bcv) || 0;
       const bs = Math.abs(Number(m.monto_bs) || 0);
       const usd = tasa > 0 ? bs / tasa : Number(m.monto_usd) || 0;
-      return s + usd;
+      // Lo que ya se marco "solventado manualmente" (se sabe que pago una
+      // factura vieja que nunca se cargo al sistema) ya no es un pago
+      // esperando cruzarse contra nada.
+      const solventado = Number(m.solventado_manual_usd) || 0;
+      return s + Math.max(0, usd - solventado);
     }, 0);
 
   const deudaNetaRealUsd = Math.max(0, +(facturasSinMovimientoUsd - pagosSinCruzarUsd).toFixed(2));

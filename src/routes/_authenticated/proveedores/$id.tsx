@@ -42,6 +42,9 @@ import {
   reasignarPagoDirecto,
   cerrarCxpSinMovimiento,
   reabrirCxpCerradaManual,
+  quitarSolventadoParcialCxp,
+  marcarMovimientoSolventadoManual,
+  quitarSolventadoManualMovimiento,
   marcarEnEsperaMovimiento,
   quitarEnEsperaMovimiento,
 } from "@/lib/pareo-cxp";
@@ -220,6 +223,8 @@ function FacturaBoardCard({
   onAsignar,
   terceros,
   onCambiarProveedor,
+  solventadoInfo,
+  onDeshacerSolventado,
 }: {
   cxp: any;
   emision?: string;
@@ -237,6 +242,9 @@ function FacturaBoardCard({
   onAsignar: (movId: string) => void;
   terceros?: any[];
   onCambiarProveedor?: (nuevo: string | null) => void;
+  /** Texto "solventado $X manualmente — quien / fecha — nota", si aplica. */
+  solventadoInfo?: string;
+  onDeshacerSolventado?: () => void;
 }) {
   const esRemanente = typeof remanenteUsd === "number";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -294,6 +302,9 @@ function FacturaBoardCard({
           <div className="text-[11px] text-muted-foreground mt-0.5">
             {emision ? `Emitida ${fmtDate(emision)}` : "—"}
           </div>
+          {solventadoInfo && (
+            <div className="text-[11px] text-[#534AB7] font-medium mt-0.5">{solventadoInfo}</div>
+          )}
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -316,6 +327,11 @@ function FacturaBoardCard({
             {puedeEditarFacturas && onEditar && (
               <DropdownMenuItem onClick={onEditar}>
                 <Pencil className="h-3.5 w-3.5 mr-2" />Ver / editar factura
+              </DropdownMenuItem>
+            )}
+            {isAdmin && solventadoInfo && onDeshacerSolventado && (
+              <DropdownMenuItem onClick={onDeshacerSolventado}>
+                <RotateCcw className="h-3.5 w-3.5 mr-2" />Deshacer solventado manual
               </DropdownMenuItem>
             )}
             {onCambiarProveedor && (terceros?.length ?? 0) > 0 && (
@@ -395,6 +411,15 @@ function TableroProveedor() {
   const [cierreForm, setCierreForm] = useState({
     nota: "",
     fecha: new Date().toISOString().slice(0, 10),
+    monto: "",
+  });
+  // Marcar un movimiento (o parte de su monto) como "solventado manualmente":
+  // se sabe que pago una factura real que nunca se cargo al sistema.
+  const [solventarMovAbierto, setSolventarMovAbierto] = useState<any | null>(null);
+  const [solventarMovForm, setSolventarMovForm] = useState({
+    nota: "",
+    fecha: new Date().toISOString().slice(0, 10),
+    monto: "",
   });
 
   // El cierre manual de facturas es una escritura sensible (cierra una CxP sin
@@ -714,6 +739,26 @@ function TableroProveedor() {
     return c.cierre_manual_nota ? `${base} — ${c.cierre_manual_nota}` : base;
   };
 
+  /** "Usuario · fecha · monto" de un solventado PARCIAL manual sobre una factura. */
+  const solventadoManualInfo = (c: any) => {
+    const monto = Number(c?.monto_solventado_manual_usd) || 0;
+    if (monto <= 0.009) return "";
+    const quien = c.solventado_manual_por ? emailById[c.solventado_manual_por] ?? c.solventado_manual_por : "—";
+    const cuando = c.solventado_manual_fecha ? fmtDate(c.solventado_manual_fecha) : "—";
+    const base = `Solventado ${fmtUsd(monto)} USD BCV manualmente — ${quien} / ${cuando}`;
+    return c.solventado_manual_nota ? `${base} — ${c.solventado_manual_nota}` : base;
+  };
+
+  /** "Usuario · fecha · monto" de un movimiento marcado solventado a mano. */
+  const movSolventadoInfo = (mv: any) => {
+    const monto = Number((mv as any)?.solventado_manual_usd) || 0;
+    if (monto <= 0.009) return "";
+    const quien = (mv as any).solventado_manual_por ? emailById[(mv as any).solventado_manual_por] ?? (mv as any).solventado_manual_por : "—";
+    const cuando = (mv as any).solventado_manual_fecha ? fmtDate((mv as any).solventado_manual_fecha) : "—";
+    const base = `Solventado ${fmtUsd(monto)} USD BCV manualmente — ${quien} / ${cuando}`;
+    return (mv as any).solventado_manual_nota ? `${base} — ${(mv as any).solventado_manual_nota}` : base;
+  };
+
   /** Bs de la factura valorados a la tasa BCV del día del pago. */
   const facturaBsAlPago = (c: any, mov: any) => {
     const tasa = Number(mov?.tasa_bcv) || 0;
@@ -747,7 +792,23 @@ function TableroProveedor() {
     for (const [cxpId, bs] of aplicadoPorCxp) {
       aplicadoPorCxpUsd.set(cxpId, montoMov > 0 ? +((bs / montoMov) * usdBcvMov).toFixed(2) : 0);
     }
-    return { lista, montoMov, aplicado, sinAplicar, aplicadoUsd, sinAplicarUsd, aplicadoPorCxp, aplicadoPorCxpUsd };
+    // Lo que ya se marco "solventado manualmente" en este movimiento (pago
+    // una factura vieja que nunca se cargo) se resta de lo que falta por
+    // aplicar -- ya no es un remanente real esperando cruzarse.
+    const solventadoUsd = Math.min(sinAplicarUsd, Number((mov as any).solventado_manual_usd) || 0);
+    const sinAplicarUsdNeto = Math.max(0, +(sinAplicarUsd - solventadoUsd).toFixed(2));
+    return {
+      lista,
+      montoMov,
+      aplicado,
+      sinAplicar,
+      aplicadoUsd,
+      sinAplicarUsd: sinAplicarUsdNeto,
+      sinAplicarUsdBruto: sinAplicarUsd,
+      solventadoUsd,
+      aplicadoPorCxp,
+      aplicadoPorCxpUsd,
+    };
   };
 
   /**
@@ -815,9 +876,13 @@ function TableroProveedor() {
   const deudaNetaReal = Math.max(0, +(totalUsdBcvFacturasSinMov - totalSinAplicarUsd).toFixed(2));
 
   /** Movimientos que todavía necesitan trabajo: sin facturas, o con saldo sin aplicar. Van en el tablero. */
-  const movsSinResolver = movsFiltrados.filter((mv) => !cxpsDeMov(mv.id).length || resumenMov(mv).sinAplicar > 0.01);
-  /** Movimientos ya cuadrados del todo (con factura(s) y sin remanente) — van a "Ya conciliado". */
-  const movsResueltos = movsFiltrados.filter((mv) => cxpsDeMov(mv.id).length > 0 && resumenMov(mv).sinAplicar <= 0.01);
+  const movsSinResolver = movsFiltrados.filter((mv) => resumenMov(mv).sinAplicarUsd > 0.01);
+  /** Movimientos ya cuadrados del todo (con factura(s), o solventados a mano, y sin remanente) — van a "Ya conciliado". */
+  const movsResueltos = movsFiltrados.filter(
+    (mv) => (cxpsDeMov(mv.id).length > 0 || resumenMov(mv).solventadoUsd > 0.009) && resumenMov(mv).sinAplicarUsd <= 0.01,
+  );
+  /** Movimientos (con o sin remanente) que tienen algun monto solventado a mano -- lista aparte, solo para auditoria/deshacer. */
+  const movsConSolventadoManual = movsFiltrados.filter((mv) => (Number((mv as any).solventado_manual_usd) || 0) > 0.009);
 
   /** Facturas que todavía necesitan trabajo (sin movimiento, o con remanente de pago parcial) — unificadas para el tablero. */
   const facturasParaTablero = useMemo(() => {
@@ -841,12 +906,22 @@ function TableroProveedor() {
 
   const abrirCierre = (lista: any[]) => {
     if (!lista.length) return;
-    setCierreForm({ nota: "", fecha: new Date().toISOString().slice(0, 10) });
+    const montoDefault = lista.length === 1 ? String(pendienteUsdBcv(lista[0])) : "";
+    setCierreForm({ nota: "", fecha: new Date().toISOString().slice(0, 10), monto: montoDefault });
     setCierreAbierto(lista);
   };
 
   const confirmarCierre = async () => {
     if (!cierreAbierto?.length) return;
+    // El monto editable solo aplica cuando se cierra UNA factura a la vez --
+    // para un cierre en lote siempre es total, como era antes.
+    const montoUsd =
+      cierreAbierto.length === 1 && cierreForm.monto.trim() !== ""
+        ? Number(cierreForm.monto)
+        : undefined;
+    const esParcial =
+      montoUsd != null && Number.isFinite(montoUsd) && montoUsd > 0.01 &&
+      montoUsd < pendienteUsdBcv(cierreAbierto[0]) - 0.01;
     setBusy(true);
     try {
       for (const c of cierreAbierto) {
@@ -855,13 +930,16 @@ function TableroProveedor() {
           nota: cierreForm.nota.trim() || null,
           fecha: cierreForm.fecha,
           userId: user?.id ?? null,
+          montoUsd,
         });
         if (!r.ok) throw new Error(r.error);
       }
       toast.success(
-        cierreAbierto.length === 1
-          ? "Factura marcada como pagada sin movimiento"
-          : `${cierreAbierto.length} facturas marcadas como pagadas sin movimiento`,
+        esParcial
+          ? `Solventado ${fmtUsd(montoUsd!)} USD BCV de la factura — el resto sigue pendiente`
+          : cierreAbierto.length === 1
+            ? "Factura marcada como pagada sin movimiento"
+            : `${cierreAbierto.length} facturas marcadas como pagadas sin movimiento`,
       );
       setCierreAbierto(null);
       setSelCierre([]);
@@ -882,6 +960,67 @@ function TableroProveedor() {
       await refrescar();
     } catch (e: any) {
       toast.error(e?.message ?? "No se pudo deshacer el cierre");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deshacerSolventadoParcial = async (c: any) => {
+    setBusy(true);
+    try {
+      const r = await quitarSolventadoParcialCxp(c);
+      if (!r.ok) throw new Error(r.error);
+      toast.success("Solventado manual deshecho — el monto vuelve a estar pendiente");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo deshacer");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const abrirSolventarMov = (mv: any, maxUsd: number) => {
+    setSolventarMovForm({ nota: "", fecha: new Date().toISOString().slice(0, 10), monto: String(maxUsd) });
+    setSolventarMovAbierto(mv);
+  };
+
+  const confirmarSolventarMov = async (maxUsd: number) => {
+    if (!solventarMovAbierto) return;
+    const montoUsd = Number(solventarMovForm.monto);
+    if (!Number.isFinite(montoUsd) || montoUsd <= 0) {
+      toast.error("Ingresa un monto válido");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await marcarMovimientoSolventadoManual({
+        mov: solventarMovAbierto,
+        montoUsd,
+        maxUsd,
+        nota: solventarMovForm.nota.trim() || null,
+        fecha: solventarMovForm.fecha,
+        userId: user?.id ?? null,
+      });
+      if (!r.ok) throw new Error(r.error);
+      toast.success("Movimiento marcado como solventado manualmente");
+      setSolventarMovAbierto(null);
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo marcar el movimiento");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deshacerSolventadoMov = async (mv: any) => {
+    setBusy(true);
+    try {
+      const r = await quitarSolventadoManualMovimiento(mv);
+      if (!r.ok) throw new Error(r.error);
+      toast.success("Solventado manual del movimiento deshecho");
+      await refrescar();
+    } catch (e: any) {
+      toast.error(e?.message ?? "No se pudo deshacer");
     } finally {
       setBusy(false);
     }
@@ -1615,7 +1754,20 @@ function TableroProveedor() {
                             </SelectContent>
                           </Select>
                         )}
+                        {isAdmin && sinAplicarUsd > 0.01 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px]"
+                            onClick={() => abrirSolventarMov(mv, sinAplicarUsd)}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Marcar como solventado
+                          </Button>
+                        )}
                       </div>
+                      {movSolventadoInfo(mv) && (
+                        <p className="text-[11px] text-[#534AB7] font-medium">{movSolventadoInfo(mv)}</p>
+                      )}
                     </div>
                   </Zona>
                 );
@@ -1676,6 +1828,8 @@ function TableroProveedor() {
                     }
                     terceros={terceros ?? []}
                     onCambiarProveedor={(nuevo) => cambiarProveedorFactura(c, nuevo)}
+                    solventadoInfo={solventadoManualInfo(c)}
+                    onDeshacerSolventado={() => deshacerSolventadoParcial(c)}
                   />
                 ))}
               </Zona>
@@ -1786,6 +1940,36 @@ function TableroProveedor() {
                   </div>
                 ))}
               </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
+                  Movimientos solventados manualmente ({movsConSolventadoManual.length})
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Movimientos (o parte de su monto) que se sabe que pagaron una factura real nunca cargada al sistema.
+                </p>
+                {movsConSolventadoManual.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No hay movimientos solventados a mano.</p>
+                )}
+                {movsConSolventadoManual.map((mv) => (
+                  <div key={mv.id} className="border rounded-md p-2.5 space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs">
+                        <span className="font-medium">{fmtDate(mv.fecha)}</span>{" "}
+                        <span className="text-muted-foreground">{bancoDeReferencia(mv.referencia) || "banco"}</span>{" "}
+                        <span className="mono">{fmtBs(Math.abs(Number(mv.monto_bs) || 0))}</span>{" "}
+                        <span className="mono text-muted-foreground">{fmtUsd(usdBcvDeMov(mv))} USD BCV</span>
+                      </div>
+                      {isAdmin && (
+                        <Button size="sm" variant="ghost" className="h-7" disabled={busy} onClick={() => deshacerSolventadoMov(mv)}>
+                          <RotateCcw className="h-3.5 w-3.5 mr-1" />Deshacer
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-[#534AB7] font-medium">{movSolventadoInfo(mv)}</p>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           )}
         </Card>
@@ -1813,9 +1997,10 @@ function TableroProveedor() {
                 : "Marcar como pagada (sin movimiento)"}
             </DialogTitle>
             <DialogDescription>
-              La factura queda en estado Pagada con saldo cero, sin crear ninguna transacción de pago — no afecta G&amp;P ni
-              flujo de caja. Úsalo cuando el pago ya ocurrió pero su movimiento bancario nunca va a aparecer (efectivo,
-              compensación, cuenta no conciliada, factura anulada).
+              No crea ninguna transacción de pago — no afecta G&amp;P ni flujo de caja. Úsalo cuando el pago ya ocurrió
+              pero su movimiento bancario nunca va a aparecer (efectivo, compensación, cuenta no conciliada, factura
+              anulada). Si el monto cubre todo lo pendiente, la factura queda Pagada con saldo cero; si pones solo
+              una parte, la factura sigue abierta por el resto.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1824,6 +2009,21 @@ function TableroProveedor() {
                 {cierreAbierto.map((c) => (
                   <div key={c.id}>Fact. {c.numero_factura ?? "s/n"} · {fmtUsd(usdBcvFactura(c))} BCV</div>
                 ))}
+              </div>
+            )}
+            {cierreAbierto && cierreAbierto.length === 1 && (
+              <div>
+                <Label className="text-xs">Monto a solventar (USD BCV)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={cierreForm.monto}
+                  onChange={(e) => setCierreForm({ ...cierreForm, monto: e.target.value })}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Pendiente actual: {fmtUsd(pendienteUsdBcv(cierreAbierto[0]))} USD BCV. Si pones menos, la factura
+                  queda abierta por el resto -- solo se descuenta lo que confirmes aquí.
+                </p>
               </div>
             )}
             <div>
@@ -1847,6 +2047,60 @@ function TableroProveedor() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setCierreAbierto(null)} disabled={busy}>Cancelar</Button>
             <Button onClick={confirmarCierre} disabled={busy}>Confirmar cierre</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!solventarMovAbierto} onOpenChange={(v) => { if (!v) setSolventarMovAbierto(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Marcar movimiento como solventado manualmente</DialogTitle>
+            <DialogDescription>
+              Úsalo cuando se sabe que este movimiento (o parte de su monto) pagó una factura real que nunca se
+              cargó al sistema. No crea ningún vínculo ni afecta G&amp;P ni flujo de caja -- solo deja de contarse
+              como un pago sin cruzar. Si pones menos del total pendiente, el resto sigue viéndose como sin resolver.
+            </DialogDescription>
+          </DialogHeader>
+          {solventarMovAbierto && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Monto a solventar (USD BCV)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={solventarMovForm.monto}
+                  onChange={(e) => setSolventarMovForm({ ...solventarMovForm, monto: e.target.value })}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Sin aplicar actualmente: {fmtUsd(resumenMov(solventarMovAbierto).sinAplicarUsd)} USD BCV.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Fecha</Label>
+                <Input
+                  type="date"
+                  value={solventarMovForm.fecha}
+                  onChange={(e) => setSolventarMovForm({ ...solventarMovForm, fecha: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Nota (qué factura pagó, por ejemplo)</Label>
+                <Textarea
+                  value={solventarMovForm.nota}
+                  onChange={(e) => setSolventarMovForm({ ...solventarMovForm, nota: e.target.value })}
+                  placeholder="Detalle adicional…"
+                  rows={2}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSolventarMovAbierto(null)} disabled={busy}>Cancelar</Button>
+            <Button
+              onClick={() => confirmarSolventarMov(resumenMov(solventarMovAbierto).sinAplicarUsd)}
+              disabled={busy}
+            >
+              Confirmar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

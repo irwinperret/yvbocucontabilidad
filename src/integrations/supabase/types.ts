@@ -551,6 +551,7 @@ export type Database = {
           monto_bs: number
           monto_pendiente_bs: number | null
           monto_pendiente_usd_bcv: number | null
+          monto_solventado_manual_usd: number
           monto_usd: number
           numero_factura: string | null
           origen: string
@@ -561,6 +562,10 @@ export type Database = {
           revert_pagada_at_anterior: string | null
           revert_pendiente_bs_anterior: number | null
           revert_pendiente_usd_bcv_anterior: number | null
+          solventado_manual_at: string | null
+          solventado_manual_fecha: string | null
+          solventado_manual_nota: string | null
+          solventado_manual_por: string | null
           tasa_bcv_factura: number | null
           tasa_paralela_factura: number | null
           tercero_id: string | null
@@ -587,6 +592,7 @@ export type Database = {
           monto_bs: number
           monto_pendiente_bs?: number | null
           monto_pendiente_usd_bcv?: number | null
+          monto_solventado_manual_usd?: number
           monto_usd: number
           numero_factura?: string | null
           origen?: string
@@ -597,6 +603,10 @@ export type Database = {
           revert_pagada_at_anterior?: string | null
           revert_pendiente_bs_anterior?: number | null
           revert_pendiente_usd_bcv_anterior?: number | null
+          solventado_manual_at?: string | null
+          solventado_manual_fecha?: string | null
+          solventado_manual_nota?: string | null
+          solventado_manual_por?: string | null
           tasa_bcv_factura?: number | null
           tasa_paralela_factura?: number | null
           tercero_id?: string | null
@@ -623,6 +633,7 @@ export type Database = {
           monto_bs?: number
           monto_pendiente_bs?: number | null
           monto_pendiente_usd_bcv?: number | null
+          monto_solventado_manual_usd?: number
           monto_usd?: number
           numero_factura?: string | null
           origen?: string
@@ -633,6 +644,10 @@ export type Database = {
           revert_pagada_at_anterior?: string | null
           revert_pendiente_bs_anterior?: number | null
           revert_pendiente_usd_bcv_anterior?: number | null
+          solventado_manual_at?: string | null
+          solventado_manual_fecha?: string | null
+          solventado_manual_nota?: string | null
+          solventado_manual_por?: string | null
           tasa_bcv_factura?: number | null
           tasa_paralela_factura?: number | null
           tercero_id?: string | null
@@ -1176,6 +1191,11 @@ export type Database = {
           pareja_off_balance_id: string | null
           referencia: string | null
           sin_proveedor_deducido: boolean
+          solventado_manual_at: string | null
+          solventado_manual_fecha: string | null
+          solventado_manual_nota: string | null
+          solventado_manual_por: string | null
+          solventado_manual_usd: number
           standby: boolean
           standby_at: string | null
           tasa_bcv: number
@@ -1215,6 +1235,11 @@ export type Database = {
           pareja_off_balance_id?: string | null
           referencia?: string | null
           sin_proveedor_deducido?: boolean
+          solventado_manual_at?: string | null
+          solventado_manual_fecha?: string | null
+          solventado_manual_nota?: string | null
+          solventado_manual_por?: string | null
+          solventado_manual_usd?: number
           standby?: boolean
           standby_at?: string | null
           tasa_bcv: number
@@ -1254,6 +1279,11 @@ export type Database = {
           pareja_off_balance_id?: string | null
           referencia?: string | null
           sin_proveedor_deducido?: boolean
+          solventado_manual_at?: string | null
+          solventado_manual_fecha?: string | null
+          solventado_manual_nota?: string | null
+          solventado_manual_por?: string | null
+          solventado_manual_usd?: number
           standby?: boolean
           standby_at?: string | null
           tasa_bcv?: number
