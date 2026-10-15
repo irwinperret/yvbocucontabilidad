@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, ArrowLeftRight, ChevronRight, StickyNote } from "lucide-react";
+import { ShieldCheck, ArrowLeftRight, CheckCircle2, ChevronRight, StickyNote } from "lucide-react";
 import { fmtUsd } from "@/lib/format";
 import { pendienteUsdBcv } from "@/lib/cxp-saldo";
 import { fetchMovimientosSinProveedorCount } from "@/lib/iris-checklist";
@@ -102,16 +102,26 @@ function IrisPage() {
         <Card className="hover:border-primary/60 hover:bg-muted/30 transition-colors cursor-pointer">
           <CardContent className="pt-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <ArrowLeftRight className="h-5 w-5 text-muted-foreground" />
+              {sinProveedorCount === 0 ? (
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              ) : (
+                <ArrowLeftRight className="h-5 w-5 text-muted-foreground" />
+              )}
               <div>
                 <div className="text-lg font-bold text-[#534AB7]">Movimientos bancarios sin proveedor</div>
                 <p className="text-xs text-muted-foreground">Confirmar que son efectivamente Gasto Stand-Alone</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant={sinProveedorCount ? "destructive" : "secondary"}>
-                {sinProveedorCount ?? "…"} sin confirmar
-              </Badge>
+              {sinProveedorCount === 0 ? (
+                <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">
+                  Resuelto
+                </Badge>
+              ) : (
+                <Badge variant={sinProveedorCount ? "destructive" : "secondary"}>
+                  {sinProveedorCount ?? "…"} sin confirmar
+                </Badge>
+              )}
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
           </CardContent>

@@ -5,10 +5,11 @@
 // lógica de datos que el checklist de Inicio, solo que recortada y fijada
 // siempre al mes pasado (ver mesPasado() en @/lib/iris-checklist).
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { CheckCircle2, Circle, ListChecks } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, ListChecks } from "lucide-react";
 import {
   fetchImportacionesActivas,
   fetchInventarioFinalPeriodos,
@@ -16,12 +17,16 @@ import {
   fetchRetencionIslrPeriodos,
   tipoImportadoEnPeriodo,
 } from "@/lib/home-checklist";
-import { mesPasado, nombreMesPeriodo, fetchMovimientosSinProveedorCount } from "@/lib/iris-checklist";
+import { mesPasado, nombreMesPeriodo, sumarMeses, fetchMovimientosSinProveedorCount } from "@/lib/iris-checklist";
 
 type Paso = { label: string; ruta: string; hecho: boolean };
 
 export function ChecklistIrisCard() {
-  const periodo = mesPasado();
+  // Por defecto el mes pasado (lo que Iris tiene que cerrar), pero se puede
+  // navegar a otros meses para revisar el historial sin perder ese default.
+  const [periodo, setPeriodo] = useState(mesPasado());
+  const esMesPorDefecto = periodo === mesPasado();
+  const puedeAvanzar = periodo < mesPasado();
 
   const { data } = useQuery({
     queryKey: ["iris-checklist-mes", periodo],
@@ -73,11 +78,42 @@ export function ChecklistIrisCard() {
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <p className="text-base font-bold text-[#534AB7] flex items-center gap-2 m-0">
-              <ListChecks className="h-4 w-4" /> Pendientes de Iris — {nombreMesPeriodo(periodo)}
+            <p className="text-sm font-bold text-[#534AB7] flex items-center gap-2 m-0">
+              <ListChecks className="h-4 w-4" /> Pendientes de Iris
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Lo que falta enviar o revisar del mes pasado para poder cerrarlo
+            <div className="flex items-center gap-0.5 mt-1">
+              <button
+                type="button"
+                onClick={() => setPeriodo((p) => sumarMeses(p, -1))}
+                className="rounded-md p-0.5 text-[#534AB7] hover:bg-[#534AB7]/10"
+                aria-label="Mes anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-lg font-extrabold text-[#534AB7] leading-none px-1">
+                {nombreMesPeriodo(periodo)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPeriodo((p) => sumarMeses(p, 1))}
+                disabled={!puedeAvanzar}
+                className="rounded-md p-0.5 text-[#534AB7] hover:bg-[#534AB7]/10 disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Mes siguiente"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              {!esMesPorDefecto && (
+                <button
+                  type="button"
+                  onClick={() => setPeriodo(mesPasado())}
+                  className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground hover:text-[#534AB7] ml-1.5"
+                >
+                  Volver a mes pasado
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Lo que falta enviar o revisar de ese mes para poder cerrarlo
             </p>
           </div>
           {data && paso6Cargado && total > 0 && (

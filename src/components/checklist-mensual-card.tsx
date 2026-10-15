@@ -11,7 +11,6 @@ import {
   fetchInventarioFinalPeriodos,
   fetchVentaIvaPeriodos,
   fetchRetencionIslrPeriodos,
-  periodoActual,
   tipoImportadoEnPeriodo,
   type TipoImportacion,
 } from "@/lib/home-checklist";
@@ -23,17 +22,14 @@ import { RetencionIslrQuickEntry } from "@/components/retencion-islr-quick-entry
 type Paso = { label: string; ruta: string; hecho: boolean; nota?: string };
 
 /**
- * Durante los primeros 10 días del mes mostramos el checklist del mes anterior,
- * porque ese es el periodo que se está terminando de cerrar en esos días.
- * A partir del día 11 se muestra el checklist del mes corriente.
+ * Siempre el mes calendario anterior, nunca el mes actual: el trabajo de
+ * cierre de cada mes se hace sobre el mes que ya terminó (misma decisión
+ * que el checklist de Iris, ver mesPasado() en @/lib/iris-checklist).
  */
 function periodoChecklistInicio(): string {
   const hoy = new Date();
-  if (hoy.getDate() <= 10) {
-    const mesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
-    return `${mesAnterior.getFullYear()}-${String(mesAnterior.getMonth() + 1).padStart(2, "0")}`;
-  }
-  return periodoActual();
+  const mesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  return `${mesAnterior.getFullYear()}-${String(mesAnterior.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export function ChecklistMensualCard() {

@@ -124,7 +124,7 @@ export function AppSidebar() {
   const { mode } = useMode();
   const { signOut, user } = useAuth();
   const path = useRouterState({ select: (r) => r.location.pathname });
-  const [importarOpen, setImportarOpen] = useState(true);
+  const [importarOpen, setImportarOpen] = useState(false);
   const [gestionOpen, setGestionOpen] = useState(false);
   const [gestionEnConstruccionOpen, setGestionEnConstruccionOpen] = useState(false);
   const [detallesOpen, setDetallesOpen] = useState(false);

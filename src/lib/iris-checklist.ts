@@ -26,6 +26,13 @@ export function nombreMesPeriodo(periodo: string): string {
   return `${nombre.charAt(0).toUpperCase()}${nombre.slice(1)} ${anio}`;
 }
 
+/** Suma (o resta, con delta negativo) meses a un periodo "YYYY-MM". */
+export function sumarMeses(periodo: string, delta: number): string {
+  const [anio, mes] = periodo.split("-").map(Number);
+  const d = new Date(anio, mes - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /**
  * Movimientos bancarios importados que todavía no se confirmaron como
  * vinculados a una factura (conciliación manual), ni como gasto directo
