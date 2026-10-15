@@ -60,7 +60,7 @@ function InicioPage() {
             <li><span className="font-semibold">Ajustes de Ventas:</span> contiene las correcciones o ajustes necesarios sobre las ventas reportadas por Xetux.</li>
           </ol>
           <p>
-            Una vez cargados estos archivos, el sistema utiliza la información para alimentar <span className="font-semibold">Ganancias y Pérdidas, Flujo de Caja, CapEx, COGS</span> y los demás reportes financieros. Los movimientos que requieran un registro adicional o una corrección también pueden registrarse directamente mediante <span className="font-semibold">"Registrar movimiento"</span>.
+            Una vez cargados estos archivos, el sistema utiliza la información para alimentar <span className="font-semibold">Ganancias y Pérdidas, Flujo de Caja, CapEx, COGS</span>, el <span className="font-semibold">seguimiento de Cuentas por Pagar por proveedor</span> (cruzando las compras con los movimientos bancarios) y los demás reportes financieros. Las facturas cuyo pago nunca deja un movimiento bancario identificable, o los movimientos que pagaron una factura que nunca se cargó, se pueden cerrar o solventar a mano desde la ficha de cada proveedor. Los movimientos que requieran un registro adicional o una corrección también pueden registrarse directamente mediante <span className="font-semibold">"Registrar movimiento"</span>.
           </p>
           <h2 className="text-lg font-semibold tracking-tight pt-2">Cierre de inventario</h2>
           <p>

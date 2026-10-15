@@ -19,7 +19,7 @@ function AyudaPage() {
             <li><strong>Ajustes de Ventas</strong><br />Contiene las correcciones o ajustes necesarios sobre las ventas reportadas por Xetux.</li>
           </ol>
         </div>
-        <p>Una vez cargados estos archivos, el sistema utiliza la información para alimentar <strong>Ganancias y Pérdidas, Flujo de Caja, CapEx, COGS</strong> y los demás reportes financieros. Los movimientos que requieran un registro adicional o una corrección también pueden registrarse directamente mediante <strong>“Registrar movimiento”</strong>.</p>
+        <p>Una vez cargados estos archivos, el sistema utiliza la información para alimentar <strong>Ganancias y Pérdidas, Flujo de Caja, CapEx, COGS</strong>, el <strong>seguimiento de Cuentas por Pagar por proveedor</strong> (cruzando las compras con los movimientos bancarios) y los demás reportes financieros. Las facturas cuyo pago nunca deja un movimiento bancario identificable, o los movimientos que pagaron una factura que nunca se cargó, se pueden cerrar o solventar a mano desde la ficha de cada proveedor. Los movimientos que requieran un registro adicional o una corrección también pueden registrarse directamente mediante <strong>“Registrar movimiento”</strong>.</p>
         <div>
           <h2 className="font-semibold text-base mb-2">Cierre de inventario</h2>
           <p>Al cierre de cada mes se deben registrar los inventarios. El sistema calcula automáticamente el <strong>COGS (Costo de Ventas)</strong> utilizando:</p>
