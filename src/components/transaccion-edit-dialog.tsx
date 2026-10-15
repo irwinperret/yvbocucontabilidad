@@ -38,7 +38,12 @@ export function EditDialog({
   const { user } = useAuth();
   const [fecha, setFecha] = useState<string>(tx.fecha);
   const [centro, setCentro] = useState<Centro>(tx.centro_costo);
-  const [montoUsd, setMontoUsd] = useState<string>(String(tx.monto_usd ?? ""));
+  // El campo "Monto USD" de este dialogo representa USD a tasa BCV (igual
+  // que el resto de la app), no el valor a tasa paralela que se guardaba
+  // antes en tx.monto_usd -- por eso se deriva de monto_bs / tasa_bcv en
+  // vez de usar la columna guardada directamente.
+  const montoUsdBcvInicial = Number(tx.tasa_bcv) > 0 ? Number(tx.monto_bs) / Number(tx.tasa_bcv) : Number(tx.monto_usd) || 0;
+  const [montoUsd, setMontoUsd] = useState<string>(String(+montoUsdBcvInicial.toFixed(2)));
   const [tasa, setTasa] = useState<string>(String(tx.tasa_bcv ?? ""));
   const [tasaPar, setTasaPar] = useState<string>(tx.tasa_paralela == null ? "" : String(tx.tasa_paralela));
   const [metodo, setMetodo] = useState<string>(tx.metodo_pago ?? "transferencia");
@@ -129,9 +134,12 @@ export function EditDialog({
 
   const usdN = Number(montoUsd) || 0;
   const tasaN = Number(tasa) || 0;
-  // Bs se recalcula desde USD usando la tasa paralela vigente en el formulario (o BCV como fallback).
+  // Solo se guarda como referencia (reportes de "USD paralelo"); no participa en el cálculo de Bs.
   const tasaParalelaN = Number(tasaPar) || 0;
-  const tasaConvN = tasaParalelaN || tasaN;
+  // El Bs equivalente siempre se deriva de la tasa BCV -- "Monto USD" es
+  // USD BCV, no USD paralelo. La tasa paralela solo se guarda como dato de
+  // referencia (para reportes que muestran "USD paralelo" aparte).
+  const tasaConvN = tasaN;
   const baseUsd = tx.iva_aplica ? usdN / 1.16 : usdN;
   const total = usdN * tasaConvN;            // monto Bs total (con IVA si aplica)
   const base = baseUsd * tasaConvN;          // base Bs sin IVA
@@ -206,10 +214,9 @@ export function EditDialog({
           if (tasaCambio) {
             hPatch.tasa_bcv = tasaN;
             if (tasaParalelaN > 0) hPatch.tasa_paralela = tasaParalelaN;
-            // Recalcular monto_usd del hermano preservando su monto_bs.
+            // Recalcular monto_usd (BCV) del hermano preservando su monto_bs.
             const hBs = Number(h.monto_bs) || 0;
-            const conv = tasaParalelaN || Number(h.tasa_paralela) || tasaN;
-            if (conv > 0) hPatch.monto_usd = +(hBs / conv).toFixed(2);
+            if (tasaN > 0) hPatch.monto_usd = +(hBs / tasaN).toFixed(2);
           }
           const { error: eH } = await supabase
             .from("transacciones")
@@ -248,7 +255,7 @@ export function EditDialog({
                 <li key={h.id} className="flex items-center gap-2">
                   <Badge variant="outline" className="text-[10px]">{h.cuenta_codigo}</Badge>
                   <span className="text-muted-foreground">{fmtDateHermanos(h.fecha)}</span>
-                  <span className="mono">{fmtUsd(Number(h.monto_usd) || 0)}</span>
+                  <span className="mono">{fmtUsd(Number(h.tasa_bcv) > 0 ? Number(h.monto_bs) / Number(h.tasa_bcv) : Number(h.monto_usd) || 0)}</span>
                 </li>
               ))}
             </ul>
@@ -294,7 +301,7 @@ export function EditDialog({
             </Select>
           </div>
           <div>
-            <Label>Monto USD {tx.iva_aplica ? "(IVA incluido)" : ""}</Label>
+            <Label>Monto USD BCV {tx.iva_aplica ? "(IVA incluido)" : ""}</Label>
             <Input type="number" step="0.01" value={montoUsd} onChange={(e) => setMontoUsd(e.target.value)} required className="mono" />
           </div>
           <div>
@@ -314,7 +321,7 @@ export function EditDialog({
             </div>
           )}
           <div className="md:col-span-2 rounded-md bg-muted p-2 text-sm flex justify-between">
-            <span className="text-muted-foreground">Equivalente Bs {tasaParalelaN ? "(tasa paralela)" : "(tasa BCV)"}</span>
+            <span className="text-muted-foreground">Equivalente Bs (tasa BCV)</span>
             <span className="mono font-semibold">{fmtBs(total)}</span>
           </div>
 
