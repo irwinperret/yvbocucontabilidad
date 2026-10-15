@@ -12,6 +12,7 @@ import { CENTROS, MESES } from "@/lib/account-helpers";
 import { calcularLineasFC, fetchInsumosFC, totalFCMes } from "@/lib/flujo-caja";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
+import { COLOR_INGRESOS } from "@/lib/resumen-mensual-calc";
 import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
   Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -99,12 +100,21 @@ export function DashboardCharts() {
       const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
       const rs = (rows ?? []).filter((r) => r.mes === mes);
       let ingresos = 0, cogs = 0, gastos = 0, capex = 0;
+      let ingresosConvencional = 0, ingresosOffBalance = 0, ingresosIva = 0;
       rs.forEach((r) => {
         const c = mapCuentas.get(r.cuenta_codigo);
         if (!c) return;
         const base = Number(r.base_usd || 0);
         if (c.afecta_gyp) {
-          if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo === "6.1") ingresos += base;
+          if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo === "6.1") {
+            ingresos += base;
+            // Mismo desglose en 3 tonos de verde que usa Resumen ejecutivo
+            // mensual: convencional (on-balance, sin Venta de IVA), ajustes
+            // off-balance, y Venta de IVA (cuenta 1.8) aparte.
+            if (r.cuenta_codigo === CUENTA_VENTA_IVA) ingresosIva += base;
+            else if (r.modo === "off_balance") ingresosOffBalance += base;
+            else ingresosConvencional += base;
+          }
           else if (r.cuenta_codigo.startsWith("2.")) cogs += base;
           else gastos += base;
         }
@@ -131,6 +141,9 @@ export function DashboardCharts() {
       return {
         mes: nombre, mesNum: mes,
         ingresos: Math.round(ingresos), cogs: Math.round(cogs), gastos: Math.round(gastos),
+        ingresosConvencional: Math.round(ingresosConvencional),
+        ingresosOffBalance: Math.round(ingresosOffBalance),
+        ingresosIva: Math.round(ingresosIva),
         utilidad: Math.round(utilidad),
         cogsNeg: -Math.round(cogs),
         gastosNeg: -Math.round(gastos),
@@ -248,7 +261,13 @@ export function DashboardCharts() {
                 <Tooltip content={<TipGyp />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <ReferenceLine y={0} stroke="hsl(var(--border))" />
-                <Bar dataKey="ingresos" stackId="g" name="Ingresos" fill="#10b981" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="ingresosConvencional" stackId="g" name="Ingresos convencionales" fill={COLOR_INGRESOS.convencional} radius={[2, 2, 0, 0]} />
+                {dataConAcumulado.some((d) => Math.abs(d.ingresosOffBalance) > 0.49) && (
+                  <Bar dataKey="ingresosOffBalance" stackId="g" name="Ingresos off-balance (ajuste)" fill={COLOR_INGRESOS.offBalance} radius={[2, 2, 0, 0]} />
+                )}
+                {dataConAcumulado.some((d) => Math.abs(d.ingresosIva) > 0.49) && (
+                  <Bar dataKey="ingresosIva" stackId="g" name="Ingresos Venta de IVA" fill={COLOR_INGRESOS.iva} radius={[2, 2, 0, 0]} />
+                )}
                 <Bar dataKey="cogsNeg" stackId="g" name="COGS" fill="#7f1d1d" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="gastosNeg" stackId="g" name="Gastos / facturas" fill="#f87171" radius={[2, 2, 0, 0]} />
 
@@ -408,7 +427,10 @@ function TipGyp({ active, payload, label }: any) {
   return (
     <div className="rounded-md border bg-background p-2 text-xs shadow-md">
       <div className="font-semibold mb-1">{label}</div>
-      <Row k="Ingresos" v={d.ingresos} positive />
+      <Row k="Ingresos" v={d.ingresos} positive bold />
+      {d.ingresosConvencional > 0 && <Row k="  Convencionales" v={d.ingresosConvencional} positive />}
+      {Math.abs(d.ingresosOffBalance) > 0.49 && <Row k="  Off-balance (ajuste)" v={d.ingresosOffBalance} positive />}
+      {Math.abs(d.ingresosIva) > 0.49 && <Row k="  Venta de IVA" v={d.ingresosIva} positive />}
       <Row k="COGS" v={-d.cogs} />
       <Row k="Gastos / facturas" v={-d.gastos} />
 
