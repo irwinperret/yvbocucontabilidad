@@ -60,12 +60,20 @@ export function esAjusteVentaLista(r: RowIngresoRaw): boolean {
   return r.referencia === REF_AJUSTE_VENTA_LISTA && CUENTAS_AJUSTE_INGRESO.includes(r.cuenta_codigo);
 }
 
-export type TipoIngreso = "Ventas comunes" | "Ajuste de venta lista" | "Ingresos por IVA" | "Otro";
+/** Conciliación bancaria sin factura (reembolsos, vueltos mal cobrados,
+ * errores de cobro) registrada contra cuenta de venta (p.ej. 1.7). No es
+ * una venta: se excluye de "Ventas comunes". Se identifica por `referencia`. */
+export function esConciliacionBancaria(r: RowIngresoRaw): boolean {
+  return typeof r.referencia === "string" && r.referencia.startsWith("BANK:");
+}
+
+export type TipoIngreso = "Ventas comunes" | "Ajuste de venta lista" | "Ingresos por IVA" | "Conciliación bancaria" | "Otro";
 
 /** Clasifica una fila cruda en el mismo esquema de 3 tipos que usan los KPIs
  * y el gráfico de esta pantalla — para exportes que necesitan la fila cruda
  * (con su `referencia`), no el agregado mensual. */
 export function tipoIngresoFila(r: RowIngresoRaw): TipoIngreso {
+  if (esConciliacionBancaria(r)) return "Conciliación bancaria";
   if (esAjusteVentaLista(r)) return "Ajuste de venta lista";
   if (CUENTAS_VENTAS_COMUNES.includes(r.cuenta_codigo)) return "Ventas comunes";
   if (CUENTAS_IVA_INGRESO.includes(r.cuenta_codigo)) return "Ingresos por IVA";
@@ -84,6 +92,7 @@ export type TotalesIngresosMes = {
   ventasComunes: number;
   ajustes: number;
   ingresosIva: number;
+  conciliacionBancaria: number;
   total: number;
 };
 
@@ -94,10 +103,11 @@ export function calcularTotalesIngresosMes(
   incluirOff: boolean,
   incluirIva: boolean = true,
 ): TotalesIngresosMes {
-  let ventasComunes = 0, ajustes = 0, ingresosIva = 0;
+  let ventasComunes = 0, ajustes = 0, ingresosIva = 0, conciliacionBancaria = 0;
   for (const r of filasDelMes(rowsAnio, mes, incluirOff, incluirIva)) {
     const v = baseUsdFila(r, mode);
-    if (esAjusteVentaLista(r)) ajustes += v;
+    if (esConciliacionBancaria(r)) conciliacionBancaria += v;
+    else if (esAjusteVentaLista(r)) ajustes += v;
     else if (CUENTAS_VENTAS_COMUNES.includes(r.cuenta_codigo)) ventasComunes += v;
     else if (CUENTAS_IVA_INGRESO.includes(r.cuenta_codigo)) ingresosIva += v;
   }
@@ -105,7 +115,8 @@ export function calcularTotalesIngresosMes(
     ventasComunes: Number(ventasComunes.toFixed(2)),
     ajustes: Number(ajustes.toFixed(2)),
     ingresosIva: Number(ingresosIva.toFixed(2)),
-    total: Number((ventasComunes + ajustes + ingresosIva).toFixed(2)),
+    conciliacionBancaria: Number(conciliacionBancaria.toFixed(2)),
+    total: Number((ventasComunes + ajustes + ingresosIva + conciliacionBancaria).toFixed(2)),
   };
 }
 
@@ -140,8 +151,10 @@ export function construirDesgloseIngresos(
 ): FilaDesglose[] {
   const porCuenta = new Map<string, number>();
   let ajustes = 0;
+  let conciliacionBancaria = 0;
   for (const r of filasDelMes(rowsAnio, mes, incluirOff, incluirIva)) {
     const v = baseUsdFila(r, mode);
+    if (esConciliacionBancaria(r)) { conciliacionBancaria += v; continue; }
     if (esAjusteVentaLista(r)) { ajustes += v; continue; }
     porCuenta.set(r.cuenta_codigo, (porCuenta.get(r.cuenta_codigo) ?? 0) + v);
   }
@@ -150,6 +163,9 @@ export function construirDesgloseIngresos(
     .filter((c) => Math.abs(c.total) > 0.009);
   if (Math.abs(ajustes) > 0.009) {
     filas.push({ codigo: "—", nombre: "Ajustes de venta lista (importados)", total: ajustes });
+  }
+  if (Math.abs(conciliacionBancaria) > 0.009) {
+    filas.push({ codigo: "—", nombre: "Conciliación bancaria sin factura", total: conciliacionBancaria });
   }
   return filas;
 }

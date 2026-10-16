@@ -83,6 +83,7 @@ function IngresosDetallePage() {
     { label: "Ventas comunes", valores: [...serie.map((s) => s.ventasComunes), sum(serie.map((s) => s.ventasComunes))] },
     { label: "Ajustes de venta lista", valores: [...serie.map((s) => s.ajustes), sum(serie.map((s) => s.ajustes))] },
     { label: "Ingresos por IVA", valores: [...serie.map((s) => s.ingresosIva), sum(serie.map((s) => s.ingresosIva))] },
+    { label: "Conciliación bancaria", valores: [...serie.map((s) => s.conciliacionBancaria), sum(serie.map((s) => s.conciliacionBancaria))] },
     { label: "Total ingresos", valores: [...serie.map((s) => s.total), sum(serie.map((s) => s.total))], bold: true },
   ];
 
@@ -185,6 +186,7 @@ function IngresosDetallePage() {
               <Bar dataKey="ventasComunes" name="Ventas comunes" stackId="a" fill="#0F6E56" />
               <Bar dataKey="ajustes" name="Ajustes de venta lista" stackId="a" fill="#D97706" />
               <Bar dataKey="ingresosIva" name="Ingresos por IVA" stackId="a" fill="#64748B" />
+              <Bar dataKey="conciliacionBancaria" name="Conciliación bancaria" stackId="a" fill="#B91C1C" />
               <Line type="monotone" dataKey="total" name="Total ingresos" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
