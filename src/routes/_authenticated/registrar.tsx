@@ -3118,6 +3118,24 @@ function RetencionIslrForm() {
 }
 
 /* ---------------- FINANCIAMIENTO ---------------- */
+type ActTipo = "prestamo_personal" | "anticipo_nomina" | "anticipo_prestaciones";
+
+function ActivosTransitoriosForm({ setTipo }: { tipo: ActTipo; setTipo: (v: any) => void }) {
+  return (
+    <Card>
+      <CardContent className="space-y-3 pt-6">
+        <p className="text-sm text-muted-foreground">
+          Este formulario no está disponible por ahora. Consulta los activos transitorios en su página.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setTipo("prestamo_recibido")}>Volver</Button>
+          <Button asChild><a href="/activos-transitorios">Ir a Activos transitorios</a></Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function FinanciamientoForm() {
   const [tipo, setTipo] = useState<keyof typeof FINANCIAMIENTO | "pago_cuota" | ActTipo>("prestamo_recibido");
   if (tipo === "prestamo_personal" || tipo === "anticipo_nomina" || tipo === "anticipo_prestaciones") {
