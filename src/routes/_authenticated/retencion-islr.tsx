@@ -234,7 +234,9 @@ function RetencionIslrPage() {
                     <tr key={periodo} className="border-b last:border-0">
                       <td className="py-2 pr-4 font-medium capitalize">{periodoLabel(periodo)}</td>
                       <td className="py-2 pr-4 text-muted-foreground">{r.fecha}</td>
-                      <td className="py-2 pr-4 text-right mono font-semibold">{fmtUsd(r.montoUsd)}</td>
+                      <td className="py-2 pr-4 text-right mono font-semibold">
+                        {r.tasaBcv > 0 ? fmtUsd(r.montoBs / r.tasaBcv) : "—"}
+                      </td>
                       <td className="py-2 pr-4 text-right mono text-muted-foreground">
                         {(() => {
                           const tp = tasaParalelaParaFecha(r.fecha);
