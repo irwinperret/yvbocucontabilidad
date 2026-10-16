@@ -62,6 +62,7 @@ function AumentoCapitalPage() {
   }, [filtered, mode]);
 
   const totalUsd = filtered.reduce((s: number, t: any) => s + (usdVisual(t, mode) ?? 0), 0);
+  const totalUsdParalelo = filtered.reduce((s: number, t: any) => s + (usdVisual(t, "paralela") ?? 0), 0);
   const totalBs = filtered.reduce((s: number, t: any) => s + (Number(t.monto_bs) || 0), 0);
 
   const startEdit = (t: any) => {
@@ -179,6 +180,7 @@ function AumentoCapitalPage() {
                     <th className="text-left py-2 px-2">Aportante</th>
                     <th className="text-left py-2 px-2">Notas</th>
                     <th className="text-right py-2 px-2">{label}</th>
+                    <th className="text-right py-2 px-2">USD paralelo</th>
                     <th className="text-right py-2 px-2">Bs</th>
                     <th className="text-center py-2 px-2 w-24">Acciones</th>
                   </tr>
@@ -212,6 +214,7 @@ function AumentoCapitalPage() {
                         <td className="py-2 px-2 text-right mono">
                           {isEd ? <Input type="number" step="0.01" value={draft.monto_usd} onChange={(e) => setDraft({ ...draft, monto_usd: e.target.value })} className="h-7 text-xs text-right w-28" /> : fmtUsd(usdVisual(t, mode) ?? 0)}
                         </td>
+                        <td className="py-2 px-2 text-right mono text-xs text-muted-foreground">{fmtUsd(usdVisual(t, "paralela") ?? 0)}</td>
                         <td className="py-2 px-2 text-right mono text-xs text-muted-foreground">{fmtBs(t.monto_bs)}</td>
                         <td className="py-2 px-2 text-center">
                           {isEd ? (
@@ -231,6 +234,7 @@ function AumentoCapitalPage() {
                   <tr className="font-semibold border-t">
                     <td colSpan={4} className="py-2 px-2 text-right">Total</td>
                     <td className="py-2 px-2 text-right mono">{fmtUsd(totalUsd)}</td>
+                    <td className="py-2 px-2 text-right mono">{fmtUsd(totalUsdParalelo)}</td>
                     <td className="py-2 px-2 text-right mono">{fmtBs(totalBs)}</td>
                     <td></td>
                   </tr>
