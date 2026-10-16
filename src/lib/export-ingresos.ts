@@ -124,6 +124,7 @@ export function exportIngresosDetalle(opts: { anio: number; rows: RowIngresoRaw[
     { label: "Ventas comunes", filtro: "Ventas comunes" },
     { label: "Ajustes de venta lista", filtro: "Ajuste de venta lista" },
     { label: "Ingresos por IVA", filtro: "Ingresos por IVA" },
+    { label: "Conciliación bancaria", filtro: "Conciliación bancaria" },
   ];
 
   const bloque = (titulo: string, colValor: string) => {
