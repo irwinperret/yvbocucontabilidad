@@ -153,14 +153,15 @@ function ImportarVentasPage() {
         continue;
       }
 
-      // Caso B: sin factura pero con número de orden → clasificar por col B
-      if (!numero_factura && numero_orden) {
+      // Caso B: cualquier fila que no sea "Facturada" (descuento, nota de
+      // crédito, por determinar) — tenga o no su propio número de factura.
+      if (tipoRaw !== "Facturada" && (numero_factura || numero_orden)) {
         const clase = clasificarPorTipo(tipoRaw);
         const absTotal = Math.abs(totalRaw);
         if (absTotal === 0 && clase !== "por_determinar") continue;
         parsed.push({
           idx: rowNumber,
-          numero_factura: "",
+          numero_factura,
           numero_orden,
           clase,
           tipo_raw: tipoRaw,
@@ -174,7 +175,8 @@ function ImportarVentasPage() {
           formas, esMixto, esCxC,
         });
       }
-      // En cualquier otro caso (sin factura y sin orden) se descarta.
+      // En cualquier otro caso (Facturada sin número o con total $0, o sin
+      // factura y sin orden) se descarta.
     }
     setRows(parsed);
     toast.success(`${parsed.length} filas detectadas`);
