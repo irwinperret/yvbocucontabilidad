@@ -124,6 +124,16 @@ export async function guardarReclasificacionIslr(args: {
 }): Promise<void> {
   const { grupoId, ids, fecha, montoUsd, tasaBcv, tasaParalela = null, centro = "Compartido", notas = null, userId } = args;
   const montoBs = +(montoUsd * tasaBcv).toFixed(2);
+  // monto_usd SIEMPRE debe representar el monto en USD a tasa PARALELA (asi
+  // lo lee el resto del sistema, p. ej. Flujo de Caja en modo "paralelo").
+  // El argumento `montoUsd` que llega aqui es el monto introducido en el
+  // formulario a tasa BCV (de ahi que montoBs = montoUsd * tasaBcv). Si
+  // tenemos una tasa paralela, el monto_usd real se recalcula dividiendo
+  // montoBs entre esa tasa; si no hay tasa paralela disponible, se deja el
+  // valor crudo como respaldo (comportamiento previo a este fix).
+  const montoUsdReal = tasaParalela && tasaParalela > 0
+    ? +(montoBs / tasaParalela).toFixed(2)
+    : +montoUsd.toFixed(2);
 
   if (grupoId && ids) {
     const [{ data: antes95 }, { data: antes48 }] = await Promise.all([
@@ -131,11 +141,11 @@ export async function guardarReclasificacionIslr(args: {
       supabase.from("transacciones").select("*").eq("id", ids.id48).single(),
     ]);
     const patch95 = {
-      fecha, centro_costo: centro as any, monto_usd: +montoUsd.toFixed(2), monto_bs: montoBs,
+      fecha, centro_costo: centro as any, monto_usd: montoUsdReal, monto_bs: montoBs,
       monto_base_bs: montoBs, tasa_bcv: tasaBcv, tasa_paralela: tasaParalela, notas,
     };
     const patch48 = {
-      fecha, centro_costo: centro as any, monto_usd: -(+montoUsd.toFixed(2)), monto_bs: -montoBs,
+      fecha, centro_costo: centro as any, monto_usd: -montoUsdReal, monto_bs: -montoBs,
       monto_base_bs: -montoBs, tasa_bcv: tasaBcv, tasa_paralela: tasaParalela, notas,
     };
     const [{ data: tx95, error: e95 }, { data: tx48, error: e48 }] = await Promise.all([
@@ -157,8 +167,8 @@ export async function guardarReclasificacionIslr(args: {
     grupo_transaccion_id: nuevoGrupoId, created_by: userId,
   };
   const payloads = [
-    { ...base, cuenta_codigo: CUENTA_RETENCION_ISLR, monto_usd: +montoUsd.toFixed(2), monto_bs: montoBs, monto_base_bs: montoBs },
-    { ...base, cuenta_codigo: CUENTA_GASTOS_FINANCIEROS, monto_usd: -(+montoUsd.toFixed(2)), monto_bs: -montoBs, monto_base_bs: -montoBs },
+    { ...base, cuenta_codigo: CUENTA_RETENCION_ISLR, monto_usd: montoUsdReal, monto_bs: montoBs, monto_base_bs: montoBs },
+    { ...base, cuenta_codigo: CUENTA_GASTOS_FINANCIEROS, monto_usd: -montoUsdReal, monto_bs: -montoBs, monto_base_bs: -montoBs },
   ];
   const { data: legs, error } = await supabase.from("transacciones").insert(payloads as any).select();
   if (error) throw error;

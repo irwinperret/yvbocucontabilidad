@@ -3026,6 +3026,7 @@ function RetencionIslrForm() {
   const [busy, setBusy] = useState(false);
 
   const { data: tasaSugerida } = useTasaForDate(fecha);
+  const { data: paralelaSugerida } = useParalelaForDate(fecha);
   useEffect(() => {
     if (tasaSugerida?.tasa) setTasa(String(tasaSugerida.tasa));
   }, [tasaSugerida?.tasa]);
@@ -3046,6 +3047,7 @@ function RetencionIslrForm() {
         fecha,
         montoUsd: montoUsdN,
         tasaBcv: tasaN,
+        tasaParalela: Number(paralelaSugerida?.tasa) || null,
         notas: notas.trim() || null,
         userId: user.id,
       });

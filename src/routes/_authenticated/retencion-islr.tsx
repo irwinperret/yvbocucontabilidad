@@ -145,6 +145,7 @@ function RetencionIslrPage() {
         fecha,
         montoUsd: montoUsdN,
         tasaBcv: tasaN,
+        tasaParalela: tasaParalelaParaFecha(fecha) || null,
         notas: notas || null,
         userId: user.id,
       });
