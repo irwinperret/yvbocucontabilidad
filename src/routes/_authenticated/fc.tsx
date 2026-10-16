@@ -101,7 +101,12 @@ function FCPage() {
       const tbcv = Number(t.tasa_bcv || 0);
       return tbcv > 0 ? Number(t.monto_bs || 0) / tbcv : Number(t.monto_usd || 0);
     }
-    return Number(t.monto_usd || 0);
+    // CapEx en paralelo: igual que el resto del sistema (COGS, inventario,
+    // v_transacciones_mensual), se recalcula en vivo con la tasa paralela
+    // de la fecha de ESA transaccion, en vez de confiar en monto_usd
+    // guardado (que para cuenta 5.6 no seguia esta convencion).
+    const tpar = Number(t.tasa_paralela || 0);
+    return tpar > 0 ? Number(t.monto_bs || 0) / tpar : Number(t.monto_usd || 0);
   };
 
   const lineasPorMes: LineasMes[] = useMemo(() => {
