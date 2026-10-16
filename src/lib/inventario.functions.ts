@@ -68,6 +68,19 @@ async function fetchTasaBcvOnOrBefore(supabase: any, fecha: string): Promise<num
   return Number((data as any)?.tasa) || 0;
 }
 
+// Tasa paralela aplicable a `fecha`: la última publicada en o antes de esa
+// fecha (mismo criterio que tasaParalelaParaFecha en lib/tasas.ts).
+async function fetchTasaParalelaOnOrBefore(supabase: any, fecha: string): Promise<number> {
+  const { data } = await supabase
+    .from("tasas_paralela")
+    .select("tasa")
+    .lte("fecha", fecha)
+    .order("fecha", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return Number((data as any)?.tasa) || 0;
+}
+
 async function fetchParalelaPromedio(supabase: any, periodo: string): Promise<number> {
   const { from, to } = periodBoundaries(periodo);
   const { data } = await supabase
@@ -104,8 +117,13 @@ async function recalcCierreForPeriod(
   const tasaBcvIni = (await fetchTasaBcvOnOrBefore(supabase, from)) || tasaBcvProm;
   const tasaBcvFin = (await fetchTasaBcvOnOrBefore(supabase, to)) || tasaBcvProm;
 
-  // Paralela promedio del período (para expresar COGS en USD paralelo).
+  // Paralela promedio del período (se guarda como referencia en la fila de
+  // COGS, pero ya NO se usa para calcular cogsUsdParalelo -- ver más abajo).
   const paralelaProm = await fetchParalelaPromedio(supabase, periodo);
+  // Tasas paralelas específicas: primer día (inv. inicial) y último día (inv.
+  // final), mismo criterio que calcularCierre en cierre-mes.ts.
+  const tasaParIni = await fetchTasaParalelaOnOrBefore(supabase, from);
+  const tasaParFin = await fetchTasaParalelaOnOrBefore(supabase, to);
 
   const [{ data: iniSnap }, { data: finSnap }, { data: compras, error: comprasError }] = await Promise.all([
     supabase
@@ -122,7 +140,7 @@ async function recalcCierreForPeriod(
       .maybeSingle(),
     supabase
       .from("transacciones")
-      .select("monto_bs, monto_base_bs, monto_usd, tasa_bcv").neq("standby", true)
+      .select("monto_bs, monto_base_bs, monto_usd, tasa_bcv, tasa_paralela").neq("standby", true)
       .eq("cuenta_codigo", "2.1")
       .gte("fecha", from)
       .lte("fecha", to),
@@ -156,10 +174,26 @@ async function recalcCierreForPeriod(
 
   const cogsBs = r2(iniBs + comprasNetoBs - finBs);
   const cogsUsd = r2(iniUsd + comprasNetoUsd - finUsd);
-  // COGS en USD paralelo: el inventario solo se ingresa en USD BCV, así que no
-  // hay componente-a-componente en paralelo; se convierte el total en Bs con
-  // la tasa paralela promedio del período.
-  const cogsUsdParalelo = paralelaProm > 0 ? r2(cogsBs / paralelaProm) : 0;
+
+  // Compras en USD paralelo: cada compra con SU propia tasa paralela del día
+  // (igual que comprasNetoUsd arriba, pero con tasa_paralela en vez de tasa_bcv).
+  const comprasNetoUsdParalelo = (compras ?? []).reduce((s: number, r: any) => {
+    const netoBs = Number(r.monto_base_bs) || Number(r.monto_bs) || 0;
+    const tasa = Number(r.tasa_paralela) || 0;
+    if (tasa > 0) return s + r2(netoBs / tasa);
+    return s + (Number(r.monto_usd) || 0);
+  }, 0);
+  // COGS en USD paralelo: el inventario SIEMPRE se ingresa en USD a tasa BCV
+  // (iniUsd/finUsd), así que no se puede reusar ese número tal cual -- hay
+  // que re-expresar esos mismos bolívares (iniBs/finBs, ya calculados arriba)
+  // con la tasa PARALELA de su propia fecha. ANTES esta función dividía
+  // cogsBs (en bolívares) entre el promedio del mes -- el mismo enfoque que
+  // ya se había identificado como incorrecto y reemplazado en cierre-mes.ts,
+  // pero que esta copia separada (usada al editar un inventario ya cargado)
+  // nunca recibió. Mismo criterio que calcularCierre ahora en ambos lugares.
+  const invIniUsdParalelo = tasaParIni > 0 ? r2(iniBs / tasaParIni) : iniUsd;
+  const invFinUsdParalelo = tasaParFin > 0 ? r2(finBs / tasaParFin) : finUsd;
+  const cogsUsdParalelo = r2(invIniUsdParalelo + comprasNetoUsdParalelo - invFinUsdParalelo);
 
   // Reabrir cierre
   await supabase.from("cierres_de_mes").update({ estado: "abierto" }).eq("id", (cierre as any).id);
