@@ -45,31 +45,45 @@ export async function fetchDeudaNetaReal(): Promise<DeudaNetaReal> {
   );
 
   // Facturas con al menos un vinculo activo (pareado/parcial) -- el resto
-  // son "sin movimiento".
-  const vinculosFacturas = cxps.length
-    ? await fetchAllRows<any>(async (from, to) =>
-        await (supabase.from as any)("conciliacion_bancaria")
-          .select("transaccion_factura_id")
-          .in("transaccion_factura_id", cxps.map((c) => c.id))
-          .in("estado", ["pareado", "parcial"])
-          .range(from, to),
-      )
-    : [];
+  // son "sin movimiento". Se parte en bloques (igual que en flujo-caja.ts
+  // para CxP) porque meter TODOS los ids en un solo .in(...) arma una URL
+  // tan larga que el servidor la rechaza con 400 Bad Request -- eso dejaba
+  // esta consulta rota en silencio (el banner se quedaba en "...") en
+  // cuanto la empresa acumulaba suficientes facturas/movimientos.
+  const CHUNK = 150;
+  const vinculosFacturas: any[] = [];
+  const idsFacturas = cxps.map((c) => c.id);
+  for (let i = 0; i < idsFacturas.length; i += CHUNK) {
+    const lote = idsFacturas.slice(i, i + CHUNK);
+    const rows = await fetchAllRows<any>(async (from, to) =>
+      await (supabase.from as any)("conciliacion_bancaria")
+        .select("transaccion_factura_id")
+        .in("transaccion_factura_id", lote)
+        .in("estado", ["pareado", "parcial"])
+        .range(from, to),
+    );
+    vinculosFacturas.push(...rows);
+  }
   const cxpsConVinculo = new Set(vinculosFacturas.map((v: any) => v.transaccion_factura_id));
   const facturasSinMovimientoUsd = cxps
     .filter((c) => !cxpsConVinculo.has(c.id))
     .reduce((s, c) => s + pendienteUsdBcv(c), 0);
 
   // Movimientos con al menos un vinculo activo -- el resto son "sin cruzar".
-  const vinculosMovs = movs.length
-    ? await fetchAllRows<any>(async (from, to) =>
-        await (supabase.from as any)("conciliacion_bancaria")
-          .select("transaccion_bancaria_id")
-          .in("transaccion_bancaria_id", movs.map((m) => m.id))
-          .in("estado", ["pareado", "parcial"])
-          .range(from, to),
-      )
-    : [];
+  // Mismo motivo: en bloques, no todos los ids de una vez.
+  const vinculosMovs: any[] = [];
+  const idsMovs = movs.map((m) => m.id);
+  for (let i = 0; i < idsMovs.length; i += CHUNK) {
+    const lote = idsMovs.slice(i, i + CHUNK);
+    const rows = await fetchAllRows<any>(async (from, to) =>
+      await (supabase.from as any)("conciliacion_bancaria")
+        .select("transaccion_bancaria_id")
+        .in("transaccion_bancaria_id", lote)
+        .in("estado", ["pareado", "parcial"])
+        .range(from, to),
+    );
+    vinculosMovs.push(...rows);
+  }
   const movsConVinculo = new Set(vinculosMovs.map((v: any) => v.transaccion_bancaria_id));
   const pagosSinCruzarUsd = movs
     .filter((m) => !movsConVinculo.has(m.id))
