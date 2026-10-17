@@ -27,6 +27,7 @@ import {
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import { pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv } from "@/lib/cxp-saldo";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { fetchDeudaNetaReal } from "@/lib/deuda-neta";
 
 export const Route = createFileRoute("/_authenticated/cxp")({
   component: CxPAnalisisPage,
@@ -110,6 +111,12 @@ function CxPAnalisisPage() {
       const { data } = await tasaBcvQuery(todayISO(), "tasa");
       return Number(data?.tasa) || 0;
     },
+  });
+
+  const { data: deudaNeta } = useQuery({
+    queryKey: ["deuda-neta-real-total"],
+    staleTime: 60_000,
+    queryFn: fetchDeudaNetaReal,
   });
 
   /** Índice de facturas de CxP (por su transacción asociada) */
@@ -343,6 +350,16 @@ function CxPAnalisisPage() {
           <p className="text-sm text-muted-foreground">Obligaciones pendientes y su pareo contra movimientos bancarios</p>
         </div>
         <Button onClick={exportar}><Download className="h-4 w-4 mr-2" /> Exportar a Excel</Button>
+      </div>
+
+      <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary">Deuda neta real (toda la empresa)</div>
+          <div className="text-3xl font-extrabold mono text-primary">{deudaNeta ? fmtUsd(deudaNeta.deudaNetaRealUsd) : "…"}</div>
+        </div>
+        <p className="text-xs text-muted-foreground max-w-sm text-right">
+          Facturas sin movimiento ({deudaNeta ? fmtUsd(deudaNeta.facturasSinMovimientoUsd) : "…"}) menos pagos que ya se hicieron a algún proveedor y todavía no se cruzaron contra ninguna factura ({deudaNeta ? fmtUsd(deudaNeta.pagosSinCruzarUsd) : "…"}).
+        </p>
       </div>
 
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
