@@ -86,13 +86,13 @@ const registroGestionEnConstruccion = [
 
 const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "G&P", url: "/gyp", icon: TrendingUp },
   { title: "Resumen IPA Mensual", url: "/resumen-ejecutivo-mensual", icon: BarChart3 },
+  { title: "G&P", url: "/gyp", icon: TrendingUp },
+  { title: "Flujo de caja", url: "/fc", icon: FileText },
 ];
 
 const analisisEnConstruccion = [
   { title: "Impuestos", url: "/impuestos", icon: Receipt },
-  { title: "Flujo de caja", url: "/fc", icon: FileText },
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
   { title: "CxC pendientes", url: "/cxc", icon: FileInput },
   { title: "CxP pendientes", url: "/cxp", icon: FileOutput },

@@ -283,6 +283,20 @@ function ResumenEjecutivoMensualPage() {
     [rowsPrev, mesesYtd],
   );
 
+  // "Insight" de Operaciones de IVA para el analisis del mes: cuanta
+  // utilidad neta hubiera habido SIN esos ingresos, para que quede claro
+  // que tanto depende el resultado del mes/periodo de esa partida --
+  // con una advertencia si esa utilidad "limpia" sale muy baja o negativa.
+  // Como el toggle "Incluir Ingresos IVA" solo filtra la cuenta 1.8 (no
+  // tiene COGS/costos propios asociados), quitar ese ingreso resta directo
+  // de la utilidad neta ya calculada, sin tener que re-sumar nada mas.
+  const ingresosIvaParaAnalisis = ytd ? ingresosIvaActualYtd : ingresosIvaActual;
+  const utilidadSinIva = utilidadNeta - ingresosIvaParaAnalisis;
+  const ingresosSinIva = ingresos - ingresosIvaParaAnalisis;
+  const margenSinIva = ingresosSinIva > 0 ? (utilidadSinIva / ingresosSinIva) * 100 : null;
+  // Umbral de "muy baja": perdida, o margen neto por debajo de 5%.
+  const utilidadSinIvaBaja = utilidadSinIva <= 0 || (margenSinIva !== null && margenSinIva < 5);
+
   const { pagoPrestamos, dividendos } = useMemo(
     () => calcularPrestamosYDividendos(rowsAnio ?? [], ytd ? mesesYtd : mes),
     [rowsAnio, mes, ytd, mesesYtd],
@@ -521,6 +535,16 @@ function ResumenEjecutivoMensualPage() {
               {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
               {pagoPrestamos > 0.01 && dividendos > 0.01 && " y"}
               {dividendos > 0.01 && <> se repartieron <b>{fmtUsd(dividendos)}</b> en dividendos</>}.
+            </p>
+          )}
+          {incluirIva && (
+            <p className="text-blue-700 dark:text-blue-400">
+              Sin los ingresos de Operaciones de IVA, la utilidad neta {ytd ? "acumulada" : "del mes"} hubiera sido de{" "}
+              <b>{fmtUsd(utilidadSinIva)}</b>
+              {ingresosSinIva > 0 ? ` (${margenSinIva!.toFixed(1)}% de los ingresos)` : ""} en vez de {fmtUsd(utilidadNeta)}.
+              {utilidadSinIvaBaja && (
+                <> <b>⚠ {utilidadSinIva <= 0 ? "Sería pérdida" : "Muy ajustada"}</b> — vale la pena revisar qué tanto depende el resultado de las operaciones de IVA.</>
+              )}
             </p>
           )}
         </CardContent>
@@ -826,6 +850,16 @@ function ResumenEjecutivoMensualPage() {
               {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
               {pagoPrestamos > 0.01 && dividendos > 0.01 && " y"}
               {dividendos > 0.01 && <> se repartieron <b>{fmtUsd(dividendos)}</b> en dividendos</>}.
+            </p>
+          )}
+          {incluirIva && (
+            <p className="text-blue-700 dark:text-blue-400">
+              Sin los ingresos de Operaciones de IVA, la utilidad neta {ytd ? "acumulada" : "del mes"} hubiera sido de{" "}
+              <b>{fmtUsd(utilidadSinIva)}</b>
+              {ingresosSinIva > 0 ? ` (${margenSinIva!.toFixed(1)}% de los ingresos)` : ""} en vez de {fmtUsd(utilidadNeta)}.
+              {utilidadSinIvaBaja && (
+                <> <b>⚠ {utilidadSinIva <= 0 ? "Sería pérdida" : "Muy ajustada"}</b> — vale la pena revisar qué tanto depende el resultado de las operaciones de IVA.</>
+              )}
             </p>
           )}
         </CardContent>
