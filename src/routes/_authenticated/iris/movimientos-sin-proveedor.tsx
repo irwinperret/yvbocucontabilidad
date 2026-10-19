@@ -42,12 +42,23 @@ function MovimientosSinProveedorPage() {
           .range(from, to),
       );
       if (!movs.length) return [];
-      const vinculos = await fetchAllRows<any>(async (from, to) =>
-        await (supabase.from as any)("conciliacion_bancaria")
-          .select("transaccion_bancaria_id, estado")
-          .in("transaccion_bancaria_id", movs.map((m) => m.id))
-          .range(from, to),
-      );
+      // En bloques, no todos los ids de una vez -- mismo motivo que en
+      // fetchMovimientosSinProveedorCount() (iris-checklist.ts): un .in(...)
+      // con demasiados ids arma una URL tan larga que el servidor la
+      // rechaza con 400 Bad Request.
+      const CHUNK = 150;
+      const vinculos: any[] = [];
+      const idsMovs = movs.map((m) => m.id);
+      for (let i = 0; i < idsMovs.length; i += CHUNK) {
+        const lote = idsMovs.slice(i, i + CHUNK);
+        const rows = await fetchAllRows<any>(async (from, to) =>
+          await (supabase.from as any)("conciliacion_bancaria")
+            .select("transaccion_bancaria_id, estado")
+            .in("transaccion_bancaria_id", lote)
+            .range(from, to),
+        );
+        vinculos.push(...rows);
+      }
       // Mismo criterio que fetchMovimientosSinProveedorCount() en
       // @/lib/iris-checklist: "resuelto" es por estado (pareado/parcial con
       // factura, o gasto_directo/no_contable decidido a mano), no por

@@ -52,6 +52,14 @@ export function baseUsdFila(r: RowIngresoRaw, mode: UsdViewMode): number {
     const tasa = Number(r.tasa_bcv) || 0;
     return tasa ? baseBs / tasa : 0;
   }
+  // Igual que la rama BCV (y que v_transacciones_mensual en vivo): se
+  // recalcula con la tasa paralela de la fecha de ESTA fila, en vez de
+  // confiar en monto_usd guardado -- monto_usd no siempre sigue la
+  // convencion paralela (mismo patron de bug ya corregido en COGS,
+  // inventario y CapEx). Solo si la fila no trae tasa_paralela se cae de
+  // vuelta al monto_usd guardado, como ultimo recurso.
+  const tasaPar = Number(r.tasa_paralela) || 0;
+  if (tasaPar > 0) return baseBs / tasaPar;
   const usd = Number(r.monto_usd) || 0;
   return usd * (baseBs / bs);
 }

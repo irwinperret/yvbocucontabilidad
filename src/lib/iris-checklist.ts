@@ -56,12 +56,23 @@ export async function fetchMovimientosSinProveedorCount(): Promise<number> {
       .range(from, to),
   );
   if (!movs.length) return 0;
-  const vinculos = await fetchAllRows<any>(async (from, to) =>
-    await (supabase.from as any)("conciliacion_bancaria")
-      .select("transaccion_bancaria_id, estado")
-      .in("transaccion_bancaria_id", movs.map((m) => m.id))
-      .range(from, to),
-  );
+  // En bloques, no todos los ids de una vez -- meter demasiados en un solo
+  // .in(...) arma una URL tan larga que el servidor la rechaza con 400
+  // Bad Request (bug real que ya tumbo el banner de "Deuda neta real" en
+  // Cuentas por pagar; mismo patron, mismo arreglo preventivo aqui).
+  const CHUNK = 150;
+  const vinculos: any[] = [];
+  const idsMovs = movs.map((m) => m.id);
+  for (let i = 0; i < idsMovs.length; i += CHUNK) {
+    const lote = idsMovs.slice(i, i + CHUNK);
+    const rows = await fetchAllRows<any>(async (from, to) =>
+      await (supabase.from as any)("conciliacion_bancaria")
+        .select("transaccion_bancaria_id, estado")
+        .in("transaccion_bancaria_id", lote)
+        .range(from, to),
+    );
+    vinculos.push(...rows);
+  }
   // "Resuelto" es por estado, no por origen: un vinculo "pareado"/"parcial"
   // (automatico o manual) ya tiene factura, y "gasto_directo"/"no_contable"
   // son decisiones finales marcadas a mano. "pendiente_revision" y
