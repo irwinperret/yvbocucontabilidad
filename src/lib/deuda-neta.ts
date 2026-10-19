@@ -69,22 +69,31 @@ export async function fetchDeudaNetaReal(): Promise<DeudaNetaReal> {
     .filter((c) => !cxpsConVinculo.has(c.id))
     .reduce((s, c) => s + pendienteUsdBcv(c), 0);
 
-  // Movimientos con al menos un vinculo activo -- el resto son "sin cruzar".
-  // Mismo motivo: en bloques, no todos los ids de una vez.
+  // Movimientos ya resueltos -- el resto son "sin cruzar". "Resuelto" no es
+  // solo pareado/parcial (cruzado con una factura): un movimiento que el
+  // usuario ya confirmo como "Gasto Stand-Alone" o "No contable" (en Iris >
+  // Movimientos sin proveedor) tampoco es un pago esperando cruzarse contra
+  // ninguna factura -- si no se excluye aqui tambien, infla
+  // pagosSinCruzarUsd con plata que nunca va a aplicarse a ninguna CxP, y
+  // puede hacer que la "deuda neta real" de toda la empresa salga en cero
+  // aunque sí haya facturas sin pagar. Mismos 4 estados que usa
+  // fetchMovimientosSinProveedorCount()/movimientos-sin-proveedor.tsx.
+  const ESTADOS_RESUELTOS = new Set(["pareado", "parcial", "gasto_directo", "no_contable"]);
   const vinculosMovs: any[] = [];
   const idsMovs = movs.map((m) => m.id);
   for (let i = 0; i < idsMovs.length; i += CHUNK) {
     const lote = idsMovs.slice(i, i + CHUNK);
     const rows = await fetchAllRows<any>(async (from, to) =>
       await (supabase.from as any)("conciliacion_bancaria")
-        .select("transaccion_bancaria_id")
+        .select("transaccion_bancaria_id, estado")
         .in("transaccion_bancaria_id", lote)
-        .in("estado", ["pareado", "parcial"])
         .range(from, to),
     );
     vinculosMovs.push(...rows);
   }
-  const movsConVinculo = new Set(vinculosMovs.map((v: any) => v.transaccion_bancaria_id));
+  const movsConVinculo = new Set(
+    vinculosMovs.filter((v: any) => ESTADOS_RESUELTOS.has(v.estado)).map((v: any) => v.transaccion_bancaria_id),
+  );
   const pagosSinCruzarUsd = movs
     .filter((m) => !movsConVinculo.has(m.id))
     .reduce((s, m) => {
