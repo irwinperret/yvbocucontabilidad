@@ -309,6 +309,13 @@ function ReporteMensualImprimirPage() {
     () => (rowsPrev ?? []).filter((r) => r.cuenta_codigo === CUENTA_VENTA_IVA && mesesYtd.includes(r.mes)).reduce((s, r) => s + r.base_usd, 0),
     [rowsPrev, mesesYtd],
   );
+  // Igual que en la pantalla: cuánto hubiera sido la utilidad sin los
+  // ingresos de Operaciones de IVA, y una advertencia si queda muy baja.
+  const ingresosIvaParaAnalisis = ytd ? ingresosIvaActualYtd : ingresosIvaActual;
+  const utilidadSinIva = utilidadNeta - ingresosIvaParaAnalisis;
+  const ingresosSinIva = ingresos - ingresosIvaParaAnalisis;
+  const margenSinIva = ingresosSinIva > 0 ? (utilidadSinIva / ingresosSinIva) * 100 : null;
+  const utilidadSinIvaBaja = utilidadSinIva <= 0 || (margenSinIva !== null && margenSinIva < 5);
   const { pagoPrestamos, dividendos } = useMemo(
     () => calcularPrestamosYDividendos(rowsAnio ?? [], ytd ? mesesYtd : mes),
     [rowsAnio, mes, ytd, mesesYtd],
@@ -470,6 +477,16 @@ function ReporteMensualImprimirPage() {
                     {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
                     {pagoPrestamos > 0.01 && dividendos > 0.01 && " y"}
                     {dividendos > 0.01 && <> se repartieron <b>{fmtUsd(dividendos)}</b> en dividendos</>}.
+                  </p>
+                )}
+                {incluirIva && (
+                  <p className="text-blue-700">
+                    Sin los ingresos de Operaciones de IVA, la utilidad neta {ytd ? "acumulada" : "del mes"} hubiera sido de{" "}
+                    <b>{fmtUsd(utilidadSinIva)}</b>
+                    {ingresosSinIva > 0 ? ` (${margenSinIva!.toFixed(1)}% de los ingresos)` : ""} en vez de {fmtUsd(utilidadNeta)}.
+                    {utilidadSinIvaBaja && (
+                      <> <b>⚠ {utilidadSinIva <= 0 ? "Sería pérdida" : "Muy ajustada"}</b> -- vale la pena revisar qué tanto depende el resultado de las operaciones de IVA.</>
+                    )}
                   </p>
                 )}
               </>
@@ -748,6 +765,16 @@ function ReporteMensualImprimirPage() {
                   {pagoPrestamos > 0.01 && <> se pagó un total de <b>{fmtUsd(pagoPrestamos)}</b> en préstamos</>}
                   {pagoPrestamos > 0.01 && dividendos > 0.01 && " y"}
                   {dividendos > 0.01 && <> se repartieron <b>{fmtUsd(dividendos)}</b> en dividendos</>}.
+                </p>
+              )}
+              {incluirIva && (
+                <p className="text-blue-700">
+                  Sin los ingresos de Operaciones de IVA, la utilidad neta {ytd ? "acumulada" : "del mes"} hubiera sido de{" "}
+                  <b>{fmtUsd(utilidadSinIva)}</b>
+                  {ingresosSinIva > 0 ? ` (${margenSinIva!.toFixed(1)}% de los ingresos)` : ""} en vez de {fmtUsd(utilidadNeta)}.
+                  {utilidadSinIvaBaja && (
+                    <> <b>⚠ {utilidadSinIva <= 0 ? "Sería pérdida" : "Muy ajustada"}</b> -- vale la pena revisar qué tanto depende el resultado de las operaciones de IVA.</>
+                  )}
                 </p>
               )}
             </>

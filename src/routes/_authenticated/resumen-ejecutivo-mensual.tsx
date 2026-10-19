@@ -543,7 +543,7 @@ function ResumenEjecutivoMensualPage() {
               <b>{fmtUsd(utilidadSinIva)}</b>
               {ingresosSinIva > 0 ? ` (${margenSinIva!.toFixed(1)}% de los ingresos)` : ""} en vez de {fmtUsd(utilidadNeta)}.
               {utilidadSinIvaBaja && (
-                <> <b>⚠ {utilidadSinIva <= 0 ? "Sería pérdida" : "Muy ajustada"}</b> — vale la pena revisar qué tanto depende el resultado de las operaciones de IVA.</>
+                <> <b>⚠ {utilidadSinIva <= 0 ? "Sería pérdida" : "Muy ajustada"}</b> -- vale la pena revisar qué tanto depende el resultado de las operaciones de IVA.</>
               )}
             </p>
           )}
@@ -858,7 +858,7 @@ function ResumenEjecutivoMensualPage() {
               <b>{fmtUsd(utilidadSinIva)}</b>
               {ingresosSinIva > 0 ? ` (${margenSinIva!.toFixed(1)}% de los ingresos)` : ""} en vez de {fmtUsd(utilidadNeta)}.
               {utilidadSinIvaBaja && (
-                <> <b>⚠ {utilidadSinIva <= 0 ? "Sería pérdida" : "Muy ajustada"}</b> — vale la pena revisar qué tanto depende el resultado de las operaciones de IVA.</>
+                <> <b>⚠ {utilidadSinIva <= 0 ? "Sería pérdida" : "Muy ajustada"}</b> -- vale la pena revisar qué tanto depende el resultado de las operaciones de IVA.</>
               )}
             </p>
           )}
