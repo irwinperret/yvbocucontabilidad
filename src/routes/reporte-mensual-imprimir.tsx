@@ -43,6 +43,9 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
 });
 
 const ANCHO_GRAFICO = 300;
+// Las dos primeras tarjetas comparten línea (2 por fila); con más espacio
+// libre que antes (ya no hay 3 en la misma fila) se ensanchan un poco.
+const ANCHO_GRAFICO_ANCHO = 440;
 const ALTO_GRAFICO = 250;
 
 /** Convierte los **negrita** de frase() en <b> reales dentro de un <p>. */
@@ -380,41 +383,27 @@ function ReporteMensualImprimirPage() {
     return (
       <div className="reporte-print bg-white text-[#1a1a2e]" style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "10mm" }}>
         {/* 1. Encabezado -- igual al de la vista "detallado" */}
-        <header className="flex items-baseline justify-between border-b-2 pb-2 mb-3" style={{ borderColor: "#1e3a5f" }}>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: "#1e3a5f" }}>Resumen IPA Mensual</h1>
-            <p className="text-sm text-gray-600 mt-0.5">Resumen visual de <b>{labelMes}</b></p>
-            <div className={`mt-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold ${modoBadgeClass}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${modoDotClass}`} />
-              Montos en <span className="uppercase tracking-wide">{modoLabel}</span>
-            </div>
+        <header className="border-b-2 pb-2 mb-3" style={{ borderColor: "#1e3a5f" }}>
+          <h1 className="text-2xl font-bold" style={{ color: "#1e3a5f" }}>Resumen IPA Mensual</h1>
+          <p className="text-sm text-gray-600 mt-0.5">Resumen visual de <b>{labelMes}</b></p>
+          <div className={`mt-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold ${modoBadgeClass}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${modoDotClass}`} />
+            Montos en <span className="uppercase tracking-wide">{modoLabel}</span>
           </div>
-          <div className="flex flex-col gap-1 items-end">
+          <div className="mt-1.5 flex flex-col gap-0.5">
             {totalesActual.estimado && (
-              <div className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 rounded px-2 py-1 max-w-[260px]">
-                ⚠ COGS estimado — {ytd ? "meses abiertos" : "mes abierto"}, sin cierre formal.
-              </div>
+              <p className="text-[10px] text-amber-700">⚠ COGS estimado -- {ytd ? "meses abiertos" : "mes abierto"}, sin cierre formal.</p>
             )}
-            <div className="text-[10px] bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-1 max-w-[260px]">
-              ℹ Ingresos no incluyen servicio (10%) ni propina.
-            </div>
+            <p className="text-[10px] text-blue-700">ℹ Ingresos no incluyen servicio (10%) ni propina.</p>
             {incluirIva ? (
-              <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
-                ⚠ Incluye operaciones de Venta de IVA (cuenta 1.8).
-              </div>
+              <p className="text-[10px] text-red-700 font-semibold">⚠ Incluye operaciones de Venta de IVA (cuenta 1.8).</p>
             ) : (
-              <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
-                ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).
-              </div>
+              <p className="text-[10px] text-gray-600">ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).</p>
             )}
             {(ytd ? islrRetenidoYtd : islrRetenidoMes) > 0.01 ? (
-              <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
-                ⚠ Banco retuvo {fmtUsd(ytd ? islrRetenidoYtd : islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).
-              </div>
+              <p className="text-[10px] text-red-700 font-semibold">⚠ Banco retuvo {fmtUsd(ytd ? islrRetenidoYtd : islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).</p>
             ) : (
-              <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
-                ℹ Retención ISLR: $0.00 — aún no se registra {ytd ? "en este rango" : "este mes"}.
-              </div>
+              <p className="text-[10px] text-gray-600">ℹ Retención ISLR: $0.00 -- aún no se registra {ytd ? "en este rango" : "este mes"}.</p>
             )}
           </div>
         </header>
@@ -602,41 +591,27 @@ function ReporteMensualImprimirPage() {
   return (
     <div className="reporte-print bg-white text-[#1a1a2e]" style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "10mm" }}>
       {/* 1. Encabezado */}
-      <header className="flex items-baseline justify-between border-b-2 pb-2 mb-3" style={{ borderColor: "#1e3a5f" }}>
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "#1e3a5f" }}>Resumen IPA Mensual</h1>
-          <p className="text-sm text-gray-600 mt-0.5">Informe ejecutivo de <b>{labelMes}</b></p>
-          <div className={`mt-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold ${modoBadgeClass}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${modoDotClass}`} />
-            Montos en <span className="uppercase tracking-wide">{modoLabel}</span>
-          </div>
+      <header className="border-b-2 pb-2 mb-3" style={{ borderColor: "#1e3a5f" }}>
+        <h1 className="text-2xl font-bold" style={{ color: "#1e3a5f" }}>Resumen IPA Mensual</h1>
+        <p className="text-sm text-gray-600 mt-0.5">Informe ejecutivo de <b>{labelMes}</b></p>
+        <div className={`mt-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold ${modoBadgeClass}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${modoDotClass}`} />
+          Montos en <span className="uppercase tracking-wide">{modoLabel}</span>
         </div>
-        <div className="flex flex-col gap-1 items-end">
+        <div className="mt-1.5 flex flex-col gap-0.5">
           {totalesActual.estimado && (
-            <div className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 rounded px-2 py-1 max-w-[260px]">
-              ⚠ COGS estimado — {ytd ? "meses abiertos" : "mes abierto"}, sin cierre formal.
-            </div>
+            <p className="text-[10px] text-amber-700">⚠ COGS estimado -- {ytd ? "meses abiertos" : "mes abierto"}, sin cierre formal.</p>
           )}
-          <div className="text-[10px] bg-blue-50 text-blue-800 border border-blue-200 rounded px-2 py-1 max-w-[260px]">
-            ℹ Ingresos no incluyen servicio (10%) ni propina.
-          </div>
+          <p className="text-[10px] text-blue-700">ℹ Ingresos no incluyen servicio (10%) ni propina.</p>
           {incluirIva ? (
-            <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
-              ⚠ Incluye operaciones de Venta de IVA (cuenta 1.8).
-            </div>
+            <p className="text-[10px] text-red-700 font-semibold">⚠ Incluye operaciones de Venta de IVA (cuenta 1.8).</p>
           ) : (
-            <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
-              ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).
-            </div>
+            <p className="text-[10px] text-gray-600">ℹ No incluye operaciones de Venta de IVA (cuenta 1.8).</p>
           )}
           {(ytd ? islrRetenidoYtd : islrRetenidoMes) > 0.01 ? (
-            <div className="text-[10px] bg-red-50 text-red-800 border border-red-300 rounded px-2 py-1 max-w-[260px] font-semibold">
-              ⚠ Banco retuvo {fmtUsd(ytd ? islrRetenidoYtd : islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).
-            </div>
+            <p className="text-[10px] text-red-700 font-semibold">⚠ Banco retuvo {fmtUsd(ytd ? islrRetenidoYtd : islrRetenidoMes)} por ISLR (5% de tarjetas de crédito).</p>
           ) : (
-            <div className="text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-2 py-1 max-w-[260px]">
-              ℹ Retención ISLR: $0.00 — aún no se registra {ytd ? "en este rango" : "este mes"}.
-            </div>
+            <p className="text-[10px] text-gray-600">ℹ Retención ISLR: $0.00 -- aún no se registra {ytd ? "en este rango" : "este mes"}.</p>
           )}
         </div>
       </header>
@@ -665,11 +640,12 @@ function ReporteMensualImprimirPage() {
         ))}
       </section>
 
-      {/* 3. Gráficos — tres tarjetas compactas, pensadas para landscape/PDF */}
+      {/* 3. Gráficos -- dos tarjetas por fila (más fáciles de leer que las tres
+          apretadas de antes); la de inventario queda sola en la fila de abajo. */}
       <section className="flex gap-3 mb-3" style={{ breakInside: "avoid" }}>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</p>
-          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO - 34} data={serie} stackOffset="sign">
+          <ComposedChart width={ANCHO_GRAFICO_ANCHO} height={ALTO_GRAFICO - 34} data={serie} stackOffset="sign">
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="mesLabel" fontSize={10} />
             <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} />
@@ -699,7 +675,7 @@ function ReporteMensualImprimirPage() {
         </div>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</p>
-          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieMargenes}>
+          <ComposedChart width={ANCHO_GRAFICO_ANCHO} height={ALTO_GRAFICO} data={serieMargenes}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="mesLabel" fontSize={10} />
             <YAxis tickFormatter={(v) => `${v}%`} fontSize={10} width={40} />
@@ -710,9 +686,12 @@ function ReporteMensualImprimirPage() {
             <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} connectNulls isAnimationActive={false} />
           </ComposedChart>
         </div>
-        <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
+      </section>
+
+      <section className="flex gap-3 mb-3" style={{ breakInside: "avoid" }}>
+        <div className="rounded-md border p-2" style={{ borderColor: "#E2E5EA", width: ANCHO_GRAFICO_ANCHO + 16 }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio}</p>
-          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieInventario}>
+          <ComposedChart width={ANCHO_GRAFICO_ANCHO} height={ALTO_GRAFICO} data={serieInventario}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="mesLabel" fontSize={10} />
             <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} width={40} />
