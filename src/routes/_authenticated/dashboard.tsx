@@ -10,11 +10,13 @@ import { DashboardCharts } from "@/components/dashboard-charts";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 import { ordenarPorCodigo } from "@/lib/account-helpers";
+import { KpiSkeletons, ChartSkeleton, TableSkeleton } from "@/components/page-skeletons";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
 function Dashboard() {
-  const { data: tasa } = useQuery({
+  const { data: tasa, isLoading: tasaLoading, isError: tasaError } = useQuery({
     queryKey: ["tasa-paralela-dashboard", todayISO()],
     queryFn: async () => {
       const { data } = await supabase.from("tasas_paralela").select("*").order("fecha", { ascending: false }).limit(1).maybeSingle();
@@ -28,7 +30,7 @@ function Dashboard() {
       return data;
     },
   });
-  const { data: ultimas } = useQuery({
+  const { data: ultimas, isLoading: ultimasLoading, isError: ultimasError } = useQuery({
     queryKey: ["ultimas-tx"],
     queryFn: async () => {
       const { data } = await supabase.from("transacciones").select("*").neq("standby", true).order("created_at", { ascending: false }).limit(8);
@@ -46,20 +48,22 @@ function Dashboard() {
     const n = cuentas?.find((x: any) => x.codigo === c)?.nombre;
     return n ? `${c} · ${n}` : c;
   };
-  const { data: cxcCount } = useQuery({
+  const { data: cxcCount, isLoading: cxcCountLoading } = useQuery({
     queryKey: ["cxc-count"],
     queryFn: async () => {
       const { count } = await supabase.from("cuentas_por_cobrar").select("*", { count: "exact", head: true }).eq("estado", "vigente");
       return count ?? 0;
     },
   });
-  const { data: offCount } = useQuery({
+  const { data: offCount, isLoading: offCountLoading } = useQuery({
     queryKey: ["off-count"],
     queryFn: async () => {
       const { count } = await supabase.from("transacciones").select("*", { count: "exact", head: true }).neq("standby", true).eq("modo", "off_balance");
       return count ?? 0;
     },
   });
+  const cargando = tasaLoading || ultimasLoading || cxcCountLoading || offCountLoading;
+  const conError = tasaError || ultimasError;
 
   const tasaVencida = tasa && tasa.fecha !== todayISO();
 
@@ -67,6 +71,7 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={conError} label="los datos del dashboard" />
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
@@ -75,6 +80,17 @@ function Dashboard() {
         <UsdViewToggle />
       </div>
 
+      {cargando ? (
+        <>
+          <KpiSkeletons count={4} />
+          <ChartSkeleton className="h-[300px] w-full rounded-lg" />
+          <Card>
+            <CardHeader><CardTitle className="text-base">Últimos movimientos</CardTitle></CardHeader>
+            <CardContent><TableSkeleton rows={6} /></CardContent>
+          </Card>
+        </>
+      ) : (
+      <>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
@@ -158,6 +174,8 @@ function Dashboard() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

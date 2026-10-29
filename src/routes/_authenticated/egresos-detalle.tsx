@@ -23,6 +23,7 @@ import {
   type CategoriaEgreso, type RowEgreso, type CuentaEgreso,
 } from "@/lib/egresos-detalle-calc";
 import { exportEgresosDetalle, type RowEgresoRaw } from "@/lib/export-egresos";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/egresos-detalle")({
   component: EgresosDetallePage,
@@ -62,7 +63,7 @@ function EgresosDetallePage() {
   // Vista mensual agregada (misma que G&P) — no la transacción cruda: así el
   // ajuste de COGS estimado para meses abiertos sale idéntico en ambas
   // pantallas, sin tener que reimplementar esa lógica dos veces.
-  const { data: rowsAnio } = useQuery({
+  const { data: rowsAnio, isError: rowsError } = useQuery({
     queryKey: ["egresos-detalle-rows", anio, mode, incluirOff],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
@@ -145,6 +146,7 @@ function EgresosDetallePage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={rowsError} label="los egresos" />
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Egresos en Detalle Contable</h1>

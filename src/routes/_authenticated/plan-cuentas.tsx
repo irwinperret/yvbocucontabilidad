@@ -4,11 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { ordenarPorCodigo } from "@/lib/account-helpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/plan-cuentas")({ component: PlanCuentasPage });
 
 function PlanCuentasPage() {
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ["plan-cuentas-all"],
     queryFn: async () => {
       const { data } = await supabase.from("plan_de_cuentas").select("*");
@@ -21,6 +22,7 @@ function PlanCuentasPage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={isError} label="el plan de cuentas" />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Plan de cuentas</h1>
         <p className="text-sm text-muted-foreground">Catálogo contable · solo lectura</p>

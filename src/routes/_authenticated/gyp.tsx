@@ -18,6 +18,7 @@ import { GyPCharts } from "@/components/gyp-charts";
 import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/gyp")({ component: GyPPage });
 
@@ -67,7 +68,7 @@ function GyPPage() {
     },
   });
 
-  const { data: rows } = useQuery({
+  const { data: rows, isError: rowsError } = useQuery({
     queryKey: ["gyp-rows", anio, centro, incluirOff, incluirIva, mode],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
@@ -110,6 +111,7 @@ function GyPPage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={rowsError} label="los datos de Ganancias y Pérdidas" />
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Ganancias y Pérdidas</h1>

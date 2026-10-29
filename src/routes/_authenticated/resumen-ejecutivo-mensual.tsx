@@ -24,6 +24,8 @@ import {
 import { TrendingUp, TrendingDown, Wallet, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { KpiSkeletons, ChartSkeleton, TableSkeleton } from "@/components/page-skeletons";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 import {
   CATEGORIAS, COLOR_CAT, COLOR_INGRESOS, type Cuenta, type Row, grupoDeCuentas, calcularTotalesMes,
   calcularTotalesRango, pct, frase, construirSerieCategorias, construirSerieMargenes, construirComparativoMensual,
@@ -81,7 +83,7 @@ function ResumenEjecutivoMensualPage() {
   const [ytd, setYtd] = useState(false);
   const mesesYtd = useMemo(() => Array.from({ length: mes }, (_, i) => i + 1), [mes]);
 
-  const { data: cuentas } = useQuery({
+  const { data: cuentas, isLoading: cuentasLoading } = useQuery({
     queryKey: ["rie-mensual-cuentas"],
     queryFn: async () => {
       const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre,grupo").eq("afecta_gyp", true);
@@ -90,7 +92,7 @@ function ResumenEjecutivoMensualPage() {
   });
 
   // Filas mensuales del año seleccionado y del anterior (para comparativos)
-  const { data: rowsAnio } = useQuery({
+  const { data: rowsAnio, isLoading: rowsAnioLoading, isError: rowsAnioError } = useQuery({
     queryKey: ["rie-mensual-rows", anio, mode],
     queryFn: async () => {
       const { data } = await (supabase as any).from(mensualView(mode))
@@ -98,7 +100,7 @@ function ResumenEjecutivoMensualPage() {
       return (data ?? []) as Row[];
     },
   });
-  const { data: rowsPrev } = useQuery({
+  const { data: rowsPrev, isLoading: rowsPrevLoading } = useQuery({
     queryKey: ["rie-mensual-rows", anio - 1, mode],
     queryFn: async () => {
       const { data } = await (supabase as any).from(mensualView(mode))
@@ -106,6 +108,8 @@ function ResumenEjecutivoMensualPage() {
       return (data ?? []) as Row[];
     },
   });
+  const cargando = cuentasLoading || rowsAnioLoading || rowsPrevLoading;
+  const conError = rowsAnioError;
 
   const [incluirIva, setIncluirIva] = useState(true);
 
@@ -395,6 +399,7 @@ function ResumenEjecutivoMensualPage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={conError} label="los datos del resumen mensual" />
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Resumen IPA Mensual</h1>
@@ -451,6 +456,18 @@ function ResumenEjecutivoMensualPage() {
         </TabsList>
 
         <TabsContent value="detallado" className="space-y-6">
+      {cargando ? (
+        <div className="space-y-6">
+          <KpiSkeletons count={4} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </div>
+          <TableSkeleton rows={8} />
+        </div>
+      ) : (
+      <>
 
       {totalesActual.estimado && (
         <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5">
@@ -751,9 +768,22 @@ function ResumenEjecutivoMensualPage() {
         </div>
       )}
 
+      </>
+      )}
         </TabsContent>
 
         <TabsContent value="visual" className="space-y-6">
+      {cargando ? (
+        <div className="space-y-6">
+          <KpiSkeletons count={4} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </div>
+          <TableSkeleton rows={8} />
+        </div>
+      ) : (
+      <>
 
       <div className="flex flex-wrap gap-2">
         {totalesActual.estimado && (
@@ -976,6 +1006,8 @@ function ResumenEjecutivoMensualPage() {
         Generado automáticamente a partir del plan de cuentas · Montos en {label} · No incluye servicio (10%) ni propina.
       </div>
 
+      </>
+      )}
         </TabsContent>
       </Tabs>
 

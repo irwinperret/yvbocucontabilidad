@@ -1,9 +1,13 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ModeToggle } from "@/components/mode-toggle";
+import { CommandPalette } from "@/components/command-palette";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 import { UsdViewProvider } from "@/lib/usd-view-context";
 import { useSidebarWidth, SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 
@@ -13,10 +17,24 @@ function Layout() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { width, setWidth } = useSidebarWidth();
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
   }, [user, loading, navigate]);
+
+  // Cmd+K (Mac) / Ctrl+K (Windows-Linux) abre el buscador de pantallas desde
+  // cualquier parte de la app.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Cargando…</div>;
@@ -35,12 +53,26 @@ function Layout() {
                 <SidebarTrigger />
                 <ModeToggle />
               </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPaletteOpen(true)}
+                  className="gap-1.5 text-xs text-muted-foreground"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  Buscar
+                  <kbd className="ml-1 rounded border bg-muted px-1.5 py-0.5 text-[10px] font-semibold">⌘K</kbd>
+                </Button>
+                <ThemeToggle />
+              </div>
             </header>
             <main className="flex-1 p-4 md:p-6 overflow-x-auto print:p-0">
               <Outlet />
             </main>
           </div>
         </div>
+        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       </SidebarProvider>
     </UsdViewProvider>
   );

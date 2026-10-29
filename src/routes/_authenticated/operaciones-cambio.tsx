@@ -10,6 +10,7 @@ import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { MESES } from "@/lib/account-helpers";
 import { useCuentasBancarias } from "@/components/bank-account-select";
 import { CUENTA_CAMBIO, TIPO_CAMBIO_LABEL, tasaImplicita, tipoDesdeDetalle } from "@/lib/operaciones-cambio";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/operaciones-cambio")({
   component: OperacionesCambioPage,
@@ -46,7 +47,7 @@ function OperacionesCambioPage() {
   const { data: bancos } = useCuentasBancarias();
   const bancoNombre = (id: string | null) => (bancos ?? []).find((b) => b.id === id)?.nombre ?? "—";
 
-  const { data: txs } = useQuery({
+  const { data: txs, isError: txsError } = useQuery({
     queryKey: ["ops-cambio", anio],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
@@ -117,6 +118,7 @@ function OperacionesCambioPage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={txsError} label="las operaciones de cambio" />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Operaciones de Cambio</h1>
         <p className="text-sm text-muted-foreground">

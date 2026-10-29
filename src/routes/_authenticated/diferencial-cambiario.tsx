@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UsdRateBadge } from "@/components/usd-rate-badge";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/diferencial-cambiario")({
   component: DiferencialPage,
@@ -26,7 +27,7 @@ function DiferencialPage() {
   }, []);
   const [periodo, setPeriodo] = useState(periodos[0]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["diferencial-cambiario", periodo],
     queryFn: async () => {
       const [year, month] = periodo.split("-").map(Number);
@@ -80,6 +81,7 @@ function DiferencialPage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={isError} label="los movimientos de diferencial cambiario" />
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Diferencial cambiario</h1>

@@ -17,6 +17,7 @@ import {
 import { fetchAllRows } from "@/lib/fetch-all";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/impuestos")({ component: ImpuestosPage });
 
@@ -46,7 +47,7 @@ function ImpuestosPage() {
   const [mes, setMes] = useState<number | "all">(now.getMonth() + 1);
   const [centroFiltro, setCentroFiltro] = useState<string>("Consolidado");
 
-  const { data: rows, isLoading } = useQuery({
+  const { data: rows, isLoading, isError } = useQuery({
     queryKey: ["impuestos-iva", anio],
     queryFn: async () => {
       const ini = `${anio}-01-01`;
@@ -146,6 +147,7 @@ function ImpuestosPage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={isError} label="los movimientos de IVA" />
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Impuestos · IVA</h1>

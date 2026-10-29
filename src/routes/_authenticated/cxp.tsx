@@ -28,6 +28,7 @@ import { guardarVinculosConciliacion } from "@/lib/conciliacion";
 import { pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv } from "@/lib/cxp-saldo";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { fetchDeudaNetaReal } from "@/lib/deuda-neta";
+import { KpiSkeletons } from "@/components/page-skeletons";
 
 export const Route = createFileRoute("/_authenticated/cxp")({
   component: CxPAnalisisPage,
@@ -62,7 +63,7 @@ function CxPAnalisisPage() {
   const [manualPara, setManualPara] = useState<any | null>(null);
   const [verFactura, setVerFactura] = useState<any | null>(null);
 
-  const { data } = useQuery({
+  const { data, isLoading: cxpLoading } = useQuery({
     queryKey: ["cxp-analisis", origenFilter],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
@@ -363,12 +364,16 @@ function CxPAnalisisPage() {
       </div>
 
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+        {cxpLoading ? (
+          <KpiSkeletons count={4} />
+        ) : (
         <div className="grid gap-4 md:grid-cols-4 flex-1">
           <Kpi label="Vencidas (USD BCV)" value={fmtUsd(totalVencidas)} count={vencidas.length} color="negative" />
           <Kpi label="Por vencer 7d (USD BCV)" value={fmtUsd(totalPorVencer)} count={porVencer.length} color="warning" />
           <Kpi label="Vigentes (USD BCV)" value={fmtUsd(total - totalVencidas - totalPorVencer)} count={lista.length - vencidas.length - porVencer.length} color="positive" />
           <Kpi label="Total (USD BCV)" value={fmtUsd(total)} count={lista.length} color="" />
         </div>
+        )}
       </div>
 
       {posiblesPagadas.length > 0 && (

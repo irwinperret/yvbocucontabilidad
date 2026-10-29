@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,7 @@ function CapExPage() {
   const [categoria, setCategoria] = useState<string>("Todas");
   const [editing, setEditing] = useState<any | null>(null);
 
-  const { data: txs } = useQuery({
+  const { data: txs, isError: txsError } = useQuery({
     queryKey: ["capex-list"],
     queryFn: async () => {
       const { data } = await supabase
@@ -174,6 +175,7 @@ function CapExPage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={txsError} label="las inversiones de CapEx" />
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CapEx</h1>

@@ -22,6 +22,7 @@ import {
   type RowIngresoRaw, type CuentaIngreso,
 } from "@/lib/ingresos-detalle-calc";
 import { exportIngresosDetalle } from "@/lib/export-ingresos";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/ingresos-detalle")({
   component: IngresosDetallePage,
@@ -50,7 +51,7 @@ function IngresosDetallePage() {
   // `referencia` por fila para separar los ajustes de venta lista (ver
   // ingresos-detalle-calc.ts). El modo BCV/paralelo y el filtro on/off
   // balance se aplican en memoria, así que un solo fetch por año alcanza.
-  const { data: rowsAnio } = useQuery({
+  const { data: rowsAnio, isError: rowsError } = useQuery({
     queryKey: ["ingresos-detalle-rows-raw", anio],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
@@ -101,6 +102,7 @@ function IngresosDetallePage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={rowsError} label="los ingresos" />
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Ingresos en Detalle Contable</h1>

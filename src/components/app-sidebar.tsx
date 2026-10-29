@@ -55,7 +55,7 @@ import { Button } from "@/components/ui/button";
 // Las 7 entradas mensuales del cierre, en orden lógico (ver checklist de
 // Inicio): 4 imports de Excel, luego Inventario, Venta de IVA y Retención
 // ISLR -- estas 3 últimas antes vivían sueltas en otros grupos del menú.
-const registroImportar = [
+export const registroImportar = [
   { title: "Importar ventas (Xetux)", url: "/importar-ventas", icon: Upload },
   { title: "Importar compras (Xetux)", url: "/importar-compras", icon: Upload },
   { title: "Importar movimientos bancarios", url: "/importar-movimientos", icon: Landmark },
@@ -68,7 +68,7 @@ const registroImportar = [
 ];
 
 
-const registroGestion = [
+export const registroGestion = [
   { title: "Transacciones", url: "/transacciones", icon: ListChecks },
   { title: "Transacciones en Standby", url: "/standby", icon: PauseCircle },
   { title: "Movimientos bancarios", url: "/movimientos-bancarios", icon: ArrowLeftRight },
@@ -79,19 +79,19 @@ const registroGestion = [
   { title: "Cuentas bancarias", url: "/cuentas-bancarias", icon: Landmark },
 ];
 
-const registroGestionEnConstruccion = [
+export const registroGestionEnConstruccion = [
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
   { title: "Cuentas por cobrar", url: "/cxc", icon: FileInput },
 ];
 
-const analisisPrincipales = [
+export const analisisPrincipales = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Resumen IPA Mensual", url: "/resumen-ejecutivo-mensual", icon: BarChart3 },
   { title: "G&P", url: "/gyp", icon: TrendingUp },
   { title: "Flujo de caja", url: "/fc", icon: FileText },
 ];
 
-const analisisEnConstruccion = [
+export const analisisEnConstruccion = [
   { title: "Impuestos", url: "/impuestos", icon: Receipt },
   { title: "Saldos bancarios", url: "/saldos-bancarios", icon: Wallet },
   { title: "CxC pendientes", url: "/cxc", icon: FileInput },
@@ -100,7 +100,7 @@ const analisisEnConstruccion = [
   { title: "Anticipo a proveedores", url: "/anticipos-proveedores", icon: Users },
 ];
 
-const analisisDetalles = [
+export const analisisDetalles = [
   { title: "Ingresos en Detalle", url: "/ingresos-detalle", icon: PieChart },
   { title: "Egresos en Detalle", url: "/egresos-detalle", icon: TrendingDown },
   { title: "CapEx", url: "/capex", icon: Building2 },
@@ -113,7 +113,7 @@ const analisisDetalles = [
   { title: "Resumen IPA", url: "/resumen-ejecutivo", icon: BarChart3 },
 ];
 
-const analisisHerramientasSecundarias = [
+export const analisisHerramientasSecundarias = [
   { title: "Liquidaciones", url: "/liquidaciones", icon: Users },
   { title: "Bono 10% + Propina", url: "/bono-propina", icon: DollarSign },
 ];

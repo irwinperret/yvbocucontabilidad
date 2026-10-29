@@ -19,6 +19,8 @@ import { calcularLineasFC, fetchInsumosFC, type LineasFCMes } from "@/lib/flujo-
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
+import { TableSkeleton } from "@/components/page-skeletons";
+import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/fc")({ component: FCPage });
 
@@ -41,7 +43,7 @@ function FCPage() {
 
   const modoFiltro = incluirOff ? undefined : "on_balance";
 
-  const { data: rows } = useQuery({
+  const { data: rows, isLoading: rowsLoading, isError: rowsError } = useQuery({
     queryKey: ["fc-rows", anio, centro, modoFiltro, mode, cuentaBancariaId, incluirIva],
     queryFn: async () => {
       const { fetchAllRows } = await import("@/lib/fetch-all");
@@ -81,7 +83,7 @@ function FCPage() {
   // puedan desincronizar -- esta pantalla tenía su propia copia de estas 3
   // consultas, cada una con su propio bug (CxP agrupadas por created_at en
   // vez de la fecha real de la factura, y en una sola moneda fija).
-  const { data: insumosFC } = useQuery({
+  const { data: insumosFC, isLoading: insumosLoading } = useQuery({
     queryKey: ["fc-insumos", anio, centro, modoFiltro, cuentaBancariaId],
     queryFn: () => fetchInsumosFC({ anio, centro, modoFiltro, cuentaBancariaId }),
   });
@@ -91,10 +93,12 @@ function FCPage() {
 
   // COGS estimado para meses abiertos (sin cierre formal, pero con inventario
   // inicial/final ya cargado) — misma fórmula que un cierre real.
-  const { data: cogsEstimadoPorMes } = useQuery({
+  const { data: cogsEstimadoPorMes, isLoading: cogsLoading } = useQuery({
     queryKey: ["fc-cogs-estimado", anio],
     queryFn: () => estimarCogsMesesAbiertos(anio),
   });
+  const cargando = rowsLoading || insumosLoading || cogsLoading;
+  const conError = rowsError;
 
   const usdDe = (t: any) => {
     if (mode === "bcv") {
@@ -125,6 +129,7 @@ function FCPage() {
 
   return (
     <div className="space-y-6">
+      <QueryErrorBanner show={conError} label="los datos de flujo de caja" />
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Flujo de caja</h1>
@@ -153,6 +158,9 @@ function FCPage() {
         </CardContent>
       </Card>
 
+      {cargando ? (
+        <Card><CardContent className="pt-6"><TableSkeleton rows={10} /></CardContent></Card>
+      ) : (
       <Tabs defaultValue="mes">
         <TabsList>
           <TabsTrigger value="mes">Mes individual</TabsTrigger>
@@ -201,6 +209,7 @@ function FCPage() {
           <ReporteFCComparativo lineasPorMes={lineasPorMes} anio={anio} />
         </TabsContent>
       </Tabs>
+      )}
     </div>
   );
 }
