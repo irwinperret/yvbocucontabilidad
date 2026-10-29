@@ -36,7 +36,9 @@ export const COLOR_CAT: Record<string, string> = {
 export const COLOR_INGRESOS = {
   convencional: "#0F6E56",
   offBalance: "#34D399",
-  iva: "#A7F3D0",
+  // Un toque más oscuro que el pastel original (#A7F3D0) para que contraste
+  // mejor contra el fondo blanco, sin acercarse al tono de offBalance.
+  iva: "#6EE7B7",
 };
 
 export function grupoDeCuentas(cuentas: Cuenta[] | undefined) {
