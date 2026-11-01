@@ -19,6 +19,13 @@ export type LineasFCMes = {
    * en el que este acumulado se netea contra ese pago — eso es un paso
    * aparte, todavía no implementado aquí. */
   retencionIslr: number;
+  /** true si `retencionIslr` de este mes es una PROYECCIÓN (mes abierto,
+   * sin reclasificación ISLR registrada todavía) en vez de un monto real. */
+  retencionIslrEsEstimado?: boolean;
+  /** % (retención real / ventas netas) usado para la proyección, tomado de `retencionIslrPeriodoFuente`. */
+  retencionIslrPct?: number;
+  /** último periodo "YYYY-MM" anterior con retención ISLR real, de donde se tomó el %. */
+  retencionIslrPeriodoFuente?: string;
   compraInmuebles: number;
   compraEquipos: number;
   aumentoCapital: number;
@@ -92,8 +99,10 @@ export function calcularLineasFC(opts: {
   cogsEstimadoPorMes?: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number; iniUsd?: number; finUsd?: number }>;
   /** Moneda en la que ya vienen `rows` (vista BCV o paralelo) — para tomar el campo correcto del estimado. */
   moneda?: "bcv" | "paralela";
+  /** Proyección de retención ISLR para meses abiertos sin registro real (de estimarRetencionIslrMesesAbiertos). */
+  retencionIslrEstimadoPorMes?: Map<string, { pct: number; periodoFuente: string; montoUsdBcv: number; montoUsdParalela: number }>;
 }): LineasFCMes[] {
-  const { rows: r, capexRows, inventario, cxpCreadas, anio, usdDe, cogsEstimadoPorMes, moneda = "bcv" } = opts;
+  const { rows: r, capexRows, inventario, cxpCreadas, anio, usdDe, cogsEstimadoPorMes, moneda = "bcv", retencionIslrEstimadoPorMes } = opts;
   const sum = (codigos: string[], mes: number) =>
     r.filter((x) => codigos.includes(x.cuenta_codigo) && x.mes === mes).reduce((s, x) => s + Number(x.base_usd || 0), 0);
   const sumTotal = (codigo: string, mes: number) =>
@@ -115,7 +124,11 @@ export function calcularLineasFC(opts: {
     // liquidar, esa parte nunca llega al banco. Se resta acá mismo, junto
     // al resto de los ajustes de devengado→efectivo.
     const retencionIva = sumTotal(CUENTA_RETENCION_IVA, mes);
-    const retencionIslr = sumTotal(CUENTA_RETENCION_ISLR, mes);
+    const retencionIslrReal = sumTotal(CUENTA_RETENCION_ISLR, mes);
+    const estimadoIslr = retencionIslrReal <= 0 ? retencionIslrEstimadoPorMes?.get(periodo) : undefined;
+    const retencionIslr = estimadoIslr
+      ? (moneda === "paralela" ? estimadoIslr.montoUsdParalela : estimadoIslr.montoUsdBcv)
+      : retencionIslrReal;
 
     const ventasCredito = sumTotal(CUENTA_INGRESO_CREDITO, mes);
     const cobrosCredito = sumTotal(CUENTA_COBRO_CREDITO, mes);
@@ -179,7 +192,11 @@ export function calcularLineasFC(opts: {
     const gastoImpuestos = sum(CUENTAS_IMPUESTOS_GASTO, mes);
     const gastoDividendos = sumTotal(CUENTA_DIVIDENDOS, mes);
 
-    return { ebitda, cambioCxC, cambioInventario, cambioCxP, retencionIva, retencionIslr, compraInmuebles, compraEquipos, aumentoCapital, aumentoPrestamos, gastoIntereses, gastoImpuestos, gastoDividendos, cogsEsEstimado: !!estimado };
+    return {
+      ebitda, cambioCxC, cambioInventario, cambioCxP, retencionIva, retencionIslr,
+      retencionIslrEsEstimado: !!estimadoIslr, retencionIslrPct: estimadoIslr?.pct, retencionIslrPeriodoFuente: estimadoIslr?.periodoFuente,
+      compraInmuebles, compraEquipos, aumentoCapital, aumentoPrestamos, gastoIntereses, gastoImpuestos, gastoDividendos, cogsEsEstimado: !!estimado,
+    };
   });
 }
 

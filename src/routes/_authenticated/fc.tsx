@@ -18,6 +18,7 @@ import { exportFCIndirecto } from "@/lib/excel-export";
 import { calcularLineasFC, fetchInsumosFC, type LineasFCMes } from "@/lib/flujo-caja";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
+import { estimarRetencionIslrMesesAbiertos } from "@/lib/retencion-islr-reclass";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
 import { TableSkeleton } from "@/components/page-skeletons";
 import { QueryErrorBanner } from "@/components/query-error-banner";
@@ -97,7 +98,16 @@ function FCPage() {
     queryKey: ["fc-cogs-estimado", anio],
     queryFn: () => estimarCogsMesesAbiertos(anio),
   });
-  const cargando = rowsLoading || insumosLoading || cogsLoading;
+
+  // Proyección de retención ISLR para meses abiertos sin reclasificación
+  // registrada todavía -- mismo % (retención/ventas) del último mes con
+  // dato real, aplicado a las ventas del mes abierto. No depende del año
+  // seleccionado (la búsqueda hacia atrás puede cruzar de año).
+  const { data: islrEstimadoPorMes, isLoading: islrEstimadoLoading } = useQuery({
+    queryKey: ["fc-islr-estimado"],
+    queryFn: () => estimarRetencionIslrMesesAbiertos(),
+  });
+  const cargando = rowsLoading || insumosLoading || cogsLoading || islrEstimadoLoading;
   const conError = rowsError;
 
   const usdDe = (t: any) => {
@@ -123,9 +133,10 @@ function FCPage() {
       usdDe,
       cogsEstimadoPorMes,
       moneda: mode,
+      retencionIslrEstimadoPorMes: islrEstimadoPorMes,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, capexRows, inventario, cxpCreadas, anio, mode, cogsEstimadoPorMes]);
+  }, [rows, capexRows, inventario, cxpCreadas, anio, mode, cogsEstimadoPorMes, islrEstimadoPorMes]);
 
   return (
     <div className="space-y-6">
@@ -214,6 +225,12 @@ function FCPage() {
   );
 }
 
+/** "2026-05" -> "Mayo 2026", para el mensaje de proyección de ISLR. */
+function labelPeriodo(periodo: string): string {
+  const [y, m] = periodo.split("-").map(Number);
+  return `${MESES[m - 1] ?? periodo} ${y}`;
+}
+
 function sumarLineas(lista: LineasMes[]): LineasMes {
   return lista.reduce(
     (acc, l) => ({
@@ -223,6 +240,7 @@ function sumarLineas(lista: LineasMes[]): LineasMes {
       cambioCxP: acc.cambioCxP + l.cambioCxP,
       retencionIva: acc.retencionIva + l.retencionIva,
       retencionIslr: acc.retencionIslr + l.retencionIslr,
+      retencionIslrEsEstimado: acc.retencionIslrEsEstimado || !!l.retencionIslrEsEstimado,
       compraInmuebles: acc.compraInmuebles + l.compraInmuebles,
       compraEquipos: acc.compraEquipos + l.compraEquipos,
       aumentoCapital: acc.aumentoCapital + l.aumentoCapital,
@@ -232,7 +250,7 @@ function sumarLineas(lista: LineasMes[]): LineasMes {
       gastoDividendos: acc.gastoDividendos + l.gastoDividendos,
       cogsEsEstimado: acc.cogsEsEstimado || !!l.cogsEsEstimado,
     }),
-    { ebitda: 0, cambioCxC: 0, cambioInventario: 0, cambioCxP: 0, retencionIva: 0, retencionIslr: 0, compraInmuebles: 0, compraEquipos: 0, aumentoCapital: 0, aumentoPrestamos: 0, gastoIntereses: 0, gastoImpuestos: 0, gastoDividendos: 0, cogsEsEstimado: false },
+    { ebitda: 0, cambioCxC: 0, cambioInventario: 0, cambioCxP: 0, retencionIva: 0, retencionIslr: 0, retencionIslrEsEstimado: false, compraInmuebles: 0, compraEquipos: 0, aumentoCapital: 0, aumentoPrestamos: 0, gastoIntereses: 0, gastoImpuestos: 0, gastoDividendos: 0, cogsEsEstimado: false },
   );
 }
 
@@ -258,6 +276,15 @@ function ReporteFCIndirecto({ lineas: l }: { lineas: LineasMes }) {
         {l.cogsEsEstimado && (
           <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 mb-2">
             ⚠ El EBITDA incluye un COGS <b>estimado</b> — al menos un mes de este período sigue abierto (sin cierre formal). Se calculó con el inventario y las compras ya cargados para ese mes, pero puede cambiar cuando cierres el mes de verdad.
+          </div>
+        )}
+        {l.retencionIslrEsEstimado && (
+          <div className="text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded px-2 py-1.5 mb-2">
+            ⚠ {l.retencionIslrPeriodoFuente ? (
+              <>La Retención de ISLR de este mes es una <b>proyección</b> ({(l.retencionIslrPct! * 100).toFixed(2)}% de las ventas, el mismo % de {labelPeriodo(l.retencionIslrPeriodoFuente)}) — todavía no se ha registrado la retención real de este mes.</>
+            ) : (
+              <>Al menos un mes de este período usa una Retención de ISLR <b>proyectada</b> (todavía sin registrar) para el cálculo del Flujo de Caja.</>
+            )}
           </div>
         )}
         <div className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-1.5 mb-2">
@@ -434,6 +461,7 @@ function ReporteFCComparativo({ lineasPorMes, anio }: { lineasPorMes: LineasMes[
                       >
                         {v === 0 ? "—" : fmtUsd(v)}
                         {fila.label === "EBITDA" && lineasPorMes[c]?.cogsEsEstimado && <span className="text-amber-600">*</span>}
+                        {fila.label === "Retenciones de ISLR (banco)" && lineasPorMes[c]?.retencionIslrEsEstimado && <span className="text-amber-600">*</span>}
                       </td>
                     ))}
                     <td
@@ -451,6 +479,11 @@ function ReporteFCComparativo({ lineasPorMes, anio }: { lineasPorMes: LineasMes[
           {lineasPorMes.some((l) => l.cogsEsEstimado) && (
             <p className="text-xs text-amber-700 mt-2">
               * EBITDA con COGS estimado — ese mes sigue abierto (sin cierre formal), calculado con el inventario y las compras ya cargados para ese mes.
+            </p>
+          )}
+          {lineasPorMes.some((l) => l.retencionIslrEsEstimado) && (
+            <p className="text-xs text-amber-700 mt-2">
+              * Retención de ISLR proyectada — ese mes sigue abierto y todavía no tiene reclasificación ISLR registrada; se usó el % (retención/ventas) del último mes con dato real.
             </p>
           )}
           <p className="text-xs text-blue-700 mt-2">

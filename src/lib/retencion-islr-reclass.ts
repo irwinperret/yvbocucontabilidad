@@ -51,6 +51,93 @@ export function periodoDeFecha(fecha: string): string {
   return fecha.slice(0, 7);
 }
 
+export type RetencionIslrEstimado = {
+  periodo: string;
+  /** retención real / ventas netas del periodo FUENTE (no del periodo proyectado). */
+  pct: number;
+  /** último periodo anterior con ventas y retención real, de donde se tomó `pct`. */
+  periodoFuente: string;
+  montoUsdBcv: number;
+  montoUsdParalela: number;
+};
+
+/**
+ * Para los meses ABIERTOS (sin cierre formal) que ya tienen ventas
+ * importadas pero todavía NO tienen ninguna reclasificación ISLR
+ * registrada en 9.5, proyecta cuánto se estaría reteniendo: toma el %
+ * (retención real / ventas netas) del último periodo anterior que sí tenga
+ * ambos datos, y lo aplica a las ventas netas del periodo abierto. Un mes
+ * CERRADO con $0 de retención real se deja tal cual (es un hecho, no algo
+ * pendiente de proyectar). Usado por Flujo de Caja para no subestimar la
+ * salida de caja de los meses más recientes mientras no se cargue el dato
+ * real del banco.
+ */
+export async function estimarRetencionIslrMesesAbiertos(): Promise<Map<string, RetencionIslrEstimado>> {
+  const { fetchAllRows } = await import("@/lib/fetch-all");
+  const { baseUsdFila, esAjusteVentaLista, esConciliacionBancaria, CUENTAS_VENTAS_COMUNES } = await import("@/lib/ingresos-detalle-calc");
+
+  const [{ data: cierres }, ventasRows, retencionRows] = await Promise.all([
+    supabase.from("cierres_de_mes").select("periodo"),
+    fetchAllRows<any>((from, to) =>
+      supabase.from("transacciones")
+        .select("fecha, cuenta_codigo, modo, referencia, notas, monto_bs, monto_base_bs, monto_usd, tasa_bcv, tasa_paralela")
+        .in("cuenta_codigo", CUENTAS_VENTAS_COMUNES)
+        .range(from, to),
+    ),
+    fetchAllRows<any>((from, to) =>
+      supabase.from("transacciones")
+        .select("fecha, monto_bs, monto_base_bs, monto_usd, tasa_bcv, tasa_paralela, notas")
+        .eq("cuenta_codigo", CUENTA_RETENCION_ISLR)
+        .range(from, to),
+    ),
+  ]);
+  const cerrados = new Set((cierres ?? []).map((c: any) => c.periodo));
+
+  const ventasBcv = new Map<string, number>();
+  const ventasParalela = new Map<string, number>();
+  for (const r of ventasRows) {
+    if (esAjusteVentaLista(r) || esConciliacionBancaria(r)) continue;
+    const periodo = periodoDeFecha(r.fecha);
+    ventasBcv.set(periodo, (ventasBcv.get(periodo) ?? 0) + baseUsdFila(r, "bcv"));
+    ventasParalela.set(periodo, (ventasParalela.get(periodo) ?? 0) + baseUsdFila(r, "paralela"));
+  }
+
+  const retencionBcv = new Map<string, number>();
+  for (const r of retencionRows) {
+    const periodo = periodoDeFecha(r.fecha);
+    retencionBcv.set(periodo, (retencionBcv.get(periodo) ?? 0) + baseUsdFila(r, "bcv"));
+  }
+
+  const periodos = [...ventasBcv.keys()].sort();
+  const resultado = new Map<string, RetencionIslrEstimado>();
+
+  for (let i = 0; i < periodos.length; i++) {
+    const periodo = periodos[i];
+    if (cerrados.has(periodo)) continue;
+    const ventas = ventasBcv.get(periodo) ?? 0;
+    const retencionReal = retencionBcv.get(periodo) ?? 0;
+    if (ventas <= 0 || retencionReal > 0) continue;
+
+    let fuente: string | null = null;
+    for (let j = i - 1; j >= 0; j--) {
+      const p = periodos[j];
+      if ((ventasBcv.get(p) ?? 0) > 0 && (retencionBcv.get(p) ?? 0) > 0) { fuente = p; break; }
+    }
+    if (!fuente) continue;
+
+    const pct = retencionBcv.get(fuente)! / ventasBcv.get(fuente)!;
+    resultado.set(periodo, {
+      periodo,
+      pct,
+      periodoFuente: fuente,
+      montoUsdBcv: +(pct * ventas).toFixed(2),
+      montoUsdParalela: +(pct * (ventasParalela.get(periodo) ?? 0)).toFixed(2),
+    });
+  }
+
+  return resultado;
+}
+
 function periodoABounds(periodo: string): { desde: string; hasta: string } {
   const [y, m] = periodo.split("-").map(Number);
   const desde = `${periodo}-01`;
