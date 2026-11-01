@@ -21,6 +21,10 @@ import {
   migrarLegacyAReclasificacion, periodoDeFecha, type ReclasificacionIslr,
 } from "@/lib/retencion-islr-reclass";
 import { tasaBcvQuery } from "@/lib/tasas";
+import { fetchAllRows } from "@/lib/fetch-all";
+import {
+  baseUsdFila, esAjusteVentaLista, esConciliacionBancaria, CUENTAS_VENTAS_COMUNES, type RowIngresoRaw,
+} from "@/lib/ingresos-detalle-calc";
 
 export const Route = createFileRoute("/_authenticated/retencion-islr")({
   component: RetencionIslrPage,
@@ -62,6 +66,33 @@ function RetencionIslrPage() {
       return data ?? [];
     },
   });
+
+  // Filas crudas de ventas (todas las cuentas de "ventas comunes"), para
+  // calcular cuánto representa cada retención ISLR vs. las ventas netas
+  // BCV del mismo mes -- misma fórmula que usa "Ingresos por categoría".
+  const { data: rowsVentas } = useQuery({
+    queryKey: ["retencion-islr-ventas-rows"],
+    queryFn: () =>
+      fetchAllRows<RowIngresoRaw>((from, to) =>
+        supabase.from("transacciones")
+          .select("fecha, cuenta_codigo, modo, referencia, notas, monto_bs, monto_base_bs, monto_usd, tasa_bcv, tasa_paralela")
+          .in("cuenta_codigo", CUENTAS_VENTAS_COMUNES)
+          .range(from, to),
+      ),
+  });
+
+  /** Ventas netas (USD BCV) por periodo "YYYY-MM", excluyendo ajustes de
+   * venta lista y conciliación bancaria sin factura (igual criterio que
+   * "Ventas comunes" en Ingresos por categoría). */
+  const ventasPorPeriodo = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rowsVentas ?? []) {
+      if (esAjusteVentaLista(r) || esConciliacionBancaria(r)) continue;
+      const periodo = r.fecha.slice(0, 7);
+      m.set(periodo, (m.get(periodo) ?? 0) + baseUsdFila(r, "bcv"));
+    }
+    return m;
+  }, [rowsVentas]);
 
   /** Tasa paralela vigente a una fecha (la ultima registrada hasta ese dia). */
   const tasaParalelaParaFecha = (f: string): number => {
@@ -222,6 +253,7 @@ function RetencionIslrPage() {
                     <th className="py-2 pr-4">Mes</th>
                     <th className="py-2 pr-4">Fecha</th>
                     <th className="py-2 pr-4 text-right">USD BCV</th>
+                    <th className="py-2 pr-4 text-right">% vs ventas</th>
                     <th className="py-2 pr-4 text-right">USD paralelo</th>
                     <th className="py-2 pr-4 text-right">Bs</th>
                     <th className="py-2 pr-4">Estado</th>
@@ -230,12 +262,19 @@ function RetencionIslrPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {porPeriodo.map(([periodo, r]) => (
+                  {porPeriodo.map(([periodo, r]) => {
+                    const montoIslrBcv = r.tasaBcv > 0 ? r.montoBs / r.tasaBcv : 0;
+                    const ventasMes = ventasPorPeriodo.get(periodo) ?? 0;
+                    const pctVsVentas = r.tasaBcv > 0 && ventasMes > 0 ? (montoIslrBcv / ventasMes) * 100 : null;
+                    return (
                     <tr key={periodo} className="border-b last:border-0">
                       <td className="py-2 pr-4 font-medium capitalize">{periodoLabel(periodo)}</td>
                       <td className="py-2 pr-4 text-muted-foreground">{r.fecha}</td>
                       <td className="py-2 pr-4 text-right mono font-semibold">
-                        {r.tasaBcv > 0 ? fmtUsd(r.montoBs / r.tasaBcv) : "—"}
+                        {r.tasaBcv > 0 ? fmtUsd(montoIslrBcv) : "—"}
+                      </td>
+                      <td className="py-2 pr-4 text-right mono text-muted-foreground">
+                        {pctVsVentas !== null ? `${pctVsVentas.toFixed(2)}%` : "—"}
                       </td>
                       <td className="py-2 pr-4 text-right mono text-muted-foreground">
                         {(() => {
@@ -269,10 +308,16 @@ function RetencionIslrPage() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+          )}
+          {porPeriodo.length > 0 && (
+            <p className="text-[11px] text-muted-foreground mt-2">
+              % vs ventas = retención ISLR (USD BCV) ÷ ventas netas (USD BCV) del mes de la fecha de la reclasificación.
+            </p>
           )}
         </CardContent>
       </Card>
