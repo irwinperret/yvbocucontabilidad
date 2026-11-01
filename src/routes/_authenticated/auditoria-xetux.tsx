@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import {
   parseComprasAcumulado,
   auditarVentas,
   auditarCompras,
+  puedeAuditarXetux,
   type AuditVentaRow,
   type AuditCompraRow,
   type AuditResultado,
@@ -26,6 +28,19 @@ export const Route = createFileRoute("/_authenticated/auditoria-xetux")({
 const LIMITE_FILAS = 200;
 
 function AuditoriaXetuxPage() {
+  const { user } = useAuth();
+  if (!puedeAuditarXetux(user?.email)) {
+    return (
+      <div className="max-w-xl">
+        <Card>
+          <CardContent className="pt-6 text-sm text-muted-foreground">
+            No tienes acceso a esta pantalla.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-6xl">
       <div>

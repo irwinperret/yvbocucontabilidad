@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useMode } from "@/lib/mode-context";
 import { useAuth } from "@/lib/auth-context";
+import { puedeAuditarXetux } from "@/lib/xetux-auditoria";
 import { Button } from "@/components/ui/button";
 
 // Las 7 entradas mensuales del cierre, en orden lógico (ver checklist de
@@ -125,6 +126,7 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { mode } = useMode();
   const { signOut, user } = useAuth();
+  const auditoriaXetuxVisible = puedeAuditarXetux(user?.email);
   const path = useRouterState({ select: (r) => r.location.pathname });
   const [importarOpen, setImportarOpen] = useState(false);
   const [gestionOpen, setGestionOpen] = useState(false);
@@ -197,7 +199,9 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   {importarOpen &&
-                    registroImportar.map((item) => (
+                    registroImportar
+                      .filter((item) => item.url !== "/auditoria-xetux" || auditoriaXetuxVisible)
+                      .map((item) => (
                       <SidebarMenuItem key={item.url}>
                         <SidebarMenuButton asChild isActive={isActive(item.url)} className={collapsed ? "" : "pl-7"}>
                           <Link to={item.url} className="flex items-center gap-2">

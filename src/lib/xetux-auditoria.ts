@@ -22,6 +22,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { numFromCell, parseDateCell } from "@/lib/xetux-parse";
 import { fetchAllRows } from "@/lib/fetch-all";
 
+// Pantalla sensible: muestra montos acumulados de ventas y compras de todo
+// el histórico, así que se restringe a estos dos correos nada más (mismo
+// patrón que PERMITIDOS_RESUMEN_MENSUAL / WIPE_ALLOWED_EMAILS en otras
+// pantallas de este proyecto).
+export const AUDITORIA_XETUX_PERMITIDOS = ["irwinperret@gmail.com", "irwinperret@hotmail.com"];
+
+export const puedeAuditarXetux = (email: string | null | undefined): boolean =>
+  !!email && AUDITORIA_XETUX_PERMITIDOS.includes(email.toLowerCase());
+
+
 // ───────────────────────────── Ventas ─────────────────────────────
 
 export type AuditVentaRow = {

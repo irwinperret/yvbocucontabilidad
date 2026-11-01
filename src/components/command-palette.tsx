@@ -8,7 +8,9 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useMode } from "@/lib/mode-context";
+import { useAuth } from "@/lib/auth-context";
 import { NAV_ITEMS, ORDEN_GRUPOS } from "@/lib/nav-items";
+import { puedeAuditarXetux } from "@/lib/xetux-auditoria";
 
 /**
  * Buscador rápido (Cmd/Ctrl+K) de las ~40 pantallas de la app. Antes solo se
@@ -19,6 +21,8 @@ import { NAV_ITEMS, ORDEN_GRUPOS } from "@/lib/nav-items";
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate();
   const { setMode } = useMode();
+  const { user } = useAuth();
+  const itemsVisibles = NAV_ITEMS.filter((i) => i.url !== "/auditoria-xetux" || puedeAuditarXetux(user?.email));
 
   const ir = (url: string, mode: "registro" | "analisis") => {
     setMode(mode);
@@ -32,7 +36,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
       <CommandList>
         <CommandEmpty>No se encontró ninguna pantalla.</CommandEmpty>
         {ORDEN_GRUPOS.map((grupo) => {
-          const items = NAV_ITEMS.filter((i) => i.group === grupo);
+          const items = itemsVisibles.filter((i) => i.group === grupo);
           if (items.length === 0) return null;
           return (
             <CommandGroup key={grupo} heading={grupo}>
