@@ -266,12 +266,60 @@ async function cargarComprasSistema(): Promise<Map<string, SistemaDoc>> {
 
 // ───────────────────────────── Resultado de auditoría ─────────────────────────────
 
+export type ResumenMensual = {
+  mes: string; // "2026-05"
+  totalXetux: number;
+  totalSistema: number;
+  diffUsd: number;
+  docsXetux: number;
+  docsSistema: number;
+};
+
 export type AuditResultado<T> = {
   faltantes: T[];
   discrepancias: Array<{ xetux: T; totalSistema: number; diffUsd: number; aproximado: boolean }>;
   sinCambios: number;
   anuladas: Array<{ key: string; numero: string; totalSistema: number; fecha: string | null; aproximado: boolean }>;
+  porMes: ResumenMensual[];
 };
+
+const mesDe = (fecha: string | null): string | null => (fecha ? fecha.slice(0, 7) : null);
+
+/**
+ * Compara, mes por mes, el total que trae el archivo de Xetux contra el
+ * total que ya tiene el sistema para ese mismo mes -- independiente de si
+ * cada documento individual coincidió, quedó como discrepancia o no se
+ * encontró. Un mes con totalXetux=0 normalmente significa que el archivo
+ * subido no cubre ese mes (no que todo lo de ese mes se haya anulado).
+ */
+function resumenMensual<T extends { fecha: string; total_usd: number }>(
+  rows: T[],
+  sistema: Map<string, SistemaDoc>,
+): ResumenMensual[] {
+  const agg = new Map<string, { totalXetux: number; totalSistema: number; docsXetux: number; docsSistema: number }>();
+  const get = (mes: string) => {
+    let e = agg.get(mes);
+    if (!e) { e = { totalXetux: 0, totalSistema: 0, docsXetux: 0, docsSistema: 0 }; agg.set(mes, e); }
+    return e;
+  };
+  for (const r of rows) {
+    const mes = mesDe(r.fecha);
+    if (!mes) continue;
+    const e = get(mes);
+    e.totalXetux += r.total_usd;
+    e.docsXetux++;
+  }
+  for (const doc of sistema.values()) {
+    const mes = mesDe(doc.fecha);
+    if (!mes) continue;
+    const e = get(mes);
+    e.totalSistema += doc.totalUsd;
+    e.docsSistema++;
+  }
+  return Array.from(agg.entries())
+    .map(([mes, v]) => ({ mes, ...v, diffUsd: +(v.totalXetux - v.totalSistema).toFixed(2) }))
+    .sort((a, b) => a.mes.localeCompare(b.mes));
+}
 
 const TOLERANCIA_USD = (total: number) => Math.max(0.5, total * 0.01);
 
@@ -324,7 +372,8 @@ export async function auditarVentas(rows: AuditVentaRow[]): Promise<AuditResulta
     anuladas.push({ key, numero: key.slice(2), totalSistema: doc.totalUsd, fecha: doc.fecha, aproximado: doc.aproximado });
   }
 
-  return { faltantes, discrepancias, sinCambios, anuladas };
+  const porMes = resumenMensual(rows, sistema);
+  return { faltantes, discrepancias, sinCambios, anuladas, porMes };
 }
 
 export async function auditarCompras(rows: AuditCompraRow[]): Promise<AuditResultado<AuditCompraRow>> {
@@ -355,5 +404,6 @@ export async function auditarCompras(rows: AuditCompraRow[]): Promise<AuditResul
     anuladas.push({ key, numero: key.slice(2), totalSistema: doc.totalUsd, fecha: doc.fecha, aproximado: doc.aproximado });
   }
 
-  return { faltantes, discrepancias, sinCambios, anuladas };
+  const porMes = resumenMensual(rows, sistema);
+  return { faltantes, discrepancias, sinCambios, anuladas, porMes };
 }

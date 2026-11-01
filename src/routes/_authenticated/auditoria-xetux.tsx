@@ -17,9 +17,77 @@ import {
   type AuditVentaRow,
   type AuditCompraRow,
   type AuditResultado,
+  type ResumenMensual,
 } from "@/lib/xetux-auditoria";
 import { toast } from "sonner";
 import { Loader2, AlertTriangle } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
+const COLOR_XETUX = "#00BFFF";
+const COLOR_SISTEMA = "#0F6E56";
+
+/** Nombre corto del mes para el eje X, a partir de "2026-05". */
+function etiquetaMes(mes: string): string {
+  const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const [anio, m] = mes.split("-");
+  const idx = parseInt(m, 10) - 1;
+  return `${MESES_CORTOS[idx] ?? m}-${anio.slice(2)}`;
+}
+
+function ResumenMensualChart({ porMes }: { porMes: ResumenMensual[] }) {
+  if (!porMes.length) return null;
+  const data = porMes.map((m) => ({ ...m, mesLabel: etiquetaMes(m.mes) }));
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">Comparación mensual: Xetux vs. sistema</p>
+      <div className="h-[280px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+            <XAxis dataKey="mesLabel" fontSize={11} />
+            <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} width={45} />
+            <Tooltip formatter={(v: number) => fmtUsd(v)} />
+            <Legend />
+            <Bar dataKey="totalXetux" name="Total Xetux" fill={COLOR_XETUX} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="totalSistema" name="Total sistema" fill={COLOR_SISTEMA} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-muted-foreground border-b">
+            <tr>
+              <th className="text-left py-1.5 px-2">Mes</th>
+              <th className="text-right py-1.5 px-2">Total Xetux</th>
+              <th className="text-right py-1.5 px-2">Total sistema</th>
+              <th className="text-right py-1.5 px-2">Diferencia</th>
+              <th className="text-right py-1.5 px-2">Docs. Xetux</th>
+              <th className="text-right py-1.5 px-2">Docs. sistema</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((m) => (
+              <tr key={m.mes} className="border-b last:border-0">
+                <td className="py-1.5 px-2 mono">{m.mesLabel}</td>
+                <td className="py-1.5 px-2 text-right mono">{fmtUsd(m.totalXetux)}</td>
+                <td className="py-1.5 px-2 text-right mono">{fmtUsd(m.totalSistema)}</td>
+                <td className={`py-1.5 px-2 text-right mono font-medium ${Math.abs(m.diffUsd) < 1 ? "text-green-600" : "text-destructive"}`}>
+                  {m.diffUsd > 0 ? "+" : ""}{fmtUsd(m.diffUsd)}
+                </td>
+                <td className="py-1.5 px-2 text-right mono">{m.docsXetux}</td>
+                <td className="py-1.5 px-2 text-right mono">{m.docsSistema}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Un mes con "Total Xetux" en 0 normalmente significa que el archivo que subiste no cubre ese mes -- no que todo
+        lo de ese mes se haya anulado.
+      </p>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/auditoria-xetux")({
   component: AuditoriaXetuxPage,
@@ -138,6 +206,7 @@ function AuditoriaVentasCard() {
         {resultado && (
           <div className="space-y-3">
             <ResumenBadges r={resultado} />
+            <ResumenMensualChart porMes={resultado.porMes} />
             <Accordion type="multiple" className="w-full">
               <AccordionItem value="faltantes">
                 <AccordionTrigger>Faltantes ({resultado.faltantes.length})</AccordionTrigger>
@@ -215,6 +284,7 @@ function AuditoriaComprasCard() {
         {resultado && (
           <div className="space-y-3">
             <ResumenBadges r={resultado} />
+            <ResumenMensualChart porMes={resultado.porMes} />
             <Accordion type="multiple" className="w-full">
               <AccordionItem value="faltantes">
                 <AccordionTrigger>Faltantes ({resultado.faltantes.length})</AccordionTrigger>
