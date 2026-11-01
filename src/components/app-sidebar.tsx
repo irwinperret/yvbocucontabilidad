@@ -32,6 +32,7 @@ import {
   Wrench,
   PieChart,
   TrendingDown,
+  ScanSearch,
 
 } from "lucide-react";
 import { History as HistoryIcon } from "lucide-react";
@@ -64,6 +65,7 @@ export const registroImportar = [
   { title: "Venta de IVA", url: "/venta-iva", icon: DollarSign },
   { title: "Retención ISLR", url: "/retencion-islr", icon: Receipt },
   { title: "Historial de importaciones", url: "/importaciones", icon: HistoryIcon },
+  { title: "Auditoría Xetux", url: "/auditoria-xetux", icon: ScanSearch },
   { title: "Cierres de Mes", url: "/cierres-de-mes", icon: Lock },
 ];
 

@@ -17,6 +17,7 @@ import { Route as AuthenticatedActivosTransitoriosRouteImport } from './routes/_
 import { Route as AuthenticatedAjustesOffBalanceRouteImport } from './routes/_authenticated/ajustes-off-balance'
 import { Route as AuthenticatedAnalisisAiRouteImport } from './routes/_authenticated/analisis-ai'
 import { Route as AuthenticatedAnticiposProveedoresRouteImport } from './routes/_authenticated/anticipos-proveedores'
+import { Route as AuthenticatedAuditoriaXetuxRouteImport } from './routes/_authenticated/auditoria-xetux'
 import { Route as AuthenticatedAumentoCapitalRouteImport } from './routes/_authenticated/aumento-capital'
 import { Route as AuthenticatedAyudaRouteImport } from './routes/_authenticated/ayuda'
 import { Route as AuthenticatedBonoPropinaRouteImport } from './routes/_authenticated/bono-propina'
@@ -104,6 +105,12 @@ const AuthenticatedAnticiposProveedoresRoute =
   AuthenticatedAnticiposProveedoresRouteImport.update({
     id: '/anticipos-proveedores',
     path: '/anticipos-proveedores',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAuditoriaXetuxRoute =
+  AuthenticatedAuditoriaXetuxRouteImport.update({
+    id: '/auditoria-xetux',
+    path: '/auditoria-xetux',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAumentoCapitalRoute =
@@ -372,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/ajustes-off-balance': typeof AuthenticatedAjustesOffBalanceRoute
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
+  '/auditoria-xetux': typeof AuthenticatedAuditoriaXetuxRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/ayuda': typeof AuthenticatedAyudaRoute
   '/bono-propina': typeof AuthenticatedBonoPropinaRoute
@@ -427,6 +435,7 @@ export interface FileRoutesByTo {
   '/ajustes-off-balance': typeof AuthenticatedAjustesOffBalanceRoute
   '/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
+  '/auditoria-xetux': typeof AuthenticatedAuditoriaXetuxRoute
   '/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/ayuda': typeof AuthenticatedAyudaRoute
   '/bono-propina': typeof AuthenticatedBonoPropinaRoute
@@ -484,6 +493,7 @@ export interface FileRoutesById {
   '/_authenticated/ajustes-off-balance': typeof AuthenticatedAjustesOffBalanceRoute
   '/_authenticated/analisis-ai': typeof AuthenticatedAnalisisAiRoute
   '/_authenticated/anticipos-proveedores': typeof AuthenticatedAnticiposProveedoresRoute
+  '/_authenticated/auditoria-xetux': typeof AuthenticatedAuditoriaXetuxRoute
   '/_authenticated/aumento-capital': typeof AuthenticatedAumentoCapitalRoute
   '/_authenticated/ayuda': typeof AuthenticatedAyudaRoute
   '/_authenticated/bono-propina': typeof AuthenticatedBonoPropinaRoute
@@ -541,6 +551,7 @@ export interface FileRouteTypes {
     | '/ajustes-off-balance'
     | '/analisis-ai'
     | '/anticipos-proveedores'
+    | '/auditoria-xetux'
     | '/aumento-capital'
     | '/ayuda'
     | '/bono-propina'
@@ -596,6 +607,7 @@ export interface FileRouteTypes {
     | '/ajustes-off-balance'
     | '/analisis-ai'
     | '/anticipos-proveedores'
+    | '/auditoria-xetux'
     | '/aumento-capital'
     | '/ayuda'
     | '/bono-propina'
@@ -652,6 +664,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ajustes-off-balance'
     | '/_authenticated/analisis-ai'
     | '/_authenticated/anticipos-proveedores'
+    | '/_authenticated/auditoria-xetux'
     | '/_authenticated/aumento-capital'
     | '/_authenticated/ayuda'
     | '/_authenticated/bono-propina'
@@ -765,6 +778,13 @@ declare module '@tanstack/react-router' {
       path: '/anticipos-proveedores'
       fullPath: '/anticipos-proveedores'
       preLoaderRoute: typeof AuthenticatedAnticiposProveedoresRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/auditoria-xetux': {
+      id: '/_authenticated/auditoria-xetux'
+      path: '/auditoria-xetux'
+      fullPath: '/auditoria-xetux'
+      preLoaderRoute: typeof AuthenticatedAuditoriaXetuxRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/aumento-capital': {
@@ -1097,6 +1117,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAjustesOffBalanceRoute: typeof AuthenticatedAjustesOffBalanceRoute
   AuthenticatedAnalisisAiRoute: typeof AuthenticatedAnalisisAiRoute
   AuthenticatedAnticiposProveedoresRoute: typeof AuthenticatedAnticiposProveedoresRoute
+  AuthenticatedAuditoriaXetuxRoute: typeof AuthenticatedAuditoriaXetuxRoute
   AuthenticatedAumentoCapitalRoute: typeof AuthenticatedAumentoCapitalRoute
   AuthenticatedAyudaRoute: typeof AuthenticatedAyudaRoute
   AuthenticatedBonoPropinaRoute: typeof AuthenticatedBonoPropinaRoute
@@ -1149,6 +1170,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAnalisisAiRoute: AuthenticatedAnalisisAiRoute,
   AuthenticatedAnticiposProveedoresRoute:
     AuthenticatedAnticiposProveedoresRoute,
+  AuthenticatedAuditoriaXetuxRoute: AuthenticatedAuditoriaXetuxRoute,
   AuthenticatedAumentoCapitalRoute: AuthenticatedAumentoCapitalRoute,
   AuthenticatedAyudaRoute: AuthenticatedAyudaRoute,
   AuthenticatedBonoPropinaRoute: AuthenticatedBonoPropinaRoute,
