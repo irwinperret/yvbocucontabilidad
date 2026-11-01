@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDateMDY } from "@/lib/format";
 import { toast } from "sonner";
+import { toastConDeshacer } from "@/lib/undo-toast";
 import { Download, Check, X, RefreshCw, Pencil, Link2, Users2 } from "lucide-react";
 import { EditDialog } from "@/components/transaccion-edit-dialog";
 import { exportTableToExcel } from "@/lib/excel-table";
@@ -20,7 +21,7 @@ import { CENTROS, ordenarPorCodigo } from "@/lib/account-helpers";
 import { useUsdView, usdVisual } from "@/lib/usd-view-context";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { guardarVinculosConciliacion, marcarEstadoConciliacion, ESTADO_MANUAL_LABEL, ESTADOS_MANUALES, normalizarEstadoManual, type EstadoManual } from "@/lib/conciliacion";
-import { PareoManualDialog, quitarPareoManual } from "@/components/pareo-manual-dialog";
+import { PareoManualDialog, quitarPareoManual, marcaPareo } from "@/components/pareo-manual-dialog";
 
 import {
   bancoDeReferencia,
@@ -602,10 +603,58 @@ function MovimientosBancariosPage() {
   };
 
   const quitarPareo = async (movId: string) => {
+    // Snapshot ANTES de revertir: quitarPareoManual borra los pagos 13.2/9.2
+    // vinculados, restituye el saldo de las CxP y borra el vínculo de
+    // conciliación. Para poder deshacerlo hay que guardar una copia fiel de
+    // las tres cosas y, al deshacer, reinsertarlas/restaurarlas tal cual.
+    const { data: pagosPrevios } = await supabase
+      .from("transacciones")
+      .select("*")
+      .eq("referencia", marcaPareo(movId));
+    const cxpIds = Array.from(
+      new Set(
+        (pagosPrevios ?? [])
+          .map((p: any) => String(p.detalle ?? "").match(/^PAREO_CXP:([^|]+)\|/)?.[1])
+          .filter(Boolean) as string[],
+      ),
+    );
+    const { data: cxpsPrevias } = cxpIds.length
+      ? await supabase.from("cuentas_por_pagar").select("*").in("id", cxpIds)
+      : { data: [] as any[] };
+    const { data: vinculosPrevios } = await (supabase.from as any)("conciliacion_bancaria")
+      .select("*")
+      .eq("transaccion_bancaria_id", movId);
+
     const r = await quitarPareoManual(movId);
     if (!r.ok) { toast.error(r.error ?? "No se pudo quitar el pareo"); return; }
-    toast.success("Pareo eliminado — el movimiento vuelve a 'Sin pareo'");
     await recargarDatos();
+
+    toastConDeshacer(
+      "Pareo eliminado -- el movimiento vuelve a 'Sin pareo'",
+      async () => {
+        if (pagosPrevios?.length) {
+          const { error } = await supabase.from("transacciones").insert(pagosPrevios as any);
+          if (error) throw new Error(error.message);
+        }
+        for (const c of cxpsPrevias ?? []) {
+          await supabase
+            .from("cuentas_por_pagar")
+            .update({
+              estado: c.estado,
+              monto_pendiente_bs: c.monto_pendiente_bs,
+              monto_pendiente_usd_bcv: c.monto_pendiente_usd_bcv,
+              pagada_at: c.pagada_at,
+            } as any)
+            .eq("id", c.id);
+        }
+        if (vinculosPrevios?.length) {
+          const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(vinculosPrevios);
+          if (error) throw new Error(error.message);
+        }
+        await recargarDatos();
+      },
+      { mensajeDeshecho: "Pareo restaurado" },
+    );
   };
 
 

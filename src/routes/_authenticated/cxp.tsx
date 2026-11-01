@@ -25,6 +25,8 @@ import {
   type FacturaRef,
 } from "@/lib/conciliacion-matching";
 import { guardarVinculosConciliacion } from "@/lib/conciliacion";
+import { sincronizarCxpDesdeVinculos } from "@/lib/pareo-cxp";
+import { toastConDeshacer } from "@/lib/undo-toast";
 import { pendienteBsAFecha, pendienteBsHistorico, pendienteUsdBcv } from "@/lib/cxp-saldo";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { fetchDeudaNetaReal } from "@/lib/deuda-neta";
@@ -251,13 +253,21 @@ function CxPAnalisisPage() {
     origen: "auto" | "manual",
   ) => {
     // Antes esto hacía su propio borrado + inserción directa en
-    // conciliacion_bancaria, sin pasar por guardarVinculosConciliacion — eso
+    // conciliacion_bancaria, sin pasar por guardarVinculosConciliacion -- eso
     // dejaba el vínculo anotado como "pareado" pero el saldo pendiente de la
     // factura (cuentas_por_pagar.monto_pendiente_*) nunca se recalculaba, así
     // que la factura seguía apareciendo con deuda aunque ya tuviera su
     // movimiento. guardarVinculosConciliacion hace el mismo borrado+inserción
     // pero además sincroniza la CxP al final (y respeta un pareo manual ya
     // guardado si "origen" es "auto").
+
+    // Snapshot del vínculo anterior (si existía) para poder deshacer: tanto
+    // "Confirmar" como "Rechazar" borran primero todas las filas de
+    // conciliacion_bancaria de esta factura antes de insertar las nuevas.
+    const { data: vinculosPrevios } = await (supabase.from as any)("conciliacion_bancaria")
+      .select("*")
+      .eq("transaccion_factura_id", facturaId);
+
     const r = await guardarVinculosConciliacion({
       facturaId,
       contrapartes: movIds,
@@ -266,11 +276,27 @@ function CxPAnalisisPage() {
       userId: user?.id ?? null,
     });
     if (!r.ok) { toast.error(r.error ?? "No se pudo guardar el pareo"); return; }
-    toast.success(estado === "pareado" ? "Pareo guardado" : "Sugerencia rechazada");
     qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
     qc.invalidateQueries({ queryKey: ["cxp-analisis"] });
     qc.invalidateQueries({ queryKey: ["tablero-cxp"] });
     setManualPara(null);
+
+    toastConDeshacer(
+      estado === "pareado" ? "Pareo guardado" : "Sugerencia rechazada",
+      async () => {
+        const del = await (supabase.from as any)("conciliacion_bancaria").delete().eq("transaccion_factura_id", facturaId);
+        if (del.error) throw new Error(del.error.message);
+        if (vinculosPrevios?.length) {
+          const { error } = await (supabase.from as any)("conciliacion_bancaria").insert(vinculosPrevios);
+          if (error) throw new Error(error.message);
+        }
+        await sincronizarCxpDesdeVinculos(facturaId);
+        qc.invalidateQueries({ queryKey: ["conciliacion-bancaria"] });
+        qc.invalidateQueries({ queryKey: ["cxp-analisis"] });
+        qc.invalidateQueries({ queryKey: ["tablero-cxp"] });
+      },
+      { mensajeDeshecho: "Pareo restaurado" },
+    );
   };
 
   const badge = (c: any) => {

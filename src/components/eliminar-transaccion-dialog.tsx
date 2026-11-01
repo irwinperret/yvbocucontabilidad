@@ -17,6 +17,8 @@ import {
   type DeletePlan,
 } from "@/lib/eliminar-transaccion";
 import { toast } from "sonner";
+import { toastConDeshacer } from "@/lib/undo-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertTriangle } from "lucide-react";
 
 type Props = {
@@ -43,9 +45,23 @@ export function EliminarTransaccionDialog({ open, transaccion, onClose, onDelete
       .finally(() => setLoading(false));
   }, [open, transaccion]);
 
+  // Deshacer solo se ofrece para borrados "simples": una sola transacción
+  // aislada, sin CxC/CxP/propinas/conciliación vinculados. Los borrados en
+  // cascada siguen ejecutándose directo, sin opción de deshacer, igual que
+  // hoy -- revertirlos fielmente requeriría reconstruir todas las filas
+  // relacionadas que ejecutarBorradoTransaccion ya eliminó.
+  const esSimple = (p: DeletePlan) =>
+    p.transacciones.length === 1 &&
+    p.cxc.length === 0 &&
+    p.cxp.length === 0 &&
+    p.cxpARevertir.length === 0 &&
+    p.propinasCount === 0 &&
+    p.conciliacionCount === 0;
+
   const ejecutar = async () => {
     if (!plan) return;
     setRunning(true);
+    const copiaParaDeshacer = esSimple(plan) ? { ...transaccion } : null;
     const res = await ejecutarBorradoTransaccion(plan);
     setRunning(false);
     if (!res.ok) {
@@ -57,9 +73,16 @@ export function EliminarTransaccionDialog({ open, transaccion, onClose, onDelete
     if (plan.cxp.length) extras.push(`${plan.cxp.length} CxP`);
     if (plan.cxpARevertir.length) extras.push(`${plan.cxpARevertir.length} CxP revertida(s)`);
     if (plan.propinasCount) extras.push(`${plan.propinasCount} propina(s)`);
-    toast.success(
-      `${plan.transacciones.length} transacción(es) eliminada(s)${extras.length ? " + " + extras.join(", ") : ""}`,
-    );
+    const mensaje = `${plan.transacciones.length} transacción(es) eliminada(s)${extras.length ? " + " + extras.join(", ") : ""}`;
+    if (copiaParaDeshacer) {
+      toastConDeshacer(mensaje, async () => {
+        const { error } = await supabase.from("transacciones").insert(copiaParaDeshacer);
+        if (error) throw new Error(error.message);
+        onDeleted();
+      }, { mensajeDeshecho: "Transacción restaurada" });
+    } else {
+      toast.success(mensaje);
+    }
     onDeleted();
     onClose();
   };
