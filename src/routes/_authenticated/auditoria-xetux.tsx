@@ -397,9 +397,12 @@ function TablaAnuladas({ rows }: { rows: AuditResultado<any>["anuladas"] }) {
   return (
     <div className="space-y-2">
       <p className="text-[11px] text-muted-foreground">
-        Están registrados aquí con este número, pero ya no aparecen en el archivo acumulado que subiste -- revisa en{" "}
+        Están registrados aquí con este número y caen DENTRO del rango de fechas que cubre el archivo que subiste,
+        pero no aparecen en él -- revisa en{" "}
         <Link to="/transacciones" className="text-primary hover:underline">Transacciones</Link> (filtro "N° factura") si
-        de verdad las anularon en Xetux antes de borrar nada.
+        de verdad las anularon en Xetux antes de borrar nada. Si subiste un acumulado parcial (no todo el histórico),
+        lo que quede fuera de ese rango de fechas no se compara aquí -- no puede aparecer como anulado solo porque el
+        archivo no llegaba hasta esa fecha.
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
