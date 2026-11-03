@@ -7,19 +7,20 @@ import { Loader2, Save } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { fmtUsd } from "@/lib/format";
 import { tasaBcvQuery } from "@/lib/tasas";
-import { periodoActual, rangoDePeriodo } from "@/lib/home-checklist";
+import { rangoDePeriodo } from "@/lib/home-checklist";
 import { fetchVentaIvaDelPeriodo, guardarVentaIva } from "@/lib/venta-iva";
 
 /**
- * Entrada rápida de la Venta de IVA del mes en curso, directo desde Inicio.
- * Un solo registro por mes en la cuenta 1.8 -- si ya existe uno para este
- * período, lo actualiza en vez de duplicarlo. Igual que el inventario, se
- * ve también (y se puede editar/borrar) en su propia página /venta-iva.
+ * Entrada rápida de la Venta de IVA, directo desde Inicio. `periodo` lo pasa
+ * el checklist (el mes que está cerrando, no necesariamente el mes
+ * calendario en curso). Un solo registro por mes en la cuenta 1.8 -- si ya
+ * existe uno para este período, lo actualiza en vez de duplicarlo. Igual
+ * que el inventario, se ve también (y se puede editar/borrar) en su propia
+ * página /venta-iva.
  */
-export function VentaIvaQuickEntry() {
+export function VentaIvaQuickEntry({ periodo }: { periodo: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const periodo = periodoActual();
   const [monto, setMonto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [tocado, setTocado] = useState(false);

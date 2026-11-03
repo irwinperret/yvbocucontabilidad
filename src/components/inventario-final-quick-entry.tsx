@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { fmtUsd } from "@/lib/format";
 import { tasaBcvQuery } from "@/lib/tasas";
 import { editarInventarioSnapshot } from "@/lib/inventario.functions";
-import { periodoActual } from "@/lib/home-checklist";
+import { rangoDePeriodo } from "@/lib/home-checklist";
 
 function shiftPeriodo(periodo: string, delta: number) {
   const [y, m] = periodo.split("-").map(Number);
@@ -19,15 +19,16 @@ function shiftPeriodo(periodo: string, delta: number) {
 }
 
 /**
- * Entrada rápida del inventario final del mes en curso, directo desde el
- * Inicio. Escribe en la misma tabla (`inventario_snapshots`) que usan
- * Inventarios y el tab de Cierre/COGS en Registrar, así que cualquiera de
- * esas pantallas ve el valor actualizado de inmediato, sin duplicar datos.
+ * Entrada rápida del inventario final, directo desde el Inicio. `periodo`
+ * lo pasa el checklist (el mes que está cerrando, no necesariamente el mes
+ * calendario en curso). Escribe en la misma tabla (`inventario_snapshots`)
+ * que usan Inventarios y el tab de Cierre/COGS en Registrar, así que
+ * cualquiera de esas pantallas ve el valor actualizado de inmediato, sin
+ * duplicar datos.
  */
-export function InventarioFinalQuickEntry() {
+export function InventarioFinalQuickEntry({ periodo }: { periodo: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const periodo = periodoActual();
   const editar = useServerFn(editarInventarioSnapshot);
   const [monto, setMonto] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -61,10 +62,11 @@ export function InventarioFinalQuickEntry() {
     if (!user) return toast.error("Sin sesión");
     setGuardando(true);
     try {
-      const hoy = new Date().toISOString().slice(0, 10);
-      const { data: tasaRow } = await tasaBcvQuery(hoy);
+      const { ultimo } = rangoDePeriodo(periodo);
+      const { data: tasaRow } = await tasaBcvQuery(ultimo);
       const tasa = Number(tasaRow?.tasa) || 0;
-      const montoBs = tasa > 0 ? Math.round(montoUsd * tasa * 100) / 100 : 0;
+      if (!tasa) { toast.error("No hay tasa BCV disponible para este mes"); return; }
+      const montoBs = Math.round(montoUsd * tasa * 100) / 100;
 
       if (snap?.id) {
         // Ya existía: reusa el mismo flujo que la pantalla de Inventarios,
@@ -85,7 +87,7 @@ export function InventarioFinalQuickEntry() {
         // se deja sincronizado el inicial del mes siguiente si ya existiera.
         await supabase.from("inventario_snapshots").insert({
           periodo, tipo: "final", monto_usd: montoUsd, monto_bs: montoBs,
-          tasa_bcv: tasa || null, fecha: hoy, registrado_por: user.id,
+          tasa_bcv: tasa || null, fecha: ultimo, registrado_por: user.id,
         } as any);
         const siguiente = shiftPeriodo(periodo, 1);
         const { data: inicialSiguiente } = await supabase
@@ -98,7 +100,7 @@ export function InventarioFinalQuickEntry() {
         } else {
           await supabase.from("inventario_snapshots").insert({
             periodo: siguiente, tipo: "inicial", monto_usd: montoUsd, monto_bs: montoBs,
-            tasa_bcv: tasa || null, fecha: hoy, registrado_por: user.id,
+            tasa_bcv: tasa || null, fecha: ultimo, registrado_por: user.id,
           } as any);
         }
       }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -17,9 +18,9 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { Pencil, AlertTriangle, Trash2, Link as LinkIcon } from "lucide-react";
+import { Pencil, AlertTriangle, Trash2, Link as LinkIcon, PlusCircle } from "lucide-react";
 import { fmtUsd, fmtBs } from "@/lib/format";
-import { editarInventarioSnapshot, borrarInventarioSnapshot } from "@/lib/inventario.functions";
+import { editarInventarioSnapshot, borrarInventarioSnapshot, crearInventarioSnapshot } from "@/lib/inventario.functions";
 import {
   CartesianGrid,
   Line,
@@ -51,10 +52,17 @@ type Snap = {
   fecha: string | null;
 };
 
+function mesAnteriorAHoy(): string {
+  const hoy = new Date();
+  const d = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function InventariosPage() {
   const qc = useQueryClient();
   const editar = useServerFn(editarInventarioSnapshot);
   const borrar = useServerFn(borrarInventarioSnapshot);
+  const crear = useServerFn(crearInventarioSnapshot);
 
   const { data: cierres } = useQuery({
     queryKey: ["cierres-de-mes-estado"],
@@ -122,6 +130,63 @@ function InventariosPage() {
   const [editing, setEditing] = useState<Snap | null>(null);
   const [draft, setDraft] = useState({ monto_usd: "", monto_bs: "", tasa_bcv: "", notas: "" });
   const [busy, setBusy] = useState(false);
+
+  // Registrar un inventario NUEVO (período/tipo que todavía no existe) --
+  // la tabla de arriba solo permite editar snapshots que ya existen.
+  const [creando, setCreando] = useState(false);
+  const [draftNuevo, setDraftNuevo] = useState({
+    periodo: mesAnteriorAHoy(),
+    tipo: "final" as "inicial" | "final",
+    monto_usd: "",
+    tasa_bcv: "",
+    notas: "",
+  });
+
+  const openCrear = () => {
+    setDraftNuevo({ periodo: mesAnteriorAHoy(), tipo: "final", monto_usd: "", tasa_bcv: "", notas: "" });
+    setCreando(true);
+  };
+  const closeCrear = () => setCreando(false);
+
+  const yaExisteNuevo = useMemo(
+    () => !!groupedMap.get(draftNuevo.periodo)?.[draftNuevo.tipo],
+    [groupedMap, draftNuevo.periodo, draftNuevo.tipo],
+  );
+
+  const guardarNuevo = async () => {
+    if (!/^\d{4}-\d{2}$/.test(draftNuevo.periodo)) return toast.error("Elige un período (año y mes) válido");
+    const montoUsd = Number(draftNuevo.monto_usd);
+    if (!Number.isFinite(montoUsd) || montoUsd < 0) return toast.error("Monto USD inválido");
+    if (yaExisteNuevo) {
+      return toast.error(`Ya existe un inventario ${draftNuevo.tipo} para ${draftNuevo.periodo}. Edítalo en la tabla en vez de crear uno nuevo.`);
+    }
+    setBusy(true);
+    try {
+      const r = await crear({
+        data: {
+          periodo: draftNuevo.periodo,
+          tipo: draftNuevo.tipo,
+          monto_usd: montoUsd,
+          tasa_bcv: draftNuevo.tasa_bcv ? Number(draftNuevo.tasa_bcv) : null,
+          notas: draftNuevo.notas || null,
+          cascade: true,
+        },
+      });
+      const msgs = [`Inventario ${draftNuevo.tipo} de ${periodoLabel(draftNuevo.periodo)} registrado: ${fmtUsd(montoUsd)}.`];
+      if (r.primary) msgs.push(`Cierre de ${periodoLabel(draftNuevo.periodo)} recalculado (COGS: ${fmtUsd(r.primary.cogs_usd)}).`);
+      if (r.cascaded && r.cascaded_periodo) {
+        msgs.push(`También se sincronizó ${periodoLabel(r.cascaded_periodo)} y se recalculó su cierre (COGS: ${fmtUsd(r.cascaded.cogs_usd)}).`);
+      }
+      toast.success(msgs.join(" "));
+      closeCrear();
+      qc.invalidateQueries({ queryKey: ["inventario-snapshots"] });
+      qc.invalidateQueries();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error registrando el inventario");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const openEdit = (s: Snap | null) => {
     if (!s) return;
@@ -316,8 +381,11 @@ function InventariosPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base">Snapshots ({grouped.length} períodos)</CardTitle>
+          <Button size="sm" onClick={openCrear}>
+            <PlusCircle className="h-4 w-4 mr-1" /> Registrar inventario
+          </Button>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -564,6 +632,102 @@ function InventariosPage() {
               </SheetFooter>
             </>
           )}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={creando} onOpenChange={(o) => (!o ? closeCrear() : null)}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Registrar nuevo inventario</SheetTitle>
+            <SheetDescription>
+              Para un período y tipo que todavía no tienen snapshot. El monto se registra en USD a tasa BCV
+              (el bolívar se calcula solo).
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Período</Label>
+                <Input
+                  type="month"
+                  value={draftNuevo.periodo}
+                  onChange={(e) => setDraftNuevo((d) => ({ ...d, periodo: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tipo</Label>
+                <Select
+                  value={draftNuevo.tipo}
+                  onValueChange={(v) => setDraftNuevo((d) => ({ ...d, tipo: v as "inicial" | "final" }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="final">Final</SelectItem>
+                    <SelectItem value="inicial">Inicial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {yaExisteNuevo && (
+              <p className="text-xs text-destructive">
+                Ya existe un inventario {draftNuevo.tipo} para {periodoLabel(draftNuevo.periodo)}. Cierra esta
+                ventana y edítalo en la tabla en vez de crear uno nuevo.
+              </p>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Monto USD (tasa BCV)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={draftNuevo.monto_usd}
+                onChange={(e) => setDraftNuevo((d) => ({ ...d, monto_usd: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Tasa BCV (opcional)</Label>
+              <Input
+                type="number"
+                step="0.0001"
+                placeholder="se usa la tasa BCV publicada de ese día si lo dejas vacío"
+                value={draftNuevo.tasa_bcv}
+                onChange={(e) => setDraftNuevo((d) => ({ ...d, tasa_bcv: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Inicial usa la tasa del primer día del mes; Final, la del último día. El monto en Bs se calcula
+                automáticamente (USD × tasa).
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Notas</Label>
+              <Textarea
+                rows={2}
+                value={draftNuevo.notas}
+                onChange={(e) => setDraftNuevo((d) => ({ ...d, notas: e.target.value }))}
+              />
+            </div>
+
+            <div className="rounded-md border border-yellow-500/40 bg-yellow-50/50 dark:bg-yellow-950/20 p-3 flex gap-2 items-start">
+              <AlertTriangle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-muted-foreground leading-relaxed">
+                {draftNuevo.tipo === "final"
+                  ? "Se sincronizará también el inventario inicial del mes siguiente (si todavía no existe) con el mismo monto."
+                  : "Se sincronizará también el inventario final del mes anterior (si todavía no existe) con el mismo monto."}
+                {" "}Si el período ya tiene un cierre, se recalculará el COGS automáticamente.
+              </div>
+            </div>
+          </div>
+
+          <SheetFooter className="gap-2">
+            <Button variant="ghost" onClick={closeCrear} disabled={busy}>Cancelar</Button>
+            <Button onClick={guardarNuevo} disabled={busy || yaExisteNuevo}>{busy ? "Guardando..." : "Guardar"}</Button>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
     </div>

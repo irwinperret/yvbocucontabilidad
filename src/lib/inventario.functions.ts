@@ -17,6 +17,19 @@ const DeleteInputSchema = z.object({
   cascade_next_month_inicial: z.boolean().default(false),
 });
 
+const CreateInputSchema = z.object({
+  periodo: z.string().regex(/^\d{4}-\d{2}$/),
+  tipo: z.enum(["inicial", "final"]),
+  monto_usd: z.number().min(0),
+  tasa_bcv: z.number().positive().nullable().optional(),
+  notas: z.string().nullable().optional(),
+  // Sincroniza el vecino (final -> inicial del mes siguiente, inicial ->
+  // final del mes anterior) con el mismo monto, igual criterio que usa
+  // editarInventarioSnapshot -- pero solo si el vecino todavía NO existe
+  // (si ya existe, no se toca: usa "Editar" para eso).
+  cascade: z.boolean().default(true),
+});
+
 function shiftPeriodo(periodo: string, delta: number) {
   const [y, m] = periodo.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 1 + delta, 1));
@@ -455,4 +468,81 @@ export const borrarInventarioSnapshot = createServerFn({ method: "POST" })
     if (delErr) throw delErr;
 
     return { deleted_periodo: periodo, tipo, cascaded_periodo: cascadedPeriodo };
+  });
+
+export const crearInventarioSnapshot = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => CreateInputSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { periodo, tipo, monto_usd, notas, cascade } = data;
+
+    const { data: existente, error: existeErr } = await supabase
+      .from("inventario_snapshots")
+      .select("id")
+      .eq("periodo", periodo)
+      .eq("tipo", tipo)
+      .maybeSingle();
+    if (existeErr) throw existeErr;
+    if (existente) {
+      throw new Error(
+        `Ya existe un inventario ${tipo} registrado para ${periodo}. Usa "Editar" en esa fila en vez de crear uno nuevo.`,
+      );
+    }
+
+    const { from, to } = periodBoundaries(periodo);
+    const fechaRef = tipo === "inicial" ? from : to;
+    const tasa =
+      data.tasa_bcv ||
+      (await fetchTasaBcvOnOrBefore(supabase, fechaRef)) ||
+      (await fetchTasaBcvPromedio(supabase, periodo));
+    if (!tasa) {
+      throw new Error("No hay tasa BCV disponible para este período -- ingresa la tasa manualmente.");
+    }
+    const montoBs = r2(monto_usd * tasa);
+
+    const { error: insErr } = await supabase.from("inventario_snapshots").insert({
+      periodo, tipo, monto_usd, monto_bs: montoBs, tasa_bcv: tasa,
+      notas: notas ?? null, fecha: fechaRef, registrado_por: userId,
+    } as any);
+    if (insErr) throw insErr;
+
+    let cascadedPeriodo: string | null = null;
+    if (cascade) {
+      if (tipo === "final") {
+        const nextPeriodo = shiftPeriodo(periodo, 1);
+        const { data: nextIni } = await supabase
+          .from("inventario_snapshots").select("id")
+          .eq("periodo", nextPeriodo).eq("tipo", "inicial").maybeSingle();
+        if (!nextIni) {
+          const nextFirstDay = `${nextPeriodo}-01`;
+          const tasaNext = (await fetchTasaBcvOnOrBefore(supabase, nextFirstDay)) || tasa;
+          await supabase.from("inventario_snapshots").insert({
+            periodo: nextPeriodo, tipo: "inicial", monto_usd, monto_bs: r2(monto_usd * tasaNext),
+            tasa_bcv: tasaNext, fecha: nextFirstDay, registrado_por: userId,
+          } as any);
+          cascadedPeriodo = nextPeriodo;
+        }
+      } else {
+        const prevPeriodo = shiftPeriodo(periodo, -1);
+        const { data: prevFin } = await supabase
+          .from("inventario_snapshots").select("id")
+          .eq("periodo", prevPeriodo).eq("tipo", "final").maybeSingle();
+        if (!prevFin) {
+          const [y, m] = prevPeriodo.split("-").map(Number);
+          const finPrev = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+          const tasaPrev = (await fetchTasaBcvOnOrBefore(supabase, finPrev)) || tasa;
+          await supabase.from("inventario_snapshots").insert({
+            periodo: prevPeriodo, tipo: "final", monto_usd, monto_bs: r2(monto_usd * tasaPrev),
+            tasa_bcv: tasaPrev, fecha: finPrev, registrado_por: userId,
+          } as any);
+          cascadedPeriodo = prevPeriodo;
+        }
+      }
+    }
+
+    const primary = await recalcCierreForPeriod(supabase, periodo, userId);
+    const cascaded = cascadedPeriodo ? await recalcCierreForPeriod(supabase, cascadedPeriodo, userId) : null;
+
+    return { primary, cascaded, cascaded_periodo: cascadedPeriodo, tipo, periodo };
   });

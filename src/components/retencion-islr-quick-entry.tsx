@@ -7,20 +7,20 @@ import { Loader2, Save } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { fmtUsd } from "@/lib/format";
 import { tasaBcvQuery } from "@/lib/tasas";
-import { periodoActual, rangoDePeriodo } from "@/lib/home-checklist";
+import { rangoDePeriodo } from "@/lib/home-checklist";
 import { fetchReclasificacionDelPeriodo, guardarReclasificacionIslr } from "@/lib/retencion-islr-reclass";
 
 /**
- * Entrada rápida de la reclasificación ISLR del mes en curso, directo desde
- * Inicio. Un solo monto por mes: se resta a 4.8 y se suma a 9.5. Si ya
- * existe una reclasificación completa para este período, la actualiza en
- * vez de duplicarla. También se ve (y se puede editar/borrar) en
- * /retencion-islr.
+ * Entrada rápida de la reclasificación ISLR, directo desde Inicio.
+ * `periodo` lo pasa el checklist (el mes que está cerrando, no
+ * necesariamente el mes calendario en curso). Un solo monto por mes: se
+ * resta a 4.8 y se suma a 9.5. Si ya existe una reclasificación completa
+ * para este período, la actualiza en vez de duplicarla. También se ve (y se
+ * puede editar/borrar) en /retencion-islr.
  */
-export function RetencionIslrQuickEntry() {
+export function RetencionIslrQuickEntry({ periodo }: { periodo: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const periodo = periodoActual();
   const [monto, setMonto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [tocado, setTocado] = useState(false);

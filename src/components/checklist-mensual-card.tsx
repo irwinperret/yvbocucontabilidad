@@ -89,9 +89,9 @@ export function ChecklistMensualCard() {
   const [rutaCierre, searchCierre] = ["/registrar", { tab: "cierre" }];
 
   const quickEntryDePaso = (label: string) => {
-    if (label === "Inventario final") return <InventarioFinalQuickEntry />;
-    if (label === "Venta de IVA") return <VentaIvaQuickEntry />;
-    if (label === "Retención ISLR") return <RetencionIslrQuickEntry />;
+    if (label === "Inventario final") return <InventarioFinalQuickEntry periodo={periodo} />;
+    if (label === "Venta de IVA") return <VentaIvaQuickEntry periodo={periodo} />;
+    if (label === "Retención ISLR") return <RetencionIslrQuickEntry periodo={periodo} />;
     return null;
   };
 
