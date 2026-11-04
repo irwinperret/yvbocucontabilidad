@@ -134,6 +134,7 @@ function CxPAnalisisPage() {
         usd_bcv: pendienteUsdBcv(c),
         cuenta_codigo: "2.1",
         proveedor: c.proveedor ?? null,
+        pendienteUsd: pendienteUsdBcv(c),
       }));
     const porNumero = new Map<string, FacturaRef[]>();
     for (const f of lista) {

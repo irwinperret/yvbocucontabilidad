@@ -40,6 +40,7 @@ import {
   type TerceroRef,
 } from "@/lib/conciliacion-matching";
 import { esCuentaNoConciliable } from "@/lib/operaciones-cambio";
+import { pendienteUsdBcv } from "@/lib/cxp-saldo";
 
 
 
@@ -208,6 +209,9 @@ function MovimientosBancariosPage() {
       cuenta_codigo: f.cuenta_codigo,
       proveedor: f.proveedor ?? null,
       tercero_id: f.tercero_id ?? null,
+      // Facturas ya saldadas (sin cxp, o cxp con saldo 0) no se ofrecen como
+      // "posible pareo" para un movimiento distinto al que ya las pagó.
+      pendienteUsd: f.cxp ? pendienteUsdBcv(f.cxp) : null,
     }));
 
 

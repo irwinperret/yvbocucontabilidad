@@ -163,6 +163,8 @@ export type FacturaRef = {
   cuenta_codigo: string;
   proveedor?: string | null;
   tercero_id?: string | null;
+  /** Saldo pendiente en USD BCV (null/undefined = desconocido, no se descarta). */
+  pendienteUsd?: number | null;
 };
 
 export type ResultadoPareo = {
@@ -189,6 +191,16 @@ const montoFacturaBs = (f: FacturaRef, tasaBcv?: number) =>
 
 const montoCoincide = (a: number, b: number) =>
   b > 0 && dentroDeTolerancia(Math.abs(a) - b, b);
+
+/**
+ * ¿Esta factura todavía tiene saldo pendiente? Una factura ya saldada (p.ej.
+ * "Pagada", sin deuda por cobrar) no debería ofrecerse como pareo "posible"
+ * para OTRO movimiento bancario distinto al que ya la saldó: aunque el
+ * proveedor y la fecha coincidan, no hay deuda real que ese pago esté
+ * cubriendo. Si no se conoce el saldo (pendienteUsd es null/undefined) se
+ * asume disponible, para no romper los casos donde no se cargó ese dato.
+ */
+const tieneSaldoPendiente = (f: FacturaRef) => f.pendienteUsd == null || f.pendienteUsd > 1;
 
 /** Tokens numéricos del memo, en orden de aparición */
 function tokensNumericos(texto?: string | null): string[] {
@@ -474,10 +486,16 @@ export function parearMovimiento(
 
   const numsMemo = numerosEnMemo(memo);
   const conProveedor = facturas.filter((f) => esDelProveedor(f));
+  // Las heurísticas (b)-(f) de abajo son señales débiles (proveedor/fecha/monto
+  // parecidos, no una referencia explícita del memo): no tiene sentido ofrecer
+  // como "posible pareo" una factura que ya está saldada por otro movimiento,
+  // así que se excluyen del pool de candidatas para esas señales.
+  const conProveedorConSaldo = conProveedor.filter(tieneSaldoPendiente);
+  const facturasConSaldo = facturas.filter(tieneSaldoPendiente);
 
   // (b) proveedor conocido + varias facturas que suman el monto
-  if (conProveedor.length > 1 && montoMov > 0) {
-    const cercanas = conProveedor
+  if (conProveedorConSaldo.length > 1 && montoMov > 0) {
+    const cercanas = conProveedorConSaldo
       .filter((f) => diasEntre(f.fecha, mov.fecha) <= 30)
       .sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha));
     const combo = buscarCombinacionPorMonto(cercanas, montoMov, 4, tasaBcvMov);
@@ -488,17 +506,17 @@ export function parearMovimiento(
 
   // (c) proveedor + número de factura parecido
   if (numsMemo.length) {
-    const casi = conProveedor.find((f) => numsMemo.some((n) => numeroSimilar(f.numero_factura, n)));
+    const casi = conProveedorConSaldo.find((f) => numsMemo.some((n) => numeroSimilar(f.numero_factura, n)));
     if (casi) return res("posible", [casi], `Proveedor y N° de factura ${casi.numero_factura} parecidos`, noUbicados, tasaBcvMov);
   }
 
   // (d) proveedor + monto igual
-  const provMonto = conProveedor.find((f) => montoCoincide(montoFacturaBs(f, tasaBcvMov), montoMov));
+  const provMonto = conProveedorConSaldo.find((f) => montoCoincide(montoFacturaBs(f, tasaBcvMov), montoMov));
   if (provMonto) return res("posible", [provMonto], `Proveedor y monto coinciden${sufijo}`, noUbicados, tasaBcvMov);
 
   // (e) monto + fecha cercana
   if (montoMov > 0) {
-    const cerca = facturas.filter(
+    const cerca = facturasConSaldo.filter(
       (f) => montoCoincide(montoFacturaBs(f, tasaBcvMov), montoMov) && diasEntre(f.fecha, mov.fecha) <= 5,
     );
     if (cerca.length) {
@@ -508,7 +526,7 @@ export function parearMovimiento(
   }
 
   // (f) proveedor + fecha cercana (señal débil)
-  const provFecha = conProveedor
+  const provFecha = conProveedorConSaldo
     .filter((f) => diasEntre(f.fecha, mov.fecha) <= 10)
     .sort((a, b) => diasEntre(a.fecha, mov.fecha) - diasEntre(b.fecha, mov.fecha))[0];
   if (provFecha) return res("posible", [provFecha], `Proveedor y fecha cercanos (monto distinto)${sufijo}`, noUbicados, tasaBcvMov);
