@@ -22,7 +22,14 @@ const MESES_ABR = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep"
  * de cada mes se corra al mes anterior en husos horarios detras de UTC
  * (como Venezuela).
  */
-export const fmtDate = (d: string | Date) => {
+export const fmtDate = (d: string | Date | null | undefined) => {
+  // Antes esta función asumía que `d` siempre venía definido -- cualquier
+  // llamador que pasara null/undefined (p. ej. un campo que todavía no llegó
+  // del servidor, o que PostgREST no devolvió por el motivo que sea) hacía
+  // explotar la pantalla entera con "Cannot read properties of undefined
+  // (reading 'getTime')" en vez de mostrar algo razonable. Mismo criterio
+  // que ya usaba parseFechaLocal más abajo para este caso.
+  if (d == null) return "—";
   const dt = typeof d === "string" ? new Date(d.includes("T") ? d : `${d}T00:00:00`) : d;
   if (isNaN(dt.getTime())) return "—";
   const dia = String(dt.getDate()).padStart(2, "0");

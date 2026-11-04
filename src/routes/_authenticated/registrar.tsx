@@ -4631,7 +4631,7 @@ function CierreForm() {
         {cierreActual ? (
           <div className="rounded border border-red-300 bg-red-50 text-red-800 text-xs p-3 font-medium flex items-start justify-between gap-3 flex-wrap">
             <div>
-              🔒 <strong>Mes {periodo} cerrado</strong> el {fmtDate(cierreActual.created_at)}. Las
+              🔒 <strong>Mes {periodo} cerrado</strong>{cierreActual.created_at ? <> el {fmtDate(cierreActual.created_at)}</> : null}. Las
               transacciones están bloqueadas. Si necesitas corregir algo, reabre el mes, edita y vuelve a cerrarlo.
             </div>
             <Button
