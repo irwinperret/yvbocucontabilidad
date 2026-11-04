@@ -681,7 +681,7 @@ function ReporteMensualImprimirPage() {
             <Legend wrapperStyle={{ fontSize: 10 }} />
             <Line type="monotone" dataKey="margenBrutoPct" name="Margen bruto %" stroke="#0F6E56" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
             <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} connectNulls isAnimationActive={false} />
-            <Line type="monotone" dataKey="ingresoIvaPct" name="Ingreso IVA %" stroke={COLOR_INGRESOS.iva} strokeWidth={2} strokeDasharray="5 5" dot={{ r: 2 }} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="ingresoIvaPct" name="Ingreso IVA" stroke="#4C1D95" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 2, fill: "#4C1D95" }} connectNulls isAnimationActive={false} />
           </ComposedChart>
         </div>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
