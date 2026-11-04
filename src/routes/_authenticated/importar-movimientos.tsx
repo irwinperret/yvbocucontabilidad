@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fmtBs, fmtUsd, fmtDate } from "@/lib/format";
 import { ordenarPorCodigo } from "@/lib/account-helpers";
@@ -33,6 +34,8 @@ import {
   esGastoDirectoAuto,
   memoEsGastoDirectoForzado,
   memoEsPagoGobiernoForzado,
+  memoEsGastoFinancieroBancario,
+  CUENTA_GASTO_FINANCIERO_BANCARIO,
   proveedorAliasDeMemo,
   buscarTerceroPorNombre,
   calcularProveedoresSiempreStandAlone,
@@ -373,6 +376,11 @@ function ImportarMovimientosInner() {
 
         cuentaPorFila.push(
           (esCambio(conceptoRaw) ? CUENTA_CAMBIO : null) ??
+            // Cargos/gastos financieros del banco (comisiones, cargos por
+            // servicio): nunca traen factura ni soporte, así que se fuerzan
+            // a la cuenta 4.8 sin importar lo que diga la columna de cuenta
+            // sugerida del Excel (o si viene vacía).
+            (memoEsGastoFinancieroBancario(conceptoRaw) ? CUENTA_GASTO_FINANCIERO_BANCARIO : null) ??
             (idxSug >= 0 ? parseCuentaCodigo(row[idxSug]) : null) ??
             (idxCuentaPlan >= 0 ? parseCuentaCodigo(row[idxCuentaPlan]) : null) ??
             clasifPersonal?.cuenta ??
@@ -1156,7 +1164,8 @@ function ImportarMovimientosInner() {
           // Nombres en NOMBRES_GASTO_DIRECTO_FORZADO (p. ej. Yofran Sabino)
           // siempre se marcan como gasto directo, incluso si ya tienen
           // facturas/CxP registradas o la cuenta no está en la lista automática.
-          const esGastoDirectoForzado = memoEsGastoDirectoForzado(bankRow.concepto);
+          const esGastoDirectoForzado =
+            memoEsGastoDirectoForzado(bankRow.concepto) || memoEsGastoFinancieroBancario(bankRow.concepto);
           // Pagos a entes del Estado (IVSS, SENIAT, Banco del Tesoro,
           // permisología municipal/sanitaria, etc.) — nunca llevan factura,
           // sin importar la cuenta ni si el "proveedor" ya tiene CxP.
@@ -1423,7 +1432,8 @@ function ImportarMovimientosInner() {
     const withAccount = matches.filter((m) => m.bankRow.cuentaBancariaId).length;
     const dudaCuenta = matches.filter((m) => !m.bankRow.cuentaBancariaId).length;
     const difTotal = matches.reduce((s, m) => s + (m.duplicado ? 0 : (difBs(m) ?? 0)), 0);
-    return { total, matched, selected, withAccount, dudaCuenta, duplicados, actualizables, posibleNomina, sinCuenta, sinFactura, noAplica, difTotal };
+    const nadaPendiente = total > 0 && matches.every((m) => m.duplicado && !m.duplicadoActualizable);
+    return { total, matched, selected, withAccount, dudaCuenta, duplicados, actualizables, posibleNomina, sinCuenta, sinFactura, noAplica, difTotal, nadaPendiente };
   }, [rows, matches]);
 
   return (
@@ -1459,6 +1469,17 @@ function ImportarMovimientosInner() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {stats.nadaPendiente && (
+              <div className="rounded-md border border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30 p-3 flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                <div className="text-sm text-emerald-800 dark:text-emerald-300">
+                  <strong>Este archivo ya fue importado por completo.</strong> {stats.duplicados === 1
+                    ? "El movimiento que trae ya estaba registrado"
+                    : `Los ${stats.duplicados} movimientos que trae ya estaban registrados`}, así que no hay nada nuevo
+                  que hacer aquí. Puedes subir otro archivo bancario cuando tengas uno distinto.
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 text-xs">
               <Badge variant="outline">Total: {stats.total}</Badge>
               <Badge variant="default">Nuevas seleccionadas: {stats.selected}</Badge>
@@ -1817,7 +1838,13 @@ function ImportarMovimientosInner() {
 
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
-                {progress ? `Procesando ${progress.done}/${progress.total}...` : `Confirmar ${stats.selected} movimientos seleccionados.`}
+                {progress
+                  ? `Procesando ${progress.done}/${progress.total}...`
+                  : stats.nadaPendiente
+                    ? "No hay movimientos nuevos por confirmar."
+                    : stats.selected === 0
+                      ? "Selecciona al menos un movimiento, o completa cuenta/factura en los que faltan, para poder confirmar."
+                      : `Confirmar ${stats.selected} movimientos seleccionados.`}
               </div>
               <Button onClick={confirmar} disabled={busy || stats.selected === 0}>
                 {busy ? "Procesando..." : "Confirmar movimientos seleccionados"}

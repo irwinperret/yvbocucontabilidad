@@ -165,6 +165,7 @@ export const CUENTAS_GASTO_DIRECTO_AUTO = new Set([
   "9.3", // Anticipos de nómina
   "7.1", // Pago IVA al SENIAT
   "7.2", // ISLR
+  "4.8", // Gastos financieros bancarios (comisiones, cargos por servicio)
 ]);
 
 /** ¿Esta cuenta se concilia automáticamente como gasto directo sin factura? */
@@ -244,6 +245,39 @@ export function memoEsPagoGobiernoForzado(memo: string | null | undefined): bool
   const texto = normalizarTextoMemo(memo);
   if (!texto) return false;
   for (const frase of PALABRAS_GASTO_DIRECTO_GOBIERNO) {
+    const tokens = frase.split(" ").filter(Boolean);
+    if (tokens.length && tokens.every((t) => texto.includes(t))) return true;
+  }
+  return false;
+}
+
+/**
+ * Frases del concepto bancario que identifican gastos financieros del banco
+ * (cargos por servicio, comisiones, etc.): por su naturaleza nunca traen
+ * factura ni ningún otro soporte, así que se registran de una vez contra la
+ * cuenta 4.8 — Gastos financieros bancarios, sin importar qué cuenta haya
+ * sugerido el Excel (o si no sugirió ninguna). Igual que
+ * PALABRAS_GASTO_DIRECTO_GOBIERNO: se detecta por el texto porque la columna
+ * de cuenta sugerida no siempre viene confiable para estos casos.
+ */
+export const PALABRAS_GASTO_FINANCIERO_BANCARIO = new Set([
+  "CARGOS POR SERVICIOS",
+  "CARGO POR SERVICIOS",
+  "GASTOS FINANCIEROS",
+  "GASTO FINANCIERO",
+  "COMISION BANCARIA",
+  "COMISIONES BANCARIAS",
+]);
+
+/** Cuenta fija de gastos financieros bancarios (comisiones, cargos por servicio). */
+export const CUENTA_GASTO_FINANCIERO_BANCARIO = "4.8";
+
+/** ¿El memo corresponde a un gasto financiero bancario (cargos, comisiones)?
+ * Nunca trae factura ni soporte: se marca de una vez como gasto directo. */
+export function memoEsGastoFinancieroBancario(memo: string | null | undefined): boolean {
+  const texto = normalizarTextoMemo(memo);
+  if (!texto) return false;
+  for (const frase of PALABRAS_GASTO_FINANCIERO_BANCARIO) {
     const tokens = frase.split(" ").filter(Boolean);
     if (tokens.length && tokens.every((t) => texto.includes(t))) return true;
   }
