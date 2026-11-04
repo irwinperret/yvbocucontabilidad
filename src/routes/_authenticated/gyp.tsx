@@ -16,6 +16,7 @@ import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import { GyPCharts } from "@/components/gyp-charts";
 import { estimarCogsMesesAbiertos, ajusteCogsEstimado } from "@/lib/cierre-mes";
+import { mesReporteCerradoPorDefecto, esMesEnCursoSinCerrar } from "@/lib/home-checklist";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
 import { QueryErrorBanner } from "@/components/query-error-banner";
@@ -42,12 +43,12 @@ type ExpandCtx = {
 
 function GyPPage() {
   const { mode, label } = useUsdView();
-  const [anio, setAnio] = useState(new Date().getFullYear());
+  const [anio, setAnio] = useState(mesReporteCerradoPorDefecto().anio);
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(true);
   const [incluirIva, setIncluirIva] = useState(true);
-  const [mesSel, setMesSel] = useState(new Date().getMonth() + 1);
-  const [hastaMes, setHastaMes] = useState(new Date().getMonth() + 1);
+  const [mesSel, setMesSel] = useState(mesReporteCerradoPorDefecto().mes);
+  const [hastaMes, setHastaMes] = useState(mesReporteCerradoPorDefecto().mes);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggle = useCallback((k: string) => {
@@ -146,7 +147,7 @@ function GyPPage() {
               <Label className="text-xs">Mes</Label>
               <Select value={String(mesSel)} onValueChange={(v) => setMesSel(Number(v))}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{MESES.map((m, i) => esMesEnCursoSinCerrar(anio, i+1) ? null : <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="flex items-center gap-2">
@@ -165,7 +166,7 @@ function GyPPage() {
               <Label className="text-xs">Hasta el mes</Label>
               <Select value={String(hastaMes)} onValueChange={(v) => setHastaMes(Number(v))}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{MESES.map((m, i) => esMesEnCursoSinCerrar(anio, i+1) ? null : <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">{hastaMes} meses — Ene a {MESES[hastaMes-1]} {anio}</p>
             </div>
@@ -538,7 +539,10 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
   }, [cuentas, rows, ctx.cogsEstimadoPorMes, ctx.anio, ctx.mode]);
 
   const cellCls = (i: number, v: number) => {
-    const futuro = anioRows >= anioActual && i + 1 > mesActual;
+    // El mes en curso sin cerrar (antes del día 25) se trata igual que un mes
+    // futuro: todavía no tiene todos los datos cargados, así que no se
+    // presenta como un número definitivo.
+    const futuro = (anioRows >= anioActual && i + 1 > mesActual) || esMesEnCursoSinCerrar(anioRows, i + 1);
     return `py-1.5 px-2 text-right mono ${futuro ? "text-muted-foreground/40" : ""} ${v === 0 ? "text-muted-foreground/60" : ""}`;
   };
 
@@ -632,7 +636,7 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
                         onMouseEnter={overSel(rGrupo, i)}
                         className={`${cellCls(i, v)} font-medium border-b cursor-cell ${enCeldaRango(rGrupo, i) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                       >
-                        {v === 0 ? "—" : fmtUsd(v)}
+                        {esMesEnCursoSinCerrar(anioRows, i + 1) || v === 0 ? "—" : fmtUsd(v)}
                       </td>
                     ))}
                     <td
@@ -658,7 +662,7 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
                             onMouseEnter={overSel(rItem, i)}
                             className={`${cellCls(i, v)} border-b cursor-cell ${enCeldaRango(rItem, i) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                           >
-                            {v === 0 ? "—" : fmtUsd(v)}
+                            {esMesEnCursoSinCerrar(anioRows, i + 1) || v === 0 ? "—" : fmtUsd(v)}
                           </td>
                         ))}
                         <td

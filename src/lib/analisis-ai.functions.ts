@@ -8,9 +8,15 @@ const InputSchema = z.object({
   modelo: z.enum(["rapido", "profundo"]).optional().default("rapido"),
 });
 
+// Via la pasarela de Lovable AI (mismo LOVABLE_API_KEY, misma facturación
+// consolidada) pero con modelos Claude en vez de Gemini Flash / GPT: Gemini
+// 3.7 Flash daba análisis de mala calidad para este caso de uso. Si el
+// gateway devuelve un error de "modelo no encontrado", el slug exacto puede
+// diferir del supuesto aquí (sigue la misma convención que google/... y
+// openai/...) — revisar el catálogo de modelos en el dashboard de Lovable.
 const MODELOS = {
-  rapido: "google/gemini-3.7-flash",
-  profundo: "openai/gpt-5.5",
+  rapido: "anthropic/claude-haiku-4.5",
+  profundo: "anthropic/claude-sonnet-5",
 } as const;
 
 export const generarAnalisisAI = createServerFn({ method: "POST" })

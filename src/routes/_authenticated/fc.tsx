@@ -18,6 +18,7 @@ import { exportFCIndirecto } from "@/lib/excel-export";
 import { calcularLineasFC, fetchInsumosFC, type LineasFCMes } from "@/lib/flujo-caja";
 import { CUENTA_VENTA_IVA } from "@/lib/venta-iva";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
+import { mesReporteCerradoPorDefecto, esMesEnCursoSinCerrar } from "@/lib/home-checklist";
 import { estimarRetencionIslrMesesAbiertos } from "@/lib/retencion-islr-reclass";
 import { useExcelCellSelection } from "@/components/excel-cell-selection";
 import { TableSkeleton } from "@/components/page-skeletons";
@@ -32,12 +33,12 @@ const CATEGORIA_INMUEBLES = "Remodelación/Obra Civil";
 
 function FCPage() {
   const { mode, label } = useUsdView();
-  const [anio, setAnio] = useState(new Date().getFullYear());
+  const [anio, setAnio] = useState(mesReporteCerradoPorDefecto().anio);
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(true);
   const [incluirIva, setIncluirIva] = useState(true);
-  const [mesSel, setMesSel] = useState(new Date().getMonth() + 1);
-  const [hastaMes, setHastaMes] = useState(new Date().getMonth() + 1);
+  const [mesSel, setMesSel] = useState(mesReporteCerradoPorDefecto().mes);
+  const [hastaMes, setHastaMes] = useState(mesReporteCerradoPorDefecto().mes);
   const [cuentaBancariaId, setCuentaBancariaId] = useState<string>("todas");
 
   const { data: bancos } = useCuentasBancarias();
@@ -185,7 +186,7 @@ function FCPage() {
               <Label className="text-xs">Mes</Label>
               <Select value={String(mesSel)} onValueChange={(v) => setMesSel(Number(v))}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{MESES.map((m, i) => esMesEnCursoSinCerrar(anio, i+1) ? null : <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <Button size="sm" variant="outline" onClick={() => exportFCIndirecto({ tab: "mes", anio, mes: mesSel, lineasPorMes })}>
@@ -201,7 +202,7 @@ function FCPage() {
               <Label className="text-xs">Hasta el mes</Label>
               <Select value={String(hastaMes)} onValueChange={(v) => setHastaMes(Number(v))}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{MESES.map((m, i) => esMesEnCursoSinCerrar(anio, i+1) ? null : <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <Button size="sm" variant="outline" onClick={() => exportFCIndirecto({ tab: "ytd", anio, hastaMes, lineasPorMes })}>
@@ -457,9 +458,11 @@ function ReporteFCComparativo({ lineasPorMes, anio }: { lineasPorMes: LineasMes[
                         key={c}
                         onMouseDown={startSel(r, c)}
                         onMouseEnter={overSel(r, c)}
-                        className={`py-1.5 px-2 text-right mono border-b cursor-cell ${fila.bold ? "font-semibold" : ""} ${v === 0 ? "text-muted-foreground/60" : ""} ${enRango(r, c) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                        className={`py-1.5 px-2 text-right mono border-b cursor-cell ${fila.bold ? "font-semibold" : ""} ${v === 0 || esMesEnCursoSinCerrar(anio, c + 1) ? "text-muted-foreground/60" : ""} ${enRango(r, c) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                       >
-                        {v === 0 ? "—" : fmtUsd(v)}
+                        {/* El mes en curso sin cerrar (antes del día 25) todavía no tiene
+                            todos los datos cargados: no se presenta como un número definitivo. */}
+                        {esMesEnCursoSinCerrar(anio, c + 1) ? "—" : v === 0 ? "—" : fmtUsd(v)}
                         {fila.label === "EBITDA" && lineasPorMes[c]?.cogsEsEstimado && <span className="text-amber-600">*</span>}
                         {fila.label === "Retenciones de ISLR (banco)" && lineasPorMes[c]?.retencionIslrEsEstimado && <span className="text-amber-600">*</span>}
                       </td>

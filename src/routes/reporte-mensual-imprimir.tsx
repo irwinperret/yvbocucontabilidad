@@ -42,10 +42,8 @@ export const Route = createFileRoute("/reporte-mensual-imprimir")({
   }),
 });
 
+// Las 3 tarjetas de gráficos comparten la misma fila (ver sección 3 más abajo).
 const ANCHO_GRAFICO = 300;
-// Las dos primeras tarjetas comparten línea (2 por fila); con más espacio
-// libre que antes (ya no hay 3 en la misma fila) se ensanchan un poco.
-const ANCHO_GRAFICO_ANCHO = 440;
 const ALTO_GRAFICO = 250;
 
 /** Convierte los **negrita** de frase() en <b> reales dentro de un <p>. */
@@ -640,12 +638,11 @@ function ReporteMensualImprimirPage() {
         ))}
       </section>
 
-      {/* 3. Gráficos -- dos tarjetas por fila (más fáciles de leer que las tres
-          apretadas de antes); la de inventario queda sola en la fila de abajo. */}
+      {/* 3. Gráficos -- las 3 tarjetas en la misma fila. */}
       <section className="flex gap-3 mb-3" style={{ breakInside: "avoid" }}>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Utilidad mensual por categorías — Enero a {MESES[mes - 1]} {anio}</p>
-          <ComposedChart width={ANCHO_GRAFICO_ANCHO} height={ALTO_GRAFICO - 34} data={serie} stackOffset="sign">
+          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO - 34} data={serie} stackOffset="sign">
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="mesLabel" fontSize={10} />
             <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} />
@@ -675,7 +672,7 @@ function ReporteMensualImprimirPage() {
         </div>
         <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Márgenes operativos — Enero a {MESES[mes - 1]} {anio}</p>
-          <ComposedChart width={ANCHO_GRAFICO_ANCHO} height={ALTO_GRAFICO} data={serieMargenes}>
+          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieMargenes}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="mesLabel" fontSize={10} />
             <YAxis tickFormatter={(v) => `${v}%`} fontSize={10} width={40} />
@@ -686,12 +683,9 @@ function ReporteMensualImprimirPage() {
             <Line type="monotone" dataKey="utilidadNetaPct" name="Utilidad neta %" stroke="#00BFFF" strokeWidth={3} dot={{ r: 3, fill: "#00BFFF" }} connectNulls isAnimationActive={false} />
           </ComposedChart>
         </div>
-      </section>
-
-      <section className="flex gap-3 mb-3" style={{ breakInside: "avoid" }}>
-        <div className="rounded-md border p-2" style={{ borderColor: "#E2E5EA", width: ANCHO_GRAFICO_ANCHO + 16 }}>
+        <div className="flex-1 rounded-md border p-2" style={{ borderColor: "#E2E5EA" }}>
           <p className="text-[11px] font-semibold mb-1" style={{ color: "#1e3a5f" }}>Nivel de inventario mensual — Enero a {MESES[mes - 1]} {anio}</p>
-          <ComposedChart width={ANCHO_GRAFICO_ANCHO} height={ALTO_GRAFICO} data={serieInventario}>
+          <ComposedChart width={ANCHO_GRAFICO} height={ALTO_GRAFICO} data={serieInventario}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis dataKey="mesLabel" fontSize={10} />
             <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={10} width={40} />

@@ -34,6 +34,30 @@ export function rangoDePeriodo(periodo: string): { primero: string; ultimo: stri
 /** Día mínimo de cobertura para dar un periodo por importado. */
 export const DIA_COBERTURA_MINIMA = 25;
 
+/**
+ * Mes/año por defecto para los reportes "cerrados" (Ganancias y Pérdidas,
+ * Flujo de Caja): antes del día DIA_COBERTURA_MINIMA el mes en curso
+ * normalmente todavía no tiene todas las compras/movimientos bancarios
+ * cargados, así que por defecto se muestra el mes anterior (que sí está
+ * completo) en su lugar.
+ */
+export function mesReporteCerradoPorDefecto(hoy: Date = new Date()): { anio: number; mes: number } {
+  const anio = hoy.getFullYear();
+  const mes = hoy.getMonth() + 1;
+  if (hoy.getDate() >= DIA_COBERTURA_MINIMA) return { anio, mes };
+  return mes === 1 ? { anio: anio - 1, mes: 12 } : { anio, mes: mes - 1 };
+}
+
+/**
+ * ¿Es este mes (1-12) de este año el mes en curso, antes del día
+ * DIA_COBERTURA_MINIMA? En ese caso los reportes "cerrados" no deben
+ * ofrecerlo como opción ni mostrar sus números como definitivos — los meses
+ * pasados y futuros no se ven afectados por esta regla.
+ */
+export function esMesEnCursoSinCerrar(anio: number, mes: number, hoy: Date = new Date()): boolean {
+  return anio === hoy.getFullYear() && mes === hoy.getMonth() + 1 && hoy.getDate() < DIA_COBERTURA_MINIMA;
+}
+
 /** Fecha (YYYY-MM-DD) hasta la que debe llegar la importación para considerarse completa. */
 export function fechaCoberturaMinima(periodo: string): string {
   const { ultimo } = rangoDePeriodo(periodo);
