@@ -1882,6 +1882,11 @@ function TableroProveedor() {
                           </Button>
                         </div>
                       </div>
+                      {(mv.notas ?? mv.detalle) && (
+                        <div className="text-xs text-muted-foreground break-words">
+                          {mv.notas ?? mv.detalle}
+                        </div>
+                      )}
                       {lista.map((c) => (
                         <FacturaChip
                           key={c.id}
