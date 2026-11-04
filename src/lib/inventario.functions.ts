@@ -508,34 +508,53 @@ export const crearInventarioSnapshot = createServerFn({ method: "POST" })
     if (insErr) throw insErr;
 
     let cascadedPeriodo: string | null = null;
+    // OJO: antes esto solo CREABA el vecino si faltaba, y no tocaba nada
+    // si ya existía -- aunque existiera con un monto_usd DISTINTO (por
+    // ejemplo, un registro manual anterior que nunca se corrigió). Eso
+    // dejaba desincronizados inicial(N+1) y final(N) sin avisar a nadie.
+    // Ahora, si cascade=true, el vecino SIEMPRE queda igual a este monto
+    // en USD (se crea si falta, se corrige si existía con otro valor) --
+    // misma garantía "siempre sincronizado" que ya usa editarInventarioSnapshot.
     if (cascade) {
       if (tipo === "final") {
         const nextPeriodo = shiftPeriodo(periodo, 1);
         const { data: nextIni } = await supabase
-          .from("inventario_snapshots").select("id")
+          .from("inventario_snapshots").select("id, monto_usd, tasa_bcv")
           .eq("periodo", nextPeriodo).eq("tipo", "inicial").maybeSingle();
+        const nextFirstDay = `${nextPeriodo}-01`;
         if (!nextIni) {
-          const nextFirstDay = `${nextPeriodo}-01`;
           const tasaNext = (await fetchTasaBcvOnOrBefore(supabase, nextFirstDay)) || tasa;
           await supabase.from("inventario_snapshots").insert({
             periodo: nextPeriodo, tipo: "inicial", monto_usd, monto_bs: r2(monto_usd * tasaNext),
             tasa_bcv: tasaNext, fecha: nextFirstDay, registrado_por: userId,
           } as any);
           cascadedPeriodo = nextPeriodo;
+        } else if (Math.abs(Number((nextIni as any).monto_usd) - monto_usd) > 0.01) {
+          const tasaNext = Number((nextIni as any).tasa_bcv) || (await fetchTasaBcvOnOrBefore(supabase, nextFirstDay)) || tasa;
+          await supabase.from("inventario_snapshots").update({
+            monto_usd, monto_bs: r2(monto_usd * tasaNext), tasa_bcv: tasaNext,
+          } as any).eq("id", (nextIni as any).id);
+          cascadedPeriodo = nextPeriodo;
         }
       } else {
         const prevPeriodo = shiftPeriodo(periodo, -1);
         const { data: prevFin } = await supabase
-          .from("inventario_snapshots").select("id")
+          .from("inventario_snapshots").select("id, monto_usd, tasa_bcv")
           .eq("periodo", prevPeriodo).eq("tipo", "final").maybeSingle();
+        const [y, m] = prevPeriodo.split("-").map(Number);
+        const finPrev = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
         if (!prevFin) {
-          const [y, m] = prevPeriodo.split("-").map(Number);
-          const finPrev = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
           const tasaPrev = (await fetchTasaBcvOnOrBefore(supabase, finPrev)) || tasa;
           await supabase.from("inventario_snapshots").insert({
             periodo: prevPeriodo, tipo: "final", monto_usd, monto_bs: r2(monto_usd * tasaPrev),
             tasa_bcv: tasaPrev, fecha: finPrev, registrado_por: userId,
           } as any);
+          cascadedPeriodo = prevPeriodo;
+        } else if (Math.abs(Number((prevFin as any).monto_usd) - monto_usd) > 0.01) {
+          const tasaPrev = Number((prevFin as any).tasa_bcv) || (await fetchTasaBcvOnOrBefore(supabase, finPrev)) || tasa;
+          await supabase.from("inventario_snapshots").update({
+            monto_usd, monto_bs: r2(monto_usd * tasaPrev), tasa_bcv: tasaPrev,
+          } as any).eq("id", (prevFin as any).id);
           cascadedPeriodo = prevPeriodo;
         }
       }

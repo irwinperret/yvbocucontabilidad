@@ -207,6 +207,30 @@ export async function calcularYGuardarCierre(
     { onConflict: "periodo,tipo" },
   );
 
+  // Sincroniza siempre el inventario INICIAL del mes siguiente con el
+  // FINAL que se acaba de guardar (misma convención que usan editar/crear
+  // inventario: inicial(N+1) debe ser igual a final(N) en USD, aunque su
+  // valor en Bs cambie porque usa la tasa BCV propia de su propio primer
+  // día). Antes, cerrar un mes solo guardaba sus propios dos snapshots y
+  // dejaba el inicial del mes siguiente sin tocar -- si nadie después
+  // editaba o registraba algo para ese mes siguiente, su inicial quedaba
+  // vacío indefinidamente (el hueco real detrás de "tuve que poner manual
+  // el inventario... cuando ya tenía el de [otro mes]"). Se usa upsert
+  // (no "solo si falta"): si el inicial del mes siguiente ya existía con
+  // otro valor, se corrige para que nunca quede desincronizado.
+  const siguiente = mesSiguienteDe(periodo);
+  const { primerDia: primerDiaSiguiente } = primerYUltimoDia(siguiente);
+  const { data: tasaIniSiguiente } = await tasaBcvQuery(primerDiaSiguiente, "fecha, tasa");
+  const tasaBcvIniSiguiente = Number((tasaIniSiguiente as any)?.tasa) || 0;
+  const montoBsIniSiguiente = tasaBcvIniSiguiente > 0 ? +(invFinUsd * tasaBcvIniSiguiente).toFixed(2) : r.finBs;
+  await supabase.from("inventario_snapshots").upsert(
+    {
+      periodo: siguiente, tipo: "inicial", monto_usd: invFinUsd, monto_bs: montoBsIniSiguiente,
+      tasa_bcv: tasaBcvIniSiguiente || null, registrado_por: userId, fecha: primerDiaSiguiente,
+    } as any,
+    { onConflict: "periodo,tipo" },
+  );
+
   if (r.cogsBs && Math.abs(r.cogsBs) > 0.01) {
     await supabase.from("transacciones").delete().eq("referencia", `CIERRE-${periodo}`);
     await supabase.from("transacciones").insert({
@@ -297,6 +321,14 @@ export function mesAnteriorDe(periodo: string): string | null {
   if (!y || !m || y < 2000) return null; // corte de seguridad, no retroceder indefinidamente
   const mm = m === 1 ? 12 : m - 1;
   const yy = m === 1 ? y - 1 : y;
+  return `${yy}-${String(mm).padStart(2, "0")}`;
+}
+
+/** Período siguiente a `periodo` ("2026-01" → "2026-02"). */
+export function mesSiguienteDe(periodo: string): string {
+  const [y, m] = periodo.split("-").map(Number);
+  const mm = m === 12 ? 1 : m + 1;
+  const yy = m === 12 ? y + 1 : y;
   return `${yy}-${String(mm).padStart(2, "0")}`;
 }
 

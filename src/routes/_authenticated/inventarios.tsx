@@ -126,6 +126,21 @@ function InventariosPage() {
     return m;
   }, [grouped]);
 
+  // Pares inicial/final (entre meses consecutivos) que existen en ambos
+  // lados pero no coinciden en USD -- se muestra como aviso arriba de la
+  // tabla, además del badge rojo "no coincide" en cada fila.
+  const periodosDesincronizados = useMemo(() => {
+    const out: string[] = [];
+    grouped.forEach((row) => {
+      const next = shiftPeriodo(row.periodo, 1);
+      const nextInicial = groupedMap.get(next)?.inicial ?? null;
+      if (row.final && nextInicial && Math.abs((Number(row.final.monto_usd) || 0) - (Number(nextInicial.monto_usd) || 0)) > 0.01) {
+        out.push(`${row.periodo} → ${next}`);
+      }
+    });
+    return out;
+  }, [grouped, groupedMap]);
+
 
   const [editing, setEditing] = useState<Snap | null>(null);
   const [draft, setDraft] = useState({ monto_usd: "", monto_bs: "", tasa_bcv: "", notas: "" });
@@ -388,6 +403,16 @@ function InventariosPage() {
           </Button>
         </CardHeader>
         <CardContent>
+          {periodosDesincronizados.length > 0 && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 mb-3 flex gap-2 items-start">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <div className="text-xs text-destructive leading-relaxed">
+                {periodosDesincronizados.length === 1 ? "Hay un par" : `Hay ${periodosDesincronizados.length} pares`} inicial/final que no coincide
+                {periodosDesincronizados.length === 1 ? "" : "n"} en USD: {periodosDesincronizados.join(", ")}. Busca el badge rojo "no coincide" abajo y
+                edita cualquiera de los dos lados para sincronizarlos (editar siempre corrige al vecino).
+              </div>
+            </div>
+          )}
           {isLoading ? (
             <div className="text-sm text-muted-foreground py-6">Cargando...</div>
           ) : (
@@ -416,6 +441,11 @@ function InventariosPage() {
                     const next = shiftPeriodo(row.periodo, 1);
                     const prevFinal = groupedMap.get(prev)?.final ?? null;
                     const nextInicial = groupedMap.get(next)?.inicial ?? null;
+                    // Ambos existen pero no coinciden en USD: inicial(N) debería
+                    // ser siempre igual a final(N-1) (y viceversa). Si no, algo
+                    // se registró a mano sin pasar por el cascade automático.
+                    const iniDesync = !!(row.inicial && prevFinal && Math.abs((Number(row.inicial.monto_usd) || 0) - (Number(prevFinal.monto_usd) || 0)) > 0.01);
+                    const finDesync = !!(row.final && nextInicial && Math.abs((Number(row.final.monto_usd) || 0) - (Number(nextInicial.monto_usd) || 0)) > 0.01);
                     return (
                     <tr id={`inv-row-${row.periodo}`} key={row.periodo} className="border-b last:border-0 transition-colors">
                       <td className="py-2 mono">{row.periodo}</td>
@@ -425,7 +455,16 @@ function InventariosPage() {
                         {row.inicial ? (
                           <div className="flex items-center justify-end gap-1.5">
                             {row.inicial && (
-                              prevFinal ? (
+                              iniDesync ? (
+                                <button
+                                  type="button"
+                                  onClick={() => scrollToRow(prev)}
+                                  className="inline-flex items-center gap-0.5 rounded border border-destructive/60 bg-destructive/10 hover:bg-destructive/20 px-1 py-0.5 text-[10px] text-destructive"
+                                  title={`No coincide con el inventario final de ${periodoLabel(prev)} (${fmtUsd(Number(prevFinal!.monto_usd) || 0)}). Edita cualquiera de los dos para sincronizarlos.`}
+                                >
+                                  <AlertTriangle className="h-2.5 w-2.5" />no coincide
+                                </button>
+                              ) : prevFinal ? (
                                 <button
                                   type="button"
                                   onClick={() => scrollToRow(prev)}
@@ -481,7 +520,16 @@ function InventariosPage() {
                         {row.final ? (
                           <div className="flex items-center justify-end gap-1.5">
                             <span>{fmtUsd(Number(row.final.monto_usd) || 0)}</span>
-                            {nextInicial ? (
+                            {finDesync ? (
+                              <button
+                                type="button"
+                                onClick={() => scrollToRow(next)}
+                                className="inline-flex items-center gap-0.5 rounded border border-destructive/60 bg-destructive/10 hover:bg-destructive/20 px-1 py-0.5 text-[10px] text-destructive"
+                                title={`No coincide con el inventario inicial de ${periodoLabel(next)} (${fmtUsd(Number(nextInicial!.monto_usd) || 0)}). Edita cualquiera de los dos para sincronizarlos.`}
+                              >
+                                <AlertTriangle className="h-2.5 w-2.5" />no coincide
+                              </button>
+                            ) : nextInicial ? (
                               <button
                                 type="button"
                                 onClick={() => scrollToRow(next)}
