@@ -33,6 +33,7 @@ import {
   PieChart,
   TrendingDown,
   ScanSearch,
+  Truck,
 
 } from "lucide-react";
 import { History as HistoryIcon } from "lucide-react";
@@ -106,6 +107,7 @@ export const analisisEnConstruccion = [
 export const analisisDetalles = [
   { title: "Ingresos en Detalle", url: "/ingresos-detalle", icon: PieChart },
   { title: "Egresos en Detalle", url: "/egresos-detalle", icon: TrendingDown },
+  { title: "COGS / Compras por Proveedor", url: "/cogs-proveedores", icon: Truck },
   { title: "CapEx", url: "/capex", icon: Building2 },
   { title: "Ajustes off-balance", url: "/ajustes-off-balance", icon: Layers },
   { title: "Aumento de capital", url: "/aumento-capital", icon: TrendingUp },
