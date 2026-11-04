@@ -146,7 +146,12 @@ export function construirSerieMargenes(rowsAnio: Row[], grupoDe: Map<string, str
     const ing = t["Ingresos"] ?? 0;
     const margenBrutoPct = ing > 0 ? +(((ing - t["COGS"]) / ing) * 100).toFixed(1) : null;
     const utilidadNetaPct = ing > 0 ? +(((ing - gastos) / ing) * 100).toFixed(1) : null;
-    return { mesLabel: MESES[i], margenBrutoPct, utilidadNetaPct };
+    // Qué porcentaje de los ingresos del mes es Venta de IVA (cuenta 1.8) --
+    // se dibuja como línea punteada en el gráfico para que se vea de un
+    // vistazo qué tanto "infla" el IVA los márgenes de ese mes.
+    const { iva } = desglosarIngresosMes(rowsAnio, grupoDe, i + 1);
+    const ingresoIvaPct = ing > 0 ? +((iva / ing) * 100).toFixed(1) : null;
+    return { mesLabel: MESES[i], margenBrutoPct, utilidadNetaPct, ingresoIvaPct };
   });
 }
 

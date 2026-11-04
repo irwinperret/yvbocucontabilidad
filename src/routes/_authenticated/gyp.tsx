@@ -147,7 +147,7 @@ function GyPPage() {
               <Label className="text-xs">Mes</Label>
               <Select value={String(mesSel)} onValueChange={(v) => setMesSel(Number(v))}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{MESES.map((m, i) => esMesEnCursoSinCerrar(anio, i+1) ? null : <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="flex items-center gap-2">
@@ -166,7 +166,7 @@ function GyPPage() {
               <Label className="text-xs">Hasta el mes</Label>
               <Select value={String(hastaMes)} onValueChange={(v) => setHastaMes(Number(v))}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{MESES.map((m, i) => esMesEnCursoSinCerrar(anio, i+1) ? null : <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">{hastaMes} meses — Ene a {MESES[hastaMes-1]} {anio}</p>
             </div>

@@ -186,7 +186,7 @@ function FCPage() {
               <Label className="text-xs">Mes</Label>
               <Select value={String(mesSel)} onValueChange={(v) => setMesSel(Number(v))}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{MESES.map((m, i) => esMesEnCursoSinCerrar(anio, i+1) ? null : <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <Button size="sm" variant="outline" onClick={() => exportFCIndirecto({ tab: "mes", anio, mes: mesSel, lineasPorMes })}>
@@ -202,7 +202,7 @@ function FCPage() {
               <Label className="text-xs">Hasta el mes</Label>
               <Select value={String(hastaMes)} onValueChange={(v) => setHastaMes(Number(v))}>
                 <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{MESES.map((m, i) => esMesEnCursoSinCerrar(anio, i+1) ? null : <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+                <SelectContent>{MESES.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <Button size="sm" variant="outline" onClick={() => exportFCIndirecto({ tab: "ytd", anio, hastaMes, lineasPorMes })}>
