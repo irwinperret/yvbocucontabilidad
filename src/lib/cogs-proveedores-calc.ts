@@ -241,10 +241,17 @@ export function construirSerieTopMensual(
   });
 }
 
-/** Paleta para hasta 8 proveedores + "Otros" (gris) en el gráfico apilado.
- * Mismo criterio de "colores distintos y legibles en ambos temas" que ya
- * usa COLOR_CAT en resumen-mensual-calc.ts. */
-export const PALETA_PROVEEDORES = [
-  "#1D4ED8", "#0F6E56", "#B45309", "#7C3AED", "#BE123C", "#0E7490", "#4D7C0F", "#9D174D",
-];
+/** Color único y estable por proveedor (hash del nombre -> hue), en vez de
+ * un color fijo por posición del ranking -- antes "top1" siempre era el
+ * mismo color sin importar quién fuera ese mes, lo que confundía porque un
+ * mismo proveedor cambiaba de color de un mes a otro (y dos proveedores
+ * distintos en el mismo puesto se veían "iguales"). Saturación/luminosidad
+ * fijas para que se lea bien en ambos temas. */
+export function colorParaProveedor(nombre: string): string {
+  let hash = 0;
+  for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  return `hsl(${hue}, 62%, 42%)`;
+}
+
 export const COLOR_OTROS_PROVEEDOR = "#9CA3AF";

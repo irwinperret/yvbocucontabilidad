@@ -10,7 +10,7 @@ import { MESES } from "@/lib/account-helpers";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
 import {
-  Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart,
+  Bar, Cell, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, ComposedChart,
 } from "recharts";
 import { Package, Users, Award, Scale } from "lucide-react";
 import { KpiCard } from "@/components/kpi-card";
@@ -20,7 +20,7 @@ import { type Row as RowGyP, type Cuenta } from "@/lib/resumen-mensual-calc";
 import {
   CUENTA_COMPRAS, construirNombrePorTerceroId, construirNombreATerceroId, totalComprasPorMes,
   rankingProveedoresMes, construirSerieCostoUnitario, construirSerieTopMensual,
-  PALETA_PROVEEDORES, COLOR_OTROS_PROVEEDOR,
+  colorParaProveedor, COLOR_OTROS_PROVEEDOR,
   type CompraRaw, type Tercero, type FilaTopMensual,
 } from "@/lib/cogs-proveedores-calc";
 
@@ -46,8 +46,11 @@ function TopProveedoresTooltip({ active, payload, label }: any) {
     <div className="bg-background border rounded-md shadow-lg px-3 py-2 text-xs space-y-1 min-w-[220px]">
       <p className="font-semibold">{label}</p>
       {filasTop.map((f) => (
-        <p key={f.nombre} className="flex justify-between gap-3">
-          <span>{f.nombre}</span>
+        <p key={f.nombre} className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ background: colorParaProveedor(f.nombre as string) }} />
+            {f.nombre}
+          </span>
           <span className="mono">{fmtUsd(f.usd)}</span>
         </p>
       ))}
@@ -235,7 +238,7 @@ function CogsProveedoresPage() {
         <CardHeader>
           <CardTitle className="text-lg">Compras mensuales por proveedor — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Cada barra son los 5 proveedores con más compras <b>ese mes</b> (no acumulado del año -- pueden cambiar de mes a mes); pase el cursor sobre un color para ver quién es. La línea punteada es el COGS real por cada dólar vendido (eje derecho).
+            Cada barra son los 5 proveedores con más compras <b>ese mes</b> (no acumulado del año -- pueden cambiar de mes a mes). Cada proveedor tiene siempre el mismo color así aparezca en meses distintos; pase el cursor para ver el detalle con nombre y color. La línea punteada es el COGS real por cada dólar vendido (eje derecho).
           </p>
         </CardHeader>
         <CardContent className="h-[420px]">
@@ -247,7 +250,11 @@ function CogsProveedoresPage() {
               <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v * 100).toFixed(0)}¢`} fontSize={11} />
               <Tooltip content={<TopProveedoresTooltip />} />
               {[1, 2, 3, 4, 5].map((k) => (
-                <Bar key={k} yAxisId="left" dataKey={`top${k}Usd`} stackId="a" fill={PALETA_PROVEEDORES[k - 1]} />
+                <Bar key={k} yAxisId="left" dataKey={`top${k}Usd`} stackId="a">
+                  {serieTopMensual.map((fila, i) => (
+                    <Cell key={i} fill={fila[`top${k}Nombre` as keyof FilaTopMensual] ? colorParaProveedor(fila[`top${k}Nombre` as keyof FilaTopMensual] as string) : "transparent"} />
+                  ))}
+                </Bar>
               ))}
               <Bar yAxisId="left" dataKey="otros" stackId="a" fill={COLOR_OTROS_PROVEEDOR} />
               <Line yAxisId="right" type="monotone" dataKey="cogsPorDolar" stroke="#7F1D1D" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} connectNulls />
