@@ -10,14 +10,14 @@ import {
   Line, LineChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { useUsdView, mensualView } from "@/lib/usd-view-context";
-import { estimarCogsMesesAbiertos, construirNivelInventarioPorPeriodo } from "@/lib/cierre-mes";
+import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { CUENTA_COMPRAS, construirNombrePorTerceroId, type CompraRaw, type Tercero } from "@/lib/cogs-proveedores-calc";
 import {
   construirSerieIndicadores, type FilaIndicadores, type RowIndicador, type CuentaIndicador,
 } from "@/lib/indicadores-restaurante-calc";
 
 /**
- * 5 indicadores clave de restaurante (ver indicadores-restaurante-calc.ts
+ * 4 indicadores clave de restaurante (ver indicadores-restaurante-calc.ts
  * para la fórmula y la fuente de cada benchmark), comparación mensual
  * Ene-Dic del año elegido. Consolidado de todos los centros de costo --
  * estos son ratios de salud del negocio completo, no por local.
@@ -31,7 +31,6 @@ const DEFAULT_OBJETIVOS = {
   foodCost: 30,
   primeCost: 55,
   margenNeto: 5,
-  diasInventario: 6,
   concentracion: 22,
 };
 
@@ -43,7 +42,6 @@ export function DashboardIndicadores() {
   const [objFoodCost, setObjFoodCost] = useState(DEFAULT_OBJETIVOS.foodCost);
   const [objPrimeCost, setObjPrimeCost] = useState(DEFAULT_OBJETIVOS.primeCost);
   const [objMargenNeto, setObjMargenNeto] = useState(DEFAULT_OBJETIVOS.margenNeto);
-  const [objDias, setObjDias] = useState(DEFAULT_OBJETIVOS.diasInventario);
   const [objConcentracion, setObjConcentracion] = useState(DEFAULT_OBJETIVOS.concentracion);
 
   const { data: cuentas } = useQuery({
@@ -65,17 +63,6 @@ export function DashboardIndicadores() {
   const { data: cogsEstimadoPorMes } = useQuery({
     queryKey: ["dash-ind-cogs-estimado", anio],
     queryFn: () => estimarCogsMesesAbiertos(anio),
-  });
-
-  // Historial completo de inventario (sin límite inferior) para poder
-  // heredar el nivel del último mes con dato cargado -- mismo criterio que
-  // estimarCogsMesesAbiertos.
-  const { data: snapsInventario } = useQuery({
-    queryKey: ["dash-ind-inventario", anio],
-    queryFn: async () => {
-      const { data } = await supabase.from("inventario_snapshots").select("periodo,tipo,monto_usd").lte("periodo", `${anio}-12`);
-      return data ?? [];
-    },
   });
 
   const { data: comprasAnio, isError: comprasError } = useQuery({
@@ -111,7 +98,6 @@ export function DashboardIndicadores() {
     return m;
   }, [cuentas]);
 
-  const nivelInventario = useMemo(() => construirNivelInventarioPorPeriodo((snapsInventario ?? []) as any), [snapsInventario]);
   const nombrePorTerceroId = useMemo(() => construirNombrePorTerceroId(terceros ?? []), [terceros]);
 
   const hoy = new Date();
@@ -125,9 +111,9 @@ export function DashboardIndicadores() {
 
   const serie = useMemo(
     () => construirSerieIndicadores(
-      rows ?? [], mapCuentas, cogsEstimadoPorMes, nivelInventario, comprasAnio ?? [], nombrePorTerceroId, anio, mesCorte, mode,
+      rows ?? [], mapCuentas, cogsEstimadoPorMes, comprasAnio ?? [], nombrePorTerceroId, anio, mesCorte, mode,
     ),
-    [rows, mapCuentas, cogsEstimadoPorMes, nivelInventario, comprasAnio, nombrePorTerceroId, anio, mesCorte, mode],
+    [rows, mapCuentas, cogsEstimadoPorMes, comprasAnio, nombrePorTerceroId, anio, mesCorte, mode],
   );
 
   return (
@@ -156,6 +142,7 @@ export function DashboardIndicadores() {
           <IndicadorChart
             titulo="Food cost %"
             sub="COGS real / Ingresos"
+            definicion="Qué parte de cada venta se fue en comprar los insumos de lo que se preparó. Mientras más bajo, más margen bruto queda antes de pagar nómina y gastos fijos."
             data={serie}
             dataKey="foodCostPct"
             color="#7F1D1D"
@@ -168,6 +155,7 @@ export function DashboardIndicadores() {
           <IndicadorChart
             titulo="Prime cost %"
             sub="(COGS real + Nómina) / Ingresos"
+            definicion="Food cost + nómina juntos -- los dos costos que más pesan en un restaurante. Es el indicador #1 de salud operativa: si sube mucho, exprime el margen aunque las ventas vayan bien."
             data={serie}
             dataKey="primeCostPct"
             color="#B45309"
@@ -180,6 +168,7 @@ export function DashboardIndicadores() {
           <IndicadorChart
             titulo="Margen neto %"
             sub="Utilidad neta / Ingresos"
+            definicion="Qué porcentaje de cada dólar vendido queda como utilidad real, después de COGS, nómina, gastos fijos, variables e impuestos. Es la última línea: lo que de verdad gana el negocio."
             data={serie}
             dataKey="margenNetoPct"
             color="#0ea5e9"
@@ -188,18 +177,6 @@ export function DashboardIndicadores() {
             objetivo={objMargenNeto}
             defaultObjetivo={DEFAULT_OBJETIVOS.margenNeto}
             onObjetivoChange={setObjMargenNeto}
-          />
-          <IndicadorChart
-            titulo="Días de inventario"
-            sub="Inventario promedio / COGS real × 30"
-            data={serie}
-            dataKey="diasInventario"
-            color="#0E7490"
-            sufijo=" días"
-            min={1} max={30} step={1}
-            objetivo={objDias}
-            defaultObjetivo={DEFAULT_OBJETIVOS.diasInventario}
-            onObjetivoChange={setObjDias}
           />
           <ConcentracionChart
             data={serie}
@@ -214,7 +191,7 @@ export function DashboardIndicadores() {
 }
 
 /** Fila de "Objetivo" con slider + botón para volver al default -- se repite
- * igual en los 5 gráficos (ver IndicadorChart y ConcentracionChart). */
+ * igual en los 4 gráficos (ver IndicadorChart y ConcentracionChart). */
 function ObjetivoSlider({ objetivo, defaultObjetivo, onObjetivoChange, min, max, step, sufijo }: {
   objetivo: number;
   defaultObjetivo: number;
@@ -243,9 +220,10 @@ function ObjetivoSlider({ objetivo, defaultObjetivo, onObjetivoChange, min, max,
   );
 }
 
-function IndicadorChart({ titulo, sub, data, dataKey, color, sufijo, objetivo, defaultObjetivo, onObjetivoChange, min, max, step }: {
+function IndicadorChart({ titulo, sub, definicion, data, dataKey, color, sufijo, objetivo, defaultObjetivo, onObjetivoChange, min, max, step }: {
   titulo: string;
   sub: string;
+  definicion: string;
   data: FilaIndicadores[];
   dataKey: keyof FilaIndicadores;
   color: string;
@@ -262,6 +240,7 @@ function IndicadorChart({ titulo, sub, data, dataKey, color, sufijo, objetivo, d
       <CardHeader className="pb-2">
         <CardTitle className="text-base">{titulo}</CardTitle>
         <p className="text-xs text-muted-foreground">{sub}</p>
+        <p className="text-xs text-muted-foreground/80 italic">{definicion}</p>
         <ObjetivoSlider objetivo={objetivo} defaultObjetivo={defaultObjetivo} onObjetivoChange={onObjetivoChange} min={min} max={max} step={step} sufijo={sufijo} />
       </CardHeader>
       <CardContent>
@@ -303,7 +282,8 @@ function ConcentracionChart({ data, objetivo, defaultObjetivo, onObjetivoChange 
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Concentración de compras</CardTitle>
-        <p className="text-xs text-muted-foreground">% del proveedor #1 sobre las compras del mes (puede cambiar de proveedor cada mes)</p>
+        <p className="text-xs text-muted-foreground">% del proveedor #1 sobre las compras del mes</p>
+        <p className="text-xs text-muted-foreground/80 italic">Qué tan dependiente estás de un solo proveedor en el mes (puede ser otro proveedor cada mes). Mientras más alto, más riesgo si ese proveedor sube precios, falla o se queda sin producto.</p>
         <ObjetivoSlider objetivo={objetivo} defaultObjetivo={defaultObjetivo} onObjetivoChange={onObjetivoChange} min={5} max={60} step={1} sufijo="%" />
       </CardHeader>
       <CardContent>

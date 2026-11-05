@@ -185,23 +185,39 @@ export function DashboardCharts() {
   const capexAcumActual = dataConAcumulado[idxHoy]?.capexAcum ?? 0;
   const utilidadAcumActual = dataConAcumulado[idxHoy]?.utilidadAcum ?? 0;
 
-  // Desglose de gastos operativos YTD por grupo del plan de cuentas
+  // Desglose YTD por grupo: COGS real (con su estimado de mes abierto, igual
+  // que el resto del dashboard) + Costos Fijos, Costos Variables (operativos)
+  // e Impuestos -- los 4 grupos que explican a qué se va la plata, dejando
+  // fuera Financiamiento y Otros (que no son costo operativo del día a día).
+  const GRUPOS_PIE = ["COGS", "Costos Fijos", "Costos Variables (operativos)", "Impuestos"];
   const gastosPorGrupo = useMemo(() => {
     const acc = new Map<string, number>();
     (rows ?? []).forEach((r) => {
       if (esAnioActual && r.mes > mesHoy) return;
       const c: any = mapCuentas.get(r.cuenta_codigo);
       if (!c || !c.afecta_gyp) return;
-      if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo.startsWith("2.")) return;
+      if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo.startsWith("2.")) return; // COGS se agrega aparte, abajo
       const grp = c.grupo ?? "Otros";
+      if (!GRUPOS_PIE.includes(grp)) return;
       acc.set(grp, (acc.get(grp) ?? 0) + Number(r.base_usd || 0));
     });
+    // COGS YTD de `data` (ya trae el estimado de los meses abiertos) en vez
+    // de sumar la cuenta 2.2 directo, para que siempre coincida con las
+    // demás gráficas del dashboard.
+    const cogsYtd = data.filter((d) => !esAnioActual || d.mesNum <= mesHoy).reduce((s, d) => s + d.cogs, 0);
+    if (cogsYtd > 0) acc.set("COGS", cogsYtd);
     return Array.from(acc.entries())
       .map(([name, value]) => ({ name, value: Math.round(value) }))
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value);
-  }, [rows, mapCuentas, esAnioActual, mesHoy]);
+  }, [rows, mapCuentas, esAnioActual, mesHoy, data]);
   const totalGastosOp = gastosPorGrupo.reduce((s, d) => s + d.value, 0);
+  const COLOR_POR_GRUPO: Record<string, string> = {
+    "COGS": "#7F1D1D",
+    "Costos Fijos": "#B91C1C",
+    "Costos Variables (operativos)": "#DC2626",
+    "Impuestos": "#FCA5A5",
+  };
   const COLORS_GRP = ["#ef4444","#f97316","#f59e0b","#eab308","#84cc16","#10b981","#06b6d4","#0ea5e9","#8b5cf6","#d946ef","#ec4899"];
   const hayMesEstimado = data.some((d) => d.cogsEsEstimado);
 
@@ -359,10 +375,11 @@ export function DashboardCharts() {
         </CardContent>
       </Card>
 
-      {/* Gastos operativos YTD por grupo */}
+      {/* Costos y gastos YTD por grupo: COGS, Costos Fijos, Costos Variables
+          (operativos) e Impuestos */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Gastos operativos YTD por grupo</CardTitle>
+          <CardTitle className="text-base">Costos y gastos YTD por grupo</CardTitle>
           <div className="flex gap-6 text-xs mt-1">
             <span className="text-muted-foreground">Total YTD</span>
             <span className="mono font-semibold text-red-600">{fmtUsd(totalGastosOp)}</span>
@@ -370,13 +387,13 @@ export function DashboardCharts() {
         </CardHeader>
         <CardContent>
           {gastosPorGrupo.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-12 text-center">Sin gastos operativos en el período.</p>
+            <p className="text-sm text-muted-foreground py-12 text-center">Sin costos ni gastos en el período.</p>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 items-center">
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie data={gastosPorGrupo} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={50} paddingAngle={2}>
-                    {gastosPorGrupo.map((_, i) => <Cell key={i} fill={COLORS_GRP[i % COLORS_GRP.length]} />)}
+                    {gastosPorGrupo.map((g, i) => <Cell key={i} fill={COLOR_POR_GRUPO[g.name] ?? COLORS_GRP[i % COLORS_GRP.length]} />)}
                   </Pie>
                   <Tooltip formatter={(v: any) => fmtUsd(Number(v))} />
                 </PieChart>
@@ -386,7 +403,7 @@ export function DashboardCharts() {
                   const pct = totalGastosOp > 0 ? (g.value / totalGastosOp) * 100 : 0;
                   return (
                     <div key={g.name} className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-sm shrink-0" style={{ background: COLORS_GRP[i % COLORS_GRP.length] }} />
+                      <span className="h-3 w-3 rounded-sm shrink-0" style={{ background: COLOR_POR_GRUPO[g.name] ?? COLORS_GRP[i % COLORS_GRP.length] }} />
                       <span className="flex-1 truncate">{g.name}</span>
                       <span className="text-xs text-muted-foreground mono w-12 text-right">{pct.toFixed(1)}%</span>
                       <span className="mono font-medium w-24 text-right">{fmtUsd(g.value)}</span>

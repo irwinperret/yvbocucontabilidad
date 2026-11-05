@@ -1,25 +1,22 @@
 import { MESES } from "@/lib/account-helpers";
 import type { UsdViewMode } from "@/lib/usd-view-context";
-import { inventarioAlCierreDe, mesAnteriorDe, type NivelInventarioPorPeriodo } from "@/lib/cierre-mes";
 import { agruparPorProveedorMes, type CompraRaw } from "@/lib/cogs-proveedores-calc";
 
 /**
- * 5 indicadores clave de restaurante, calculados con la misma data que ya
- * usa el resto del sistema (G&P, Cierres de Mes, COGS/Compras por
- * Proveedor) -- nada nuevo que registrar, solo combinarlo distinto:
+ * 4 indicadores clave de restaurante, calculados con la misma data que ya
+ * usa el resto del sistema (G&P, COGS/Compras por Proveedor) -- nada nuevo
+ * que registrar, solo combinarlo distinto:
  *
- *   1. Food cost %      = COGS real (2.2) / Ingresos
- *   2. Prime cost %      = (COGS real + Nómina) / Ingresos
- *   3. Margen neto %     = Utilidad neta / Ingresos
- *   4. Días de inventario = inventario promedio / COGS real * 30
- *   5. Concentración de compras = % del proveedor #1 sobre las compras del mes
+ *   1. Food cost %   = COGS real (2.2) / Ingresos
+ *   2. Prime cost %   = (COGS real + Nómina) / Ingresos
+ *   3. Margen neto %  = Utilidad neta / Ingresos
+ *   4. Concentración de compras = % del proveedor #1 sobre las compras del mes
  *
  * Thresholds usados (benchmarks de industria, restaurantes en general --
  * Toast POS / Complete Controller / GetBento, consultados nov-2026):
  *   Food cost 28-35% sano · Prime cost ≤55% objetivo moderno · Margen neto
- *   3-5% sano · Rotación de inventario ~5x/mes (≈6 días) es el promedio ·
- *   Concentración de proveedor: >20-25% es criterio de riesgo de cadena de
- *   suministro (no es un benchmark publicado, es manejo de riesgo).
+ *   3-5% sano · Concentración de proveedor: >20-25% es criterio de riesgo de
+ *   cadena de suministro (no es un benchmark publicado, es manejo de riesgo).
  */
 
 /** Cuentas de nómina (sueldos + sus pasivos laborales) dentro de "Costos
@@ -37,7 +34,6 @@ export type FilaIndicadores = {
   foodCostPct: number | null;
   primeCostPct: number | null;
   margenNetoPct: number | null;
-  diasInventario: number | null;
   concentracionTopPct: number | null;
   proveedorTopNombre: string | null;
 };
@@ -46,7 +42,6 @@ export function construirSerieIndicadores(
   rows: RowIndicador[],
   mapCuentas: Map<string, CuentaIndicador>,
   cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }> | undefined,
-  nivelInventario: NivelInventarioPorPeriodo,
   comprasAnio: CompraRaw[],
   nombrePorTerceroId: Map<string, string>,
   anio: number,
@@ -78,13 +73,6 @@ export function construirSerieIndicadores(
     if (estimado) cogs = mode === "paralela" ? estimado.cogsUsdParalelo : estimado.cogsUsdBcv;
     const utilidad = ingresos - cogs - gastosTotal;
 
-    // Días de inventario: promedio de inicial/final del mes (misma regla de
-    // herencia que inventarioAlCierreDe -- ver cierre-mes.ts) sobre el COGS
-    // real del mes, expresado en días de un mes de 30.
-    const inicial = inventarioAlCierreDe(mesAnteriorDe(periodo), nivelInventario);
-    const final = inventarioAlCierreDe(periodo, nivelInventario);
-    const promedioInv = inicial != null && final != null ? (inicial + final) / 2 : (final ?? inicial);
-
     // Concentración de compras: el proveedor #1 de ESE mes (mismo cálculo
     // que la pantalla COGS/Compras por Proveedor) sobre el total del mes.
     const porProv = agruparPorProveedorMes(comprasAnio, nombrePorTerceroId, mes, mode);
@@ -97,7 +85,6 @@ export function construirSerieIndicadores(
       foodCostPct: ingresos > 0 ? Number(((cogs / ingresos) * 100).toFixed(1)) : null,
       primeCostPct: ingresos > 0 ? Number((((cogs + nomina) / ingresos) * 100).toFixed(1)) : null,
       margenNetoPct: ingresos > 0 ? Number(((utilidad / ingresos) * 100).toFixed(1)) : null,
-      diasInventario: promedioInv != null && promedioInv > 0 && cogs > 0 ? Number(((promedioInv / cogs) * 30).toFixed(1)) : null,
       concentracionTopPct: totalCompras > 0 && porProv[0] ? Number(((porProv[0].usd / totalCompras) * 100).toFixed(1)) : null,
       proveedorTopNombre: porProv[0]?.nombre ?? null,
     };
