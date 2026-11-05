@@ -16,10 +16,14 @@ const InputSchema = z.object({
 
 // Via la pasarela de Lovable AI (mismo LOVABLE_API_KEY, misma facturación
 // consolidada) pero con modelos Claude en vez de Gemini Flash / GPT: Gemini
-// 3.7 Flash daba análisis de mala calidad para este caso de uso. Si el
-// gateway devuelve un error de "modelo no encontrado", el slug exacto puede
-// diferir del supuesto aquí (sigue la misma convención que google/... y
-// openai/...) — revisar el catálogo de modelos en el dashboard de Lovable.
+// 3.7 Flash daba análisis de mala calidad para este caso de uso. Los dos
+// modelos de abajo son Claude (anthropic/...), que en la pasarela de
+// Lovable se sirven por el endpoint nativo de Anthropic Messages
+// (/v1/messages) y NO por /v1/chat/completions (ese es solo para modelos
+// OpenAI-compatible como google/... y openai/...) -- ver el fetch más
+// abajo. Si el gateway devuelve un error de "modelo no encontrado", el
+// slug exacto puede diferir del supuesto aquí -- revisar el catálogo de
+// modelos en el dashboard de Lovable (Connectors -> AI).
 const MODELOS = {
   rapido: "anthropic/claude-haiku-4.5",
   profundo: "anthropic/claude-sonnet-5",
@@ -256,19 +260,25 @@ Estos campos son puramente informativos y no representan señales de problema en
     if (!key) throw new Error("Falta LOVABLE_API_KEY");
 
     const model = MODELOS[modelo];
-    const esOpenAI = model.startsWith("openai/");
     const limiteSalida = modelo === "profundo" ? 1200 : 800;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Endpoint nativo de Anthropic Messages (no /v1/chat/completions,
+    // formato OpenAI) -- los dos modelos en MODELOS son Claude. Mandar un
+    // modelo anthropic/... a /v1/chat/completions devuelve un error que no
+    // es 429/402/403, así que la UI lo mostraba como "Error al conectar..."
+    // genérico sin pista de la causa real. anthropic-version es requerido
+    // por la API de Anthropic.
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Lovable-API-Key": key,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model,
+        max_tokens: limiteSalida,
         messages: [{ role: "user", content: prompt }],
-        ...(esOpenAI ? { max_completion_tokens: limiteSalida } : { max_tokens: limiteSalida }),
       }),
     });
 
@@ -281,7 +291,7 @@ Estos campos son puramente informativos y no representan señales de problema en
     }
 
     const json: any = await res.json();
-    const texto = json?.choices?.[0]?.message?.content ?? "";
+    const texto = json?.content?.[0]?.text ?? "";
 
     return {
       empty: false as const,
