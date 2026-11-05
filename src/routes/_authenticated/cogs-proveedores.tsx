@@ -18,17 +18,58 @@ import { QueryErrorBanner } from "@/components/query-error-banner";
 import { estimarCogsMesesAbiertos } from "@/lib/cierre-mes";
 import { type Row as RowGyP, type Cuenta } from "@/lib/resumen-mensual-calc";
 import {
-  CUENTA_COMPRAS, construirNombrePorTerceroId, construirNombreATerceroId, topProveedoresDelAnio,
-  construirSerieComprasPorProveedor, rankingProveedoresMes, construirSerieCostoUnitario,
+  CUENTA_COMPRAS, construirNombrePorTerceroId, construirNombreATerceroId, totalComprasPorMes,
+  rankingProveedoresMes, construirSerieCostoUnitario, construirSerieTopMensual,
   PALETA_PROVEEDORES, COLOR_OTROS_PROVEEDOR,
-  type CompraRaw, type Tercero,
+  type CompraRaw, type Tercero, type FilaTopMensual,
 } from "@/lib/cogs-proveedores-calc";
 
 export const Route = createFileRoute("/_authenticated/cogs-proveedores")({
   component: CogsProveedoresPage,
 });
 
-const TOP_N = 7;
+const TOP_N = 5;
+
+/** Tooltip a medida: el top 5 cambia de proveedor cada mes, así que en vez de
+ * una leyenda fija (que mentiría sobre qué representa cada color de mes a
+ * mes), el nombre de cada proveedor se muestra al hacer hover sobre su barra. */
+function TopProveedoresTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const fila = payload[0]?.payload as FilaTopMensual;
+  const filasTop = [1, 2, 3, 4, 5]
+    .map((k) => ({
+      nombre: fila[`top${k}Nombre` as keyof FilaTopMensual] as string | null,
+      usd: fila[`top${k}Usd` as keyof FilaTopMensual] as number,
+    }))
+    .filter((f) => f.nombre && f.usd > 0);
+  return (
+    <div className="bg-background border rounded-md shadow-lg px-3 py-2 text-xs space-y-1 min-w-[220px]">
+      <p className="font-semibold">{label}</p>
+      {filasTop.map((f) => (
+        <p key={f.nombre} className="flex justify-between gap-3">
+          <span>{f.nombre}</span>
+          <span className="mono">{fmtUsd(f.usd)}</span>
+        </p>
+      ))}
+      {fila.otros > 0 && (
+        <p className="flex justify-between gap-3 text-muted-foreground">
+          <span>Otros proveedores</span>
+          <span className="mono">{fmtUsd(fila.otros)}</span>
+        </p>
+      )}
+      <p className="flex justify-between gap-3 font-semibold border-t pt-1">
+        <span>Total compras</span>
+        <span className="mono">{fmtUsd(fila.total)}</span>
+      </p>
+      {fila.cogsPorDolar != null && (
+        <p className="flex justify-between gap-3 text-muted-foreground">
+          <span>COGS real / $ vendido</span>
+          <span className="mono">{(fila.cogsPorDolar * 100).toFixed(1)}¢</span>
+        </p>
+      )}
+    </div>
+  );
+}
 
 function CogsProveedoresPage() {
   const { mode, label } = useUsdView();
@@ -104,32 +145,27 @@ function CogsProveedoresPage() {
   const nombrePorTerceroId = useMemo(() => construirNombrePorTerceroId(terceros ?? []), [terceros]);
   const nombreATerceroId = useMemo(() => construirNombreATerceroId(terceros ?? []), [terceros]);
 
-  const topProveedores = useMemo(
-    () => topProveedoresDelAnio(comprasAnio ?? [], nombrePorTerceroId, mode, TOP_N),
-    [comprasAnio, nombrePorTerceroId, mode],
-  );
-
-  const serieCompras = useMemo(
-    () => construirSerieComprasPorProveedor(comprasAnio ?? [], nombrePorTerceroId, topProveedores, mes, mode),
-    [comprasAnio, nombrePorTerceroId, topProveedores, mes, mode],
-  );
-
   const ranking = useMemo(
     () => rankingProveedoresMes(comprasAnio ?? [], nombrePorTerceroId, nombreATerceroId, mes, mode),
     [comprasAnio, nombrePorTerceroId, nombreATerceroId, mes, mode],
   );
 
+  const comprasPorMes = useMemo(
+    () => totalComprasPorMes(comprasAnio ?? [], mes, mode),
+    [comprasAnio, mes, mode],
+  );
+
   const serieCostoUnitario = useMemo(
-    () => construirSerieCostoUnitario(
-      serieCompras.map((s) => s.total),
-      rowsAnioGyP ?? [],
-      grupoDe,
-      cogsEstimadoPorMes,
-      anio,
-      mes,
-      mode,
-    ),
-    [serieCompras, rowsAnioGyP, grupoDe, cogsEstimadoPorMes, anio, mes, mode],
+    () => construirSerieCostoUnitario(comprasPorMes, rowsAnioGyP ?? [], grupoDe, cogsEstimadoPorMes, anio, mes, mode),
+    [comprasPorMes, rowsAnioGyP, grupoDe, cogsEstimadoPorMes, anio, mes, mode],
+  );
+
+  // El top 5 es POR MES (no acumulado del año) -- cada mes puede traer
+  // proveedores distintos en el podio, por eso no hay una leyenda fija (ver
+  // TopProveedoresTooltip arriba).
+  const serieTopMensual = useMemo(
+    () => construirSerieTopMensual(comprasAnio ?? [], nombrePorTerceroId, serieCostoUnitario, mes, mode, TOP_N),
+    [comprasAnio, nombrePorTerceroId, serieCostoUnitario, mes, mode],
   );
 
   const labelMes = `${MESES[mes - 1]} ${anio}`;
@@ -137,7 +173,7 @@ function CogsProveedoresPage() {
     ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800"
     : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800";
 
-  const filaMesActual = serieCompras[serieCompras.length - 1];
+  const filaMesActual = serieTopMensual[serieTopMensual.length - 1];
   const totalComprasMes = filaMesActual?.total ?? 0;
   const nProveedoresMes = ranking.length;
   const topProveedorMes = ranking[0];
@@ -196,20 +232,25 @@ function CogsProveedoresPage() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-lg">Compras mensuales por proveedor — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-lg">Compras mensuales por proveedor — Enero a {MESES[mes - 1]} {anio} · {label}</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Cada barra son los 5 proveedores con más compras <b>ese mes</b> (no acumulado del año -- pueden cambiar de mes a mes); pase el cursor sobre un color para ver quién es. La línea punteada es el COGS real por cada dólar vendido (eje derecho).
+          </p>
+        </CardHeader>
         <CardContent className="h-[420px]">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={serieCompras}>
+            <ComposedChart data={serieTopMensual}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis dataKey="mesLabel" fontSize={11} />
-              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
-              <Tooltip formatter={(v: number) => fmtUsd(v)} />
-              <Legend />
-              {topProveedores.map((nombre, i) => (
-                <Bar key={nombre} dataKey={nombre} name={nombre} stackId="a" fill={PALETA_PROVEEDORES[i % PALETA_PROVEEDORES.length]} />
+              <YAxis yAxisId="left" tickFormatter={(v) => `$${Math.round(v / 1000)}k`} fontSize={11} />
+              <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v * 100).toFixed(0)}¢`} fontSize={11} />
+              <Tooltip content={<TopProveedoresTooltip />} />
+              {[1, 2, 3, 4, 5].map((k) => (
+                <Bar key={k} yAxisId="left" dataKey={`top${k}Usd`} stackId="a" fill={PALETA_PROVEEDORES[k - 1]} />
               ))}
-              <Bar dataKey="otros" name="Otros proveedores" stackId="a" fill={COLOR_OTROS_PROVEEDOR} />
-              <Line type="monotone" dataKey="total" name="Total compras" stroke="#111827" strokeWidth={2} dot={{ r: 3 }} />
+              <Bar yAxisId="left" dataKey="otros" stackId="a" fill={COLOR_OTROS_PROVEEDOR} />
+              <Line yAxisId="right" type="monotone" dataKey="cogsPorDolar" stroke="#7F1D1D" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} connectNulls />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>

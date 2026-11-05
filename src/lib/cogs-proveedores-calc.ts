@@ -85,6 +85,17 @@ export function usdCompra(c: CompraRaw, mode: UsdViewMode): number {
   return Number(c.monto_usd) || 0;
 }
 
+/** Total de compras (todos los proveedores) por mes, Ene a mesCorte -- el
+ * insumo que necesita construirSerieCostoUnitario para "Compras / $ vendido". */
+export function totalComprasPorMes(compras: CompraRaw[], mesCorte: number, mode: UsdViewMode): number[] {
+  const totales = new Array(mesCorte).fill(0) as number[];
+  compras.forEach((c) => {
+    const mes = Number(c.fecha.slice(5, 7));
+    if (mes >= 1 && mes <= mesCorte) totales[mes - 1] = Number((totales[mes - 1] + usdCompra(c, mode)).toFixed(2));
+  });
+  return totales;
+}
+
 export type ProveedorMes = {
   nombre: string;
   usd: number;
@@ -117,52 +128,6 @@ export function agruparPorProveedorMes(
     map.set(nombre, e);
   });
   return Array.from(map.values()).sort((a, b) => b.usd - a.usd);
-}
-
-/** Los `topN` proveedores con más compras en el año (Ene a mesCorte) --
- * mismos proveedores en todos los meses del gráfico apilado, para que cada
- * color sea siempre el mismo proveedor de mes a mes. */
-export function topProveedoresDelAnio(
-  compras: CompraRaw[],
-  nombrePorTerceroId: Map<string, string>,
-  mode: UsdViewMode,
-  topN: number,
-): string[] {
-  const totales = new Map<string, number>();
-  compras.forEach((c) => {
-    const nombre = c.tercero_id ? (nombrePorTerceroId.get(c.tercero_id) ?? "Proveedor sin nombre") : "Sin proveedor asignado";
-    totales.set(nombre, (totales.get(nombre) ?? 0) + usdCompra(c, mode));
-  });
-  return Array.from(totales.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, topN)
-    .map(([nombre]) => nombre);
-}
-
-export type SerieComprasMes = { mesLabel: string; total: number; otros: number } & Record<string, number>;
-
-/** Serie mensual del año para el gráfico apilado por proveedor -- nunca más
- * allá del mes de corte, mismo patrón que el resto de "en Detalle". */
-export function construirSerieComprasPorProveedor(
-  compras: CompraRaw[],
-  nombrePorTerceroId: Map<string, string>,
-  topProveedores: string[],
-  mesCorte: number,
-  mode: UsdViewMode,
-): SerieComprasMes[] {
-  const topSet = new Set(topProveedores);
-  return Array.from({ length: mesCorte }, (_, i) => {
-    const mes = i + 1;
-    const porProv = agruparPorProveedorMes(compras, nombrePorTerceroId, mes, mode);
-    const fila: SerieComprasMes = { mesLabel: MESES[i], total: 0, otros: 0 };
-    topProveedores.forEach((n) => { fila[n] = 0; });
-    porProv.forEach((p) => {
-      fila.total = Number((fila.total + p.usd).toFixed(2));
-      if (topSet.has(p.nombre)) fila[p.nombre] = Number(((fila[p.nombre] || 0) + p.usd).toFixed(2));
-      else fila.otros = Number((fila.otros + p.usd).toFixed(2));
-    });
-    return fila;
-  });
 }
 
 export type FilaRanking = ProveedorMes & { pct: number; variacionPct: number | null; terceroId: string | null };
@@ -223,6 +188,56 @@ export function construirSerieCostoUnitario(
       cogsPorDolar: ing > 0 ? Number((cogs / ing).toFixed(3)) : null,
       ingresos: ing,
     };
+  });
+}
+
+export type FilaTopMensual = {
+  mesLabel: string;
+  total: number;
+  otros: number;
+  cogsPorDolar: number | null;
+  top1Usd: number; top1Nombre: string | null;
+  top2Usd: number; top2Nombre: string | null;
+  top3Usd: number; top3Nombre: string | null;
+  top4Usd: number; top4Nombre: string | null;
+  top5Usd: number; top5Nombre: string | null;
+};
+
+/** Serie mensual para el gráfico apilado: en CADA mes, los `topN` proveedores
+ * que más compraron ESE mes (no acumulado del año -- el top 5 puede cambiar
+ * de un mes a otro), el resto agrupado en "Otros", y el COGS real por dólar
+ * vendido de ese mismo mes (de `costoUnitario`, ya calculado aparte) para
+ * verlo junto a la concentración de compras. Como el proveedor de cada color
+ * cambia mes a mes, esta pantalla no usa una leyenda fija -- cada barra lleva
+ * su propio nombre en top{n}Nombre para que el tooltip lo muestre al hacer
+ * hover. */
+export function construirSerieTopMensual(
+  compras: CompraRaw[],
+  nombrePorTerceroId: Map<string, string>,
+  costoUnitario: FilaCostoUnitario[],
+  mesCorte: number,
+  mode: UsdViewMode,
+  topN = 5,
+): FilaTopMensual[] {
+  return Array.from({ length: mesCorte }, (_, i) => {
+    const mes = i + 1;
+    // agruparPorProveedorMes ya devuelve ordenado desc por usd.
+    const porProv = agruparPorProveedorMes(compras, nombrePorTerceroId, mes, mode);
+    const top = porProv.slice(0, topN);
+    const resto = porProv.slice(topN);
+    const total = Number(porProv.reduce((s, p) => s + p.usd, 0).toFixed(2));
+    const otros = Number(resto.reduce((s, p) => s + p.usd, 0).toFixed(2));
+    const fila = {
+      mesLabel: MESES[i],
+      total,
+      otros,
+      cogsPorDolar: costoUnitario[i]?.cogsPorDolar ?? null,
+    } as FilaTopMensual;
+    for (let k = 0; k < topN; k++) {
+      (fila as any)[`top${k + 1}Usd`] = top[k]?.usd ?? 0;
+      (fila as any)[`top${k + 1}Nombre`] = top[k]?.nombre ?? null;
+    }
+    return fila;
   });
 }
 
