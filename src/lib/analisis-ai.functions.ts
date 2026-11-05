@@ -134,7 +134,6 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
           .from("transacciones")
           .select("fecha,cuenta_codigo,centro_costo,modo,referencia,notas,monto_bs,monto_base_bs,monto_usd,tasa_bcv,tasa_paralela")
           .like("cuenta_codigo", "1.%")
-          .eq("modo", "on_balance")
           .neq("standby", true)
           .gte("fecha", `${anioNum}-${pad2(mesNum)}-01`)
           .lte("fecha", finMesStr)
@@ -185,7 +184,12 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
       .sort((a, b) => b.usd - a.usd)
       .slice(0, 6);
 
-    const ingresosDesglose = calcularTotalesIngresosMes(ingresosRows ?? [], mesNum, vista, false, true);
+    // incluirOff = true: igual que Ingresos en Detalle (incluirOff activado
+    // por defecto) -- los gastos del snapshot (costos_fijos_usd,
+    // costos_variables_usd, cogs_usd, nomina_usd) nunca filtraron por modo,
+    // así que dejar ingresos solo en on_balance subestimaba la utilidad
+    // cuando hay movimiento off-balance real.
+    const ingresosDesglose = calcularTotalesIngresosMes(ingresosRows ?? [], mesNum, vista, true, true);
 
     const food_cost_pct = snap.ingresos_usd > 0 ? Number(((snap.cogs_usd / snap.ingresos_usd) * 100).toFixed(1)) : null;
     const prime_cost_pct = snap.ingresos_usd > 0 ? Number((((snap.cogs_usd + (snap.nomina_usd ?? 0)) / snap.ingresos_usd) * 100).toFixed(1)) : null;
@@ -238,7 +242,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
 DATOS FINANCIEROS:
 ${JSON.stringify(businessSnapshot, null, 2)}
 
-Los datos incluyen, además de los totales generales: los indicadores food_cost_pct / prime_cost_pct / margen_neto_pct comparados contra su objetivo (los campos objetivo_*), los proveedores que más pesaron en COGS/Compras del mes (top_proveedores_cogs_compras, con su % de concentración y variación vs. el mes anterior), las principales cuentas de gasto fuera de nómina y mercadeo (top_cuentas_gasto, con su variación vs. el mes anterior), y la composición de los ingresos del mes (ventas comunes vs. ajustes de venta lista vs. IVA vs. conciliación bancaria). Usa esta información para que tus recomendaciones sean específicas (qué proveedor, qué cuenta, qué indicador puntual) en vez de genéricas.
+Los datos incluyen, además de los totales generales (que ya suman movimientos on-balance y off-balance): los indicadores food_cost_pct / prime_cost_pct / margen_neto_pct (los campos objetivo_* son solo una referencia interna, no los repitas como si fueran la noticia principal), los proveedores que más pesaron en COGS/Compras del mes (top_proveedores_cogs_compras, con su % de concentración y variación vs. el mes anterior), las principales cuentas de gasto fuera de nómina y mercadeo (top_cuentas_gasto, con su variación vs. el mes anterior), y la composición de los ingresos del mes (ventas comunes vs. ajustes de venta lista vs. IVA vs. conciliación bancaria). Usa esta información para que tus recomendaciones sean específicas (qué proveedor, qué cuenta, qué indicador puntual) en vez de genéricas. Escribe para el dueño del restaurante, no para un contador: evita jerga como "food cost %" o "prime cost" sin explicarla, y cuando cites un indicador tradúcelo a algo concreto (por ejemplo "de cada $100 que vendes, X se van en comida").
 
 Responde en español. Estructura tu respuesta así:
 1. Un párrafo corto de diagnóstico general (máximo 3 oraciones)

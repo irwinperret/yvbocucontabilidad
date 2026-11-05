@@ -12,7 +12,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Sparkles, Copy, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus, Rocket, Coins } from "lucide-react";
+import {
+  Sparkles, Copy, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus, Rocket, Coins,
+  Wallet, Package, Percent, PiggyBank, Users, Truck, Receipt,
+} from "lucide-react";
 import { currentPeriod, fmtUsd } from "@/lib/format";
 import { generarAnalisisAI } from "@/lib/analisis-ai.functions";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
@@ -261,6 +264,8 @@ function AnalisisAIPage() {
         <>
           <KpiRow snapshot={result.snapshot} />
 
+          <IndicadoresPlain snapshot={result.snapshot} />
+
           <DetalleUsado snapshot={result.snapshot} />
 
           <Card className="border-primary/30 bg-primary/5">
@@ -333,15 +338,17 @@ function Trend({ curr, prev, higherIsBetter = true }: { curr: number; prev: numb
 }
 
 function KpiCard({
-  label, value, valueClass, trend, badge, empty,
+  label, value, valueClass, trend, badge, empty, icon, caption,
 }: {
   label: string; value: string; valueClass?: string;
   trend?: React.ReactNode; badge?: React.ReactNode; empty?: boolean;
+  icon?: React.ReactNode; caption?: string;
 }) {
   return (
     <Card className="min-w-[150px] flex-1">
       <CardContent className="py-3 px-4">
         <div className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+          {icon}
           {label}
           {trend}
         </div>
@@ -349,18 +356,10 @@ function KpiCard({
           {empty ? <span className="text-sm font-normal text-muted-foreground">Sin datos</span> : value}
           {!empty && badge}
         </div>
+        {!empty && caption && <div className="text-[11px] text-muted-foreground mt-0.5">{caption}</div>}
       </CardContent>
     </Card>
   );
-}
-
-/** Verde si el indicador está dentro del objetivo, rojo si no -- "más bajo
- * es mejor" para food cost / prime cost, "más alto es mejor" para margen
- * neto, igual que en los indicadores del dashboard. */
-function colorVsObjetivo(valor: number | null, objetivo: number, masBajoEsMejor: boolean) {
-  if (valor == null) return "";
-  const dentro = masBajoEsMejor ? valor <= objetivo : valor >= objetivo;
-  return dentro ? "text-green-600" : "text-red-600";
 }
 
 function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
@@ -379,53 +378,101 @@ function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
   return (
     <div className="flex flex-wrap gap-3">
       <KpiCard
+        icon={<Wallet className="h-3.5 w-3.5" />}
         label="Ingresos"
         value={fmtUsd(ingresos)}
         valueClass="text-green-600"
         trend={<Trend curr={ingresos} prev={prevIngresos} />}
+        caption="incluye on y off-balance"
         empty={empty}
       />
       <KpiCard
+        icon={<Package className="h-3.5 w-3.5" />}
         label="COGS"
         value={fmtUsd(cogs)}
         valueClass="text-red-600"
         empty={empty}
       />
       <KpiCard
+        icon={<Percent className="h-3.5 w-3.5" />}
         label="Margen bruto"
         value={`${margenBruto.toFixed(1)}%`}
         valueClass={margenColor}
         empty={empty}
       />
       <KpiCard
+        icon={<PiggyBank className="h-3.5 w-3.5" />}
         label="Utilidad neta"
         value={fmtUsd(utilidad)}
         valueClass={utilidadColor}
         empty={empty}
       />
       <KpiCard
+        icon={<Users className="h-3.5 w-3.5" />}
         label="Nómina"
         value={fmtUsd(nomina)}
         empty={empty}
       />
-      <KpiCard
-        label={`Food cost % (obj. ${snapshot.objetivo_food_cost_pct}%)`}
-        value={snapshot.food_cost_pct == null ? "—" : `${snapshot.food_cost_pct}%`}
-        valueClass={colorVsObjetivo(snapshot.food_cost_pct, snapshot.objetivo_food_cost_pct, true)}
-        empty={empty}
-      />
-      <KpiCard
-        label={`Prime cost % (obj. ${snapshot.objetivo_prime_cost_pct}%)`}
-        value={snapshot.prime_cost_pct == null ? "—" : `${snapshot.prime_cost_pct}%`}
-        valueClass={colorVsObjetivo(snapshot.prime_cost_pct, snapshot.objetivo_prime_cost_pct, true)}
-        empty={empty}
-      />
-      <KpiCard
-        label={`Margen neto % (obj. ${snapshot.objetivo_margen_neto_pct}%)`}
-        value={snapshot.margen_neto_pct == null ? "—" : `${snapshot.margen_neto_pct}%`}
-        valueClass={colorVsObjetivo(snapshot.margen_neto_pct, snapshot.objetivo_margen_neto_pct, false)}
-        empty={empty}
-      />
+    </div>
+  );
+}
+
+type ItemPlain = { titulo: string; texto: string; verdicto: string; verdictoClass: string };
+
+/** Traduce los 3 indicadores clave a lenguaje llano ("de cada $100 que
+ * vendes...") en vez de nombrarlos con jerga contable y el número de
+ * objetivo por delante -- el objetivo solo se usa para decidir el veredicto
+ * (Saludable / revisar), nunca se muestra como el dato principal. */
+function construirIndicadoresPlain(snapshot: Snapshot): ItemPlain[] {
+  const hacer = (
+    titulo: string,
+    pct: number | null,
+    objetivo: number,
+    masBajoEsMejor: boolean,
+    frase: (c: number) => string,
+  ): ItemPlain => {
+    if (pct == null) return { titulo, texto: "Sin datos suficientes este mes.", verdicto: "", verdictoClass: "" };
+    const c = Math.round(pct);
+    const dentro = masBajoEsMejor ? pct <= objetivo : pct >= objetivo;
+    return {
+      titulo,
+      texto: frase(c),
+      verdicto: dentro ? "Saludable" : masBajoEsMejor ? "Más alto de lo ideal" : "Más bajo de lo ideal",
+      verdictoClass: dentro
+        ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+        : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400",
+    };
+  };
+
+  return [
+    hacer("Costo de la comida", snapshot.food_cost_pct, snapshot.objetivo_food_cost_pct, true,
+      (c) => `De cada $100 que vendes, ~$${c} se van en comida (compras).`),
+    hacer("Comida + personal", snapshot.prime_cost_pct, snapshot.objetivo_prime_cost_pct, true,
+      (c) => `De cada $100 que vendes, ~$${c} se van en comida y nómina juntos.`),
+    hacer("Lo que te queda", snapshot.margen_neto_pct, snapshot.objetivo_margen_neto_pct, false,
+      (c) => (c >= 0 ? `De cada $100 que vendes, te quedan ~$${c} de ganancia.` : `De cada $100 que vendes, estás perdiendo ~$${Math.abs(c)}.`)),
+  ];
+}
+
+function IndicadoresPlain({ snapshot }: { snapshot: Snapshot }) {
+  const items = construirIndicadoresPlain(snapshot);
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {items.map((it) => (
+        <Card key={it.titulo} className="bg-muted/30 border-dashed">
+          <CardContent className="py-4 px-4 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">{it.titulo}</span>
+              {it.verdicto && (
+                <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${it.verdictoClass}`}>
+                  {it.verdicto}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground leading-snug">{it.texto}</p>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -437,67 +484,104 @@ function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
 function DetalleUsado({ snapshot }: { snapshot: Snapshot }) {
   const proveedores = snapshot.top_proveedores_cogs_compras ?? [];
   const cuentas = snapshot.top_cuentas_gasto ?? [];
+  const totalIngresos =
+    (snapshot.ingresos_ventas_comunes_usd ?? 0) +
+    (snapshot.ingresos_ajustes_venta_lista_usd ?? 0) +
+    (snapshot.ingresos_por_iva_usd ?? 0) +
+    (snapshot.ingresos_conciliacion_bancaria_usd ?? 0);
+  const pctIngreso = (v: number) => (totalIngresos > 0 ? Math.min(100, (v / totalIngresos) * 100) : 0);
+
   const VarPct = ({ v }: { v: number | null }) => {
     if (v == null) return null;
     const cls = v > 0 ? "text-red-600" : v < 0 ? "text-green-600" : "text-muted-foreground";
     return <span className={`text-xs ${cls}`}>{v > 0 ? "+" : ""}{v}%</span>;
   };
+  const Barra = ({ pct }: { pct: number }) => (
+    <div className="h-1 rounded-full bg-muted overflow-hidden">
+      <div className="h-full bg-primary/50" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+    </div>
+  );
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Proveedores con más peso en COGS/Compras</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Truck className="h-3.5 w-3.5 text-muted-foreground" /> Proveedores con más peso en COGS/Compras
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1.5 text-sm">
+        <CardContent className="space-y-2.5 text-sm">
           {proveedores.length === 0 && <p className="text-muted-foreground text-xs">Sin compras este mes.</p>}
           {proveedores.map((p) => (
-            <div key={p.nombre} className="flex items-center justify-between gap-2">
-              <span className="truncate">{p.nombre}</span>
-              <span className="flex items-center gap-1.5 shrink-0">
-                <span className="mono text-xs text-muted-foreground">{fmtUsd(p.usd)}</span>
-                <VarPct v={p.variacion_pct_vs_mes_anterior} />
-              </span>
+            <div key={p.nombre} className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate">{p.nombre}</span>
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span className="mono text-xs text-muted-foreground">{fmtUsd(p.usd)}</span>
+                  <VarPct v={p.variacion_pct_vs_mes_anterior} />
+                </span>
+              </div>
+              <Barra pct={p.pct_del_mes} />
             </div>
           ))}
         </CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Principales cuentas de gasto</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Receipt className="h-3.5 w-3.5 text-muted-foreground" /> Principales cuentas de gasto
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1.5 text-sm">
+        <CardContent className="space-y-2.5 text-sm">
           {cuentas.length === 0 && <p className="text-muted-foreground text-xs">Sin gastos en esta categoría.</p>}
           {cuentas.map((c) => (
-            <div key={c.nombre} className="flex items-center justify-between gap-2">
-              <span className="truncate">{c.nombre}</span>
-              <span className="flex items-center gap-1.5 shrink-0">
-                <span className="mono text-xs text-muted-foreground">{fmtUsd(c.usd)}</span>
-                <VarPct v={c.variacion_pct_vs_mes_anterior} />
-              </span>
+            <div key={c.nombre} className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate">{c.nombre}</span>
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span className="mono text-xs text-muted-foreground">{fmtUsd(c.usd)}</span>
+                  <VarPct v={c.variacion_pct_vs_mes_anterior} />
+                </span>
+              </div>
+              <Barra pct={c.pct_del_total} />
             </div>
           ))}
         </CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Composición de ingresos</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Wallet className="h-3.5 w-3.5 text-muted-foreground" /> Composición de ingresos
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1.5 text-sm">
-          <div className="flex items-center justify-between gap-2">
-            <span>Ventas comunes</span>
-            <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_ventas_comunes_usd ?? 0)}</span>
+        <CardContent className="space-y-2.5 text-sm">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <span>Ventas comunes</span>
+              <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_ventas_comunes_usd ?? 0)}</span>
+            </div>
+            <Barra pct={pctIngreso(snapshot.ingresos_ventas_comunes_usd ?? 0)} />
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <span>Ajustes de venta lista</span>
-            <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_ajustes_venta_lista_usd ?? 0)}</span>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <span>Ajustes de venta lista</span>
+              <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_ajustes_venta_lista_usd ?? 0)}</span>
+            </div>
+            <Barra pct={pctIngreso(snapshot.ingresos_ajustes_venta_lista_usd ?? 0)} />
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <span>Ingresos por IVA</span>
-            <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_por_iva_usd ?? 0)}</span>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <span>Ingresos por IVA</span>
+              <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_por_iva_usd ?? 0)}</span>
+            </div>
+            <Barra pct={pctIngreso(snapshot.ingresos_por_iva_usd ?? 0)} />
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <span>Conciliación bancaria</span>
-            <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_conciliacion_bancaria_usd ?? 0)}</span>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <span>Conciliación bancaria</span>
+              <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_conciliacion_bancaria_usd ?? 0)}</span>
+            </div>
+            <Barra pct={pctIngreso(snapshot.ingresos_conciliacion_bancaria_usd ?? 0)} />
           </div>
         </CardContent>
       </Card>
