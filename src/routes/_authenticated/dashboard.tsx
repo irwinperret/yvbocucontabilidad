@@ -2,15 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fmtBs, fmtUsd, fmtDate, todayISO, currentPeriod } from "@/lib/format";
+import { fmtDate, todayISO, currentPeriod } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { DashboardCharts } from "@/components/dashboard-charts";
+import { DashboardIndicadores } from "@/components/dashboard-indicadores";
 import { UsdViewToggle } from "@/components/usd-view-toggle";
-import { useUsdView, usdVisual } from "@/lib/usd-view-context";
-import { ordenarPorCodigo } from "@/lib/account-helpers";
-import { KpiSkeletons, ChartSkeleton, TableSkeleton } from "@/components/page-skeletons";
+import { KpiSkeletons, ChartSkeleton } from "@/components/page-skeletons";
 import { QueryErrorBanner } from "@/components/query-error-banner";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
@@ -30,24 +29,6 @@ function Dashboard() {
       return data;
     },
   });
-  const { data: ultimas, isLoading: ultimasLoading, isError: ultimasError } = useQuery({
-    queryKey: ["ultimas-tx"],
-    queryFn: async () => {
-      const { data } = await supabase.from("transacciones").select("*").neq("standby", true).order("created_at", { ascending: false }).limit(8);
-      return data ?? [];
-    },
-  });
-  const { data: cuentas } = useQuery({
-    queryKey: ["cuentas-dashboard"],
-    queryFn: async () => {
-      const { data } = await supabase.from("plan_de_cuentas").select("codigo,nombre");
-      return ordenarPorCodigo(data ?? []);
-    },
-  });
-  const nombreCuenta = (c: string) => {
-    const n = cuentas?.find((x: any) => x.codigo === c)?.nombre;
-    return n ? `${c} · ${n}` : c;
-  };
   const { data: cxcCount, isLoading: cxcCountLoading } = useQuery({
     queryKey: ["cxc-count"],
     queryFn: async () => {
@@ -62,12 +43,10 @@ function Dashboard() {
       return count ?? 0;
     },
   });
-  const cargando = tasaLoading || ultimasLoading || cxcCountLoading || offCountLoading;
-  const conError = tasaError || ultimasError;
+  const cargando = tasaLoading || cxcCountLoading || offCountLoading;
+  const conError = tasaError;
 
   const tasaVencida = tasa && tasa.fecha !== todayISO();
-
-  const { mode, label } = useUsdView();
 
   return (
     <div className="space-y-6">
@@ -84,10 +63,6 @@ function Dashboard() {
         <>
           <KpiSkeletons count={4} />
           <ChartSkeleton className="h-[300px] w-full rounded-lg" />
-          <Card>
-            <CardHeader><CardTitle className="text-base">Últimos movimientos</CardTitle></CardHeader>
-            <CardContent><TableSkeleton rows={6} /></CardContent>
-          </Card>
         </>
       ) : (
       <>
@@ -134,46 +109,7 @@ function Dashboard() {
 
       <DashboardCharts />
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Últimos movimientos</CardTitle></CardHeader>
-        <CardContent>
-          {!ultimas || ultimas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin movimientos aún.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground border-b">
-                  <tr>
-                    <th className="text-left py-2 px-2">Fecha</th>
-                    <th className="text-left py-2 px-2">Cuenta</th>
-                    <th className="text-left py-2 px-2">Centro</th>
-                    <th className="text-right py-2 px-2">Bs</th>
-                    <th className="text-right py-2 px-2">{label}</th>
-                    <th className="text-left py-2 px-2">Modo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ultimas.map((t: any) => {
-                    const usd = usdVisual(t, mode);
-                    return (
-                      <tr key={t.id} className="border-b last:border-0">
-                        <td className="py-2 px-2 mono">{fmtDate(t.fecha)}</td>
-                        <td className="py-2 px-2">{nombreCuenta(t.cuenta_codigo)}</td>
-                        <td className="py-2 px-2">{t.centro_costo}</td>
-                        <td className="py-2 px-2 text-right mono">{fmtBs(t.monto_bs)}</td>
-                        <td className="py-2 px-2 text-right mono">{usd == null ? "—" : fmtUsd(usd)}</td>
-                        <td className="py-2 px-2">
-                          {t.modo === "off_balance" ? <Badge variant="outline" className="text-orange-600 border-orange-300">off</Badge> : <Badge variant="outline" className="text-green-700 border-green-300">on</Badge>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <DashboardIndicadores />
       </>
       )}
     </div>
