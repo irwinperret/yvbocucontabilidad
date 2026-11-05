@@ -261,6 +261,8 @@ function AnalisisAIPage() {
         <>
           <KpiRow snapshot={result.snapshot} />
 
+          <DetalleUsado snapshot={result.snapshot} />
+
           <Card className="border-primary/30 bg-primary/5">
             <CardHeader>
               <CardTitle className="text-base">Diagnóstico general</CardTitle>
@@ -301,13 +303,21 @@ function AnalisisAIPage() {
   );
 }
 
+type FilaProveedorSnapshot = { nombre: string; usd: number; pct_del_mes: number; variacion_pct_vs_mes_anterior: number | null };
+type FilaCuentaGastoSnapshot = { nombre: string; usd: number; pct_del_total: number; variacion_pct_vs_mes_anterior: number | null };
+
 type Snapshot = {
-  ingresos_usd: number; cogs_usd: number; nomina_usd: number;
-  gastos_admin_usd: number; gastos_operativos_usd: number;
-  gastos_mercadeo_usd: number; gastos_generales_usd: number;
-  otros_gastos_gyp_usd?: number;
-  utilidad_neta_usd: number;
-  ingresos_mes_anterior: number; gastos_mes_anterior: number;
+  ingresos_usd: number; cogs_usd: number;
+  costos_fijos_usd: number; costos_variables_usd: number;
+  nomina_usd_de_costos_fijos: number;
+  utilidad_neta_usd: number; margen_neto_pct: number | null;
+  food_cost_pct: number | null; prime_cost_pct: number | null;
+  objetivo_food_cost_pct: number; objetivo_prime_cost_pct: number; objetivo_margen_neto_pct: number;
+  top_proveedores_cogs_compras?: FilaProveedorSnapshot[];
+  top_cuentas_gasto?: FilaCuentaGastoSnapshot[];
+  ingresos_ventas_comunes_usd?: number; ingresos_ajustes_venta_lista_usd?: number;
+  ingresos_por_iva_usd?: number; ingresos_conciliacion_bancaria_usd?: number;
+  ingresos_mes_anterior: number;
 };
 
 function Trend({ curr, prev, higherIsBetter = true }: { curr: number; prev: number; higherIsBetter?: boolean }) {
@@ -344,12 +354,20 @@ function KpiCard({
   );
 }
 
+/** Verde si el indicador está dentro del objetivo, rojo si no -- "más bajo
+ * es mejor" para food cost / prime cost, "más alto es mejor" para margen
+ * neto, igual que en los indicadores del dashboard. */
+function colorVsObjetivo(valor: number | null, objetivo: number, masBajoEsMejor: boolean) {
+  if (valor == null) return "";
+  const dentro = masBajoEsMejor ? valor <= objetivo : valor >= objetivo;
+  return dentro ? "text-green-600" : "text-red-600";
+}
+
 function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
   const ingresos = snapshot.ingresos_usd;
   const cogs = snapshot.cogs_usd;
-  const nomina = snapshot.nomina_usd;
-  const gastosTotales = cogs + nomina + snapshot.gastos_admin_usd + snapshot.gastos_operativos_usd + snapshot.gastos_mercadeo_usd + snapshot.gastos_generales_usd;
-  const utilidad = ingresos - gastosTotales;
+  const nomina = snapshot.nomina_usd_de_costos_fijos;
+  const utilidad = snapshot.utilidad_neta_usd;
   const margenBruto = ingresos > 0 ? ((ingresos - cogs) / ingresos) * 100 : 0;
 
   const margenColor =
@@ -357,7 +375,6 @@ function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
   const utilidadColor = utilidad >= 0 ? "text-green-600" : "text-red-600";
 
   const prevIngresos = snapshot.ingresos_mes_anterior;
-  const prevUtilidad = snapshot.ingresos_mes_anterior - snapshot.gastos_mes_anterior;
 
   return (
     <div className="flex flex-wrap gap-3">
@@ -384,7 +401,6 @@ function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
         label="Utilidad neta"
         value={fmtUsd(utilidad)}
         valueClass={utilidadColor}
-        trend={<Trend curr={utilidad} prev={prevUtilidad} />}
         empty={empty}
       />
       <KpiCard
@@ -392,7 +408,99 @@ function KpiRow({ snapshot, empty }: { snapshot: Snapshot; empty?: boolean }) {
         value={fmtUsd(nomina)}
         empty={empty}
       />
+      <KpiCard
+        label={`Food cost % (obj. ${snapshot.objetivo_food_cost_pct}%)`}
+        value={snapshot.food_cost_pct == null ? "—" : `${snapshot.food_cost_pct}%`}
+        valueClass={colorVsObjetivo(snapshot.food_cost_pct, snapshot.objetivo_food_cost_pct, true)}
+        empty={empty}
+      />
+      <KpiCard
+        label={`Prime cost % (obj. ${snapshot.objetivo_prime_cost_pct}%)`}
+        value={snapshot.prime_cost_pct == null ? "—" : `${snapshot.prime_cost_pct}%`}
+        valueClass={colorVsObjetivo(snapshot.prime_cost_pct, snapshot.objetivo_prime_cost_pct, true)}
+        empty={empty}
+      />
+      <KpiCard
+        label={`Margen neto % (obj. ${snapshot.objetivo_margen_neto_pct}%)`}
+        value={snapshot.margen_neto_pct == null ? "—" : `${snapshot.margen_neto_pct}%`}
+        valueClass={colorVsObjetivo(snapshot.margen_neto_pct, snapshot.objetivo_margen_neto_pct, false)}
+        empty={empty}
+      />
+    </div>
+  );
+}
 
+/** Lo que el análisis AI usó además de los totales generales -- mismos
+ * datos que ya se ven en "COGS/Compras por Proveedor", "Egresos en
+ * Detalle" e "Ingresos en Detalle", para que quede claro de dónde salen
+ * las recomendaciones. */
+function DetalleUsado({ snapshot }: { snapshot: Snapshot }) {
+  const proveedores = snapshot.top_proveedores_cogs_compras ?? [];
+  const cuentas = snapshot.top_cuentas_gasto ?? [];
+  const VarPct = ({ v }: { v: number | null }) => {
+    if (v == null) return null;
+    const cls = v > 0 ? "text-red-600" : v < 0 ? "text-green-600" : "text-muted-foreground";
+    return <span className={`text-xs ${cls}`}>{v > 0 ? "+" : ""}{v}%</span>;
+  };
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Proveedores con más peso en COGS/Compras</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1.5 text-sm">
+          {proveedores.length === 0 && <p className="text-muted-foreground text-xs">Sin compras este mes.</p>}
+          {proveedores.map((p) => (
+            <div key={p.nombre} className="flex items-center justify-between gap-2">
+              <span className="truncate">{p.nombre}</span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span className="mono text-xs text-muted-foreground">{fmtUsd(p.usd)}</span>
+                <VarPct v={p.variacion_pct_vs_mes_anterior} />
+              </span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Principales cuentas de gasto</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1.5 text-sm">
+          {cuentas.length === 0 && <p className="text-muted-foreground text-xs">Sin gastos en esta categoría.</p>}
+          {cuentas.map((c) => (
+            <div key={c.nombre} className="flex items-center justify-between gap-2">
+              <span className="truncate">{c.nombre}</span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span className="mono text-xs text-muted-foreground">{fmtUsd(c.usd)}</span>
+                <VarPct v={c.variacion_pct_vs_mes_anterior} />
+              </span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Composición de ingresos</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1.5 text-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span>Ventas comunes</span>
+            <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_ventas_comunes_usd ?? 0)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span>Ajustes de venta lista</span>
+            <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_ajustes_venta_lista_usd ?? 0)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span>Ingresos por IVA</span>
+            <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_por_iva_usd ?? 0)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span>Conciliación bancaria</span>
+            <span className="mono text-xs text-muted-foreground">{fmtUsd(snapshot.ingresos_conciliacion_bancaria_usd ?? 0)}</span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
