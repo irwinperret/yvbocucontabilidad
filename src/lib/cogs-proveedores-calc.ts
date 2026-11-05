@@ -241,17 +241,28 @@ export function construirSerieTopMensual(
   });
 }
 
-/** Color único y estable por proveedor (hash del nombre -> hue), en vez de
- * un color fijo por posición del ranking -- antes "top1" siempre era el
- * mismo color sin importar quién fuera ese mes, lo que confundía porque un
- * mismo proveedor cambiaba de color de un mes a otro (y dos proveedores
- * distintos en el mismo puesto se veían "iguales"). Saturación/luminosidad
- * fijas para que se lea bien en ambos temas. */
-export function colorParaProveedor(nombre: string): string {
-  let hash = 0;
-  for (let i = 0; i < nombre.length; i++) hash = (hash * 31 + nombre.charCodeAt(i)) >>> 0;
-  const hue = hash % 360;
-  return `hsl(${hue}, 62%, 42%)`;
+/** Color único y estable por proveedor, repartido con el "ángulo dorado"
+ * (137.5°) sobre la rueda de color -- en vez de un color fijo por posición
+ * del ranking (antes "top1" siempre era el mismo color sin importar quién
+ * fuera ese mes, lo que confundía porque un mismo proveedor cambiaba de
+ * color de un mes a otro) y en vez de un hash puro por nombre (que a veces
+ * hacía caer a dos proveedores distintos en tonos muy parecidos por pura
+ * casualidad). El ángulo dorado garantiza que cada color nuevo quede lo más
+ * lejos posible de los ya asignados, sin importar cuántos proveedores haya.
+ * Recibe la lista de nombres que aparecen en el gráfico (no hace falta que
+ * vengan únicos ni en un orden particular) y devuelve nombre -> color;
+ * `nombres` se ordena alfabéticamente adentro, así el color de cada
+ * proveedor no depende de en qué mes apareció primero. Saturación/
+ * luminosidad fijas para que se lea bien en ambos temas. */
+export function construirColorPorProveedor(nombres: (string | null | undefined)[]): Map<string, string> {
+  const unicos = Array.from(new Set(nombres.filter((n): n is string => !!n))).sort();
+  const ANGULO_DORADO = 137.50776;
+  const m = new Map<string, string>();
+  unicos.forEach((nombre, i) => {
+    const hue = Math.round((i * ANGULO_DORADO) % 360);
+    m.set(nombre, `hsl(${hue}, 65%, 42%)`);
+  });
+  return m;
 }
 
 export const COLOR_OTROS_PROVEEDOR = "#9CA3AF";
