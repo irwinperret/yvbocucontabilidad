@@ -311,13 +311,25 @@ Estos campos son puramente informativos y no representan señales de problema en
     }
 
     const json: any = await res.json();
-    const texto = json?.content?.[0]?.text ?? "";
+    // No asumir que el texto está en content[0]: si el modelo usa "extended
+    // thinking" (más probable en el modo profundo con Sonnet), la API de
+    // Anthropic devuelve primero un bloque {type: "thinking", ...} y el
+    // texto real queda en un bloque posterior {type: "text", text: "..."}.
+    // Tomar content[0].text a ciegas daba undefined -> "" -> el nuevo guard
+    // de "respuesta vacía" disparaba aunque el modelo sí había respondido.
+    const bloqueTexto = Array.isArray(json?.content) ? json.content.find((b: any) => b?.type === "text") : null;
+    const texto = bloqueTexto?.text ?? "";
     // Si el gateway responde 200 pero sin texto (respuesta cortada,
     // bloqueada por el modelo, cambio de formato, etc.), no devolver un
     // "éxito" vacío -- eso se guardaba en caché y la UI mostraba el
     // Diagnóstico y las Recomendaciones completamente en blanco sin ningún
     // error visible. Mejor fallar con un mensaje claro para reintentar.
-    if (!texto || !texto.trim()) throw new Error("La IA devolvió una respuesta vacía, intenta de nuevo.");
+    if (!texto || !texto.trim()) {
+      // stop_reason ayuda a distinguir "se cortó por max_tokens" (bajar el
+      // prompt o subir limiteSalida) de "el modelo no devolvió texto por
+      // otra razón" -- sin esto, este error siempre se ve igual en los logs.
+      throw new Error(`La IA devolvió una respuesta vacía (stop_reason: ${json?.stop_reason ?? "desconocido"}), intenta de nuevo.`);
+    }
 
     return {
       empty: false as const,
