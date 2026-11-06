@@ -237,21 +237,38 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     }
 
     const vistaLabel = vista === "bcv" ? "USD a tasa BCV" : "USD a tasa paralela";
-    const prompt = `Eres un consultor financiero experto en restaurantes venezolanos. Analiza los siguientes datos financieros del restaurante YV/Bocú para el período ${businessSnapshot.periodo} y proporciona exactamente 3 recomendaciones concretas y accionables basadas en los números. Todos los montos USD están expresados en ${vistaLabel}.
+
+    // El modo profundo no es solo "el mismo análisis con un modelo más caro":
+    // pide más recomendaciones, exige que use la tendencia de ingresos (vs.
+    // mes anterior y hace 2 meses) y la concentración de proveedores, y
+    // tiene más presupuesto de palabras/tokens de salida para poder
+    // cumplir eso. El modo rápido se queda con el análisis corto original.
+    const esProfundo = modelo === "profundo";
+    const numRecos = esProfundo ? 5 : 3;
+    const limitePalabras = esProfundo ? 650 : 350;
+    const limiteSalida = esProfundo ? 1800 : 800;
+
+    const instruccionProfundidad = esProfundo
+      ? `Este es el modo de análisis PROFUNDO: no te quedes solo en los 3 indicadores principales. De las ${numRecos} recomendaciones, dedica al menos una a la tendencia de ingresos (compara ingresos_usd contra ingresos_mes_anterior e ingresos_hace_2_meses y di si el negocio está creciendo, estable o cayendo, en dólares y %), y al menos una a la concentración de proveedores (si algún proveedor de top_proveedores_cogs_compras supera objetivo_concentracion_proveedor_pct, nómbralo con su % exacto). Usa también las variaciones de top_cuentas_gasto para detectar qué cuenta se disparó vs. el mes anterior.`
+      : `Este es el modo RÁPIDO: sé conciso y prioriza únicamente los 2-3 números más importantes del mes, sin profundizar en tendencias históricas.`;
+
+    const prompt = `Eres un consultor financiero experto en restaurantes venezolanos. Analiza los siguientes datos financieros del restaurante YV/Bocú para el período ${businessSnapshot.periodo} y proporciona exactamente ${numRecos} recomendaciones concretas y accionables basadas en los números. Todos los montos USD están expresados en ${vistaLabel}.
 
 DATOS FINANCIEROS:
 ${JSON.stringify(businessSnapshot, null, 2)}
 
 Los datos incluyen, además de los totales generales (que ya suman movimientos on-balance y off-balance): los indicadores food_cost_pct / prime_cost_pct / margen_neto_pct (los campos objetivo_* son solo una referencia interna, no los repitas como si fueran la noticia principal), los proveedores que más pesaron en COGS/Compras del mes (top_proveedores_cogs_compras, con su % de concentración y variación vs. el mes anterior), las principales cuentas de gasto fuera de nómina y mercadeo (top_cuentas_gasto, con su variación vs. el mes anterior), y la composición de los ingresos del mes (ventas comunes vs. ajustes de venta lista vs. IVA vs. conciliación bancaria). Usa esta información para que tus recomendaciones sean específicas (qué proveedor, qué cuenta, qué indicador puntual) en vez de genéricas. Escribe para el dueño del restaurante, no para un contador: evita jerga como "food cost %" o "prime cost" sin explicarla, y cuando cites un indicador tradúcelo a algo concreto (por ejemplo "de cada $100 que vendes, X se van en comida").
 
+${instruccionProfundidad}
+
 Responde en español. Estructura tu respuesta así:
-1. Un párrafo corto de diagnóstico general (máximo 3 oraciones)
-2. Exactamente 3 recomendaciones numeradas, cada una con:
+1. Un párrafo ${esProfundo ? "de diagnóstico general (máximo 4 oraciones, mencionando la tendencia de ingresos)" : "corto de diagnóstico general (máximo 3 oraciones)"}
+2. Exactamente ${numRecos} recomendaciones numeradas, cada una con:
    - Título corto en negrita
-   - Explicación de máximo 2 oraciones basada en los números específicos
+   - Explicación de máximo ${esProfundo ? 3 : 2} oraciones basada en los números específicos
    - Nivel de prioridad: ALTA / MEDIA / BAJA
 
-Sé directo, específico con los números, y práctico. Evita recomendaciones genéricas. Sé breve: no excedas 350 palabras en total.
+Sé directo, específico con los números, y práctico. Evita recomendaciones genéricas. Sé breve: no excedas ${limitePalabras} palabras en total.
 
 IMPORTANTE - NO incluyas en tu análisis:
 - Comentarios sobre registros off-balance como si fueran sospechosos, no conciliados, o riesgo de distorsión de utilidad
@@ -264,7 +281,6 @@ Estos campos son puramente informativos y no representan señales de problema en
     if (!key) throw new Error("Falta LOVABLE_API_KEY");
 
     const model = MODELOS[modelo];
-    const limiteSalida = modelo === "profundo" ? 1200 : 800;
 
     // Endpoint nativo de Anthropic Messages (no /v1/chat/completions,
     // formato OpenAI) -- los dos modelos en MODELOS son Claude. Mandar un
@@ -296,6 +312,12 @@ Estos campos son puramente informativos y no representan señales de problema en
 
     const json: any = await res.json();
     const texto = json?.content?.[0]?.text ?? "";
+    // Si el gateway responde 200 pero sin texto (respuesta cortada,
+    // bloqueada por el modelo, cambio de formato, etc.), no devolver un
+    // "éxito" vacío -- eso se guardaba en caché y la UI mostraba el
+    // Diagnóstico y las Recomendaciones completamente en blanco sin ningún
+    // error visible. Mejor fallar con un mensaje claro para reintentar.
+    if (!texto || !texto.trim()) throw new Error("La IA devolvió una respuesta vacía, intenta de nuevo.");
 
     return {
       empty: false as const,

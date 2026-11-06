@@ -76,7 +76,12 @@ function AnalisisAIPage() {
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem(cacheKey(periodo, mode, modelo));
-      const parsed = raw ? JSON.parse(raw) : null;
+      let parsed = raw ? JSON.parse(raw) : null;
+      // Caché de una generación vieja que quedó guardada con texto vacío
+      // (antes de que el server-fn empezara a fallar en ese caso en vez de
+      // devolver éxito vacío) -- no mostrarla como si fuera un análisis
+      // real, o Diagnóstico/Recomendaciones aparecen completamente en blanco.
+      if (parsed && !parsed.empty && !(parsed.texto || "").trim()) parsed = null;
       setCacheado(parsed);
       if (parsed) setGeneradoPara({ periodo, mode });
     } catch {
@@ -104,7 +109,7 @@ function AnalisisAIPage() {
         return;
       }
       setSinCreditos(false);
-      if (msg.includes("Límite")) toast.error(msg);
+      if (msg.includes("Límite") || msg.includes("respuesta vacía")) toast.error(msg);
       else toast.error("Error al conectar con el servicio de análisis. Intenta de nuevo.");
     },
   });
