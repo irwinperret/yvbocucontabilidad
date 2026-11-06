@@ -25,7 +25,7 @@ const InputSchema = z.object({
 // slug exacto puede diferir del supuesto aquí -- revisar el catálogo de
 // modelos en el dashboard de Lovable (Connectors -> AI).
 const MODELOS = {
-  rapido: "anthropic/claude-haiku-4.5",
+  rapido: "anthropic/claude-haiku-4-5",
   profundo: "anthropic/claude-sonnet-5",
 } as const;
 

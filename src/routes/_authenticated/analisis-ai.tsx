@@ -104,13 +104,19 @@ function AnalisisAIPage() {
     },
     onError: (e: any) => {
       const msg = e?.message || "";
+      // eslint-disable-next-line no-console
+      console.error("Análisis AI falló:", e);
       if (msg.includes("SIN_CREDITOS")) {
         setSinCreditos(true);
         return;
       }
       setSinCreditos(false);
-      if (msg.includes("Límite") || msg.includes("respuesta vacía")) toast.error(msg);
-      else toast.error("Error al conectar con el servicio de análisis. Intenta de nuevo.");
+      // Antes esto solo mostraba el mensaje real para un par de casos
+      // conocidos (Límite / respuesta vacía) y para todo lo demás mostraba
+      // un "Error al conectar..." genérico que no decía nada de la causa
+      // real (p.ej. un error del gateway con otro código de estado). Ahora
+      // se muestra el mensaje real siempre que exista uno.
+      toast.error(msg || "Error al conectar con el servicio de análisis. Intenta de nuevo.");
     },
   });
 

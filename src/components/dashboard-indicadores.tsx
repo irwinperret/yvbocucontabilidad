@@ -168,6 +168,7 @@ export function DashboardIndicadores() {
             objetivo={objFoodCost}
             defaultObjetivo={DEFAULT_OBJETIVOS.foodCost}
             onObjetivoChange={setObjFoodCost}
+            mejorEsBajo
           />
           <IndicadorChart
             titulo="Prime cost %"
@@ -181,6 +182,7 @@ export function DashboardIndicadores() {
             objetivo={objPrimeCost}
             defaultObjetivo={DEFAULT_OBJETIVOS.primeCost}
             onObjetivoChange={setObjPrimeCost}
+            mejorEsBajo
           />
           <IndicadorChart
             titulo="Margen neto %"
@@ -194,6 +196,7 @@ export function DashboardIndicadores() {
             objetivo={objMargenNeto}
             defaultObjetivo={DEFAULT_OBJETIVOS.margenNeto}
             onObjetivoChange={setObjMargenNeto}
+            mejorEsBajo={false}
           />
           <ConcentracionChart
             data={serie}
@@ -237,7 +240,28 @@ function ObjetivoSlider({ objetivo, defaultObjetivo, onObjetivoChange, min, max,
   );
 }
 
-function IndicadorChart({ titulo, sub, definicion, data, dataKey, color, sufijo, objetivo, defaultObjetivo, onObjetivoChange, min, max, step }: {
+/** Pastilla "Saludable" / "fuera de rango" para el mes más reciente con
+ * dato, comparado contra el objetivo -- misma convención de verde/rojo que
+ * ya usa Análisis AI (IndicadoresPlain), para no inventar un segundo
+ * lenguaje visual de bueno/malo en la misma app. */
+function calcularEstadoIndicador(valor: number | null, objetivo: number, mejorEsBajo: boolean): { label: string; className: string } | null {
+  if (valor == null) return null;
+  const enRango = mejorEsBajo ? valor <= objetivo : valor >= objetivo;
+  if (enRango) {
+    return { label: "Saludable", className: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400" };
+  }
+  return {
+    label: mejorEsBajo ? "Más alto de lo ideal" : "Más bajo de lo ideal",
+    className: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400",
+  };
+}
+
+function EstadoPill({ estado }: { estado: { label: string; className: string } | null }) {
+  if (!estado) return null;
+  return <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${estado.className}`}>{estado.label}</span>;
+}
+
+function IndicadorChart({ titulo, sub, definicion, data, dataKey, color, sufijo, objetivo, defaultObjetivo, onObjetivoChange, min, max, step, mejorEsBajo }: {
   titulo: string;
   sub: string;
   definicion: string;
@@ -251,11 +275,18 @@ function IndicadorChart({ titulo, sub, definicion, data, dataKey, color, sufijo,
   min: number;
   max: number;
   step: number;
+  mejorEsBajo: boolean;
 }) {
+  const ultimo = [...data].reverse().find((d) => d[dataKey] != null);
+  const valorUltimo = ultimo ? (ultimo[dataKey] as number | null) : null;
+  const estado = calcularEstadoIndicador(valorUltimo, objetivo, mejorEsBajo);
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">{titulo}</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2">
+          {titulo}
+          <EstadoPill estado={estado} />
+        </CardTitle>
         <p className="text-xs text-muted-foreground">{sub}</p>
         <p className="text-xs text-muted-foreground/80 italic">{definicion}</p>
         <ObjetivoSlider objetivo={objetivo} defaultObjetivo={defaultObjetivo} onObjetivoChange={onObjetivoChange} min={min} max={max} step={step} sufijo={sufijo} />
@@ -295,10 +326,15 @@ function ConcentracionChart({ data, objetivo, defaultObjetivo, onObjetivoChange 
   defaultObjetivo: number;
   onObjetivoChange: (v: number) => void;
 }) {
+  const ultimo = [...data].reverse().find((d) => d.concentracionTopPct != null);
+  const estado = calcularEstadoIndicador(ultimo?.concentracionTopPct ?? null, objetivo, true);
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Concentración de compras</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2">
+          Concentración de compras
+          <EstadoPill estado={estado} />
+        </CardTitle>
         <p className="text-xs text-muted-foreground">% del proveedor #1 sobre las compras del mes</p>
         <p className="text-xs text-muted-foreground/80 italic">Qué tan dependiente estás de un solo proveedor en el mes (puede ser otro proveedor cada mes). Mientras más alto, más riesgo si ese proveedor sube precios, falla o se queda sin producto.</p>
         <ObjetivoSlider objetivo={objetivo} defaultObjetivo={defaultObjetivo} onObjetivoChange={onObjetivoChange} min={5} max={60} step={1} sufijo="%" />
