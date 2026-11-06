@@ -1,6 +1,7 @@
 import { MESES } from "@/lib/account-helpers";
 import type { UsdViewMode } from "@/lib/usd-view-context";
 import { agruparPorProveedorMes, type CompraRaw } from "@/lib/cogs-proveedores-calc";
+import { CUENTAS_IVA_INGRESO } from "@/lib/ingresos-detalle-calc";
 
 /**
  * 4 indicadores clave de restaurante, calculados con la misma data que ya
@@ -24,7 +25,12 @@ import { agruparPorProveedorMes, type CompraRaw } from "@/lib/cogs-proveedores-c
  * NO es nómina y no cuenta para Prime Cost. */
 export const CODIGOS_NOMINA = ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6"];
 
-export type RowIndicador = { mes: number; cuenta_codigo: string; base_usd: number | string | null };
+export type RowIndicador = {
+  mes: number;
+  cuenta_codigo: string;
+  base_usd: number | string | null;
+  modo: "on_balance" | "off_balance";
+};
 export type CuentaIndicador = { codigo: string; afecta_gyp: boolean };
 
 export type FilaIndicadores = {
@@ -47,6 +53,8 @@ export function construirSerieIndicadores(
   anio: number,
   mesCorte: number,
   mode: UsdViewMode,
+  incluirOff: boolean = true,
+  incluirIva: boolean = true,
 ): FilaIndicadores[] {
   return Array.from({ length: mesCorte }, (_, i) => {
     const mes = i + 1;
@@ -55,10 +63,21 @@ export function construirSerieIndicadores(
     let ingresos = 0, cogs = 0, nomina = 0, gastosTotal = 0;
     rows.forEach((r) => {
       if (r.mes !== mes) return;
+      // Mismo criterio que Ingresos en Detalle: off-balance se incluye o
+      // excluye por completo (ingresos, COGS, nomina y gastos juntos -- no
+      // solo ingresos, para no comparar unos movimientos on-balance contra
+      // otros off-balance).
+      if (!incluirOff && r.modo !== "on_balance") return;
       const c = mapCuentas.get(r.cuenta_codigo);
       if (!c?.afecta_gyp) return;
       const base = Number(r.base_usd) || 0;
-      if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo === "6.1") ingresos += base;
+      if (r.cuenta_codigo.startsWith("1.") || r.cuenta_codigo === "6.1") {
+        // Ingresos por IVA (1.8): normalmente $0, el IVA cobrado es un
+        // pasivo transitorio con el SENIAT, no un ingreso real -- se puede
+        // excluir igual que en Ingresos en Detalle.
+        if (!incluirIva && CUENTAS_IVA_INGRESO.includes(r.cuenta_codigo)) return;
+        ingresos += base;
+      }
       else if (r.cuenta_codigo.startsWith("2.")) cogs += base;
       else {
         gastosTotal += base;

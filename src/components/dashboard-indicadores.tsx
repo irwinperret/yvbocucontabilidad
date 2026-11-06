@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { RotateCcw } from "lucide-react";
 import {
   Line, LineChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -38,6 +39,11 @@ export function DashboardIndicadores() {
   const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState(anioActual);
   const { mode } = useUsdView();
+  // Mismos switches que Ingresos en Detalle: off-balance e Ingresos por IVA
+  // activados por defecto, incluidos en food cost %, prime cost % y margen
+  // neto % (ver construirSerieIndicadores).
+  const [incluirOff, setIncluirOff] = useState(true);
+  const [incluirIva, setIncluirIva] = useState(true);
 
   const [objFoodCost, setObjFoodCost] = useState(DEFAULT_OBJETIVOS.foodCost);
   const [objPrimeCost, setObjPrimeCost] = useState(DEFAULT_OBJETIVOS.primeCost);
@@ -55,7 +61,7 @@ export function DashboardIndicadores() {
   const { data: rows } = useQuery({
     queryKey: ["dash-ind-rows", anio, mode],
     queryFn: async () => {
-      const { data } = await (supabase as any).from(mensualView(mode)).select("mes,cuenta_codigo,base_usd").eq("anio", anio);
+      const { data } = await (supabase as any).from(mensualView(mode)).select("mes,cuenta_codigo,modo,base_usd").eq("anio", anio);
       return (data ?? []) as RowIndicador[];
     },
   });
@@ -112,8 +118,9 @@ export function DashboardIndicadores() {
   const serie = useMemo(
     () => construirSerieIndicadores(
       rows ?? [], mapCuentas, cogsEstimadoPorMes, comprasAnio ?? [], nombrePorTerceroId, anio, mesCorte, mode,
+      incluirOff, incluirIva,
     ),
-    [rows, mapCuentas, cogsEstimadoPorMes, comprasAnio, nombrePorTerceroId, anio, mesCorte, mode],
+    [rows, mapCuentas, cogsEstimadoPorMes, comprasAnio, nombrePorTerceroId, anio, mesCorte, mode, incluirOff, incluirIva],
   );
 
   return (
@@ -123,12 +130,22 @@ export function DashboardIndicadores() {
           <h2 className="text-lg font-semibold">Indicadores clave del restaurante</h2>
           <p className="text-sm text-muted-foreground">Comparación mensual · consolidado de todos los centros</p>
         </div>
-        <div>
-          <Label className="text-xs">Año</Label>
-          <Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}>
-            <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-            <SelectContent>{[2024, 2025, 2026, 2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex items-center gap-2 border rounded-md px-3 h-10">
+            <Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="dash-ind-off" />
+            <Label htmlFor="dash-ind-off" className="text-xs whitespace-nowrap">Incluir off-balance</Label>
+          </div>
+          <div className="flex items-center gap-2 border rounded-md px-3 h-10">
+            <Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="dash-ind-iva" />
+            <Label htmlFor="dash-ind-iva" className="text-xs whitespace-nowrap">Incluir Ingresos IVA</Label>
+          </div>
+          <div>
+            <Label className="text-xs">Año</Label>
+            <Select value={String(anio)} onValueChange={(v) => setAnio(Number(v))}>
+              <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+              <SelectContent>{[2024, 2025, 2026, 2027].map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
       {comprasError && (
