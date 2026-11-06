@@ -341,7 +341,9 @@ export function DashboardCharts() {
         </Card>
       </div>
 
-      {/* CapEx acumulado vs Utilidad acumulada */}
+      {/* CapEx acumulado vs Utilidad acumulada + Costos y gastos YTD por
+          grupo, en la misma fila en pantallas grandes */}
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">CapEx acumulado vs Utilidad acumulada</CardTitle>
@@ -415,6 +417,7 @@ export function DashboardCharts() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
