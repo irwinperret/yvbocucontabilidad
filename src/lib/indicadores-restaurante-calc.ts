@@ -40,6 +40,10 @@ export type FilaIndicadores = {
   foodCostPct: number | null;
   primeCostPct: number | null;
   margenNetoPct: number | null;
+  // Mismo cálculo que foodCostPct (COGS real / Ingresos), expresado en
+  // centavos por dólar vendido en vez de porcentaje -- misma convención que
+  // "COGS real / $ vendido" en COGS/Compras por Proveedor (cogsPorDolar * 100).
+  cogsPorDolar: number | null;
   concentracionTopPct: number | null;
   proveedorTopNombre: string | null;
 };
@@ -104,6 +108,7 @@ export function construirSerieIndicadores(
       foodCostPct: ingresos > 0 ? Number(((cogs / ingresos) * 100).toFixed(1)) : null,
       primeCostPct: ingresos > 0 ? Number((((cogs + nomina) / ingresos) * 100).toFixed(1)) : null,
       margenNetoPct: ingresos > 0 ? Number(((utilidad / ingresos) * 100).toFixed(1)) : null,
+      cogsPorDolar: ingresos > 0 ? Number(((cogs / ingresos) * 100).toFixed(1)) : null,
       concentracionTopPct: totalCompras > 0 && porProv[0] ? Number(((porProv[0].usd / totalCompras) * 100).toFixed(1)) : null,
       proveedorTopNombre: porProv[0]?.nombre ?? null,
     };

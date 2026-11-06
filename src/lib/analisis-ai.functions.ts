@@ -261,14 +261,17 @@ Los datos incluyen, además de los totales generales (que ya suman movimientos o
 
 ${instruccionProfundidad}
 
-Responde en español. Estructura tu respuesta así:
-1. Un párrafo ${esProfundo ? "de diagnóstico general (máximo 4 oraciones, mencionando la tendencia de ingresos)" : "corto de diagnóstico general (máximo 3 oraciones)"}
-2. Exactamente ${numRecos} recomendaciones numeradas, cada una con:
-   - Título corto en negrita
-   - Explicación de máximo ${esProfundo ? 3 : 2} oraciones basada en los números específicos
-   - Nivel de prioridad: ALTA / MEDIA / BAJA
+Responde en español, ÚNICAMENTE con un objeto JSON válido (nada de texto antes o después, nada de bloques de código con \`\`\`), con esta forma exacta:
+{
+  "diagnostico": "párrafo ${esProfundo ? "de máximo 4 oraciones, mencionando la tendencia de ingresos" : "corto, máximo 3 oraciones"}",
+  "recomendaciones": [
+    { "titulo": "título corto", "cuerpo": "explicación de máximo ${esProfundo ? 3 : 2} oraciones basada en números específicos", "prioridad": "ALTA" }
+  ]
+}
 
-Sé directo, específico con los números, y práctico. Evita recomendaciones genéricas. Sé breve: no excedas ${limitePalabras} palabras en total.
+"recomendaciones" debe tener EXACTAMENTE ${numRecos} elementos, y "prioridad" siempre uno de estos tres valores exactos: "ALTA", "MEDIA" o "BAJA". Todos los campos de texto (diagnostico, titulo, cuerpo) son texto PLANO -- no uses markdown (nada de **negrita**, _cursiva_, viñetas, numeración, etc.), porque se muestran tal cual, sin procesar.
+
+Sé directo, específico con los números, y práctico. Evita recomendaciones genéricas. Sé breve: no excedas ${limitePalabras} palabras en total entre todos los campos.
 
 IMPORTANTE - NO incluyas en tu análisis:
 - Comentarios sobre registros off-balance como si fueran sospechosos, no conciliados, o riesgo de distorsión de utilidad
@@ -331,10 +334,43 @@ Estos campos son puramente informativos y no representan señales de problema en
       throw new Error(`La IA devolvió una respuesta vacía (stop_reason: ${json?.stop_reason ?? "desconocido"}), intenta de nuevo.`);
     }
 
+    // Se le pide a la IA que responda SOLO con JSON (ver prompt), en vez de
+    // texto libre que después el frontend trataba de separar en
+    // "diagnóstico" + "recomendaciones" con regex -- eso era frágil: si el
+    // formato no calzaba exactamente, el diagnóstico se tragaba todo el
+    // texto Y las recomendaciones mostraban ese mismo texto completo otra
+    // vez como respaldo (de ahí el contenido duplicado que se veía), y
+    // los `**negrita**` de markdown quedaban sin procesar, literales, en
+    // vez de texto plano. A veces el modelo igual envuelve el JSON en un
+    // bloque \`\`\`json ... \`\`\` a pesar de pedírselo en texto plano --
+    // se le quita antes de parsear.
+    const textoLimpio = texto.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+    let analisis: { diagnostico?: unknown; recomendaciones?: unknown } = {};
+    try {
+      analisis = JSON.parse(textoLimpio);
+    } catch {
+      throw new Error("La IA devolvió una respuesta en un formato inesperado, intenta de nuevo.");
+    }
+    if (typeof analisis.diagnostico !== "string" || !Array.isArray(analisis.recomendaciones)) {
+      throw new Error("La IA devolvió una respuesta en un formato inesperado, intenta de nuevo.");
+    }
+
+    const recomendaciones = (analisis.recomendaciones as any[])
+      .filter((r) => r && typeof r.titulo === "string" && typeof r.cuerpo === "string")
+      .map((r) => ({
+        titulo: String(r.titulo).trim(),
+        cuerpo: String(r.cuerpo).trim(),
+        prioridad: ["ALTA", "MEDIA", "BAJA"].includes(String(r.prioridad ?? "").toUpperCase())
+          ? (String(r.prioridad).toUpperCase() as "ALTA" | "MEDIA" | "BAJA")
+          : null,
+      }));
+
     return {
       empty: false as const,
       snapshot: businessSnapshot,
-      texto,
+      diagnostico: (analisis.diagnostico as string).trim(),
+      recomendaciones,
       modelo,
       generadoEn: new Date().toISOString(),
     };

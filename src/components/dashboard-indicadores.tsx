@@ -32,7 +32,9 @@ const DEFAULT_OBJETIVOS = {
   foodCost: 30,
   primeCost: 55,
   margenNeto: 5,
-  concentracion: 22,
+  // 28-32¢ por dólar vendido es el rango cómodo para COGS real en un
+  // restaurante; 30¢ como punto medio recomendado.
+  cogsPorDolar: 30,
 };
 
 export function DashboardIndicadores() {
@@ -48,7 +50,7 @@ export function DashboardIndicadores() {
   const [objFoodCost, setObjFoodCost] = useState(DEFAULT_OBJETIVOS.foodCost);
   const [objPrimeCost, setObjPrimeCost] = useState(DEFAULT_OBJETIVOS.primeCost);
   const [objMargenNeto, setObjMargenNeto] = useState(DEFAULT_OBJETIVOS.margenNeto);
-  const [objConcentracion, setObjConcentracion] = useState(DEFAULT_OBJETIVOS.concentracion);
+  const [objCogsPorDolar, setObjCogsPorDolar] = useState(DEFAULT_OBJETIVOS.cogsPorDolar);
 
   const { data: cuentas } = useQuery({
     queryKey: ["dash-ind-cuentas"],
@@ -198,11 +200,19 @@ export function DashboardIndicadores() {
             onObjetivoChange={setObjMargenNeto}
             mejorEsBajo={false}
           />
-          <ConcentracionChart
+          <IndicadorChart
+            titulo="COGS real / $ vendido"
+            sub="COGS real / Ingresos, en centavos por dólar"
+            definicion="Mismo cálculo que Food cost %, mostrado en centavos por cada dólar vendido en vez de porcentaje -- a veces es más fácil de sentir así: de cada dólar que vendo, X centavos se van en la comida real que se consumió. El rango cómodo en un restaurante es 28-32¢ por dólar."
             data={serie}
-            objetivo={objConcentracion}
-            defaultObjetivo={DEFAULT_OBJETIVOS.concentracion}
-            onObjetivoChange={setObjConcentracion}
+            dataKey="cogsPorDolar"
+            color="#7F1D1D"
+            sufijo="¢"
+            min={15} max={50} step={1}
+            objetivo={objCogsPorDolar}
+            defaultObjetivo={DEFAULT_OBJETIVOS.cogsPorDolar}
+            onObjetivoChange={setObjCogsPorDolar}
+            mejorEsBajo
           />
         </div>
       )}
@@ -300,54 +310,6 @@ function IndicadorChart({ titulo, sub, definicion, data, dataKey, color, sufijo,
             <Tooltip formatter={(v: number) => (v == null ? "—" : `${v}${sufijo}`)} />
             <ReferenceLine y={objetivo} stroke="#6b7280" strokeDasharray="4 4" label={{ value: `Objetivo: ${objetivo}${sufijo}`, position: "insideTopRight", fontSize: 10, fill: "#6b7280" }} />
             <Line type="monotone" dataKey={dataKey as string} stroke={color} strokeWidth={2} dot={{ r: 3 }} connectNulls />
-          </LineChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ConcentracionTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload as FilaIndicadores;
-  if (d.concentracionTopPct == null) return <div className="rounded-md border bg-background p-2 text-xs shadow-md">{label}: sin compras</div>;
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-      <div className="font-semibold mb-1">{label}</div>
-      <div>{d.proveedorTopNombre}</div>
-      <div className="mono">{d.concentracionTopPct}% de las compras del mes</div>
-    </div>
-  );
-}
-
-function ConcentracionChart({ data, objetivo, defaultObjetivo, onObjetivoChange }: {
-  data: FilaIndicadores[];
-  objetivo: number;
-  defaultObjetivo: number;
-  onObjetivoChange: (v: number) => void;
-}) {
-  const ultimo = [...data].reverse().find((d) => d.concentracionTopPct != null);
-  const estado = calcularEstadoIndicador(ultimo?.concentracionTopPct ?? null, objetivo, true);
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          Concentración de compras
-          <EstadoPill estado={estado} />
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">% del proveedor #1 sobre las compras del mes</p>
-        <p className="text-xs text-muted-foreground/80 italic">Qué tan dependiente estás de un solo proveedor en el mes (puede ser otro proveedor cada mes). Mientras más alto, más riesgo si ese proveedor sube precios, falla o se queda sin producto.</p>
-        <ObjetivoSlider objetivo={objetivo} defaultObjetivo={defaultObjetivo} onObjetivoChange={onObjetivoChange} min={5} max={60} step={1} sufijo="%" />
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="mesLabel" fontSize={11} />
-            <YAxis fontSize={11} tickFormatter={(v) => `${v}%`} />
-            <Tooltip content={<ConcentracionTooltip />} />
-            <ReferenceLine y={objetivo} stroke="#6b7280" strokeDasharray="4 4" label={{ value: `Objetivo: ${objetivo}%`, position: "insideTopRight", fontSize: 10, fill: "#6b7280" }} />
-            <Line type="monotone" dataKey="concentracionTopPct" stroke="#7C3AED" strokeWidth={2} dot={{ r: 3 }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </CardContent>

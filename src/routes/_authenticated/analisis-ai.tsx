@@ -25,31 +25,6 @@ export const Route = createFileRoute("/_authenticated/analisis-ai")({ component:
 
 type Reco = { titulo: string; cuerpo: string; prioridad: "ALTA" | "MEDIA" | "BAJA" | null };
 
-function parseAnalysis(texto: string): { diagnostico: string; recomendaciones: Reco[] } {
-  const lines = texto.split("\n");
-  const idxFirst = lines.findIndex((l) => /^\s*\d+[\.\)]/.test(l) || /^##?\s*\d+/.test(l));
-  const diagLines = idxFirst === -1 ? lines : lines.slice(0, idxFirst);
-  const diagnostico = diagLines.join("\n").replace(/^#+\s*.*\n?/gm, "").trim();
-
-  const rest = idxFirst === -1 ? "" : lines.slice(idxFirst).join("\n");
-  const blocks = rest.split(/\n(?=\s*\d+[\.\)]\s)/g).filter((b) => b.trim());
-  const recomendaciones: Reco[] = blocks.map((b) => {
-    const prioMatch = b.match(/\b(ALTA|MEDIA|BAJA)\b/i);
-    const tituloMatch = b.match(/\*\*(.+?)\*\*/);
-    let cuerpo = b
-      .replace(/^\s*\d+[\.\)]\s*/, "")
-      .replace(/\*\*(.+?)\*\*/, "")
-      .replace(/\b(Prioridad|Nivel de prioridad)\s*:\s*(ALTA|MEDIA|BAJA)\b/i, "")
-      .trim();
-    return {
-      titulo: tituloMatch?.[1]?.trim() ?? b.split("\n")[0].replace(/^\s*\d+[\.\)]\s*/, "").slice(0, 80),
-      cuerpo,
-      prioridad: (prioMatch?.[1]?.toUpperCase() as Reco["prioridad"]) ?? null,
-    };
-  });
-  return { diagnostico, recomendaciones };
-}
-
 function prioridadColor(p: Reco["prioridad"]) {
   if (p === "ALTA") return "bg-red-500 text-white";
   if (p === "MEDIA") return "bg-yellow-500 text-black";
@@ -77,11 +52,16 @@ function AnalisisAIPage() {
     try {
       const raw = localStorage.getItem(cacheKey(periodo, mode, modelo));
       let parsed = raw ? JSON.parse(raw) : null;
-      // Caché de una generación vieja que quedó guardada con texto vacío
-      // (antes de que el server-fn empezara a fallar en ese caso en vez de
-      // devolver éxito vacío) -- no mostrarla como si fuera un análisis
-      // real, o Diagnóstico/Recomendaciones aparecen completamente en blanco.
-      if (parsed && !parsed.empty && !(parsed.texto || "").trim()) parsed = null;
+      // Descarta cachés inválidas: de un formato viejo (todavía con `texto`
+      // crudo en vez de `diagnostico`/`recomendaciones` ya estructurados) o
+      // de una generación que quedó vacía -- para no mostrar un análisis
+      // roto o en blanco como si fuera uno real.
+      if (
+        parsed && !parsed.empty &&
+        (typeof parsed.diagnostico !== "string" || !parsed.diagnostico.trim() || !Array.isArray(parsed.recomendaciones))
+      ) {
+        parsed = null;
+      }
       setCacheado(parsed);
       if (parsed) setGeneradoPara({ periodo, mode });
     } catch {
@@ -129,11 +109,19 @@ function AnalisisAIPage() {
   const desactualizado = !!generadoPara && (generadoPara.periodo !== periodo || generadoPara.mode !== mode);
 
   const result = m.data ?? cacheado;
-  const parsed = result && !result.empty ? parseAnalysis(result.texto || "") : null;
 
   const copiar = async () => {
     if (!result || result.empty) return;
-    await navigator.clipboard.writeText(result.texto || "");
+    // Reconstruye un texto plano legible para pegar en WhatsApp/correo a
+    // partir de los campos estructurados (ya no hay un `texto` crudo que
+    // copiar tal cual, como antes).
+    const partes = [
+      result.diagnostico,
+      ...(result.recomendaciones ?? []).map(
+        (r: Reco, i: number) => `${i + 1}. ${r.titulo}${r.prioridad ? ` (${r.prioridad})` : ""}\n${r.cuerpo}`,
+      ),
+    ].filter(Boolean);
+    await navigator.clipboard.writeText(partes.join("\n\n"));
     toast.success("Análisis copiado");
   };
 
@@ -271,7 +259,7 @@ function AnalisisAIPage() {
         </>
       )}
 
-      {!m.isPending && result && !result.empty && parsed && (
+      {!m.isPending && result && !result.empty && (
         <>
           <KpiRow snapshot={result.snapshot} />
 
@@ -283,13 +271,13 @@ function AnalisisAIPage() {
             <CardHeader>
               <CardTitle className="text-base">Diagnóstico general</CardTitle>
             </CardHeader>
-            <CardContent className="text-sm whitespace-pre-wrap leading-relaxed">
-              {parsed.diagnostico || <span className="text-muted-foreground">—</span>}
+            <CardContent className="text-sm leading-relaxed">
+              {result.diagnostico || <span className="text-muted-foreground">—</span>}
             </CardContent>
           </Card>
 
           <div className="grid gap-4">
-            {parsed.recomendaciones.map((r, i) => (
+            {(result.recomendaciones ?? []).map((r: Reco, i: number) => (
               <Card key={i}>
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-3">
@@ -297,12 +285,14 @@ function AnalisisAIPage() {
                     {r.prioridad && <Badge className={prioridadColor(r.prioridad)}>{r.prioridad}</Badge>}
                   </div>
                 </CardHeader>
-                <CardContent className="text-sm whitespace-pre-wrap leading-relaxed">{r.cuerpo}</CardContent>
+                <CardContent className="text-sm leading-relaxed">{r.cuerpo}</CardContent>
               </Card>
             ))}
-            {parsed.recomendaciones.length === 0 && (
+            {(result.recomendaciones ?? []).length === 0 && (
               <Card>
-                <CardContent className="py-6 text-sm whitespace-pre-wrap">{result.texto}</CardContent>
+                <CardContent className="py-6 text-sm text-muted-foreground text-center">
+                  La IA no devolvió recomendaciones para este período.
+                </CardContent>
               </Card>
             )}
           </div>
