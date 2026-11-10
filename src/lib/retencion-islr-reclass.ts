@@ -78,16 +78,21 @@ export async function estimarRetencionIslrMesesAbiertos(): Promise<Map<string, R
 
   const [{ data: cierres }, ventasRows, retencionRows] = await Promise.all([
     supabase.from("cierres_de_mes").select("periodo"),
+    // .order("fecha") es necesario para que .range() pagine de forma
+    // estable y no se salte filas de ningun periodo (ver mismo fix en
+    // retencion-islr.tsx).
     fetchAllRows<any>((from, to) =>
       supabase.from("transacciones")
         .select("fecha, cuenta_codigo, modo, referencia, notas, monto_bs, monto_base_bs, monto_usd, tasa_bcv, tasa_paralela")
         .in("cuenta_codigo", CUENTAS_VENTAS_COMUNES)
+        .order("fecha", { ascending: true })
         .range(from, to),
     ),
     fetchAllRows<any>((from, to) =>
       supabase.from("transacciones")
         .select("fecha, monto_bs, monto_base_bs, monto_usd, tasa_bcv, tasa_paralela, notas")
         .eq("cuenta_codigo", CUENTA_RETENCION_ISLR)
+        .order("fecha", { ascending: true })
         .range(from, to),
     ),
   ]);

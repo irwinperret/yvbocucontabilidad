@@ -77,6 +77,13 @@ function RetencionIslrPage() {
         supabase.from("transacciones")
           .select("fecha, cuenta_codigo, modo, referencia, notas, monto_bs, monto_base_bs, monto_usd, tasa_bcv, tasa_paralela")
           .in("cuenta_codigo", CUENTAS_VENTAS_COMUNES)
+          // IMPORTANTE: sin .order() explícito, Postgres/PostgREST no
+          // garantiza un orden estable entre llamadas sucesivas de
+          // .range() -- con tablas grandes (ya son cientos de filas por
+          // mes) esto puede hacer que la paginación salte u omita filas
+          // de ciertos periodos de forma silenciosa (sin error), lo que
+          // explicaba un "% vs ventas" inflado para un mes puntual aquí.
+          .order("fecha", { ascending: true })
           .range(from, to),
       ),
   });
