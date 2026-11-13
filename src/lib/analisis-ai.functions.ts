@@ -246,7 +246,7 @@ export const generarAnalisisAI = createServerFn({ method: "POST" })
     const esProfundo = modelo === "profundo";
     const numRecos = esProfundo ? 5 : 3;
     const limitePalabras = esProfundo ? 650 : 350;
-    const limiteSalida = esProfundo ? 1800 : 800;
+    const limiteSalida = esProfundo ? 2400 : 800; // antes 1800 -- margen extra por si el modelo usa "extended thinking" (ver nota mas abajo) y el JSON final se corta por max_tokens
 
     const instruccionProfundidad = esProfundo
       ? `Este es el modo de análisis PROFUNDO: no te quedes solo en los 3 indicadores principales. De las ${numRecos} recomendaciones, dedica al menos una a la tendencia de ingresos (compara ingresos_usd contra ingresos_mes_anterior e ingresos_hace_2_meses y di si el negocio está creciendo, estable o cayendo, en dólares y %), y al menos una a la concentración de proveedores (si algún proveedor de top_proveedores_cogs_compras supera objetivo_concentracion_proveedor_pct, nómbralo con su % exacto). Usa también las variaciones de top_cuentas_gasto para detectar qué cuenta se disparó vs. el mes anterior.`
@@ -346,14 +346,40 @@ Estos campos son puramente informativos y no representan señales de problema en
     // se le quita antes de parsear.
     const textoLimpio = texto.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
 
-    let analisis: { diagnostico?: unknown; recomendaciones?: unknown } = {};
-    try {
-      analisis = JSON.parse(textoLimpio);
-    } catch {
-      throw new Error("La IA devolvió una respuesta en un formato inesperado, intenta de nuevo.");
+    // Mensaje con detalle (antes decía siempre lo mismo sin ninguna pista):
+    // incluye el stop_reason (si se cortó por max_tokens sabremos que hay
+    // que subir limiteSalida) y un fragmento del texto crudo, para poder
+    // diagnosticar la próxima vez que esto pase sin tener que adivinar.
+    const errorFormato = () =>
+      new Error(
+        `La IA devolvió una respuesta en un formato inesperado (stop_reason: ${json?.stop_reason ?? "desconocido"}), intenta de nuevo. Fragmento: ${textoLimpio.slice(0, 200)}`,
+      );
+
+    // Tolerante: a veces el modelo agrega una frase antes o después del
+    // JSON a pesar de que el prompt le pide explícitamente que no lo haga
+    // -- antes de rendirse, se intenta extraer el primer objeto balanceado
+    // { ... } del texto (no solo quitar \`\`\`code fences\`\`\`, que era lo
+    // único que se intentaba antes).
+    function extraerJson(s: string): { diagnostico?: unknown; recomendaciones?: unknown } | null {
+      try {
+        return JSON.parse(s);
+      } catch {
+        /* sigue abajo */
+      }
+      const inicio = s.indexOf("{");
+      const fin = s.lastIndexOf("}");
+      if (inicio === -1 || fin === -1 || fin <= inicio) return null;
+      try {
+        return JSON.parse(s.slice(inicio, fin + 1));
+      } catch {
+        return null;
+      }
     }
+
+    const analisis = extraerJson(textoLimpio);
+    if (!analisis) throw errorFormato();
     if (typeof analisis.diagnostico !== "string" || !Array.isArray(analisis.recomendaciones)) {
-      throw new Error("La IA devolvió una respuesta en un formato inesperado, intenta de nuevo.");
+      throw errorFormato();
     }
 
     const recomendaciones = (analisis.recomendaciones as any[])
