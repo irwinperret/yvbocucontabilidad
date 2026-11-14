@@ -1634,6 +1634,7 @@ export type Database = {
       }
       revertir_importacion: { Args: { p_batch: string }; Returns: Json }
       tasa_bcv_para_fecha: { Args: { _fecha: string }; Returns: number }
+      tasa_paralela_para_fecha: { Args: { _fecha: string }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "contador" | "usuario"
