@@ -23,6 +23,7 @@ import { Route as AuthenticatedAyudaRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedBonoPropinaRouteImport } from './routes/_authenticated/bono-propina'
 import { Route as AuthenticatedCapexRouteImport } from './routes/_authenticated/capex'
 import { Route as AuthenticatedCierresDeMesRouteImport } from './routes/_authenticated/cierres-de-mes'
+import { Route as AuthenticatedCogsProveedoresRouteImport } from './routes/_authenticated/cogs-proveedores'
 import { Route as AuthenticatedCuentasBancariasRouteImport } from './routes/_authenticated/cuentas-bancarias'
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
@@ -139,6 +140,12 @@ const AuthenticatedCierresDeMesRoute =
   AuthenticatedCierresDeMesRouteImport.update({
     id: '/cierres-de-mes',
     path: '/cierres-de-mes',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedCogsProveedoresRoute =
+  AuthenticatedCogsProveedoresRouteImport.update({
+    id: '/cogs-proveedores',
+    path: '/cogs-proveedores',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedCuentasBancariasRoute =
@@ -385,6 +392,7 @@ export interface FileRoutesByFullPath {
   '/bono-propina': typeof AuthenticatedBonoPropinaRoute
   '/capex': typeof AuthenticatedCapexRoute
   '/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
+  '/cogs-proveedores': typeof AuthenticatedCogsProveedoresRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
@@ -441,6 +449,7 @@ export interface FileRoutesByTo {
   '/bono-propina': typeof AuthenticatedBonoPropinaRoute
   '/capex': typeof AuthenticatedCapexRoute
   '/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
+  '/cogs-proveedores': typeof AuthenticatedCogsProveedoresRoute
   '/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/cxc': typeof AuthenticatedCxcRoute
   '/cxp': typeof AuthenticatedCxpRoute
@@ -499,6 +508,7 @@ export interface FileRoutesById {
   '/_authenticated/bono-propina': typeof AuthenticatedBonoPropinaRoute
   '/_authenticated/capex': typeof AuthenticatedCapexRoute
   '/_authenticated/cierres-de-mes': typeof AuthenticatedCierresDeMesRoute
+  '/_authenticated/cogs-proveedores': typeof AuthenticatedCogsProveedoresRoute
   '/_authenticated/cuentas-bancarias': typeof AuthenticatedCuentasBancariasRoute
   '/_authenticated/cxc': typeof AuthenticatedCxcRoute
   '/_authenticated/cxp': typeof AuthenticatedCxpRoute
@@ -557,6 +567,7 @@ export interface FileRouteTypes {
     | '/bono-propina'
     | '/capex'
     | '/cierres-de-mes'
+    | '/cogs-proveedores'
     | '/cuentas-bancarias'
     | '/cxc'
     | '/cxp'
@@ -613,6 +624,7 @@ export interface FileRouteTypes {
     | '/bono-propina'
     | '/capex'
     | '/cierres-de-mes'
+    | '/cogs-proveedores'
     | '/cuentas-bancarias'
     | '/cxc'
     | '/cxp'
@@ -670,6 +682,7 @@ export interface FileRouteTypes {
     | '/_authenticated/bono-propina'
     | '/_authenticated/capex'
     | '/_authenticated/cierres-de-mes'
+    | '/_authenticated/cogs-proveedores'
     | '/_authenticated/cuentas-bancarias'
     | '/_authenticated/cxc'
     | '/_authenticated/cxp'
@@ -820,6 +833,13 @@ declare module '@tanstack/react-router' {
       path: '/cierres-de-mes'
       fullPath: '/cierres-de-mes'
       preLoaderRoute: typeof AuthenticatedCierresDeMesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/cogs-proveedores': {
+      id: '/_authenticated/cogs-proveedores'
+      path: '/cogs-proveedores'
+      fullPath: '/cogs-proveedores'
+      preLoaderRoute: typeof AuthenticatedCogsProveedoresRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/cuentas-bancarias': {
@@ -1123,6 +1143,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedBonoPropinaRoute: typeof AuthenticatedBonoPropinaRoute
   AuthenticatedCapexRoute: typeof AuthenticatedCapexRoute
   AuthenticatedCierresDeMesRoute: typeof AuthenticatedCierresDeMesRoute
+  AuthenticatedCogsProveedoresRoute: typeof AuthenticatedCogsProveedoresRoute
   AuthenticatedCuentasBancariasRoute: typeof AuthenticatedCuentasBancariasRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRoute
   AuthenticatedCxpRoute: typeof AuthenticatedCxpRoute
@@ -1176,6 +1197,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBonoPropinaRoute: AuthenticatedBonoPropinaRoute,
   AuthenticatedCapexRoute: AuthenticatedCapexRoute,
   AuthenticatedCierresDeMesRoute: AuthenticatedCierresDeMesRoute,
+  AuthenticatedCogsProveedoresRoute: AuthenticatedCogsProveedoresRoute,
   AuthenticatedCuentasBancariasRoute: AuthenticatedCuentasBancariasRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRoute,
   AuthenticatedCxpRoute: AuthenticatedCxpRoute,
