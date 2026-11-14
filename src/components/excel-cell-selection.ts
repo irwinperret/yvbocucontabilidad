@@ -44,5 +44,14 @@ export function useExcelCellSelection(values: number[][]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selStart, selEnd, values]);
 
-  return { isSelected, startSelection, overSelection, selection };
+  // Rango de columnas de la selección actual (null si no hay selección) --
+  // sirve para que quien use el hook sepa si la selección cae entera dentro
+  // de UNA sola columna (por ejemplo, para decidir si formatear la suma
+  // como "%" o como "$" cuando distintas columnas representan unidades
+  // distintas, como en G&P: columna 0 = USD, columna 1 = %).
+  const colRange = selStart && selEnd
+    ? { c0: Math.min(selStart.c, selEnd.c), c1: Math.max(selStart.c, selEnd.c) }
+    : null;
+
+  return { isSelected, startSelection, overSelection, selection, colRange };
 }
