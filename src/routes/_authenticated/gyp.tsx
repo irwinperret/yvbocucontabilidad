@@ -39,6 +39,7 @@ type ExpandCtx = {
   cogsEstimadoPorMes: Map<string, { cogsUsdBcv: number; cogsUsdParalelo: number }> | undefined;
   anio: number;
   mode: "bcv" | "paralela";
+  verPct: boolean;
 };
 
 function GyPPage() {
@@ -47,6 +48,7 @@ function GyPPage() {
   const [centro, setCentro] = useState<string>("Consolidado");
   const [incluirOff, setIncluirOff] = useState(true);
   const [incluirIva, setIncluirIva] = useState(true);
+  const [verPct, setVerPct] = useState(false);
   const [mesSel, setMesSel] = useState(mesReporteCerradoPorDefecto().mes);
   const [hastaMes, setHastaMes] = useState(mesReporteCerradoPorDefecto().mes);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -101,7 +103,7 @@ function GyPPage() {
   const expandAll = () => setExpanded(new Set(allGroupKeys));
   const collapseAll = () => setExpanded(new Set());
 
-  const ctx: ExpandCtx = { expanded, toggle, isExpanded, centro, rows: rows ?? [], cogsEstimadoPorMes, anio, mode };
+  const ctx: ExpandCtx = { expanded, toggle, isExpanded, centro, rows: rows ?? [], cogsEstimadoPorMes, anio, mode, verPct };
 
   const ExpandControls = () => (
     <div className="flex gap-2">
@@ -131,6 +133,7 @@ function GyPPage() {
           <div><Label className="text-xs">Centro de costo</Label><Select value={centro} onValueChange={setCentro}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Consolidado">Consolidado</SelectItem>{CENTROS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
           <div className="flex items-center gap-2"><Switch checked={incluirOff} onCheckedChange={setIncluirOff} id="off" /><Label htmlFor="off" className="text-xs">Incluir off-balance</Label></div>
           <div className="flex items-center gap-2"><Switch checked={incluirIva} onCheckedChange={setIncluirIva} id="iva" /><Label htmlFor="iva" className="text-xs">Incluir Ingresos IVA</Label></div>
+          <div className="flex items-center gap-2"><Switch checked={verPct} onCheckedChange={setVerPct} id="verpct" /><Label htmlFor="verpct" className="text-xs">Ver en %</Label></div>
         </CardContent>
       </Card>
 
@@ -283,18 +286,18 @@ function ReporteMes({ rows, cuentas, mes, ctx }: { rows: Row[]; cuentas: Cuenta[
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
         <Total label="TOTAL INGRESOS" value={totalIng} positive indexRef={indexRef} seleccion={seleccion} />
         <Seccion titulo="COGS" grupos={cogs} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
-        <Total label="TOTAL COGS" value={-totalCogs} indexRef={indexRef} seleccion={seleccion} />
-        <Total label={`MARGEN BRUTO · ${totalIng ? ((mb/totalIng)*100).toFixed(1) : "0"}%`} value={mb} bold indexRef={indexRef} seleccion={seleccion} />
+        <Total label="TOTAL COGS" value={-totalCogs} totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
+        <Total label="MARGEN BRUTO" value={mb} bold totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
         <Seccion titulo="Gastos operativos" grupos={op} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
-        <Total label="TOTAL GASTOS OPERATIVOS" value={-totalOp} indexRef={indexRef} seleccion={seleccion} />
-        <Total label={`UTILIDAD OPERATIVA · ${totalIng ? ((uo/totalIng)*100).toFixed(1) : "0"}%`} value={uo} bold indexRef={indexRef} seleccion={seleccion} />
+        <Total label="TOTAL GASTOS OPERATIVOS" value={-totalOp} totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
+        <Total label="UTILIDAD OPERATIVA" value={uo} bold totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
         {imp.length > 0 && (
           <>
             <Seccion titulo="Impuestos" grupos={imp} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
-            <Total label="TOTAL IMPUESTOS" value={-totalImp} indexRef={indexRef} seleccion={seleccion} />
+            <Total label="TOTAL IMPUESTOS" value={-totalImp} totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
           </>
         )}
-        <Total label={`UTILIDAD / PÉRDIDA NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big indexRef={indexRef} seleccion={seleccion} />
+        <Total label="UTILIDAD / PÉRDIDA NETA" value={ut} bold big totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
       </CardContent>
     </Card>
     {seleccion.selection.count > 0 && (
@@ -350,16 +353,16 @@ function ReporteYTD({ rows, cuentas, hastaMes, ctx }: { rows: Row[]; cuentas: Cu
         <Seccion titulo="Ingresos" grupos={ing} totalIng={totalIng} ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
         <Total label="TOTAL INGRESOS" value={totalIng} positive indexRef={indexRef} seleccion={seleccion} />
         <Seccion titulo="COGS" grupos={cogs} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
-        <Total label={`MARGEN BRUTO · ${totalIng ? ((mb/totalIng)*100).toFixed(1) : "0"}%`} value={mb} bold indexRef={indexRef} seleccion={seleccion} />
+        <Total label="MARGEN BRUTO" value={mb} bold totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
         <Seccion titulo="Gastos operativos" grupos={op} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
-        <Total label={`UTILIDAD OPERATIVA · ${totalIng ? ((uo/totalIng)*100).toFixed(1) : "0"}%`} value={uo} bold indexRef={indexRef} seleccion={seleccion} />
+        <Total label="UTILIDAD OPERATIVA" value={uo} bold totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
         {imp.length > 0 && (
           <>
             <Seccion titulo="Impuestos" grupos={imp} totalIng={totalIng} negativo ctx={ctx} sumFn={sumFn} indexRef={indexRef} seleccion={seleccion} />
-            <Total label="TOTAL IMPUESTOS" value={-totalImp} indexRef={indexRef} seleccion={seleccion} />
+            <Total label="TOTAL IMPUESTOS" value={-totalImp} totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
           </>
         )}
-        <Total label={`UTILIDAD NETA · ${totalIng ? ((ut/totalIng)*100).toFixed(1) : "0"}%`} value={ut} bold big indexRef={indexRef} seleccion={seleccion} />
+        <Total label="UTILIDAD NETA" value={ut} bold big totalIng={totalIng} verPct={ctx.verPct} indexRef={indexRef} seleccion={seleccion} />
       </CardContent>
     </Card>
     {seleccion.selection.count > 0 && (
@@ -422,11 +425,11 @@ function Seccion({ titulo, grupos, totalIng, negativo, ctx, sumFn, indexRef, sel
                 {g.grupo}
               </button>
               <span className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground mono">{pctIng(g.subtotal, totalIng)}</span>
+                <span className={ctx.verPct ? "font-semibold mono" : "text-xs text-muted-foreground mono"}>{pctIng(g.subtotal, totalIng)}</span>
                 <span
                   onMouseDown={seleccion.startSelection(rGrupo, 0)}
                   onMouseEnter={seleccion.overSelection(rGrupo, 0)}
-                  className={`mono font-medium cursor-cell rounded px-1 ${negativo || g.subtotal < 0 ? "negative" : "positive"} ${seleccion.isSelected(rGrupo, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+                  className={`mono cursor-cell rounded px-1 ${ctx.verPct ? "text-xs text-muted-foreground font-normal" : "font-medium"} ${negativo || g.subtotal < 0 ? "negative" : "positive"} ${seleccion.isSelected(rGrupo, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
                 >
                   {fmtSigned(g.subtotal, negativo)}
                 </span>
@@ -481,11 +484,11 @@ function CuentaRow({ cuenta, total, totalIng, negativo, ctx, sumFn, single, inde
           <span>{cuenta.nombre}</span>
         </span>
         <span className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground mono">{pctIng(total, totalIng)}</span>
+          <span className={ctx.verPct ? "font-medium mono" : "text-xs text-muted-foreground mono"}>{pctIng(total, totalIng)}</span>
           <span
             onMouseDown={seleccion.startSelection(r, 0)}
             onMouseEnter={seleccion.overSelection(r, 0)}
-            className={`mono cursor-cell rounded px-1 ${negativo ? "negative" : ""} ${seleccion.isSelected(r, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+            className={`mono cursor-cell rounded px-1 ${ctx.verPct ? "text-xs text-muted-foreground" : ""} ${negativo ? "negative" : ""} ${seleccion.isSelected(r, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
           >
             {fmtSigned(total, negativo)}
           </span>
@@ -696,22 +699,38 @@ function ReporteComparativo({ rows, cuentas, ctx }: { rows: Row[]; cuentas: Cuen
   );
 }
 
-function Total({ label, value, positive: _positive, bold, big, indexRef, seleccion }: {
+function Total({ label, value, positive: _positive, bold, big, indexRef, seleccion, totalIng, verPct }: {
   label: string; value: number; positive?: boolean; bold?: boolean; big?: boolean;
   indexRef: { current: number };
   seleccion: ReturnType<typeof useExcelCellSelection>;
+  /** Si se pasa, se muestra el % de este total vs. totalIng (igual criterio
+   * que pctIng en Seccion/CuentaRow). Se omite en TOTAL INGRESOS porque ahí
+   * siempre daría 100%, sin información nueva. */
+  totalIng?: number;
+  /** Cuando está en true (toggle "Ver en %"), el % pasa a ser el valor
+   * grande/destacado y el monto en $ pasa a texto pequeño secundario -- al
+   * revés de la vista normal. La selección tipo Excel se queda siempre
+   * sobre el span de $ (ahí vive el valor real que suma/promedia), solo
+   * cambia el estilo visual. */
+  verPct?: boolean;
 }) {
   indexRef.current++;
   const r = indexRef.current;
+  const pctStr = totalIng ? pctIng(value, totalIng) : "";
   return (
     <div className={`flex justify-between items-center py-2 px-2 border-t-2 ${bold ? "border-foreground bg-muted/30" : ""} ${big ? "text-base font-bold" : "text-sm font-semibold"}`}>
       <span>{label}</span>
-      <span
-        onMouseDown={seleccion.startSelection(r, 0)}
-        onMouseEnter={seleccion.overSelection(r, 0)}
-        className={`mono cursor-cell rounded px-1 ${value >= 0 ? "positive" : "negative"} ${seleccion.isSelected(r, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
-      >
-        {value >= 0 ? fmtUsd(value) : `(${fmtUsd(Math.abs(value)).replace("$ ", "")})`}
+      <span className="flex items-center gap-3">
+        {pctStr && (
+          <span className={`mono ${verPct ? "" : "text-xs font-normal text-muted-foreground"}`}>{pctStr}</span>
+        )}
+        <span
+          onMouseDown={seleccion.startSelection(r, 0)}
+          onMouseEnter={seleccion.overSelection(r, 0)}
+          className={`mono cursor-cell rounded px-1 ${verPct && pctStr ? "text-xs font-normal text-muted-foreground" : ""} ${value >= 0 ? "positive" : "negative"} ${seleccion.isSelected(r, 0) ? "bg-primary/15 outline outline-1 outline-primary/40" : ""}`}
+        >
+          {value >= 0 ? fmtUsd(value) : `(${fmtUsd(Math.abs(value)).replace("$ ", "")})`}
+        </span>
       </span>
     </div>
   );
